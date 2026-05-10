@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SelfDashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sb-logo">
+    <i class="ti ti-server-2"></i>
+    <div class="sb-logo-text">
+      <span id="server-name">SelfDashboard</span>
+      <span class="sb-sub" id="uptime-text">–</span>
+    </div>
+    <button class="icon-btn" id="sb-collapse"><i class="ti ti-layout-sidebar-left-collapse"></i></button>
+  </div>
+
+  <div class="sb-search-wrap">
+    <i class="ti ti-search"></i>
+    <input id="search-input" type="text" placeholder="Suchen…" autocomplete="off">
+    <div id="search-results" class="search-dropdown"></div>
+  </div>
+
+  <nav class="sb-nav">
+    <button class="sb-nav-btn active" data-view="grid"><i class="ti ti-layout-dashboard"></i><span>Dashboard</span></button>
+    <button class="sb-nav-btn" data-view="docker"><i class="ti ti-brand-docker"></i><span>Docker</span></button>
+    <button class="sb-nav-btn" data-view="unraid"><i class="ti ti-server"></i><span>Unraid Server</span></button>
+    <button class="sb-nav-btn" data-view="apps"><i class="ti ti-apps"></i><span>Apps</span></button>
+    <button class="sb-nav-btn" data-view="settings"><i class="ti ti-settings"></i><span>Einstellungen</span></button>
+  </nav>
+
+  <div class="sb-mini-stats">
+    <div class="ms-row"><span><i class="ti ti-cpu"></i><span>CPU</span></span><span id="ms-cpu">–</span></div>
+    <div class="ms-bar"><div id="ms-cpu-bar" class="ms-bar-fill"></div></div>
+    <div class="ms-row"><span><i class="ti ti-device-laptop"></i><span>RAM</span></span><span id="ms-ram">–</span></div>
+    <div class="ms-bar"><div id="ms-ram-bar" class="ms-bar-fill"></div></div>
+    <div class="ms-row"><span><i class="ti ti-temperature"></i><span>Temp</span></span><span id="ms-temp">–</span></div>
+    <div class="ms-row"><span><i class="ti ti-arrow-down"></i><span>↓</span></span><span id="ms-rx" class="c-green">–</span></div>
+    <div class="ms-row"><span><i class="ti ti-arrow-up"></i><span>↑</span></span><span id="ms-tx" class="c-blue">–</span></div>
+  </div>
+
+  <div class="sb-pinned-wrap">
+    <div class="sb-pinned-label">Schnellzugriff</div>
+    <div id="pinned-list"></div>
+    <button class="sb-add-app-btn" id="open-add-app"><i class="ti ti-plus"></i><span>App hinzufügen</span></button>
+  </div>
+
+  <div class="sb-footer">
+    <button class="icon-btn" id="edit-layout-btn" title="Layout bearbeiten"><i class="ti ti-pencil-plus"></i></button>
+    <button class="icon-btn" id="theme-btn" title="Theme"><i class="ti ti-moon"></i></button>
+    <button class="icon-btn" id="lang-btn"  title="Sprache"><i class="ti ti-language"></i></button>
+    <button class="icon-btn" id="refresh-btn" title="Aktualisieren"><i class="ti ti-refresh"></i></button>
+  </div>
+</aside>
+
+<main class="main" id="main">
+  <header class="topbar">
+    <div class="tb-l">
+      <button class="icon-btn" id="mobile-menu"><i class="ti ti-menu-2"></i></button>
+      <h1 id="page-title">Dashboard</h1>
+      <div class="live-pill"><span class="live-dot"></span>Live</div>
+      <div class="edit-mode-badge" id="edit-badge" style="display:none"><i class="ti ti-pencil"></i> Bearbeitungsmodus</div>
+    </div>
+    <div class="tb-r">
+      <select id="server-selector" class="select-sm" style="display:none"></select>
+      <span class="tb-updated" id="last-updated">–</span>
+      <span id="ws-dot" class="ws-dot" title="WebSocket">●</span>
+    </div>
+  </header>
+
+  <!-- ── GRID DASHBOARD ───────────────────────────────────────────────── -->
+  <div class="view active" id="view-grid">
+    <div class="grid-stack" id="main-grid"></div>
+  </div>
+
+  <!-- ── DOCKER ────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-docker">
+    <div class="card full-card">
+      <div class="card-hd">
+        <div class="card-hd-left">
+          <span><i class="ti ti-brand-docker"></i>Container</span>
+          <span class="pill pill-g" id="ct-run-pill">–</span>
+          <span class="pill pill-r" id="ct-stop-pill">–</span>
+        </div>
+        <div class="card-hd-right">
+          <div class="filter-btns" id="ct-filters">
+            <button class="fbtn active" data-f="all">Alle</button>
+            <button class="fbtn" data-f="running">Läuft</button>
+            <button class="fbtn" data-f="exited">Gestoppt</button>
+          </div>
+          <input class="search-sm" id="ct-search" type="text" placeholder="Filter…">
+        </div>
+      </div>
+      <div class="table-scroll"><table class="dt" id="ct-table">
+        <thead><tr><th style="width:130px">Name</th><th style="width:160px">Image</th><th style="width:85px">CPU</th><th style="width:110px">RAM</th><th style="width:110px">Netzwerk</th><th style="width:90px">Block I/O</th><th style="width:50px">PIDs</th><th style="width:110px">Ports</th><th style="width:80px">Status</th><th style="width:120px">Aktionen</th></tr></thead>
+        <tbody id="ct-tbody"></tbody>
+      </table></div>
+      <div id="ct-detail" class="detail-panel" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ── UNRAID MULTI-SERVER ───────────────────────────────────────────── -->
+  <div class="view" id="view-unraid">
+    <div id="unraid-servers-grid"></div>
+  </div>
+
+  <!-- ── APPS ─────────────────────────────────────────────────────────── -->
+  <div class="view" id="view-apps">
+    <div class="card full-card">
+      <div class="card-hd">
+        <span><i class="ti ti-apps"></i>Apps &amp; Dienste</span>
+        <div class="card-hd-right">
+          <select id="app-cat-filter" class="select-sm"><option value="all">Alle</option><option value="media">Medien</option><option value="network">Netzwerk</option><option value="storage">Speicher</option><option value="tools">Tools</option><option value="other">Sonstige</option></select>
+          <button class="btn-primary" id="add-app-btn"><i class="ti ti-plus"></i>App</button>
+        </div>
+      </div>
+      <div class="apps-tile-grid" id="apps-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ──────────────────────────────────────────────────────── -->
+  <div class="view" id="view-settings">
+    <div class="settings-grid" id="settings-grid"></div>
+    <div class="settings-save-row">
+      <button class="btn-primary" id="save-settings-btn"><i class="ti ti-device-floppy"></i>Speichern</button>
+      <span id="save-msg"></span>
+    </div>
+  </div>
+</main>
+
+<!-- ── APP MODAL ─────────────────────────────────────────────────────────── -->
+<div class="modal-bg" id="app-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-hd"><span id="modal-title">App hinzufügen</span><button class="icon-btn" id="modal-close"><i class="ti ti-x"></i></button></div>
+    <input type="hidden" id="edit-app-id">
+    <div class="fg"><label>Name</label><input id="app-name" type="text" placeholder="z.B. Nextcloud"></div>
+    <div class="fg"><label>URL</label><input id="app-url" type="url" placeholder="http://tower:8080"></div>
+    <div class="fg"><label>Kategorie</label><select id="app-cat"><option value="media">Medien</option><option value="network">Netzwerk</option><option value="storage">Speicher</option><option value="tools">Tools</option><option value="other">Sonstige</option></select></div>
+    <div class="fg"><label>Icon</label><div class="icon-picker" id="icon-picker"></div></div>
+    <div class="fg"><label>Farbe</label><div class="color-picker" id="color-picker"></div></div>
+    <div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="app-pinned"> In Schnellzugriff</label></div>
+    <div class="modal-footer"><button class="btn-ghost" id="modal-cancel">Abbrechen</button><button class="btn-primary" id="modal-save">Speichern</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js"></script>
+<script src="js/widgets.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
