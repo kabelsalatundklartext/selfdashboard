@@ -1,0 +1,10 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+data/
+.git
+*.md
+unraid/
+docker-compose.yml
+.env.example
