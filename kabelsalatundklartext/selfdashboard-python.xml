@@ -1,0 +1,232 @@
+<?xml version="1.0"?>
+<Container version="2">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SelfDashboard Python API — System-Stats, Wetter, Kalender
+       Dieser Container MUSS vor selfdashboard (Node) installiert werden.
+       ═══════════════════════════════════════════════════════════════════════ -->
+
+  <Name>selfdashboard-python</Name>
+
+  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard-python:latest</Repository>
+  <Registry>https://ghcr.io/kabelsalatundklartext/selfdashboard-python</Registry>
+
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Shell>sh</Shell>
+
+  <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
+  <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
+  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/kabelsalatundklartext/selfdashboard-python.xml</TemplateURL>
+
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/img/selfdashboard.png</Icon>
+
+  <Category>Tools:System Status:Other</Category>
+
+  <Overview>
+    SelfDashboard Python API — Pflicht-Service für SelfDashboard.
+    Dieser Container liefert: Echtzeit-Systemstatistiken (CPU/RAM/Temperaturen via psutil und hwmon),
+    Disk I/O, Wetter (Open-Meteo kostenlos ODER OpenWeatherMap mit API Key),
+    Kalender-Integration (iCal-URLs und CalDAV), AdGuard Home Statistiken und CrowdSec Bedrohungsdaten.
+    Muss zuerst installiert und gestartet werden, bevor selfdashboard (Node) funktioniert.
+  </Overview>
+
+  <ExtraSearchTerms>dashboard selfdashboard python api system stats weather calendar</ExtraSearchTerms>
+
+  <!-- ══ DATA VOLUME ════════════════════════════════════════════════════════ -->
+  <Config
+    Name="Datenpfad"
+    Target="/data"
+    Default="/mnt/user/appdata/selfdashboard"
+    Mode="rw"
+    Description="Muss denselben Pfad wie der selfdashboard (Node) Container haben."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/selfdashboard</Config>
+
+  <!-- ══ HOST /proc + /sys für System-Stats ════════════════════════════════ -->
+  <Config
+    Name="Host /proc (Systemstatistiken)"
+    Target="/host/proc"
+    Default="/proc"
+    Mode="ro"
+    Description="Zugriff auf /proc des Hosts für CPU-, RAM- und Prozessstatistiken."
+    Type="Path"
+    Display="advanced-hide"
+    Required="true"
+    Mask="false">/proc</Config>
+
+  <Config
+    Name="Host /sys (Temperaturen)"
+    Target="/host/sys"
+    Default="/sys"
+    Mode="ro"
+    Description="Zugriff auf /sys des Hosts für Laufwerks- und CPU-Temperaturen via hwmon."
+    Type="Path"
+    Display="advanced-hide"
+    Required="true"
+    Mask="false">/sys</Config>
+
+  <!-- ══ WETTER ══════════════════════════════════════════════════════════════ -->
+  <Config
+    Name="OpenWeatherMap API Key"
+    Target="OPENWEATHER_KEY"
+    Default=""
+    Mode=""
+    Description="Optionaler API Key für OpenWeatherMap. Kostenlos auf openweathermap.org registrieren. Ohne Key wird Open-Meteo (100% kostenlos) verwendet."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="true"/>
+
+  <!-- ══ ADGUARD ════════════════════════════════════════════════════════════ -->
+  <Config
+    Name="AdGuard URL"
+    Target="ADGUARD_URL"
+    Default=""
+    Mode=""
+    Description="URL zu deiner AdGuard Home Instanz. Beispiel: http://192.168.1.10:3000 — Kein /control Suffix."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"/>
+
+  <Config
+    Name="AdGuard Benutzername"
+    Target="ADGUARD_USER"
+    Default="admin"
+    Mode=""
+    Description="AdGuard Home Benutzername."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">admin</Config>
+
+  <Config
+    Name="AdGuard Passwort"
+    Target="ADGUARD_PASSWORD"
+    Default=""
+    Mode=""
+    Description="AdGuard Home Passwort."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="true"/>
+
+  <!-- ══ CROWDSEC ═══════════════════════════════════════════════════════════ -->
+  <Config
+    Name="CrowdSec Local API URL"
+    Target="CROWDSEC_URL"
+    Default=""
+    Mode=""
+    Description="URL der CrowdSec Local API. Beispiel: http://192.168.1.10:8080 — API Key mit: docker exec crowdsec cscli bouncers add selfdashboard"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"/>
+
+  <Config
+    Name="CrowdSec API Key"
+    Target="CROWDSEC_API_KEY"
+    Default=""
+    Mode=""
+    Description="CrowdSec API Key. Erstellen mit: cscli bouncers add selfdashboard"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="true"/>
+
+  <!-- ══ KALENDER ═══════════════════════════════════════════════════════════ -->
+  <Config
+    Name="iCal URLs (kommagetrennt)"
+    Target="ICAL_URLS"
+    Default=""
+    Mode=""
+    Description="Eine oder mehrere iCal-URLs, kommagetrennt. Funktioniert mit Nextcloud, Google Kalender, Apple iCloud und anderen CalDAV-Diensten mit öffentlicher URL."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false"/>
+
+  <Config
+    Name="CalDAV URL"
+    Target="CALDAV_URL"
+    Default=""
+    Mode=""
+    Description="CalDAV Server URL. Nextcloud Beispiel: https://nextcloud.example.com/remote.php/dav"
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"/>
+
+  <Config
+    Name="CalDAV Benutzername"
+    Target="CALDAV_USER"
+    Default=""
+    Mode=""
+    Description="CalDAV Benutzername (z.B. Nextcloud Login)."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"/>
+
+  <Config
+    Name="CalDAV Passwort"
+    Target="CALDAV_PASSWORD"
+    Default=""
+    Mode=""
+    Description="CalDAV Passwort."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="true"/>
+
+  <!-- ══ TIMEZONE ═══════════════════════════════════════════════════════════ -->
+  <Config
+    Name="Zeitzone"
+    Target="TZ"
+    Default="Europe/Berlin"
+    Mode=""
+    Description="Zeitzone für Kalender und Logs. Beispiele: Europe/Berlin, Europe/Vienna, Europe/Zurich"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">Europe/Berlin</Config>
+
+  <!-- ══ HOST_PROC / HOST_SYS ENV ══════════════════════════════════════════ -->
+  <Config
+    Name="Host /proc Pfad (intern)"
+    Target="HOST_PROC"
+    Default="/host/proc"
+    Mode=""
+    Description="Interner Mount-Pfad für /proc. Nicht ändern."
+    Type="Variable"
+    Display="advanced-hide"
+    Required="false"
+    Mask="false">/host/proc</Config>
+
+  <Config
+    Name="Host /sys Pfad (intern)"
+    Target="HOST_SYS"
+    Default="/host/sys"
+    Mode=""
+    Description="Interner Mount-Pfad für /sys. Nicht ändern."
+    Type="Variable"
+    Display="advanced-hide"
+    Required="false"
+    Mask="false">/host/sys</Config>
+
+  <!-- ══ INTERNAL PORT ══════════════════════════════════════════════════════ -->
+  <Config
+    Name="Interner API-Port"
+    Target="PORT"
+    Default="4001"
+    Mode=""
+    Description="Interner Port des Python FastAPI Servers. Normalerweise nicht ändern."
+    Type="Variable"
+    Display="advanced-hide"
+    Required="false"
+    Mask="false">4001</Config>
+
+</Container>

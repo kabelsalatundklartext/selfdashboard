@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<Container version="2">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SelfDashboard Nginx — Frontend & Reverse Proxy
+       Letzter Container der drei — erst nach Node + Python installieren.
+       ═══════════════════════════════════════════════════════════════════════ -->
+
+  <Name>selfdashboard-nginx</Name>
+
+  <Repository>nginx:1.25-alpine</Repository>
+  <Registry>https://hub.docker.com/r/_/nginx/</Registry>
+
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+
+  <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
+  <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
+  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/kabelsalatundklartext/selfdashboard-nginx.xml</TemplateURL>
+
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/img/selfdashboard.png</Icon>
+  <Category>Tools:System Status:Other</Category>
+
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+
+  <Overview>
+    SelfDashboard Nginx — Frontend-Container und Reverse Proxy für SelfDashboard.
+    Liefert das statische Dashboard-Frontend aus und routet API-Anfragen an die Node.js und Python Services weiter.
+    Muss zuletzt installiert werden (nach selfdashboard-python und selfdashboard).
+    Das eigentliche Dashboard ist über den WebUI-Link erreichbar.
+  </Overview>
+
+  <ExtraSearchTerms>dashboard selfdashboard nginx frontend</ExtraSearchTerms>
+
+  <!-- ══ PORT ═══════════════════════════════════════════════════════════════ -->
+  <Config
+    Name="WebUI Port"
+    Target="80"
+    Default="3000"
+    Mode="tcp"
+    Description="Öffentlicher Port für das Dashboard. Standardmäßig 3000 → http://UNRAID-IP:3000"
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">3000</Config>
+
+  <!-- ══ NGINX CONFIG ═══════════════════════════════════════════════════════ -->
+  <Config
+    Name="Nginx Konfiguration"
+    Target="/etc/nginx/nginx.conf"
+    Default="/mnt/user/appdata/selfdashboard/nginx.conf"
+    Mode="ro"
+    Description="Nginx Konfigurationsdatei. Wird automatisch beim ersten Start aus dem Repository gezogen. Pfad zeigt auf das appdata-Verzeichnis."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/selfdashboard/nginx.conf</Config>
+
+  <!-- ══ FRONTEND FILES ══════════════════════════════════════════════════════ -->
+  <Config
+    Name="Frontend-Dateien"
+    Target="/usr/share/nginx/html"
+    Default="/mnt/user/appdata/selfdashboard/frontend"
+    Mode="ro"
+    Description="Verzeichnis mit den Dashboard-Frontend-Dateien (HTML/CSS/JS). Wird beim ersten Start automatisch eingerichtet."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/selfdashboard/frontend</Config>
+
+</Container>
