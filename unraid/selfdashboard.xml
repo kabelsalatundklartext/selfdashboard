@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>SelfDashboard</Name>
+  <Repository>ghcr.io/yourusername/selfdashboard:latest</Repository>
+  <Registry>https://github.com/yourusername/selfdashboard/pkgs/container/selfdashboard</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/yourusername/selfdashboard/issues</Support>
+  <Project>https://github.com/yourusername/selfdashboard</Project>
+  <Overview>SelfDashboard – A clean, modular, self-hosted dashboard with a plugin system. Add widgets for Unraid, Emby, WireGuard, Nextcloud, Immich, CrowdSec and more.</Overview>
+  <Category>Tools: Status:Stable</Category>
+  <WebUI>http://[IP]:[PORT:3000]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/yourusername/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/yourusername/selfdashboard/main/public/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+
+  <!-- Port -->
+  <Config
+    Name="WebUI Port"
+    Target="3000"
+    Default="3000"
+    Mode="tcp"
+    Description="Port for the SelfDashboard web interface."
+    Type="Port"
+    Display="always"
+    Required="true"
+    Mask="false">3000</Config>
+
+  <!-- Timezone -->
+  <Config
+    Name="Timezone"
+    Target="TZ"
+    Default="Europe/Berlin"
+    Mode=""
+    Description="Your local timezone. Example: Europe/Berlin, America/New_York"
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">Europe/Berlin</Config>
+
+  <!-- Data volume -->
+  <Config
+    Name="Config Storage"
+    Target="/app/data"
+    Default="/mnt/user/appdata/selfdashboard"
+    Mode="rw"
+    Description="Path where SelfDashboard stores its configuration and data."
+    Type="Path"
+    Display="always"
+    Required="true"
+    Mask="false">/mnt/user/appdata/selfdashboard</Config>
+
+  <!-- Plugins volume (optional, for custom plugins) -->
+  <Config
+    Name="Custom Plugins Path"
+    Target="/app/plugins/custom"
+    Default="/mnt/user/appdata/selfdashboard/plugins"
+    Mode="rw"
+    Description="Optional: Mount a folder with your own custom plugins."
+    Type="Path"
+    Display="advanced"
+    Required="false"
+    Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
+
+  <!-- Node ENV -->
+  <Config
+    Name="Node Environment"
+    Target="NODE_ENV"
+    Default="production"
+    Mode=""
+    Description="Node.js environment. Leave as production."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">production</Config>
+
+</Container>
