@@ -223,8 +223,18 @@ export function SettingsModal({ open, onClose }: Props) {
                   {locale === 'de' ? 'Meine Dashboards' : 'My Dashboards'}
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <input
+                    ref={iconInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      if (e.target.files?.[0] && editingDash) {
+                        handleDashIconUpload(e.target.files[0], editingDash)
+                      }
+                    }}
+                  />
                   {dashboards.map((d) => {
-                    const iconRef = useRef<HTMLInputElement>(null)
                     return (
                       <div key={d.id}>
                         {editingDash === d.id ? (
@@ -243,12 +253,10 @@ export function SettingsModal({ open, onClose }: Props) {
                                     </button>
                                   ))}
                                 </div>
-                                <button onClick={() => iconRef.current?.click()}
+                                <button onClick={() => { setEditingDash(d.id); setTimeout(() => iconInputRef.current?.click(), 0) }}
                                   style={{ fontSize: '11px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <Upload size={11} /> {locale === 'de' ? 'PNG hochladen' : 'Upload PNG'}
                                 </button>
-                                <input ref={iconRef} type="file" accept="image/*" style={{ display: 'none' }}
-                                  onChange={(e) => e.target.files?.[0] && handleDashIconUpload(e.target.files[0], d.id)} />
                               </div>
                             </div>
                             <input value={d.name} onChange={(e) => updateDashboard(d.id, { name: e.target.value })}
