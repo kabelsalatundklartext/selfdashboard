@@ -337,7 +337,7 @@ registerPlugin(meta, { Widget })
 
 ## Lizenz
 
-**MIT-Lizenz**
+**MIT-Lizenz** 
 
 | | |
 |---|---|
