@@ -15,16 +15,17 @@ interface Props {
 export function WidgetWrapper({ instance, editMode }: Props) {
   const [hovering, setHovering] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
-  const { theme, removePlugin } = useDashboardStore()
+  const { activeDashboard, removePlugin } = useDashboardStore()
+  const dash = activeDashboard()
   const registered = pluginRegistry.get(instance.pluginId)
 
   if (!registered) {
     return (
-      <div className="widget-panel items-center justify-center text-center h-full">
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+      <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
           Plugin <strong>{instance.pluginId}</strong> not found
         </p>
-        <button className="btn-ghost mt-2 text-xs" onClick={() => removePlugin(instance.instanceId)}>
+        <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>
           Remove
         </button>
       </div>
@@ -38,81 +39,64 @@ export function WidgetWrapper({ instance, editMode }: Props) {
     <>
       <div
         className="widget-panel h-full"
+        style={{ position: 'relative' }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
         {/* Edit mode dashed border */}
         {editMode && (
-          <div
-            className="absolute inset-0 z-10 pointer-events-none rounded-[14px]"
-            style={{
-              border: '2px dashed var(--accent)',
-              opacity: hovering ? 1 : 0.4,
-              transition: 'opacity 0.2s',
-            }}
-          />
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '14px', pointerEvents: 'none',
+            border: `2px dashed var(--accent)`,
+            opacity: hovering ? 0.8 : 0.3,
+            transition: 'opacity 0.2s', zIndex: 10,
+          }} />
         )}
 
-        {/* Drag handle */}
+        {/* Drag handle — only in edit mode */}
         {editMode && (
           <div
-            className="drag-handle absolute top-2 left-2 z-20 flex items-center gap-1 rounded-md px-2 py-1 cursor-grab active:cursor-grabbing"
+            className="drag-handle"
             style={{
-              background: 'var(--accent)',
-              opacity: hovering ? 1 : 0.6,
-              transition: 'opacity 0.2s',
+              position: 'absolute', top: '8px', left: '8px', zIndex: 20,
+              display: 'flex', alignItems: 'center', gap: '4px',
+              background: 'var(--accent)', borderRadius: '6px', padding: '3px 6px',
+              cursor: 'grab', opacity: hovering ? 1 : 0.5, transition: 'opacity 0.2s',
             }}
           >
             <GripVertical size={12} color="#fff" />
           </div>
         )}
 
-        {/* Controls — top right */}
-        {(hovering || editMode) && (
-          <div className="absolute top-2 right-2 z-20 flex gap-1">
-            {/* Settings button — always shown on hover if plugin has settings */}
+        {/* Controls top-right — only in edit mode */}
+        {editMode && hovering && (
+          <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 20, display: 'flex', gap: '4px' }}>
             {hasSettings && (
               <button
-                className="rounded-md p-1.5 transition-all"
-                style={{
-                  background: 'var(--surface-2)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text-muted)',
-                }}
-                title="Plugin settings"
                 onClick={() => setConfigOpen(true)}
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+                title="Einstellungen"
               >
                 <Settings size={13} />
               </button>
             )}
-            {/* Remove */}
             <button
-              className="rounded-md p-1.5 transition-all"
-              style={{
-                background: 'var(--surface-2)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-muted)',
-              }}
-              title="Remove widget"
               onClick={() => removePlugin(instance.instanceId)}
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
+              title="Entfernen"
             >
               <X size={13} />
             </button>
           </div>
         )}
 
-        {/* Plugin widget content */}
-        <div className={editMode ? 'pointer-events-none select-none mt-6 h-full' : 'h-full'}>
-          <Widget instanceId={instance.instanceId} config={instance.config} theme={theme} />
+        {/* Plugin content */}
+        <div style={editMode ? { pointerEvents: 'none', userSelect: 'none', paddingTop: '28px', height: '100%' } : { height: '100%' }}>
+          <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
         </div>
       </div>
 
-      {/* Config Modal */}
-      <PluginConfigModal
-        instance={instance}
-        open={configOpen}
-        onClose={() => setConfigOpen(false)}
-      />
+      <PluginConfigModal instance={instance} open={configOpen} onClose={() => setConfigOpen(false)} />
     </>
   )
 }

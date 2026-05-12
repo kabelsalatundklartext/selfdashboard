@@ -14,7 +14,8 @@ interface Props { open: boolean; onClose: () => void }
 export function PluginStoreModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
   const [added, setAdded] = useState<Set<string>>(new Set())
-  const { addPlugin, plugins: existingPlugins, locale } = useDashboardStore()
+  const { addPlugin, activeDashboard, locale } = useDashboardStore()
+  const existingPlugins = activeDashboard().plugins
 
   if (!open) return null
 

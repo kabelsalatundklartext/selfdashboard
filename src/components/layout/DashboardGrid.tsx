@@ -13,7 +13,9 @@ const COLS = 12
 const ROW_HEIGHT = 60
 
 export function DashboardGrid() {
-  const { plugins, editMode, locale, updatePluginLayout } = useDashboardStore()
+  const { activeDashboard, editMode, locale, updatePluginLayout } = useDashboardStore()
+  const dash = activeDashboard()
+  const plugins = dash.plugins
   const [containerWidth, setContainerWidth] = useState(1200)
 
   useEffect(() => {
@@ -26,12 +28,7 @@ export function DashboardGrid() {
   const handleLayoutChange = useCallback(
     (layout: Layout[]) => {
       layout.forEach((item) => {
-        updatePluginLayout(item.i, {
-          x: item.x,
-          y: item.y,
-          w: item.w,
-          h: item.h,
-        })
+        updatePluginLayout(item.i, { x: item.x, y: item.y, w: item.w, h: item.h })
       })
     },
     [updatePluginLayout]
@@ -39,20 +36,14 @@ export function DashboardGrid() {
 
   if (plugins.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 animate-fade-in">
-        <div
-          className="flex h-20 w-20 items-center justify-center rounded-2xl"
-          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-        >
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '16px' }}
+        className="animate-fade-in">
+        <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <LayoutGrid size={36} style={{ color: 'var(--accent)' }} />
         </div>
-        <div className="text-center">
-          <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>
-            {t(locale, 'noWidgets')}
-          </p>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            {t(locale, 'noWidgetsHint')}
-          </p>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>{t(locale, 'noWidgets')}</p>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '6px' }}>{t(locale, 'noWidgetsHint')}</p>
         </div>
       </div>
     )
@@ -64,22 +55,13 @@ export function DashboardGrid() {
     y: p.layout?.y ?? Infinity,
     w: p.layout?.w ?? 4,
     h: p.layout?.h ?? 4,
-    minW: p.layout?.minW ?? 2,
-    minH: p.layout?.minH ?? 2,
+    minW: 2, minH: 2,
   }))
 
   return (
-    <div className="p-6 animate-fade-in">
-      {/* Edit mode indicator */}
+    <div style={{ padding: '24px' }} className="animate-fade-in">
       {editMode && (
-        <div
-          className="mb-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
-          style={{
-            background: 'var(--accent)22',
-            border: '1px solid var(--accent)44',
-            color: 'var(--accent)',
-          }}
-        >
+        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
           <span>✏️</span>
           <span>{t(locale, 'editModeHint')}</span>
         </div>
@@ -106,18 +88,18 @@ export function DashboardGrid() {
         ))}
       </GridLayout>
 
-      {/* Grid overlay hint in edit mode */}
       <style>{`
         .react-grid-item.react-grid-placeholder {
           background: var(--accent) !important;
-          opacity: 0.15 !important;
-          border-radius: 12px !important;
+          opacity: 0.12 !important;
+          border-radius: 14px !important;
+        }
+        .react-resizable-handle {
+          opacity: ${editMode ? '0.6' : '0'} !important;
+          transition: opacity 0.2s;
         }
         .react-resizable-handle::after {
           border-color: var(--accent) !important;
-        }
-        .react-resizable-handle {
-          opacity: ${editMode ? '1' : '0'};
         }
       `}</style>
     </div>

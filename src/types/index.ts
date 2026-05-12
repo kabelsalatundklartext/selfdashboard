@@ -1,7 +1,3 @@
-// ============================================================
-// SelfDashboard – Core Types
-// ============================================================
-
 export type ThemeId = 'dark' | 'light' | 'nord' | 'catppuccin' | 'dracula' | 'solarized'
 
 export interface Theme {
@@ -18,32 +14,18 @@ export interface Theme {
   }
 }
 
-// ── Plugin System ────────────────────────────────────────────
-
-export type PluginCategory =
-  | 'media'
-  | 'system'
-  | 'network'
-  | 'storage'
-  | 'security'
-  | 'productivity'
-  | 'utility'
+export type PluginCategory = 'media' | 'system' | 'network' | 'storage' | 'security' | 'productivity' | 'utility'
 
 export interface PluginMeta {
-  /** Unique identifier, e.g. "emby" or "com.example.myplugin" */
   id: string
   name: string
   description: string
   version: string
   author: string
   category: PluginCategory
-  /** URL to plugin icon (optional) */
   icon?: string
-  /** Minimum SelfDashboard version required */
   minAppVersion?: string
-  /** URL to plugin homepage / GitHub repo */
   homepage?: string
-  /** Config fields shown in the plugin settings modal */
   configSchema?: PluginConfigField[]
 }
 
@@ -58,12 +40,9 @@ export interface PluginConfigField {
 }
 
 export interface PluginInstance {
-  /** Runtime id of this placed widget (uuid) */
   instanceId: string
   pluginId: string
-  /** User-configured values matching the configSchema */
   config: Record<string, unknown>
-  /** Grid position */
   layout: WidgetLayout
 }
 
@@ -78,11 +57,8 @@ export interface WidgetLayout {
   maxH?: number
 }
 
-// The actual React component a plugin exports
 export interface PluginComponent {
-  // The widget rendered on the dashboard
   Widget: React.ComponentType<PluginWidgetProps>
-  // Optional settings panel rendered in the config modal
   Settings?: React.ComponentType<PluginSettingsProps>
 }
 
@@ -97,11 +73,21 @@ export interface PluginSettingsProps {
   onChange: (key: string, value: unknown) => void
 }
 
-// ── Dashboard State ──────────────────────────────────────────
+// ── Multi-Dashboard ──────────────────────────────────────────
 
-export interface DashboardConfig {
+export interface Dashboard {
+  id: string          // used in URL: /dashboard/[id]
+  name: string
+  icon: string        // emoji
   theme: ThemeId
-  title: string
-  backgroundImage?: string
+  customColors?: Record<string, string>
+  customLogo?: string
   plugins: PluginInstance[]
+}
+
+export interface AppState {
+  dashboards: Dashboard[]
+  activeDashboardId: string
+  locale: 'en' | 'de'
+  editMode: boolean
 }

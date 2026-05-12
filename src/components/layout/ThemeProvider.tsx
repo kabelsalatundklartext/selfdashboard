@@ -5,23 +5,22 @@ import { useDashboardStore } from '@/lib/store'
 import { getTheme } from '@/lib/themes'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { theme, customColors } = useDashboardStore()
+  const { activeDashboard } = useDashboardStore()
+  const dash = activeDashboard()
 
   useEffect(() => {
-    const t = getTheme(theme)
+    const t = getTheme(dash.theme)
     const root = document.documentElement
-    root.setAttribute('data-theme', theme)
-    // Apply base theme
+    root.setAttribute('data-theme', dash.theme)
     Object.entries(t.colors).forEach(([key, val]) => {
       root.style.setProperty(`--${key}`, val)
     })
-    // Override with custom colors if set
-    if (customColors) {
-      Object.entries(customColors).forEach(([key, val]) => {
+    if (dash.customColors) {
+      Object.entries(dash.customColors).forEach(([key, val]) => {
         if (val) root.style.setProperty(`--${key}`, val)
       })
     }
-  }, [theme, customColors])
+  }, [dash.theme, dash.customColors])
 
   return <>{children}</>
 }
