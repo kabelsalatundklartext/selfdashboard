@@ -29,17 +29,16 @@ const COLOR_FIELDS = [
 type TabId = 'general' | 'design'
 
 export function SettingsModal({ open, onClose }: Props) {
-  const {
-    theme, setTheme, title, setTitle, locale, setLocale,
-    customLogo, setCustomLogo, customColors, setCustomColors, resetCustomColors,
-  } = useDashboardStore()
+  const store = useDashboardStore()
+  const { locale, setLocale, setTheme, setTitle, setCustomLogo, setCustomColors, resetCustomColors } = store
+  const dash = store.activeDashboard()
 
   const [tab, setTab] = useState<TabId>('general')
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   if (!open) return null
 
-  const currentTheme = themes.find((t) => t.id === theme)
+  const currentTheme = themes.find((th) => th.id === dash.theme)
 
   const handleLogoUpload = (file: File) => {
     const reader = new FileReader()
@@ -49,7 +48,7 @@ export function SettingsModal({ open, onClose }: Props) {
 
   const TABS = [
     { id: 'general' as TabId, label: locale === 'de' ? 'Allgemein' : 'General' },
-    { id: 'design' as TabId, label: locale === 'de' ? 'Design' : 'Design' },
+    { id: 'design' as TabId, label: 'Design' },
   ]
 
   const inputStyle: React.CSSProperties = {
@@ -80,13 +79,12 @@ export function SettingsModal({ open, onClose }: Props) {
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '4px', padding: '12px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
             {TABS.map((tb) => (
-              <button key={tb.id} onClick={() => setTab(tb.id)}
-                style={{
-                  padding: '6px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
-                  background: tab === tb.id ? 'var(--accent)' : 'transparent',
-                  color: tab === tb.id ? '#fff' : 'var(--text-muted)',
-                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                }}>
+              <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+                padding: '6px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
+                background: tab === tb.id ? 'var(--accent)' : 'transparent',
+                color: tab === tb.id ? '#fff' : 'var(--text-muted)',
+                border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+              }}>
                 {tb.label}
               </button>
             ))}
@@ -97,33 +95,30 @@ export function SettingsModal({ open, onClose }: Props) {
 
             {/* ── General ── */}
             {tab === 'general' && (<>
-              {/* Language */}
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
                   {t(locale, 'language')}
                 </label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {LOCALES.map((l) => (
-                    <button key={l.id} onClick={() => setLocale(l.id)}
-                      style={{
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                        padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-                        background: locale === l.id ? 'var(--accent)' : 'var(--surface-2)',
-                        color: locale === l.id ? '#fff' : 'var(--text)',
-                        border: `1px solid ${locale === l.id ? 'var(--accent)' : 'var(--border)'}`,
-                      }}>
+                    <button key={l.id} onClick={() => setLocale(l.id)} style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+                      background: locale === l.id ? 'var(--accent)' : 'var(--surface-2)',
+                      color: locale === l.id ? '#fff' : 'var(--text)',
+                      border: `1px solid ${locale === l.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}>
                       <span style={{ fontSize: '18px' }}>{l.flag}</span>{l.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Title */}
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
                   {t(locale, 'dashboardTitle')}
                 </label>
-                <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} />
+                <input style={inputStyle} value={dash.name} onChange={(e) => setTitle(e.target.value)} />
               </div>
 
               <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)', marginTop: 'auto' }}>
@@ -140,8 +135,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {customLogo ? (
-                      <img src={customLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    {dash.customLogo ? (
+                      <img src={dash.customLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       <svg width="30" height="30" viewBox="0 0 96 96" fill="none">
                         <rect width="96" height="96" rx="24" fill="var(--accent)"/>
@@ -157,16 +152,13 @@ export function SettingsModal({ open, onClose }: Props) {
                     <button className="btn-ghost" style={{ flex: 1, fontSize: '13px' }} onClick={() => logoInputRef.current?.click()}>
                       <Upload size={14} /> {locale === 'de' ? 'Hochladen' : 'Upload'}
                     </button>
-                    {customLogo && (
+                    {dash.customLogo && (
                       <button className="btn-ghost" style={{ padding: '0.5rem' }} onClick={() => setCustomLogo('')}><X size={14} /></button>
                     )}
                   </div>
                   <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }}
                     onChange={(e) => e.target.files?.[0] && handleLogoUpload(e.target.files[0])} />
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                  PNG, JPG, SVG · {locale === 'de' ? 'Empfohlen: 96×96px' : 'Recommended: 96×96px'}
-                </p>
               </div>
 
               {/* Theme Picker */}
@@ -176,21 +168,20 @@ export function SettingsModal({ open, onClose }: Props) {
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   {themes.map((th) => (
-                    <button key={th.id} onClick={() => { setTheme(th.id as ThemeId); resetCustomColors() }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '10px',
-                        padding: '10px 14px', borderRadius: '12px', cursor: 'pointer',
-                        background: th.colors.surface,
-                        border: `1px solid ${theme === th.id ? th.colors.accent : th.colors.border}`,
-                        boxShadow: theme === th.id ? `0 0 0 2px ${th.colors.accent}44` : 'none',
-                      }}>
+                    <button key={th.id} onClick={() => { setTheme(th.id as ThemeId); resetCustomColors() }} style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 14px', borderRadius: '12px', cursor: 'pointer',
+                      background: th.colors.surface,
+                      border: `1px solid ${dash.theme === th.id ? th.colors.accent : th.colors.border}`,
+                      boxShadow: dash.theme === th.id ? `0 0 0 2px ${th.colors.accent}44` : 'none',
+                    }}>
                       <div style={{ display: 'flex', gap: '4px' }}>
                         {[th.colors.accent, th.colors['surface-2'], th.colors.border].map((c, i) => (
                           <span key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: c, display: 'block' }} />
                         ))}
                       </div>
                       <span style={{ fontSize: '13px', fontWeight: 500, flex: 1, color: th.colors.text }}>{th.name}</span>
-                      {theme === th.id && <Check size={13} style={{ color: th.colors.accent }} />}
+                      {dash.theme === th.id && <Check size={13} style={{ color: th.colors.accent }} />}
                     </button>
                   ))}
                 </div>
@@ -202,7 +193,7 @@ export function SettingsModal({ open, onClose }: Props) {
                   <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
                     {locale === 'de' ? 'Farben anpassen' : 'Custom Colors'}
                   </label>
-                  {customColors && (
+                  {dash.customColors && (
                     <button onClick={resetCustomColors} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
                       <RotateCcw size={11} /> {locale === 'de' ? 'Zurücksetzen' : 'Reset'}
                     </button>
@@ -211,7 +202,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {COLOR_FIELDS.map(({ key, label }) => {
                     const base = currentTheme?.colors[key as keyof typeof currentTheme.colors] ?? '#000000'
-                    const current = customColors?.[key as keyof typeof customColors] ?? base
+                    const current = dash.customColors?.[key] ?? base
                     return (
                       <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <input type="color" value={current}
