@@ -31,24 +31,36 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    // Full screen overlay — always centered, never cut off
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 9999 }}
+    >
+      {/* Backdrop */}
       <div
         className="absolute inset-0"
-        style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+        style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
         onClick={onClose}
       />
+
+      {/* Modal */}
       <div
-        className="relative w-full max-w-md rounded-2xl animate-fade-in flex flex-col"
+        className="relative w-full max-w-md rounded-2xl flex flex-col animate-fade-in"
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           maxHeight: '85vh',
+          zIndex: 1,
+          boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 p-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div
+          className="flex items-center gap-3 px-5 pt-5 pb-4 flex-shrink-0"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-xl flex-shrink-0"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-xl flex-shrink-0"
             style={{ background: 'var(--surface-2)' }}
           >
             {registered.meta.icon ?? '🧩'}
@@ -58,7 +70,7 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
               {registered.meta.name}
             </h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Settings
+              {registered.meta.version} · Settings
             </p>
           </div>
           <button className="btn-ghost p-1.5 flex-shrink-0" onClick={onClose}>
@@ -67,7 +79,7 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
           {SettingsComponent ? (
             <SettingsComponent config={localConfig} onChange={handleChange} />
           ) : (
@@ -80,15 +92,11 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
 
         {/* Footer */}
         <div
-          className="flex gap-2 p-4"
+          className="flex gap-3 px-5 py-4 flex-shrink-0"
           style={{ borderTop: '1px solid var(--border)' }}
         >
-          <button className="btn-ghost flex-1" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn-accent flex-1" onClick={handleSave}>
-            Save
-          </button>
+          <button className="btn-ghost flex-1" onClick={onClose}>Cancel</button>
+          <button className="btn-accent flex-1" onClick={handleSave}>Save</button>
         </div>
       </div>
     </div>

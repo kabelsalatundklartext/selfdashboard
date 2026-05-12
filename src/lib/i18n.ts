@@ -1,22 +1,17 @@
-// ── SelfDashboard i18n ───────────────────────────────────────
 export type Locale = 'en' | 'de'
 
 export const translations = {
   en: {
-    // Navbar
-    addPlugin: '+ Add Plugin',
+    addPlugin: 'Add Plugin',
     settings: 'Settings',
-    // Empty state
     noWidgets: 'No widgets yet',
-    noWidgetsHint: 'Click Add Plugin in the top bar to get started',
-    // Settings Modal
+    noWidgetsHint: 'Click + in the top bar to get started',
     settingsTitle: 'Settings',
     dashboardTitle: 'Dashboard Title',
     colorTheme: 'Color Theme',
     language: 'Language',
     editMode: 'Edit Mode',
     editModeHint: 'Drag & resize widgets',
-    // Plugin Store
     pluginStore: 'Plugin Store',
     pluginsAvailable: 'plugins available',
     searchPlugins: 'Search plugins...',
@@ -24,9 +19,7 @@ export const translations = {
     add: 'Add',
     devHint: 'Developers can create their own plugins —',
     readTheDocs: 'read the docs',
-    // Widget
     removeWidget: 'Remove widget',
-    // Categories
     media: '🎬 Media',
     system: '🖥️ System',
     network: '🌐 Network',
@@ -34,14 +27,18 @@ export const translations = {
     security: '🔒 Security',
     productivity: '📋 Productivity',
     utility: '🔧 Utility',
-    // Version
     version: 'Version',
+    // Plugin names & descriptions
+    bookmarksName: 'App Bookmarks',
+    bookmarksDesc: 'Quick links to your self-hosted services with custom icons.',
+    clockName: 'Clock & Date',
+    clockDesc: 'Displays the current time and date with timezone support.',
   },
   de: {
-    addPlugin: '+ Plugin hinzufügen',
+    addPlugin: 'Plugin hinzufügen',
     settings: 'Einstellungen',
     noWidgets: 'Noch keine Widgets',
-    noWidgetsHint: 'Klicke auf "Plugin hinzufügen" in der oberen Leiste',
+    noWidgetsHint: 'Klicke auf + in der oberen Leiste',
     settingsTitle: 'Einstellungen',
     dashboardTitle: 'Dashboard-Titel',
     colorTheme: 'Farbthema',
@@ -64,6 +61,10 @@ export const translations = {
     productivity: '📋 Produktivität',
     utility: '🔧 Dienstprogramm',
     version: 'Version',
+    bookmarksName: 'App-Lesezeichen',
+    bookmarksDesc: 'Schnelllinks zu deinen selbst gehosteten Diensten mit eigenen Icons.',
+    clockName: 'Uhr & Datum',
+    clockDesc: 'Zeigt die aktuelle Uhrzeit und das Datum mit Zeitzonenunterstützung.',
   },
 } as const
 
