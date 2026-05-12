@@ -1,11 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { DashboardConfig, PluginInstance, ThemeId } from '@/types'
+import type { Locale } from './i18n'
 
 interface DashboardStore extends DashboardConfig {
+  locale: Locale
+  editMode: boolean
   // Actions
   setTheme: (theme: ThemeId) => void
   setTitle: (title: string) => void
+  setLocale: (locale: Locale) => void
+  setEditMode: (editMode: boolean) => void
   addPlugin: (instance: PluginInstance) => void
   removePlugin: (instanceId: string) => void
   updatePluginConfig: (instanceId: string, config: Record<string, unknown>) => void
@@ -18,10 +23,14 @@ export const useDashboardStore = create<DashboardStore>()(
     (set) => ({
       theme: 'dark',
       title: 'SelfDashboard',
+      locale: 'en',
+      editMode: false,
       plugins: [],
 
       setTheme: (theme) => set({ theme }),
       setTitle: (title) => set({ title }),
+      setLocale: (locale) => set({ locale }),
+      setEditMode: (editMode) => set({ editMode }),
 
       addPlugin: (instance) =>
         set((state) => ({ plugins: [...state.plugins, instance] })),
@@ -47,8 +56,6 @@ export const useDashboardStore = create<DashboardStore>()(
 
       reorderPlugins: (plugins) => set({ plugins }),
     }),
-    {
-      name: 'selfdashboard-config',
-    }
+    { name: 'selfdashboard-config' }
   )
 )
