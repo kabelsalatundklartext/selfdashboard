@@ -1,5 +1,6 @@
 import { DashboardPage } from '@/components/layout/DashboardPage'
 
-export default function Page({ params }: { params: { id: string } }) {
-  return <DashboardPage id={params.id} />
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  return <DashboardPage id={id} />
 }
