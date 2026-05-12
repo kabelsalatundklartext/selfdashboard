@@ -5,7 +5,10 @@ import { ThemeProvider } from '@/components/layout/ThemeProvider'
 export const metadata: Metadata = {
   title: 'SelfDashboard',
   description: 'Your modular self-hosted dashboard',
-  icons: { icon: '/favicon.ico' },
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
