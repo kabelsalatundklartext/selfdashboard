@@ -1,11 +1,41 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
+import GridLayout, { Layout } from 'react-grid-layout'
 import { useDashboardStore } from '@/lib/store'
 import { WidgetWrapper } from '@/components/plugins/WidgetWrapper'
 import { LayoutGrid } from 'lucide-react'
+import { t } from '@/lib/i18n'
+import 'react-grid-layout/css/styles.css'
+import 'react-resizable/css/styles.css'
+
+const COLS = 12
+const ROW_HEIGHT = 60
 
 export function DashboardGrid() {
-  const plugins = useDashboardStore((s) => s.plugins)
+  const { plugins, editMode, locale, updatePluginLayout } = useDashboardStore()
+  const [containerWidth, setContainerWidth] = useState(1200)
+
+  useEffect(() => {
+    const update = () => setContainerWidth(window.innerWidth - 48)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  const handleLayoutChange = useCallback(
+    (layout: Layout[]) => {
+      layout.forEach((item) => {
+        updatePluginLayout(item.i, {
+          x: item.x,
+          y: item.y,
+          w: item.w,
+          h: item.h,
+        })
+      })
+    },
+    [updatePluginLayout]
+  )
 
   if (plugins.length === 0) {
     return (
@@ -18,29 +48,78 @@ export function DashboardGrid() {
         </div>
         <div className="text-center">
           <p className="font-semibold text-lg" style={{ color: 'var(--text)' }}>
-            No widgets yet
+            {t(locale, 'noWidgets')}
           </p>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Click <strong>Add Plugin</strong> in the top bar to get started
+            {t(locale, 'noWidgetsHint')}
           </p>
         </div>
       </div>
     )
   }
 
+  const layout: Layout[] = plugins.map((p) => ({
+    i: p.instanceId,
+    x: p.layout?.x ?? 0,
+    y: p.layout?.y ?? Infinity,
+    w: p.layout?.w ?? 4,
+    h: p.layout?.h ?? 4,
+    minW: p.layout?.minW ?? 2,
+    minH: p.layout?.minH ?? 2,
+  }))
+
   return (
-    <div
-      className="grid gap-4 p-6 animate-fade-in"
-      style={{
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-        alignItems: 'start',
-      }}
-    >
-      {plugins.map((instance) => (
-        <div key={instance.instanceId} style={{ minHeight: '160px' }}>
-          <WidgetWrapper instance={instance} />
+    <div className="p-6 animate-fade-in">
+      {/* Edit mode indicator */}
+      {editMode && (
+        <div
+          className="mb-4 flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
+          style={{
+            background: 'var(--accent)22',
+            border: '1px solid var(--accent)44',
+            color: 'var(--accent)',
+          }}
+        >
+          <span>✏️</span>
+          <span>{t(locale, 'editModeHint')}</span>
         </div>
-      ))}
+      )}
+
+      <GridLayout
+        className="layout"
+        layout={layout}
+        cols={COLS}
+        rowHeight={ROW_HEIGHT}
+        width={containerWidth}
+        isDraggable={editMode}
+        isResizable={editMode}
+        onLayoutChange={handleLayoutChange}
+        margin={[16, 16]}
+        containerPadding={[0, 0]}
+        draggableHandle=".drag-handle"
+        resizeHandles={['se']}
+      >
+        {plugins.map((instance) => (
+          <div key={instance.instanceId}>
+            <WidgetWrapper instance={instance} editMode={editMode} />
+          </div>
+        ))}
+      </GridLayout>
+
+      {/* Grid overlay hint in edit mode */}
+      <style>{`
+        .react-grid-item.react-grid-placeholder {
+          background: var(--accent) !important;
+          opacity: 0.15 !important;
+          border-radius: 12px !important;
+        }
+        .react-resizable-handle::after {
+          border-color: var(--accent) !important;
+        }
+        .react-resizable-handle {
+          opacity: ${editMode ? '1' : '0'};
+        }
+      `}</style>
     </div>
   )
 }
