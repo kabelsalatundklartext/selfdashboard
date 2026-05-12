@@ -1,0 +1,11 @@
+<svg width="480" height="80" viewBox="0 0 480 80" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="72" height="72" rx="20" fill="#6366f1"/>
+  <rect x="11" y="11" width="28" height="28" rx="6" fill="white"/>
+  <rect x="43" y="11" width="21" height="13" rx="4" fill="white" opacity="0.75"/>
+  <rect x="43" y="27" width="21" height="13" rx="4" fill="white" opacity="0.45"/>
+  <rect x="11" y="43" width="13" height="21" rx="4" fill="white" opacity="0.5"/>
+  <rect x="28" y="43" width="36" height="21" rx="4" fill="white" opacity="0.9"/>
+  <rect x="84" y="10" width="7" height="52" rx="3.5" fill="#818cf8"/>
+  <text x="102" y="46" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="800" letter-spacing="-2" fill="#e8eaf0">Self<tspan fill="#818cf8">Dashboard</tspan></text>
+  <text x="103" y="63" font-family="system-ui,-apple-system,sans-serif" font-size="10" fill="#4b5563" letter-spacing="3">YOUR MODULAR HOME DASHBOARD</text>
+</svg>
