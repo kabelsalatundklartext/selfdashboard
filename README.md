@@ -1,15 +1,21 @@
-# SelfDashboard
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/logo.svg" alt="SelfDashboard" height="80"/>
+</p>
 
-![SelfDashboard](https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/logo.png)
+<p align="center">
+  <a href="#english">🇬🇧 English</a> &nbsp;|&nbsp; <a href="#deutsch">🇩🇪 Deutsch</a>
+</p>
 
-[🇬🇧 English](#english) | [🇩🇪 Deutsch](#deutsch)
-
-[![license](https://img.shields.io/badge/license-MIT-00ff88?style=flat-square)](LICENSE)
-[![docker](https://img.shields.io/badge/docker-ghcr.io-2496ED?style=flat-square&logo=docker)](https://github.com/kabelsalatundklartext/selfdashboard/pkgs/container/selfdashboard)
-[![nextjs](https://img.shields.io/badge/next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org)
-[![platform](https://img.shields.io/badge/platform-Unraid%20%7C%20Docker-orange?style=flat-square)](https://unraid.net)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-00ff88?style=flat-square" alt="license"/>
+  <img src="https://img.shields.io/badge/docker-ghcr.io-2496ED?style=flat-square&logo=docker" alt="docker"/>
+  <img src="https://img.shields.io/badge/next.js-15-black?style=flat-square&logo=next.js" alt="nextjs"/>
+  <img src="https://img.shields.io/badge/platform-Unraid%20%7C%20Docker-orange?style=flat-square" alt="platform"/>
+</p>
 
 ---
+
+
 
 # 🇬🇧 English
 
