@@ -13,7 +13,7 @@ const COLS = 12
 const ROW_HEIGHT = 60
 
 export function DashboardGrid() {
-  const { activeDashboard, editMode, locale, updatePluginLayout } = useDashboardStore()
+  const { activeDashboard, editMode, locale, updatePluginLayout, dashboardZoom } = useDashboardStore()
   const dash = activeDashboard()
   const plugins = dash.plugins
   const [containerWidth, setContainerWidth] = useState(1200)
@@ -59,49 +59,57 @@ export function DashboardGrid() {
   }))
 
   return (
-    <div style={{ padding: '24px' }} className="animate-fade-in">
-      {editMode && (
-        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
-          <span>✏️</span>
-          <span>{t(locale, 'editModeHint')}</span>
-        </div>
-      )}
-
-      <GridLayout
-        className="layout"
-        layout={layout}
-        cols={COLS}
-        rowHeight={ROW_HEIGHT}
-        width={containerWidth}
-        isDraggable={editMode}
-        isResizable={editMode}
-        onLayoutChange={handleLayoutChange}
-        margin={[16, 16]}
-        containerPadding={[0, 0]}
-        draggableHandle=".drag-handle"
-        resizeHandles={['se']}
-      >
-        {plugins.map((instance) => (
-          <div key={instance.instanceId}>
-            <WidgetWrapper instance={instance} editMode={editMode} />
+    // Zoom wrapper — scales the whole grid
+    <div style={{
+      transformOrigin: 'top left',
+      transform: `scale(${dashboardZoom})`,
+      width: dashboardZoom !== 1 ? `${100 / dashboardZoom}%` : '100%',
+      transition: 'transform 0.2s ease',
+    }}>
+      <div style={{ padding: '24px' }} className="animate-fade-in">
+        {editMode && (
+          <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
+            <span>✏️</span>
+            <span>{t(locale, 'editModeHint')}</span>
           </div>
-        ))}
-      </GridLayout>
+        )}
 
-      <style>{`
-        .react-grid-item.react-grid-placeholder {
-          background: var(--accent) !important;
-          opacity: 0.12 !important;
-          border-radius: 14px !important;
-        }
-        .react-resizable-handle {
-          opacity: ${editMode ? '0.6' : '0'} !important;
-          transition: opacity 0.2s;
-        }
-        .react-resizable-handle::after {
-          border-color: var(--accent) !important;
-        }
-      `}</style>
+        <GridLayout
+          className="layout"
+          layout={layout}
+          cols={COLS}
+          rowHeight={ROW_HEIGHT}
+          width={containerWidth}
+          isDraggable={editMode}
+          isResizable={editMode}
+          onLayoutChange={handleLayoutChange}
+          margin={[16, 16]}
+          containerPadding={[0, 0]}
+          draggableHandle=".drag-handle"
+          resizeHandles={['se']}
+        >
+          {plugins.map((instance) => (
+            <div key={instance.instanceId}>
+              <WidgetWrapper instance={instance} editMode={editMode} />
+            </div>
+          ))}
+        </GridLayout>
+
+        <style>{`
+          .react-grid-item.react-grid-placeholder {
+            background: var(--accent) !important;
+            opacity: 0.12 !important;
+            border-radius: 14px !important;
+          }
+          .react-resizable-handle {
+            opacity: ${editMode ? '0.6' : '0'} !important;
+            transition: opacity 0.2s;
+          }
+          .react-resizable-handle::after {
+            border-color: var(--accent) !important;
+          }
+        `}</style>
+      </div>
     </div>
   )
 }

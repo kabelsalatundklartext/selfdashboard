@@ -82,6 +82,7 @@ export interface Dashboard {
   theme: ThemeId
   customColors?: Record<string, string>
   customLogo?: string
+  customIcon?: string  // base64 PNG for tab icon
   plugins: PluginInstance[]
 }
 
