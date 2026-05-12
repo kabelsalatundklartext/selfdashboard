@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  selfdashboard:
+    image: ghcr.io/yourusername/selfdashboard:latest
+    container_name: selfdashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Berlin
+    volumes:
+      # Persist dashboard config across container restarts
+      - selfdashboard-data:/app/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+volumes:
+  selfdashboard-data:
