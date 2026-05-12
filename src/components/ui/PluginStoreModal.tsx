@@ -5,6 +5,7 @@ import { X, Plus, Check, Search } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
+import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 
@@ -47,7 +48,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <Portal>
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{zIndex: 99999}}>
       <div
         className="absolute inset-0"
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
@@ -156,5 +158,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
