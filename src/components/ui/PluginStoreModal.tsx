@@ -138,7 +138,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                     onClick={() => handleAdd(meta.id)}
                     className="btn-accent"
                   >
-                    {justAdded
+                    {added.has(meta.id)
                       ? <><Check size={14} />{t(locale, 'add')}</>
                       : <><Plus size={14} />{t(locale, 'add')}</>
                     }
