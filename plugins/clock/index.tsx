@@ -67,7 +67,7 @@ function Widget({ config }: PluginWidgetProps) {
   const tzLabel = cityName || tz || ''
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "4px" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "2px" }}>
       <p
         className="tabular-nums tracking-tight"
         style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', fontSize: showSeconds ? '2.5rem' : '3rem', fontWeight: 800 }}

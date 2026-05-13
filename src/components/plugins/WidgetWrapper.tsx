@@ -21,7 +21,7 @@ export function WidgetWrapper({ instance, editMode }: Props) {
 
   // Per-plugin zoom stored in config
   const pluginZoom: number = (instance.config.__zoom as number) ?? 1
-  const pluginPadding: number = (instance.config.__padding as number) ?? 16
+  const pluginPadding: number = (instance.config.__padding as number) ?? 8
   const canZoomIn = pluginZoom < 2
   const canZoomOut = pluginZoom > 0.5
 
@@ -48,7 +48,7 @@ export function WidgetWrapper({ instance, editMode }: Props) {
     <>
       <div
         className="widget-panel h-full"
-        style={{ position: 'relative', overflow: 'hidden', padding: `${pluginPadding}px` }}
+        style={{ position: 'relative', overflow: 'hidden', padding: `${pluginPadding}px`, paddingTop: editMode ? `${Math.max(pluginPadding, 36)}px` : `${pluginPadding}px` }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
