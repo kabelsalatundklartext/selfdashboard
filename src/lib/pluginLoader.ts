@@ -5,6 +5,7 @@ import { registerPlugin } from '@/lib/pluginRegistry'
 
 import * as bookmarks from '../../plugins/bookmarks'
 import * as clock from '../../plugins/clock'
+import * as crowdsecThreatMap from '../../plugins/crowdsec-threat-map'
 import * as docker from '../../plugins/docker'
 import * as emby from '../../plugins/emby'
 import * as adguard from '../../plugins/adguard'
@@ -15,6 +16,7 @@ import * as weather from '../../plugins/weather'
 export function loadBuiltinPlugins() {
   registerPlugin(bookmarks.meta, bookmarks.component)
   registerPlugin(clock.meta, clock.component)
+  registerPlugin(crowdsecThreatMap.meta, crowdsecThreatMap.component)
   registerPlugin(docker.meta, docker.component)
   registerPlugin(emby.meta, emby.component)
   registerPlugin(adguard.meta, adguard.component)
