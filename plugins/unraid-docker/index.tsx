@@ -1,69 +1,82 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Locale } from '@/lib/i18n'
-import { useDashboardStore } from '@/lib/store'
+import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
-import { CONTAINER_ID_RE, type SdContainerStats } from '@/lib/dockerShared'
 
 export const meta: PluginMeta = {
   id: 'unraid-docker',
   name: 'Unraid Docker',
   description:
-    'Docker-Container über die Engine-API auf deinem Unraid-Host (oder anderem Rechner): http(s)://IP:Port, optional TLS „unsicher“ für selbstsigniert. Liste mit CPU/RAM; Start/Stopp/Neustart optional.',
-  version: '0.1.0',
+    'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Liste mit Status; Start / Stopp / Neustart optional (Key mit Docker-Berechtigung).',
+  version: '0.2.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
 }
 
-interface DockerContainer {
-  Id?: string
-  Names?: string[]
-  State?: string
-  Status?: string
-  Image?: string
-  Labels?: Record<string, string>
-  sdStats?: SdContainerStats | null
+const LIST_QUERY = `query SelfDashboardUnraidDocker($skipCache: Boolean!) {
+  docker {
+    id
+    containers(skipCache: $skipCache) {
+      id
+      names
+      state
+      status
+      image
+    }
+  }
+}`
+
+const M_START = `mutation SelfDashboardDockerStart($id: PrefixedID!) {
+  docker { start(id: $id) { id names state } }
+}`
+
+const M_STOP = `mutation SelfDashboardDockerStop($id: PrefixedID!) {
+  docker { stop(id: $id) { id names state } }
+}`
+
+const M_UNPAUSE = `mutation SelfDashboardDockerUnpause($id: PrefixedID!) {
+  docker { unpause(id: $id) { id names state } }
+}`
+
+type ContainerStateGql = 'RUNNING' | 'EXITED' | 'PAUSED' | string
+
+interface GqlContainer {
+  id: string
+  names: string[]
+  state: ContainerStateGql
+  status: string
+  image: string
 }
 
-function dockerContainerId(c: DockerContainer): string {
-  const o = c as Record<string, unknown>
-  const raw = c.Id ?? o.id
-  return typeof raw === 'string' ? raw.trim() : ''
-}
-
-function isDockerRunning(c: DockerContainer): boolean {
-  const o = c as Record<string, unknown>
-  const st = c.State ?? o.state
-  return typeof st === 'string' && st.toLowerCase() === 'running'
-}
-
-function containerName(c: DockerContainer): string {
-  const n = c.Names?.[0] ?? ''
-  const id = dockerContainerId(c)
+function containerName(c: GqlContainer): string {
+  const n = c.names?.[0] ?? ''
+  const id = (c.id ?? '').trim()
   return n.replace(/^\//, '') || (id ? id.slice(0, 12) : '—')
 }
 
-function sortContainers(a: DockerContainer, b: DockerContainer): number {
-  const ar = isDockerRunning(a) ? 0 : 1
-  const br = isDockerRunning(b) ? 0 : 1
+function graphqlStateLower(state: ContainerStateGql | undefined): string {
+  const s = (state ?? '').toString().trim().toLowerCase()
+  if (s === 'running') return 'running'
+  if (s === 'exited') return 'exited'
+  if (s === 'paused') return 'paused'
+  return s || 'unknown'
+}
+
+function isRunningState(state: ContainerStateGql | undefined): boolean {
+  return String(state ?? '').toUpperCase() === 'RUNNING'
+}
+
+function isPausedState(state: ContainerStateGql | undefined): boolean {
+  return String(state ?? '').toUpperCase() === 'PAUSED'
+}
+
+function sortContainers(a: GqlContainer, b: GqlContainer): number {
+  const ar = isRunningState(a.state) ? 0 : isPausedState(a.state) ? 1 : 2
+  const br = isRunningState(b.state) ? 0 : isPausedState(b.state) ? 1 : 2
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
-}
-
-function fmtBytesShort(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return '—'
-  const gib = bytes / 1024 ** 3
-  if (gib >= 1) return `${gib < 10 ? gib.toFixed(1) : gib.toFixed(0)} GiB`
-  const mib = bytes / 1024 ** 2
-  return `${mib < 10 ? mib.toFixed(1) : mib.toFixed(0)} MiB`
-}
-
-function fmtCpuPct(p: number | null | undefined): string {
-  if (p == null || !Number.isFinite(p)) return '—'
-  if (p < 10) return `${p.toFixed(1)} %`
-  return `${Math.round(p)} %`
 }
 
 function badgeLabel(state: string | undefined, de: boolean): string {
@@ -91,67 +104,76 @@ function badgeStyle(state: string | undefined): React.CSSProperties {
   return { ...base, background: 'var(--border)', color: 'var(--text-muted)' }
 }
 
-async function api(body: unknown): Promise<unknown> {
-  const res = await fetch('/api/unraid-docker', {
+async function graphql<T>(
+  baseUrl: string,
+  apiKey: string,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`${baseUrl}/graphql`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+    },
+    body: JSON.stringify(variables != null ? { query, variables } : { query }),
     cache: 'no-store',
   })
-  const raw = await res.text()
-  let data: unknown
+  const rawText = await res.text()
+  let json: { data?: T; errors?: { message?: string }[] }
   try {
-    data = raw ? (JSON.parse(raw) as unknown) : null
+    json = JSON.parse(rawText) as typeof json
   } catch {
     throw new Error(res.ok ? 'Ungültige JSON-Antwort' : `HTTP ${res.status}`)
   }
   if (!res.ok) {
-    const err = (data as { error?: string })?.error
-    throw new Error(err || `HTTP ${res.status}`)
+    const hint = json.errors?.map((e) => e.message).filter(Boolean).join('; ')
+    throw new Error(hint || `HTTP ${res.status}`)
   }
-  return data
+  if (json.errors?.length) {
+    throw new Error(json.errors.map((e) => e.message ?? 'GraphQL').join('; '))
+  }
+  if (!json.data) throw new Error('Leere GraphQL-Antwort')
+  return json.data
 }
 
 function Widget({ config }: PluginWidgetProps) {
-  const locale = useDashboardStore((s) => s.locale) as Locale
-  const de = locale !== 'en'
-  const baseUrl = String((config as Record<string, unknown>).baseUrl ?? '').trim()
-  const apiVersion = String((config as Record<string, unknown>).apiVersion ?? 'v1.41').trim() || 'v1.41'
-  const tlsInsecure = (config as Record<string, unknown>).tlsInsecure === true
-  const showAll = (config as Record<string, unknown>).showStopped === true
-  const showStats = (config as Record<string, unknown>).showStats !== false
+  const { de } = usePluginLocale()
+  const url = String((config as Record<string, unknown>).url ?? '')
+    .trim()
+    .replace(/\/$/, '')
+  const apiKey = String((config as Record<string, unknown>).apiKey ?? '').trim()
+  const showStopped = (config as Record<string, unknown>).showStopped === true
+  const skipCache = (config as Record<string, unknown>).skipCache === true
   const allowActions = (config as Record<string, unknown>).allowActions === true
   const refresh = (Number((config as Record<string, unknown>).refreshInterval) || 20) * 1000
   const maxRows = Math.min(200, Math.max(5, Number((config as Record<string, unknown>).maxRows) || 60))
 
-  const [list, setList] = useState<DockerContainer[]>([])
+  const [list, setList] = useState<GqlContainer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const latest = useRef(0)
 
-  const payloadBase = useMemo(
-    () => ({ baseUrl, apiVersion, tlsInsecure }),
-    [baseUrl, apiVersion, tlsInsecure],
-  )
-
   const fetch_ = useCallback(async () => {
-    if (!baseUrl) {
-      setError(de ? 'Bitte Basis-URL in den Einstellungen setzen.' : 'Set base URL in settings.')
+    if (!url || !apiKey) {
+      setError(de ? 'URL und API-Key in den Einstellungen setzen.' : 'Set URL and API key in settings.')
       setLoading(false)
       return
     }
     const id = ++latest.current
     try {
-      const data = (await api({
-        op: 'list',
-        ...payloadBase,
-        all: showAll,
-        stats: showStats,
-      })) as unknown
+      const data = await graphql<{ docker?: { containers?: GqlContainer[] } }>(url, apiKey, LIST_QUERY, {
+        skipCache,
+      })
       if (latest.current !== id) return
-      if (!Array.isArray(data)) throw new Error(de ? 'Unerwartetes Format' : 'Unexpected format')
-      const sorted = (data as DockerContainer[]).slice().sort(sortContainers).slice(0, maxRows)
+      const raw = data.docker?.containers
+      if (!Array.isArray(raw)) throw new Error(de ? 'Unerwartetes Format' : 'Unexpected format')
+      let rows = raw.filter((c) => c && typeof c.id === 'string')
+      if (!showStopped) {
+        rows = rows.filter((c) => String(c.state ?? '').toUpperCase() !== 'EXITED')
+      }
+      const sorted = rows.slice().sort(sortContainers).slice(0, maxRows)
       setList(sorted)
       setError(null)
     } catch (e: unknown) {
@@ -161,7 +183,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       if (latest.current === id) setLoading(false)
     }
-  }, [baseUrl, payloadBase, showAll, showStats, maxRows, de])
+  }, [url, apiKey, showStopped, skipCache, maxRows, de])
 
   useEffect(() => {
     setLoading(true)
@@ -173,24 +195,42 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }, [fetch_, refresh])
 
+  const runMutation = useCallback(
+    async (mutation: string, cid: string) => {
+      await graphql(url, apiKey, mutation, { id: cid })
+    },
+    [url, apiKey],
+  )
+
   const doAction = useCallback(
-    async (cid: string, action: 'start' | 'stop' | 'restart', name: string) => {
+    async (cid: string, action: 'start' | 'stop' | 'restart' | 'unpause', name: string) => {
       const msg =
         action === 'start'
           ? de
             ? `Container „${name}“ starten?`
             : `Start container “${name}”?`
-          : action === 'stop'
+          : action === 'unpause'
             ? de
-              ? `Container „${name}“ stoppen?`
-              : `Stop container “${name}”?`
-            : de
-              ? `Container „${name}“ neu starten?`
-              : `Restart container “${name}”?`
+              ? `Container „${name}“ fortsetzen?`
+              : `Resume container “${name}”?`
+            : action === 'stop'
+              ? de
+                ? `Container „${name}“ stoppen?`
+                : `Stop container “${name}”?`
+              : de
+                ? `Container „${name}“ neu starten?`
+                : `Restart container “${name}”?`
       if (!window.confirm(msg)) return
+      if (!cid.trim()) return
       setBusyId(cid)
       try {
-        await api({ op: 'action', ...payloadBase, id: cid, action })
+        if (action === 'start') await runMutation(M_START, cid)
+        else if (action === 'unpause') await runMutation(M_UNPAUSE, cid)
+        else if (action === 'stop') await runMutation(M_STOP, cid)
+        else {
+          await runMutation(M_STOP, cid)
+          await runMutation(M_START, cid)
+        }
         await fetch_()
       } catch (e: unknown) {
         window.alert(e instanceof Error ? e.message : String(e))
@@ -198,13 +238,25 @@ function Widget({ config }: PluginWidgetProps) {
         setBusyId(null)
       }
     },
-    [payloadBase, fetch_, de],
+    [runMutation, fetch_, de],
   )
 
-  if (!baseUrl && !loading) {
+  if (!url || !apiKey) {
     return (
-      <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
-        {de ? 'Keine Basis-URL — Plugin konfigurieren (Zahnrad).' : 'No base URL — configure the plugin (gear).'}
+      <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
+        {de ? (
+          <>
+            {'URL & API-Key'}
+            <br />
+            in den Einstellungen eintragen (wie beim Unraid-Widget).
+          </>
+        ) : (
+          <>
+            {'URL & API key'}
+            <br />
+            in settings (same as the Unraid widget).
+          </>
+        )}
       </div>
     )
   }
@@ -224,8 +276,8 @@ function Widget({ config }: PluginWidgetProps) {
         {error}
         <p style={{ marginTop: 8, fontSize: '11px', color: 'var(--text-muted)' }}>
           {de
-            ? 'Hinweis: Auf Unraid muss die Docker-Engine per HTTP(S) erreichbar sein (z. B. Port 2375/2376). TLS selbstsigniert → Option „TLS unsicher“.'
-            : 'Note: the Docker engine must be reachable via HTTP(S) (e.g. port 2375/2376). Self-signed TLS → enable “TLS insecure”.'}
+            ? 'Hinweis: Der API-Key braucht Docker-Lesezugriff (Liste). Für Start/Stopp/Neustart zusätzlich Schreibzugriff. Bei CORS-Fehlern Dashboard und Unraid-URL prüfen oder SelfDashboard über dieselbe Site erreichbar machen.'
+            : 'Note: the API key needs Docker read access (list). For start/stop/restart it also needs write access. If you see CORS errors, check the dashboard origin vs your Unraid URL.'}
         </p>
       </div>
     )
@@ -239,50 +291,54 @@ function Widget({ config }: PluginWidgetProps) {
             <tr>
               <th style={th}>{de ? 'Name' : 'Name'}</th>
               <th style={{ ...th, width: '12%', textAlign: 'center' }}>{de ? 'Status' : 'State'}</th>
-              <th style={{ ...th, width: '14%', textAlign: 'right' }}>CPU</th>
-              <th style={{ ...th, width: '18%', textAlign: 'right' }}>{de ? 'RAM' : 'RAM'}</th>
-              {allowActions ? <th style={{ ...th, width: '18%', textAlign: 'right' }}>{de ? 'Aktion' : 'Action'}</th> : null}
+              <th style={{ ...th, width: '38%' }}>{de ? 'Docker-Status' : 'Docker status'}</th>
+              {allowActions ? <th style={{ ...th, width: '22%', textAlign: 'right' }}>{de ? 'Aktion' : 'Action'}</th> : null}
             </tr>
           </thead>
           <tbody>
             {list.map((c, i) => {
               const name = containerName(c)
-              const cid = dockerContainerId(c)
-              const running = isDockerRunning(c)
-              const st = c.State ?? '—'
-              const s = c.sdStats
+              const cid = c.id.trim()
+              const running = isRunningState(c.state)
+              const paused = isPausedState(c.state)
+              const stLower = graphqlStateLower(c.state)
               const busy = busyId === cid
+              const statusText = (c.status ?? '').trim() || '—'
               return (
                 <tr key={cid || `${name}-${i}`} style={{ background: i % 2 ? 'color-mix(in srgb, var(--text) 3%, transparent)' : undefined }}>
                   <td style={td}>
                     <span style={{ fontWeight: 600, color: 'var(--text)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(c.Image ?? '').split(':')[0]}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(c.image ?? '').split(':')[0]}</span>
                   </td>
                   <td style={{ ...td, textAlign: 'center' }}>
-                    <span style={badgeStyle(st)}>{badgeLabel(st, de)}</span>
+                    <span style={badgeStyle(stLower)}>{badgeLabel(stLower, de)}</span>
                   </td>
-                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{showStats && running ? fmtCpuPct(s?.cpuPct ?? null) : '—'}</td>
-                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {showStats && running && s?.memUsageBytes != null ? fmtBytesShort(s.memUsageBytes) : '—'}
+                  <td style={{ ...td, fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={statusText}>
+                    {statusText}
                   </td>
                   {allowActions ? (
                     <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {cid && CONTAINER_ID_RE.test(cid) ? (
-                        <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end' }}>
-                          {!running ? (
+                      {cid ? (
+                        <span style={{ display: 'inline-flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          {!running && !paused ? (
                             <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
                               {de ? 'Start' : 'Start'}
                             </button>
                           ) : null}
+                          {paused ? (
+                            <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
+                              {de ? 'Weiter' : 'Resume'}
+                            </button>
+                          ) : null}
+                          {running || paused ? (
+                            <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
+                              {de ? 'Stopp' : 'Stop'}
+                            </button>
+                          ) : null}
                           {running ? (
-                            <>
-                              <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
-                                {de ? 'Stopp' : 'Stop'}
-                              </button>
-                              <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
-                                {de ? 'Neu' : 'Restart'}
-                              </button>
-                            </>
+                            <button type="button" className="btn-ghost" style={{ padding: '2px 8px', fontSize: '11px' }} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
+                              {de ? 'Neu' : 'Restart'}
+                            </button>
                           ) : null}
                         </span>
                       ) : (
@@ -311,7 +367,7 @@ function Widget({ config }: PluginWidgetProps) {
         <span>
           {de ? 'Container' : 'Containers'}: {list.length}
         </span>
-        <span style={{ opacity: 0.85 }}>Unraid Docker · API {apiVersion}</span>
+        <span style={{ opacity: 0.85 }}>Unraid GraphQL</span>
       </div>
     </div>
   )
@@ -336,56 +392,51 @@ const td: React.CSSProperties = {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
-  const locale = useDashboardStore((s) => s.locale) as Locale
-  const de = locale !== 'en'
+  const { de } = usePluginLocale()
   const r = config as Record<string, unknown>
-  const inp: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    color: 'var(--text)',
-    borderRadius: '6px',
-    padding: '6px 10px',
-    fontSize: '13px',
-    outline: 'none',
-    width: '100%',
-    boxSizing: 'border-box',
-  }
+  const inp: React.CSSProperties = useMemo(
+    () => ({
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      color: 'var(--text)',
+      borderRadius: '6px',
+      padding: '6px 10px',
+      fontSize: '13px',
+      outline: 'none',
+      width: '100%',
+      boxSizing: 'border-box',
+    }),
+    [],
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
         {de
-          ? 'SelfDashboard ruft deinen Unraid-/Docker-Host serverseitig auf (kein CORS im Browser). Basis-URL ohne Pfad, z. B. https://192.168.1.10:2376 oder http://tower.local:2375.'
-          : 'SelfDashboard calls your Unraid/Docker host from the server (no browser CORS). Base URL without path, e.g. https://192.168.1.10:2376 or http://tower.local:2375.'}
+          ? 'Gleiche Unraid-Basis-URL und API-Key wie beim Unraid-System-Widget (Connect / lokale API, 7.2+). Aufruf erfolgt aus dem Browser — bei CORS ggf. HTTPS und erlaubte Origin prüfen.'
+          : 'Same Unraid base URL and API key as the main Unraid widget (Connect / local API, 7.2+). Calls run in the browser — if you hit CORS, check HTTPS and allowed origins.'}
       </p>
       <div>
-        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Base URL</label>
-        <input
-          style={inp}
-          value={String(r.baseUrl ?? '')}
-          onChange={(e) => onChange('baseUrl', e.target.value)}
-          placeholder={de ? 'https://unraid:2376' : 'https://unraid:2376'}
-        />
+        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+          {de ? 'Unraid-Basis-URL' : 'Unraid base URL'}
+        </label>
+        <input style={inp} value={String(r.url ?? '')} onChange={(e) => onChange('url', e.target.value)} placeholder="https://tower oder http://192.168.1.10" />
       </div>
       <div>
-        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>API-Version</label>
-        <input style={inp} value={String(r.apiVersion ?? 'v1.41')} onChange={(e) => onChange('apiVersion', e.target.value)} placeholder="v1.41" />
+        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>API Key</label>
+        <input style={inp} type="password" value={String(r.apiKey ?? '')} onChange={(e) => onChange('apiKey', e.target.value)} placeholder="x-api-key" />
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
-        <input type="checkbox" checked={r.tlsInsecure === true} onChange={(e) => onChange('tlsInsecure', e.target.checked)} />
-        {de ? 'TLS unsicher (selbstsigniert / interne CA)' : 'TLS insecure (self-signed / internal CA)'}
-      </label>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.showStopped === true} onChange={(e) => onChange('showStopped', e.target.checked)} />
-        {de ? 'Gestoppte Container anzeigen' : 'Show stopped containers'}
+        {de ? 'Gestoppte Container (EXITED) anzeigen' : 'Show stopped (EXITED) containers'}
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
-        <input type="checkbox" checked={r.showStats !== false} onChange={(e) => onChange('showStats', e.target.checked)} />
-        {de ? 'CPU / RAM (Stats)' : 'CPU / RAM (stats)'}
+        <input type="checkbox" checked={r.skipCache === true} onChange={(e) => onChange('skipCache', e.target.checked)} />
+        {de ? 'skipCache: true (frischere Liste, etwas mehr Last auf Unraid)' : 'skipCache: true (fresher list, slightly more load on Unraid)'}
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.allowActions === true} onChange={(e) => onChange('allowActions', e.target.checked)} />
-        {de ? 'Aktionen (Start / Stopp / Neustart) — mit Browser-Bestätigung' : 'Actions (start / stop / restart) — browser confirm'}
+        {de ? 'Aktionen (Start / Stopp / Neustart / Weiter) — mit Browser-Bestätigung' : 'Actions (start / stop / restart / resume) — browser confirm'}
       </label>
       <div>
         <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
