@@ -86,7 +86,7 @@ export function DashboardGrid() {
           margin={[16, 16]}
           containerPadding={[0, 0]}
           draggableHandle=".drag-handle"
-          resizeHandles={['se']}
+          resizeHandles={['se', 's', 'e']}
         >
           {plugins.map((instance) => (
             <div key={instance.instanceId}>
@@ -102,11 +102,33 @@ export function DashboardGrid() {
             border-radius: 14px !important;
           }
           .react-resizable-handle {
-            opacity: ${editMode ? '0.6' : '0'} !important;
+            opacity: ${editMode ? '0.7' : '0'} !important;
             transition: opacity 0.2s;
           }
           .react-resizable-handle::after {
             border-color: var(--accent) !important;
+          }
+          /* South handle - bottom center */
+          .react-resizable-handle-s {
+            bottom: 4px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            cursor: s-resize !important;
+          }
+          .react-resizable-handle-s::after {
+            border-width: 0 0 2px 2px !important;
+            transform: rotate(-45deg) !important;
+          }
+          /* East handle - right center */
+          .react-resizable-handle-e {
+            right: 4px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            cursor: e-resize !important;
+          }
+          .react-resizable-handle-e::after {
+            border-width: 0 2px 2px 0 !important;
+            transform: rotate(-45deg) !important;
           }
         `}</style>
       </div>
