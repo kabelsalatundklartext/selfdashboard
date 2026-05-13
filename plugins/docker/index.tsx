@@ -1,14 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
 export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Container-Tabelle im Homarr-Stil (Name, State, CPU, Memory, Actions) oder klassische Zeilenansicht. Steuerung & Stats konfigurierbar.',
-  version: '1.6.0',
+    'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
+  version: '1.6.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -367,10 +367,180 @@ function Heading({ text }: { text: string }) {
   )
 }
 
+/** PNGs from https://github.com/walkxcode/dashboard-icons (used by Homarr-style dashboards). */
+const DASHBOARD_ICONS_PNG_BASE = 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png'
+
+/** Map image slug → CDN filename when repo name ≠ icon name. */
+const ICON_SLUG_ALIASES: Record<string, string> = {
+  adguardhome: 'adguard-home',
+  immichserver: 'immich',
+  'immich-server': 'immich',
+  jdownloader2: 'jdownloader',
+  'jdownloader-2': 'jdownloader',
+  postgres: 'postgresql',
+}
+
+function buildLabelIconUrl(labels?: Record<string, string>): string | null {
+  if (!labels) return null
+  const keys = [
+    'org.opencontainers.image.icon',
+    'net.unraid.docker.icon',
+    'traefik.icon',
+    'org.label-schema.icon',
+    'ICON',
+    'com.docker.desktop.extension.api.icon',
+  ]
+  for (const k of keys) {
+    const raw = labels[k]
+    if (typeof raw !== 'string') continue
+    const v = raw.trim()
+    if (!v) continue
+    if (/^https?:\/\//i.test(v)) return v
+    if (/^data:image\//i.test(v)) return v
+  }
+  return null
+}
+
+function slugCandidatesFromImage(image: string): string[] {
+  const raw = (image.split(':')[0]?.split('@')[0] ?? '').toLowerCase()
+  const last = raw.split('/').pop()?.replace(/[^a-z0-9._-]/g, '') ?? 'docker'
+  const dashed = last.replace(/_/g, '-')
+  const set = new Set<string>()
+  const add = (s: string) => {
+    const t = s.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    if (t.length >= 2) set.add(t)
+  }
+  add(dashed)
+  add(dashed.replace(/-server$/i, ''))
+  add(dashed.replace(/^linuxserver-/, ''))
+  const alias = ICON_SLUG_ALIASES[dashed.replace(/-/g, '')] ?? ICON_SLUG_ALIASES[dashed]
+  if (alias) add(alias)
+  if (set.size === 0) set.add('docker')
+  return [...set].slice(0, 8)
+}
+
+function dashboardIconPngUrls(image: string): string[] {
+  return slugCandidatesFromImage(image).map(
+    (slug) => `${DASHBOARD_ICONS_PNG_BASE}/${encodeURIComponent(slug)}.png`,
+  )
+}
+
+function letterHue(seed: string): number {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h + seed.charCodeAt(i) * (i + 3)) % 360
+  return h
+}
+
+function ContainerAvatar({
+  image,
+  name,
+  labels,
+  useDashboardIcons,
+}: {
+  image: string
+  name: string
+  labels?: Record<string, string>
+  useDashboardIcons: boolean
+}) {
+  const labelUrl = useMemo(() => buildLabelIconUrl(labels), [labels])
+  const cdnUrls = useMemo(() => dashboardIconPngUrls(image), [image])
+  const mark = useMemo(() => serviceMark(image, name), [image, name])
+
+  const [labelFailed, setLabelFailed] = useState(false)
+  const [cdnIdx, setCdnIdx] = useState(0)
+
+  useEffect(() => {
+    setLabelFailed(false)
+    setCdnIdx(0)
+  }, [labelUrl, image, name, useDashboardIcons])
+
+  const tryLabel = Boolean(labelUrl) && !labelFailed
+  const tryCdn = useDashboardIcons && (!labelUrl || labelFailed) && cdnIdx < cdnUrls.length
+  const remoteSrc = tryLabel ? labelUrl : tryCdn ? cdnUrls[cdnIdx] : null
+
+  const onRemoteError = useCallback(() => {
+    if (tryLabel) {
+      setLabelFailed(true)
+      return
+    }
+    setCdnIdx((i) => i + 1)
+  }, [tryLabel])
+
+  const box = (inner: React.ReactNode) => (
+    <span
+      aria-hidden
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 8,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+      }}
+    >
+      {inner}
+    </span>
+  )
+
+  if (remoteSrc) {
+    return box(
+      <img
+        key={remoteSrc}
+        src={remoteSrc}
+        alt=""
+        width={24}
+        height={24}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={onRemoteError}
+        style={{
+          width: 24,
+          height: 24,
+          objectFit: 'contain',
+          display: 'block',
+          background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
+        }}
+      />,
+    )
+  }
+
+  if (mark.kind === 'emoji') {
+    return box(
+      <span style={{ fontSize: 14, lineHeight: 1, background: 'var(--surface)', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {mark.v}
+      </span>,
+    )
+  }
+
+  const hue = letterHue(`${name}:${image}`)
+  return box(
+    <span
+      style={{
+        width: '100%',
+        height: '100%',
+        fontSize: 12,
+        fontWeight: 800,
+        color: '#fff',
+        background: `hsl(${hue} 52% 44%)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        letterSpacing: '-0.02em',
+      }}
+    >
+      {mark.letter}
+    </span>,
+  )
+}
+
 type HomarrDockerTableProps = {
   list: DockerContainer[]
   busyId: string | null
   pending: PendingConfirm | null
+  useDashboardIcons: boolean
   showStatCpu: boolean
   showStatRam: boolean
   showBtnStart: boolean
@@ -391,6 +561,7 @@ function HomarrDockerTable({
   list,
   busyId,
   pending,
+  useDashboardIcons,
   showStatCpu,
   showStatRam,
   showBtnStart,
@@ -452,59 +623,13 @@ function HomarrDockerTable({
           const memStr = fmtMemoryHomarr(s, running)
           const tipParts = [name, st, (c.Status ?? '').trim(), imgRef]
           const tip = tipParts.filter(Boolean).join('\n')
-          const mark = serviceMark(c.Image ?? '', name)
-          const iconLabel = c.Labels?.['org.opencontainers.image.icon'] ?? c.Labels?.['traefik.icon']
-          const iconUrl =
-            typeof iconLabel === 'string' && /^https?:\/\//i.test(iconLabel.trim()) ? iconLabel.trim() : null
           const zebra =
             i % 2 === 0
               ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
               : 'color-mix(in srgb, var(--text) 2%, var(--background))'
 
-          const avatar = iconUrl ? (
-            <img
-              src={iconUrl}
-              alt=""
-              width={22}
-              height={22}
-              style={{ width: 22, height: 22, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-            />
-          ) : mark.kind === 'emoji' ? (
-            <span
-              aria-hidden
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 13,
-                background: 'var(--surface)',
-                flexShrink: 0,
-              }}
-            >
-              {mark.v}
-            </span>
-          ) : (
-            <span
-              aria-hidden
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 11,
-                fontWeight: 800,
-                color: '#fff',
-                background: mark.bg,
-                flexShrink: 0,
-              }}
-            >
-              {mark.letter}
-            </span>
+          const avatar = (
+            <ContainerAvatar image={c.Image ?? ''} name={name} labels={c.Labels} useDashboardIcons={useDashboardIcons} />
           )
 
           const mainRow = (
@@ -675,6 +800,7 @@ function Widget({ config }: PluginWidgetProps) {
   const showAll = config.showStopped === true
   const r = config as Record<string, unknown>
   const homarrTable = r.homarrTable !== false
+  const useDashboardIcons = r.useDashboardIcons !== false
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
   const showBtnStart = actionsOn && r.showBtnStart !== false
@@ -902,6 +1028,7 @@ function Widget({ config }: PluginWidgetProps) {
             list={list}
             busyId={busyId}
             pending={pending}
+            useDashboardIcons={useDashboardIcons}
             showStatCpu={showStatCpu}
             showStatRam={showStatRam}
             showBtnStart={showBtnStart}
@@ -1233,6 +1360,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
   const homarrOn = r.homarrTable !== false
+  const dashboardIconsOn = r.useDashboardIcons !== false
   const btnStartOn = actionsOn && r.showBtnStart !== false
   const btnStopOn = actionsOn && r.showBtnStop !== false
   const btnRestartOn = actionsOn && r.showBtnRestart !== false
@@ -1253,6 +1381,17 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         on={homarrOn}
         onToggle={() => onChange('homarrTable', !homarrOn)}
       />
+
+      <div style={{ opacity: homarrOn ? 1 : 0.45, pointerEvents: homarrOn ? 'auto' : 'none' }}>
+        <ToggleRow
+          label="Icons: Container-Labels + CDN (walkxcode/dashboard-icons)"
+          on={dashboardIconsOn}
+          onToggle={() => onChange('useDashboardIcons', !dashboardIconsOn)}
+        />
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+          Unraid-Community-Templates setzen oft <code style={{ fontSize: '9px' }}>net.unraid.docker.icon</code>. Ohne CDN: nur Label-URL, Emoji oder Buchstabe-Kachel.
+        </p>
+      </div>
 
       <div>
         <SettingsSectionTitle>Aktionen</SettingsSectionTitle>
