@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, Netz. Array- und Pool-Zeilen mit Status, Temperatur und Belegung; feine Anzeige-Optionen.',
-  version: '1.3.0',
+  version: '1.3.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -402,12 +402,16 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
   }
 }
 
+const NET_JSON_RX_KEYS = ['rxBps', 'rx_bps', 'downloadBps', 'download', 'rx'] as const
+const NET_JSON_TX_KEYS = ['txBps', 'tx_bps', 'uploadBps', 'upload', 'tx'] as const
+
 function parseNetSpeedJson(raw: unknown): { rx: number; tx: number } | null {
   if (!raw || typeof raw !== 'object') return null
   const j = raw as Record<string, unknown>
+  const hasKey = [...NET_JSON_RX_KEYS, ...NET_JSON_TX_KEYS].some((k) => k in j)
   const rx = num(j.rxBps ?? j.rx_bps ?? j.downloadBps ?? j.download ?? j.rx)
   const tx = num(j.txBps ?? j.tx_bps ?? j.uploadBps ?? j.upload ?? j.tx)
-  if (!rx && !tx) return null
+  if (!hasKey && rx === 0 && tx === 0) return null
   return { rx, tx }
 }
 
@@ -415,6 +419,74 @@ function flag(config: Record<string, unknown>, key: string, defaultTrue = true) 
   const v = config[key]
   if (v === undefined || v === null) return defaultTrue
   return v !== false
+}
+
+function mbpsToBpsCap(mbps: number) {
+  if (!Number.isFinite(mbps) || mbps <= 0) return 0
+  return (mbps * 1_000_000) / 8
+}
+
+/** Mini sparkline: relative heights, last samples right-aligned feel by keeping order */
+function ThroughputSparkline({ samples, colorVar }: { samples: number[]; colorVar: string }) {
+  const peak = samples.length ? Math.max(...samples, 1) : 1
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '28px', marginTop: '6px', width: '100%', minWidth: 0 }}>
+      {samples.map((v, i) => (
+        <div
+          key={i}
+          title={fmtBps(v)}
+          style={{
+            flex: '1 1 0',
+            minWidth: '2px',
+            height: `${Math.max(6, Math.round((v / peak) * 100))}%`,
+            borderRadius: '2px',
+            background: colorVar,
+            opacity: 0.35 + 0.65 * (v / peak),
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function ThroughputBlock({
+  rx,
+  tx,
+  history,
+  barMaxMbps,
+  showSpark,
+}: {
+  rx: number
+  tx: number
+  history: { rx: number; tx: number }[]
+  barMaxMbps: number
+  showSpark: boolean
+}) {
+  const fixed = mbpsToBpsCap(barMaxMbps)
+  const histPeak = history.reduce((m, h) => Math.max(m, h.rx, h.tx), 0)
+  const cap =
+    fixed > 0 ? fixed : Math.max(8_192, histPeak * 1.08, rx, tx)
+
+  const pr = Math.min(100, (rx / cap) * 100)
+  const pt = Math.min(100, (tx / cap) * 100)
+
+  const rxHist = history.map((h) => h.rx)
+  const txHist = history.map((h) => h.tx)
+
+  return (
+    <div style={{ marginBottom: '6px' }}>
+      <Row label="↓ Download" value={fmtBps(rx)} bar pct={pr} />
+      <Row label="↑ Upload" value={fmtBps(tx)} bar pct={pt} />
+      {showSpark && rxHist.length >= 2 && (
+        <>
+          <p style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '8px 0 2px', letterSpacing: '0.04em' }}>VERLAUF (DOWNLOAD)</p>
+          <ThroughputSparkline samples={rxHist} colorVar="var(--accent)" />
+          <p style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '8px 0 2px', letterSpacing: '0.04em' }}>VERLAUF (UPLOAD)</p>
+          <ThroughputSparkline samples={txHist} colorVar="var(--text-muted)" />
+        </>
+      )}
+    </div>
+  )
 }
 
 function aggregateDisks(disks: Disk[]) {
@@ -433,6 +505,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [loading, setLoading] = useState(true)
   const [netBps, setNetBps] = useState<{ rx: number; tx: number } | null>(null)
   const [netBpsErr, setNetBpsErr] = useState<string | null>(null)
+  const [netHist, setNetHist] = useState<{ rx: number; tx: number }[]>([])
 
   const url = (config.url as string)?.replace(/\/$/, '')
   const apiKey = config.apiKey as string
@@ -453,6 +526,8 @@ function Widget({ config }: PluginWidgetProps) {
   const showNetwork = flag(config, 'showNetwork')
   const hideVirtualIfaces = flag(config, 'hideVirtualIfaces', true)
   const showNetSpeed = flag(config, 'showNetSpeed', false)
+  const barMaxMbps = num((config as Record<string, unknown>).netSpeedBarMaxMbps)
+  const showNetSpark = flag(config, 'showNetSpeedSparkline', true)
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -499,6 +574,7 @@ function Widget({ config }: PluginWidgetProps) {
           const rates = parseNetSpeedJson(parsed)
           setNetBps(rates)
           setNetBpsErr(rates ? null : 'JSON unbekannt (erwarte rxBps/txBps)')
+          if (rates) setNetHist((h) => [...h.slice(-35), rates])
         } catch (e) {
           setNetBpsErr(e instanceof Error ? e.message : 'Netz-Speed-URL')
           setNetBps(null)
@@ -506,6 +582,7 @@ function Widget({ config }: PluginWidgetProps) {
       } else {
         setNetBps(null)
         setNetBpsErr(null)
+        setNetHist([])
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -513,6 +590,10 @@ function Widget({ config }: PluginWidgetProps) {
       setLoading(false)
     }
   }, [url, apiKey, showNetSpeed, speedUrl])
+
+  useEffect(() => {
+    if (!showNetSpeed || !speedUrl) setNetHist([])
+  }, [showNetSpeed, speedUrl])
 
   useEffect(() => {
     fetch_()
@@ -616,11 +697,8 @@ function Widget({ config }: PluginWidgetProps) {
           <Heading text="Netzwerk" />
           {showNetSpeed && (
             <>
-              {netBps && (netBps.rx > 0 || netBps.tx > 0) ? (
-                <>
-                  <Row label="↓ Download" value={fmtBps(netBps.rx)} />
-                  <Row label="↑ Upload" value={fmtBps(netBps.tx)} />
-                </>
+              {netBps ? (
+                <ThroughputBlock rx={netBps.rx} tx={netBps.tx} history={netHist} barMaxMbps={barMaxMbps} showSpark={showNetSpark} />
               ) : (
                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '0 0 8px' }}>
                   {speedUrl
@@ -774,7 +852,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               on={sub('hideVirtualIfaces', true)}
               onToggle={() => onChange('hideVirtualIfaces', !sub('hideVirtualIfaces', true))}
             />
-            <ToggleRow label="Durchsatz-Zeile (JSON-URL)" on={sub('showNetSpeed', false)} onToggle={() => onChange('showNetSpeed', !sub('showNetSpeed', false))} />
+            <ToggleRow label="Durchsatz (JSON-URL, Balken + Verlauf)" on={sub('showNetSpeed', false)} onToggle={() => onChange('showNetSpeed', !sub('showNetSpeed', false))} />
+            <ToggleRow
+              label="Mini-Verlauf (letzte Messungen)"
+              on={sub('showNetSpeedSparkline', true)}
+              onToggle={() => onChange('showNetSpeedSparkline', !sub('showNetSpeedSparkline', true))}
+            />
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>JSON-URL (GET, CORS)</label>
             <input
               style={inp}
@@ -782,12 +865,24 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               onChange={(e) => onChange('netSpeedJsonUrl', e.target.value)}
               placeholder="https://unraid/meine-net-stats.json"
             />
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '10px', marginBottom: '4px' }}>
+              Balkenskala max. Mbit/s (0 = automatisch aus Verlauf)
+            </label>
+            <input
+              style={inp}
+              type="number"
+              min={0}
+              step={10}
+              value={Number.isFinite(Number((config as Record<string, unknown>).netSpeedBarMaxMbps)) ? Number((config as Record<string, unknown>).netSpeedBarMaxMbps) : 0}
+              onChange={(e) => onChange('netSpeedBarMaxMbps', e.target.value === '' ? 0 : Number(e.target.value))}
+              placeholder="0"
+            />
             <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
-              Erwartetes JSON: <code style={{ fontSize: '10px' }}>{`{ "rxBps": 123456, "txBps": 78900 }`}</code>. Unraid-API:{' '}
+              Erwartetes JSON: <code style={{ fontSize: '10px' }}>{`{ "rxBps": 123456, "txBps": 78900 }`}</code> (Bytes pro Sekunde). Unraid-API:{' '}
               <a href="https://github.com/unraid/api/issues/1559" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
                 Host-RX/TX
               </a>
-              .
+              . Bei fester Skala z. B. 1000 für 1&nbsp;Gbit/s-Leitung.
             </p>
           </div>
         </div>
