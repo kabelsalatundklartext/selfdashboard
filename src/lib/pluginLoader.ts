@@ -9,6 +9,7 @@ import * as docker from '../../plugins/docker'
 import * as emby from '../../plugins/emby'
 import * as scratchpad from '../../plugins/scratchpad'
 import * as unraid from '../../plugins/unraid'
+import * as weather from '../../plugins/weather'
 
 export function loadBuiltinPlugins() {
   registerPlugin(bookmarks.meta, bookmarks.component)
@@ -17,4 +18,5 @@ export function loadBuiltinPlugins() {
   registerPlugin(emby.meta, emby.component)
   registerPlugin(scratchpad.meta, scratchpad.component)
   registerPlugin(unraid.meta, unraid.component)
+  registerPlugin(weather.meta, weather.component)
 }
