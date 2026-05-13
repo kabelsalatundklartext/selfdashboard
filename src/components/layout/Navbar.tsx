@@ -97,16 +97,16 @@ export function Navbar() {
           </div>
         )}
 
-        {showNavbarSearch && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} />}
+        {showNavbarSearch && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {showNavbarSearch && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} />}
+          {showNavbarSearch && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
 
         {/* Right: optional search, zoom, actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {showNavbarSearch && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} />}
+          {showNavbarSearch && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
             <button
               onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}

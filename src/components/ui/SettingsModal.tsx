@@ -228,6 +228,11 @@ export function SettingsModal({ open, onClose }: Props) {
                     ? 'Wenn alle Anbieter aus sind, wird keine Leiste angezeigt.'
                     : 'If all providers are off, the search bar is hidden.'}
                 </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
+                  {locale === 'de'
+                    ? 'Im Bearbeitungsmodus: am rechten Rand der Suchleiste ziehen, um die Breite anzupassen (200–920 px).'
+                    : 'In edit mode: drag the right edge of the search bar to change its width (200–920 px).'}
+                </p>
               </div>
 
 

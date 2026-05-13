@@ -50,6 +50,8 @@ interface DashboardStore {
   navbarSearchPosition: 'left' | 'center' | 'right'
   navbarSearchProviders: Record<SearchProviderId, boolean>
   navbarSearchLastProvider: SearchProviderId
+  /** Pixel width of navbar search bar (clamped); resize in edit mode */
+  navbarSearchWidthPx: number
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -76,6 +78,7 @@ interface DashboardStore {
   setNavbarSearchPosition: (position: 'left' | 'center' | 'right') => void
   setNavbarSearchProviderEnabled: (id: SearchProviderId, enabled: boolean) => void
   setNavbarSearchLastProvider: (id: SearchProviderId) => void
+  setNavbarSearchWidthPx: (widthPx: number) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -96,6 +99,7 @@ export const useDashboardStore = create<DashboardStore>()(
       navbarSearchPosition: 'center',
       navbarSearchProviders: defaultSearchProviders(),
       navbarSearchLastProvider: 'duckduckgo',
+      navbarSearchWidthPx: 320,
 
       activeDashboard: () => {
         const s = get()
@@ -145,6 +149,11 @@ export const useDashboardStore = create<DashboardStore>()(
         return { navbarSearchProviders: next, navbarSearchLastProvider: nextLast }
       }),
       setNavbarSearchLastProvider: (navbarSearchLastProvider) => set({ navbarSearchLastProvider }),
+      setNavbarSearchWidthPx: (raw) => {
+        const n = typeof raw === 'number' ? raw : Number(raw)
+        const w = Number.isFinite(n) ? Math.round(n) : 320
+        set({ navbarSearchWidthPx: Math.min(920, Math.max(200, w)) })
+      },
     }),
     {
       name: 'selfdashboard-v2',
@@ -169,6 +178,12 @@ export const useDashboardStore = create<DashboardStore>()(
             state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
           } else if (!state.navbarSearchProviders[state.navbarSearchLastProvider as SearchProviderId]) {
             state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
+          }
+          const w = state.navbarSearchWidthPx
+          if (typeof w !== 'number' || !Number.isFinite(w)) {
+            state.navbarSearchWidthPx = 320
+          } else {
+            state.navbarSearchWidthPx = Math.min(920, Math.max(200, Math.round(w)))
           }
           const legacyIframe = 'crowdsec-threat-map'
           state.dashboards = state.dashboards.map((d) => ({
