@@ -191,6 +191,9 @@ function Widget({ config }: PluginWidgetProps) {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const locale = useDashboardStore((s) => s.locale) as Locale
+  const de = locale !== 'en'
+
   const inp: CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
