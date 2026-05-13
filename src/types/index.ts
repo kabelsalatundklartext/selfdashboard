@@ -84,6 +84,7 @@ export interface Dashboard {
   customLogo?: string
   customIcon?: string  // base64 PNG for tab icon
   plugins: PluginInstance[]
+  hideTab?: boolean   // hide this dashboard from navbar tabs
 }
 
 export interface AppState {

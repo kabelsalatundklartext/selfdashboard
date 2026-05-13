@@ -53,7 +53,7 @@ function Widget({ config }: PluginWidgetProps) {
         if (apps.length === 0) return null
         return (
           <div key={group.id}>
-            <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>
+            {data.groups.length > 1 && <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
               {apps.map((app) => (
                 <a key={app.id} href={app.url} target={app.newTab ? '_blank' : '_self'} rel="noopener noreferrer"

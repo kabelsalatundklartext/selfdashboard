@@ -46,6 +46,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
       layout: { x: 0, y: Infinity, w: 4, h: 4 },
     })
     setAdded((prev) => new Set(prev).add(pluginId))
+    // Reset checkmark after 1.5s
+    setTimeout(() => setAdded((prev) => { const n = new Set(prev); n.delete(pluginId); return n }), 1500)
   }
 
   return (
@@ -133,15 +135,13 @@ export function PluginStoreModal({ open, onClose }: Props) {
                     </p>
                   </div>
                   <button
-                    onClick={() => !isAdded && handleAdd(meta.id)}
-                    className={isAdded ? 'btn-ghost p-2' : 'btn-accent'}
-                    disabled={isAdded}
+                    onClick={() => handleAdd(meta.id)}
+                    className="btn-accent"
                   >
-                    {isAdded ? (
-                      <Check size={16} style={{ color: 'var(--accent)' }} />
-                    ) : (
-                      <><Plus size={14} />{t(locale, 'add')}</>
-                    )}
+                    {justAdded
+                      ? <><Check size={14} />{t(locale, 'add')}</>
+                      : <><Plus size={14} />{t(locale, 'add')}</>
+                    }
                   </button>
                 </div>
               )

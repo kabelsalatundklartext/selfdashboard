@@ -68,7 +68,7 @@ export function Navbar() {
         {/* Dashboard Tabs */}
         {showDashboardTabs && dashboards.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0' }}>
-            {dashboards.map((d) => (
+            {dashboards.filter((d) => !d.hideTab).map((d) => (
               <button key={d.id} onClick={() => router.push(`/dashboard/${d.id}`)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',

@@ -167,51 +167,6 @@ export function SettingsModal({ open, onClose }: Props) {
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  {t(locale, 'dashboardTitle')}
-                </label>
-                <input style={inp} value={dash.name} onChange={(e) => setTitle(e.target.value)} />
-              </div>
-
-              {/* Dashboard Tabs Option */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
-                    {locale === 'de' ? 'Dashboard-Tabs anzeigen' : 'Show Dashboard Tabs'}
-                  </p>
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
-                    {locale === 'de' ? 'Tabs oben links in der Navbar' : 'Tabs shown top left in navbar'}
-                  </p>
-                </div>
-                <Toggle value={showDashboardTabs} onChange={setShowDashboardTabs} />
-              </div>
-
-              {/* Navbar Logo/Text Style */}
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  {locale === 'de' ? 'Navbar anzeigen' : 'Navbar display'}
-                </label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {([
-                    { id: 'icon-text', label: locale === 'de' ? 'Icon & Name' : 'Icon & Name', preview: '⬛ Text' },
-                    { id: 'icon-only', label: locale === 'de' ? 'Nur Icon' : 'Icon only', preview: '⬛' },
-                    { id: 'text-only', label: locale === 'de' ? 'Nur Name' : 'Name only', preview: 'Text' },
-                  ] as const).map((opt) => (
-                    <button key={opt.id} onClick={() => setNavbarStyle(opt.id)}
-                      style={{
-                        flex: 1, padding: '8px 6px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
-                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                        background: navbarStyle === opt.id ? 'var(--accent)' : 'var(--surface-2)',
-                        color: navbarStyle === opt.id ? '#fff' : 'var(--text-muted)',
-                        border: `1px solid ${navbarStyle === opt.id ? 'var(--accent)' : 'var(--border)'}`,
-                      }}>
-                      <span style={{ fontSize: '16px' }}>{opt.preview}</span>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v0.1.0</p>
             </>)}
@@ -219,6 +174,19 @@ export function SettingsModal({ open, onClose }: Props) {
             {/* ── Dashboards ── */}
             {tab === 'dashboards' && (<>
               <div>
+                {/* Global tabs toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', marginBottom: '12px' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+                      {locale === 'de' ? 'Tabs in Navbar anzeigen' : 'Show tabs in Navbar'}
+                    </p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                      {locale === 'de' ? 'Dashboard-Tabs oben links einblenden' : 'Show dashboard tabs top left'}
+                    </p>
+                  </div>
+                  <Toggle value={showDashboardTabs} onChange={setShowDashboardTabs} />
+                </div>
+
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px' }}>
                   {locale === 'de' ? 'Meine Dashboards' : 'My Dashboards'}
                 </label>
@@ -352,6 +320,32 @@ export function SettingsModal({ open, onClose }: Props) {
 
             {/* ── Design ── */}
             {tab === 'design' && (<>
+              {/* Navbar Logo/Text Style */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {locale === 'de' ? 'Navbar anzeigen' : 'Navbar display'}
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([
+                    { id: 'icon-text', label: locale === 'de' ? 'Icon & Name' : 'Icon & Name', preview: '⬛ Text' },
+                    { id: 'icon-only', label: locale === 'de' ? 'Nur Icon' : 'Icon only', preview: '⬛' },
+                    { id: 'text-only', label: locale === 'de' ? 'Nur Name' : 'Name only', preview: 'Text' },
+                  ] as const).map((opt) => (
+                    <button key={opt.id} onClick={() => setNavbarStyle(opt.id)}
+                      style={{
+                        flex: 1, padding: '8px 6px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+                        cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
+                        background: navbarStyle === opt.id ? 'var(--accent)' : 'var(--surface-2)',
+                        color: navbarStyle === opt.id ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${navbarStyle === opt.id ? 'var(--accent)' : 'var(--border)'}`,
+                      }}>
+                      <span style={{ fontSize: '16px' }}>{opt.preview}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px' }}>Logo</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
