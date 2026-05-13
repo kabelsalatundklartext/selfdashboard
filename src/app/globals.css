@@ -11,6 +11,7 @@
   --text:        #e8eaf0;
   --text-muted:  #6b7280;
   --accent:      #6366f1;
+  --font-ui:     'Inter', 'DM Sans', system-ui, sans-serif;
 }
 
 [data-theme="light"] {
@@ -70,7 +71,7 @@ html, body {
   min-height: 100vh;
   background-color: var(--background);
   color: var(--text);
-  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
@@ -138,6 +139,7 @@ html, body {
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
+  font-family: var(--font-ui);
 }
 
 .widget-panel::before {

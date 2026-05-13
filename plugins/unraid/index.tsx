@@ -7,8 +7,8 @@ export const meta: PluginMeta = {
   id: 'unraid',
   name: 'Unraid',
   description:
-    'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); feine Anzeige-Optionen.',
-  version: '1.5.0',
+    'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.',
+  version: '1.5.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -204,8 +204,8 @@ function Bar({ value }: { value: number }) {
         borderRadius: '999px',
         width: '100%',
         overflow: 'hidden',
-        background: 'rgba(255,255,255,0.08)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--border)',
+        border: '1px solid color-mix(in srgb, var(--border) 90%, transparent)',
         boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.28)',
       }}
     >
@@ -242,12 +242,11 @@ function Row({ label, value, bar, pct: p, title }: { label: string; value: strin
           flex: '1 1 34%',
           minWidth: 0,
           fontSize: '11px',
-          color: '#ffffff',
-          fontWeight: 600,
+          color: 'var(--text)',
+          fontWeight: 500,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
         }}
       >
         {label}
@@ -265,13 +264,12 @@ function Row({ label, value, bar, pct: p, title }: { label: string; value: strin
           flex: '0 0 auto',
           maxWidth: '42%',
           fontSize: '11px',
-          color: '#ffffff',
-          fontWeight: 700,
+          color: 'var(--text)',
+          fontWeight: 500,
           textAlign: 'right',
           whiteSpace: 'nowrap',
           paddingLeft: '6px',
           fontVariantNumeric: 'tabular-nums',
-          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
         }}
       >
         {value}
@@ -284,15 +282,14 @@ function Heading({ text }: { text: string }) {
   return (
     <p
       style={{
-        fontSize: '10px',
-        fontWeight: 800,
+        fontSize: '11px',
+        fontWeight: 600,
         textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        color: 'rgba(255,255,255,0.88)',
+        letterSpacing: '0.08em',
+        color: 'var(--text-muted)',
         margin: '12px 0 8px',
         paddingBottom: '4px',
-        borderBottom: '1px solid rgba(255,255,255,0.12)',
-        textShadow: '0 1px 0 rgba(0,0,0,0.35)',
+        borderBottom: '1px solid var(--border)',
       }}
     >
       {text}
@@ -308,7 +305,7 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
   return (
     <div
       style={{
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderTop: '1px solid var(--border)',
         paddingTop: '10px',
         marginTop: '10px',
         minWidth: 0,
@@ -318,32 +315,30 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
         <span
           style={{
             fontSize: '11px',
-            fontWeight: 700,
-            color: '#ffffff',
+            fontWeight: 600,
+            color: 'var(--text)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             minWidth: 0,
             flex: '1 1 40%',
-            textShadow: '0 1px 2px rgba(0,0,0,0.45)',
           }}
           title={title}
         >
           {disk.name}
-          {kind ? <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.78)', marginLeft: '6px', fontSize: '10px' }}>({kind})</span> : null}
+          {kind ? <span style={{ fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px', fontSize: '10px' }}>({kind})</span> : null}
         </span>
         <span
           className="tabular-nums"
           style={{
             fontSize: '10px',
-            color: 'rgba(255,255,255,0.9)',
+            color: 'var(--text-muted)',
             flexShrink: 0,
             textAlign: 'right',
             whiteSpace: 'nowrap',
             lineHeight: 1.35,
             fontVariantNumeric: 'tabular-nums',
-            fontWeight: 600,
-            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+            fontWeight: 500,
           }}
         >
           {formatDiskStatus(disk.status)}
@@ -361,14 +356,13 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
           className="tabular-nums"
           style={{
             fontSize: '10px',
-            color: 'rgba(255,255,255,0.88)',
+            color: 'var(--text-muted)',
             flexShrink: 0,
             textAlign: 'right',
             whiteSpace: 'nowrap',
             paddingLeft: '6px',
             fontVariantNumeric: 'tabular-nums',
-            fontWeight: 600,
-            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+            fontWeight: 500,
           }}
         >
           {fmtKb(used)} / {fmtKb(disk.fsSize)}
@@ -571,11 +565,9 @@ function Widget({ config }: PluginWidgetProps) {
     overflowY: 'auto',
     overflowX: 'hidden',
     boxSizing: 'border-box',
-    padding: '12px 16px 16px',
+    padding: '10px 14px 14px',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
-    background:
-      'radial-gradient(120% 90% at 0% 0%, rgba(99,102,241,0.12) 0%, transparent 45%), radial-gradient(90% 70% at 100% 10%, rgba(34,197,94,0.06) 0%, transparent 42%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 28%)',
   }
 
   if (!url || !apiKey)
@@ -585,7 +577,7 @@ function Widget({ config }: PluginWidgetProps) {
         style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
       >
         <span style={{ fontSize: '32px' }}>🖥️</span>
-        <p style={{ fontSize: '12px', color: '#ffffff', marginTop: '10px', lineHeight: 1.45, fontWeight: 600 }}>
+        <p style={{ fontSize: '12px', color: 'var(--text)', marginTop: '10px', lineHeight: 1.45, fontWeight: 500 }}>
           URL & API Key
           <br />
           in Einstellungen eintragen
@@ -611,8 +603,8 @@ function Widget({ config }: PluginWidgetProps) {
         style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
       >
         <span style={{ fontSize: '24px' }}>⚠️</span>
-        <p style={{ fontSize: '11px', color: '#fecaca', marginTop: '10px', wordBreak: 'break-word', fontWeight: 700 }}>{error}</p>
-        <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.88)', marginTop: '8px', lineHeight: 1.45 }}>
+        <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '10px', wordBreak: 'break-word', fontWeight: 600 }}>{error}</p>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
           URL ohne Endpfad, API-Key mit Rolle VIEWER oder ADMIN.
         </p>
       </div>
