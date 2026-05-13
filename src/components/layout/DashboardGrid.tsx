@@ -104,6 +104,7 @@ export function DashboardGrid() {
           .react-resizable-handle {
             opacity: ${editMode ? '0.7' : '0'} !important;
             transition: opacity 0.2s;
+            z-index: 20 !important;
           }
           .react-resizable-handle::after {
             border-color: var(--accent) !important;

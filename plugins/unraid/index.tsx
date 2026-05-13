@@ -7,18 +7,13 @@ export const meta: PluginMeta = {
   id: 'unraid',
   name: 'Unraid',
   description:
-    'System-Übersicht per Unraid GraphQL API (Unraid 7.2+ / Connect API): CPU, RAM, Temperaturen, Array, Cache-Pools, Netz-Interfaces. API-Key: Einstellungen → Management-Zugang → API-Schlüssel.',
-  version: '1.1.0',
+    'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, Netz. Array- und Pool-Zeilen mit Status, Temperatur und Belegung; feine Anzeige-Optionen.',
+  version: '1.3.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
 }
 
-/**
- * Schema aligned with https://docs.unraid.net/API/how-to-use-the-api/
- * and https://github.com/unraid/api/blob/main/api/generated-schema.graphql
- * (older queries used removed fields like info.memory / info.cpu.utilization → HTTP 400).
- */
 const QUERY = `query SelfDashboardUnraid {
   info {
     cpu {
@@ -49,16 +44,6 @@ const QUERY = `query SelfDashboardUnraid {
       used
       free
       percentTotal
-    }
-    temperature {
-      sensors {
-        id
-        name
-        type
-        current {
-          value
-        }
-      }
     }
   }
   array {
@@ -93,19 +78,14 @@ const QUERY = `query SelfDashboardUnraid {
   }
 }`
 
-interface Disk {
+export interface Disk {
   id: string
   name: string
   status: string
   temp: number
   fsSize: number
   fsFree: number
-}
-
-interface Pool {
-  id: string
-  name: string
-  capacity: { kilobytes: { total: number; used: number; free: number } }
+  diskType?: string
 }
 
 interface NetIface {
@@ -117,14 +97,14 @@ interface NetIface {
 interface UnraidData {
   cpu?: { brand: string; cores: number; threads: number; utilization: number; temp: number }
   memory?: { total: number; used: number; free: number }
-  temps?: { id: string; name: string; temp: number }[]
   networkIfaces?: NetIface[]
   array?: {
     state: string
     capacity: { kilobytes: { total: number; used: number; free: number } }
     disks: Disk[]
   }
-  pools?: Pool[]
+  /** Cache / Pool devices (same shape as array disks) */
+  pools?: Disk[]
 }
 
 function num(v: unknown): number {
@@ -158,14 +138,64 @@ function fmtBytes(b: number) {
   return `${b} B`
 }
 
+function fmtBps(bps: number) {
+  if (bps >= 1024 ** 3) return `${(bps / 1024 ** 3).toFixed(2)} GB/s`
+  if (bps >= 1024 ** 2) return `${(bps / 1024 ** 2).toFixed(2)} MB/s`
+  if (bps >= 1024) return `${(bps / 1024).toFixed(1)} KB/s`
+  return `${bps.toFixed(0)} B/s`
+}
+
 function pct(used: number, total: number) {
   return total ? Math.round((used / total) * 100) : 0
+}
+
+/** Short German-ish label for Unraid array disk status */
+function formatDiskStatus(status: string): string {
+  if (!status) return '—'
+  const map: Record<string, string> = {
+    DISK_OK: 'OK',
+    DISK_NP: 'Leer',
+    DISK_NP_MISSING: 'Fehlt',
+    DISK_INVALID: 'Ungültig',
+    DISK_WRONG: 'Falsch',
+    DISK_DSBL: 'Aus',
+    DISK_NP_DSBL: 'Aus (leer)',
+    DISK_DSBL_NEW: 'Neu (aus)',
+    DISK_NEW: 'Neu',
+  }
+  return map[status] ?? status.replace(/^DISK_/, '')
+}
+
+function diskTypeLabel(t?: string): string {
+  if (!t) return ''
+  const map: Record<string, string> = {
+    DATA: 'Daten',
+    PARITY: 'Parity',
+    BOOT: 'Boot',
+    FLASH: 'Flash',
+    CACHE: 'Cache',
+  }
+  return map[t] ?? t
+}
+
+function isVirtualIface(name: string): boolean {
+  const n = name.toLowerCase()
+  if (n === 'lo') return true
+  if (n.startsWith('veth')) return true
+  if (n.startsWith('shim-')) return true
+  if (n === 'docker0') return true
+  if (n.startsWith('virbr')) return true
+  if (n.startsWith('br-')) return true
+  if (n.startsWith('wg')) return true
+  if (n.startsWith('tun')) return true
+  if (n.startsWith('tap')) return true
+  return false
 }
 
 function Bar({ value, danger = 90 }: { value: number; danger?: number }) {
   const c = value >= danger ? '#ef4444' : value >= 70 ? '#f59e0b' : 'var(--accent)'
   return (
-    <div style={{ height: '3px', borderRadius: '2px', background: 'var(--border)', flex: 1, overflow: 'hidden' }}>
+    <div style={{ height: '3px', borderRadius: '2px', background: 'var(--border)', width: '100%', overflow: 'hidden' }}>
       <div style={{ height: '100%', width: `${Math.min(100, value)}%`, background: c, borderRadius: '2px', transition: 'width 0.5s ease' }} />
     </div>
   )
@@ -173,16 +203,142 @@ function Bar({ value, danger = 90 }: { value: number; danger?: number }) {
 
 function Row({ label, value, bar, pct: p }: { label: string; value: string; bar?: boolean; pct?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '18px' }}>
-      <span style={{ fontSize: '11px', color: 'var(--text-muted)', width: '90px', flexShrink: 0 }}>{label}</span>
-      {bar && p !== undefined && <Bar value={p} danger={label.includes('°') || label.includes('emp') ? 80 : 90} />}
-      <span style={{ fontSize: '11px', color: 'var(--text)', fontWeight: 500, marginLeft: 'auto', flexShrink: 0 }}>{value}</span>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minHeight: '20px',
+        width: '100%',
+        minWidth: 0,
+      }}
+    >
+      <span
+        title={label}
+        style={{
+          flex: '1 1 34%',
+          minWidth: 0,
+          fontSize: '11px',
+          color: 'var(--text-muted)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </span>
+      {bar && p !== undefined ? (
+        <div style={{ flex: '1 1 38%', minWidth: '40px', maxWidth: '100%' }}>
+          <Bar value={p} danger={label.includes('°') || /temp/i.test(label) ? 80 : 90} />
+        </div>
+      ) : (
+        <span style={{ flex: '1 1 38%' }} />
+      )}
+      <span
+        style={{
+          flex: '0 0 auto',
+          maxWidth: '42%',
+          fontSize: '11px',
+          color: 'var(--text)',
+          fontWeight: 500,
+          textAlign: 'right',
+          whiteSpace: 'nowrap',
+          paddingLeft: '6px',
+        }}
+      >
+        {value}
+      </span>
     </div>
   )
 }
 
 function Heading({ text }: { text: string }) {
-  return <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '8px 0 4px' }}>{text}</p>
+  return (
+    <p
+      style={{
+        fontSize: '10px',
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        color: 'var(--text-muted)',
+        margin: '10px 0 6px',
+      }}
+    >
+      {text}
+    </p>
+  )
+}
+
+function DiskVolumeRow({ disk }: { disk: Disk }) {
+  const used = Math.max(0, disk.fsSize - disk.fsFree)
+  const p = pct(used, disk.fsSize)
+  const kind = diskTypeLabel(disk.diskType)
+  const title = [disk.name, kind, formatDiskStatus(disk.status)].filter(Boolean).join(' — ')
+  return (
+    <div
+      style={{
+        borderTop: '1px solid var(--border)',
+        paddingTop: '8px',
+        marginTop: '8px',
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px', minWidth: 0, flexWrap: 'wrap' }}>
+        <span
+          style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--text)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+            flex: '1 1 40%',
+          }}
+          title={title}
+        >
+          {disk.name}
+          {kind ? <span style={{ fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px', fontSize: '10px' }}>({kind})</span> : null}
+        </span>
+        <span
+          style={{
+            fontSize: '10px',
+            color: 'var(--text-muted)',
+            flexShrink: 0,
+            textAlign: 'right',
+            whiteSpace: 'nowrap',
+            lineHeight: 1.35,
+          }}
+        >
+          {formatDiskStatus(disk.status)}
+          {' · '}
+          {disk.temp > 0 ? `${disk.temp}°C` : '—'}
+          {' · '}
+          {p}%
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+        <div style={{ flex: '1 1 auto', minWidth: '48px' }}>
+          <Bar value={p} />
+        </div>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, textAlign: 'right', whiteSpace: 'nowrap', paddingLeft: '6px' }}>
+          {fmtKb(used)} / {fmtKb(disk.fsSize)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function mapDisk(raw: Record<string, unknown>): Disk {
+  return {
+    id: String(raw.id ?? raw.name ?? ''),
+    name: String(raw.name ?? ''),
+    status: String(raw.status ?? ''),
+    temp: Math.round(num(raw.temp)),
+    fsSize: num(raw.fsSize),
+    fsFree: num(raw.fsFree),
+    diskType: raw.type ? String(raw.type) : undefined,
+  }
 }
 
 function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
@@ -192,43 +348,15 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
   const cpuInfo = info?.cpu as Record<string, unknown> | undefined
   const mCpu = metrics?.cpu as Record<string, unknown> | undefined
   const mMem = metrics?.memory as Record<string, unknown> | undefined
-  const mTemp = metrics?.temperature as Record<string, unknown> | undefined
 
   const kb = arr?.capacity as Record<string, unknown> | undefined
   const kbInner = kb?.kilobytes as Record<string, unknown> | undefined
 
   const disksRaw = (arr?.disks as Record<string, unknown>[] | undefined) ?? []
-  const disks: Disk[] = disksRaw.map((disk) => ({
-    id: String(disk.id ?? disk.name ?? ''),
-    name: String(disk.name ?? ''),
-    status: String(disk.status ?? ''),
-    temp: Math.round(num(disk.temp)),
-    fsSize: num(disk.fsSize),
-    fsFree: num(disk.fsFree),
-  }))
+  const disks: Disk[] = disksRaw.map((x) => mapDisk(x))
 
   const cachesRaw = (arr?.caches as Record<string, unknown>[] | undefined) ?? []
-  const pools: Pool[] = cachesRaw
-    .filter((c) => c && num(c.fsSize) > 0)
-    .map((c) => {
-      const total = num(c.fsSize)
-      const free = num(c.fsFree)
-      const used = num(c.fsUsed) || Math.max(0, total - free)
-      return {
-        id: String(c.id ?? c.name ?? ''),
-        name: String(c.name ?? 'Cache'),
-        capacity: { kilobytes: { total, used, free } },
-      }
-    })
-
-  const sensors = (mTemp?.sensors as Record<string, unknown>[] | undefined) ?? []
-  const temps = sensors
-    .map((s) => ({
-      id: String(s.id ?? s.name ?? ''),
-      name: String(s.name ?? 'Sensor'),
-      temp: Math.round(num((s.current as Record<string, unknown> | undefined)?.value)),
-    }))
-    .filter((t) => t.temp > 0)
+  const pools: Disk[] = cachesRaw.filter((c) => c && num(c.fsSize) > 0).map((c) => mapDisk(c))
 
   const ifacesRaw = (info?.networkInterfaces as Record<string, unknown>[] | undefined) ?? []
   const networkIfaces: NetIface[] = ifacesRaw.map((n) => ({
@@ -256,7 +384,6 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
           free: num(mMem.free),
         }
       : undefined,
-    temps,
     networkIfaces,
     array: arr
       ? {
@@ -275,16 +402,57 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
   }
 }
 
+function parseNetSpeedJson(raw: unknown): { rx: number; tx: number } | null {
+  if (!raw || typeof raw !== 'object') return null
+  const j = raw as Record<string, unknown>
+  const rx = num(j.rxBps ?? j.rx_bps ?? j.downloadBps ?? j.download ?? j.rx)
+  const tx = num(j.txBps ?? j.tx_bps ?? j.uploadBps ?? j.upload ?? j.tx)
+  if (!rx && !tx) return null
+  return { rx, tx }
+}
+
+function flag(config: Record<string, unknown>, key: string, defaultTrue = true) {
+  const v = config[key]
+  if (v === undefined || v === null) return defaultTrue
+  return v !== false
+}
+
+function aggregateDisks(disks: Disk[]) {
+  let total = 0
+  let used = 0
+  for (const d of disks) {
+    total += d.fsSize
+    used += Math.max(0, d.fsSize - d.fsFree)
+  }
+  return { total, used }
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const [data, setData] = useState<UnraidData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [netBps, setNetBps] = useState<{ rx: number; tx: number } | null>(null)
+  const [netBpsErr, setNetBpsErr] = useState<string | null>(null)
 
   const url = (config.url as string)?.replace(/\/$/, '')
   const apiKey = config.apiKey as string
   const refresh = ((config.refreshInterval as number) ?? 5) * 1000
+  const speedUrl = ((config.netSpeedJsonUrl as string) || '').trim()
 
-  const show = (key: string) => config[key] !== false
+  const showCpu = flag(config, 'showCpu')
+  const showCpuLoad = flag(config, 'showCpuLoad')
+  const showCpuPkgTemp = flag(config, 'showCpuPkgTemp')
+  const showCpuCores = flag(config, 'showCpuCores')
+  const showRam = flag(config, 'showRam')
+  const showArray = flag(config, 'showArray')
+  const showArrayTotal = flag(config, 'showArrayTotal')
+  const showArrayDisks = flag(config, 'showArrayDisks')
+  const showPools = flag(config, 'showPools')
+  const showPoolsTotal = flag(config, 'showPoolsTotal')
+  const showPoolsDisks = flag(config, 'showPoolsDisks')
+  const showNetwork = flag(config, 'showNetwork')
+  const hideVirtualIfaces = flag(config, 'hideVirtualIfaces', true)
+  const showNetSpeed = flag(config, 'showNetSpeed', false)
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -317,12 +485,34 @@ function Widget({ config }: PluginWidgetProps) {
       }
       setData(mapResponse(json.data))
       setError(null)
+
+      if (showNetSpeed && speedUrl) {
+        try {
+          const r = await fetch(speedUrl, { method: 'GET', cache: 'no-store' })
+          const t = await r.text()
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(t) as unknown
+          } catch {
+            parsed = null
+          }
+          const rates = parseNetSpeedJson(parsed)
+          setNetBps(rates)
+          setNetBpsErr(rates ? null : 'JSON unbekannt (erwarte rxBps/txBps)')
+        } catch (e) {
+          setNetBpsErr(e instanceof Error ? e.message : 'Netz-Speed-URL')
+          setNetBps(null)
+        }
+      } else {
+        setNetBps(null)
+        setNetBpsErr(null)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [url, apiKey])
+  }, [url, apiKey, showNetSpeed, speedUrl])
 
   useEffect(() => {
     fetch_()
@@ -330,11 +520,19 @@ function Widget({ config }: PluginWidgetProps) {
     return () => clearInterval(id)
   }, [fetch_, refresh])
 
+  const shellStyle: React.CSSProperties = {
+    height: '100%',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    boxSizing: 'border-box',
+    padding: '10px 18px 16px',
+  }
+
   if (!url || !apiKey)
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '8px', textAlign: 'center' }}>
+      <div style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <span style={{ fontSize: '32px' }}>🖥️</span>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
           URL & API Key
           <br />
           in Einstellungen eintragen
@@ -344,114 +542,141 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (loading)
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {[80, 60, 90, 70].map((w, i) => (
-          <div key={i} className="skeleton" style={{ height: '12px', width: `${w}%`, borderRadius: '3px' }} />
-        ))}
+      <div style={shellStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {[80, 60, 90, 70].map((w, i) => (
+            <div key={i} className="skeleton" style={{ height: '12px', width: `${w}%`, borderRadius: '3px' }} />
+          ))}
+        </div>
       </div>
     )
 
   if (error)
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '6px', padding: '8px' }}>
+      <div style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <span style={{ fontSize: '24px' }}>⚠️</span>
-        <p style={{ fontSize: '11px', color: '#ef4444', textAlign: 'center', wordBreak: 'break-word' }}>
-          {error}
-        </p>
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
-          URL ohne Endpfad (z. B. https://tower), API-Key mit Rolle VIEWER oder ADMIN. Unraid: Einstellungen → Management-Zugang → API-Schlüssel.
+        <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
+          URL ohne Endpfad, API-Key mit Rolle VIEWER oder ADMIN.
         </p>
       </div>
     )
 
   const arrayKb = data?.array?.capacity?.kilobytes
   const ramPct = data?.memory ? pct(data.memory.used, data.memory.total) : 0
+  const poolDisks = data?.pools ?? []
+  const poolAgg = aggregateDisks(poolDisks)
+  const poolPct = poolAgg.total ? pct(poolAgg.used, poolAgg.total) : 0
+
+  const ifaces = (data?.networkIfaces ?? []).filter((n) => (hideVirtualIfaces ? !isVirtualIface(n.name) : true))
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      {show('showCpu') && data?.cpu && (
+    <div style={shellStyle}>
+      {showCpu && data?.cpu && (
         <>
           <Heading text={`CPU — ${data.cpu.brand}`} />
-          <Row label="Auslastung" value={`${data.cpu.utilization}%`} bar pct={data.cpu.utilization} />
-          {show('showTemp') && data.cpu.temp > 0 && <Row label="Paket-Temp." value={`${data.cpu.temp}°C`} bar pct={data.cpu.temp} />}
-          <Row label="Kerne / Threads" value={`${data.cpu.cores} / ${data.cpu.threads}`} />
+          {showCpuLoad && <Row label="Auslastung" value={`${data.cpu.utilization}%`} bar pct={data.cpu.utilization} />}
+          {showCpuPkgTemp && data.cpu.temp > 0 && <Row label="Paket-Temp." value={`${data.cpu.temp}°C`} bar pct={data.cpu.temp} />}
+          {showCpuCores && <Row label="Kerne / Threads" value={`${data.cpu.cores} / ${data.cpu.threads}`} />}
         </>
       )}
 
-      {show('showRam') && data?.memory && (
+      {showRam && data?.memory && (
         <>
           <Heading text="RAM" />
           <Row label="Verbrauch" value={`${fmtBytes(data.memory.used)} / ${fmtBytes(data.memory.total)}`} bar pct={ramPct} />
         </>
       )}
 
-      {show('showTemp') && data?.temps && data.temps.length > 0 && (
-        <>
-          <Heading text="Temperaturen" />
-          {data.temps.map((t) => (
-            <Row key={t.id} label={t.name} value={`${t.temp}°C`} bar pct={t.temp} />
-          ))}
-        </>
-      )}
-
-      {show('showArray') && data?.array && (
+      {showArray && data?.array && (
         <>
           <Heading text={`Array — ${data.array.state}`} />
-          {arrayKb && num(arrayKb.total) > 0 && (
+          {showArrayTotal && arrayKb && num(arrayKb.total) > 0 && (
             <Row label="Gesamt" value={`${fmtKb(num(arrayKb.used))} / ${fmtKb(num(arrayKb.total))}`} bar pct={pct(num(arrayKb.used), num(arrayKb.total))} />
           )}
-          {data.array.disks
-            ?.filter((d) => d.status !== 'DISK_NP' && d.fsSize > 0)
-            .map((disk) => {
-              const dp = pct(disk.fsSize - disk.fsFree, disk.fsSize)
-              return (
-                <div key={disk.id} style={{ borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)' }}>{disk.name}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{disk.temp > 0 ? `${disk.temp}°C` : '—'}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Bar value={dp} />
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
-                      {fmtKb(disk.fsSize - disk.fsFree)} / {fmtKb(disk.fsSize)}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
+          {showArrayDisks &&
+            data.array.disks
+              ?.filter((d) => d.status !== 'DISK_NP' && d.fsSize > 0)
+              .map((disk) => <DiskVolumeRow key={disk.id} disk={disk} />)}
         </>
       )}
 
-      {show('showPools') && data?.pools && data.pools.length > 0 && (
+      {showPools && poolDisks.length > 0 && (
         <>
           <Heading text="Pools / Cache" />
-          {data.pools.map((pool) => {
-            const kb = pool.capacity?.kilobytes
-            if (!kb || !num(kb.total)) return null
-            const p = pct(num(kb.used), num(kb.total))
-            return (
-              <div key={pool.id} style={{ marginBottom: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text)' }}>{pool.name}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                    {fmtKb(num(kb.used))} / {fmtKb(num(kb.total))}
-                  </span>
-                </div>
-                <Bar value={p} />
-              </div>
-            )
-          })}
+          {showPoolsTotal && poolAgg.total > 0 && (
+            <Row label="Gesamt (Cache)" value={`${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`} bar pct={poolPct} />
+          )}
+          {showPoolsDisks && poolDisks.map((disk) => <DiskVolumeRow key={disk.id} disk={disk} />)}
         </>
       )}
 
-      {show('showNetwork') && data?.networkIfaces && data.networkIfaces.length > 0 && (
+      {showNetwork && ifaces.length > 0 && (
         <>
           <Heading text="Netzwerk" />
-          {data.networkIfaces.map((n) => (
+          {showNetSpeed && (
+            <>
+              {netBps && (netBps.rx > 0 || netBps.tx > 0) ? (
+                <>
+                  <Row label="↓ Download" value={fmtBps(netBps.rx)} />
+                  <Row label="↑ Upload" value={fmtBps(netBps.tx)} />
+                </>
+              ) : (
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '0 0 8px' }}>
+                  {speedUrl
+                    ? netBpsErr
+                      ? `Durchsatz-URL: ${netBpsErr}`
+                      : 'Durchsatz-URL liefert noch keine Werte (JSON: rxBps, txBps).'
+                    : 'Live-Durchsatz liefert die Unraid-GraphQL-API für den Host nicht — optional „JSON-URL“ in den Einstellungen (eigenes Skript + CORS) oder z. B. Grafana.'}
+                </p>
+              )}
+            </>
+          )}
+          {ifaces.map((n) => (
             <Row key={n.name} label={n.name} value={[n.ipAddress, n.status].filter(Boolean).join(' · ') || '—'} />
           ))}
         </>
       )}
+    </div>
+  )
+}
+
+function ToggleRow({
+  label,
+  on,
+  onToggle,
+}: {
+  label: string
+  on: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer' }} onClick={onToggle}>
+      <span style={{ fontSize: '13px', color: 'var(--text)', flex: 1 }}>{label}</span>
+      <div
+        style={{
+          width: '36px',
+          height: '20px',
+          borderRadius: '10px',
+          background: on ? 'var(--accent)' : 'var(--border)',
+          position: 'relative',
+          transition: 'background 0.2s',
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            top: '2px',
+            left: on ? '18px' : '2px',
+            width: '16px',
+            height: '16px',
+            borderRadius: '50%',
+            background: '#fff',
+            transition: 'left 0.2s',
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -466,136 +691,107 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     fontSize: '13px',
     outline: 'none',
     width: '100%',
+    boxSizing: 'border-box',
   }
 
-  const SECTIONS = [
-    { key: 'showCpu', label: '🖥️ CPU' },
-    { key: 'showRam', label: '💾 RAM' },
-    { key: 'showTemp', label: '🌡️ Temperaturen' },
-    { key: 'showArray', label: '🗄️ Array & Disks' },
-    { key: 'showPools', label: '💿 Pools / Cache' },
-    { key: 'showNetwork', label: '🌐 Netzwerk' },
-  ]
+  const sub = (key: string, def = true) => flag(config as Record<string, unknown>, key, def)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
-        <label
-          style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'block',
-            marginBottom: '4px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}
-        >
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Unraid-Basis-URL
         </label>
-        <input
-          style={inp}
-          value={(config.url as string) || ''}
-          onChange={(e) => onChange('url', e.target.value)}
-          placeholder="http://192.168.1.10 oder https://tower"
-        />
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
-          Ohne Pfad am Ende. GraphQL: <code style={{ fontSize: '10px' }}>/graphql</code> (z. B. in der{' '}
-          <a href="https://docs.unraid.net/API/how-to-use-the-api/" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
-            Unraid-Doku
-          </a>
-          ).
-        </p>
+        <input style={inp} value={(config.url as string) || ''} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.10 oder https://tower" />
       </div>
       <div>
-        <label
-          style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'block',
-            marginBottom: '4px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}
-        >
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           API Key
         </label>
-        <input style={inp} type="password" value={(config.apiKey as string) || ''} onChange={(e) => onChange('apiKey', e.target.value)} placeholder="x-api-key Header" />
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
-          Unraid WebGUI: Einstellungen → Management-Zugang → API-Schlüssel. Rolle mindestens VIEWER (Lesen).
-        </p>
+        <input style={inp} type="password" value={(config.apiKey as string) || ''} onChange={(e) => onChange('apiKey', e.target.value)} placeholder="x-api-key" />
       </div>
       <div>
-        <label
-          style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'block',
-            marginBottom: '4px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}
-        >
-          Aktualisierung
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Aktualisierung (Sek.)
         </label>
         <select style={{ ...inp, cursor: 'pointer' }} value={(config.refreshInterval as number) ?? 5} onChange={(e) => onChange('refreshInterval', Number(e.target.value))}>
-          <option value={2}>Alle 2 Sekunden</option>
-          <option value={5}>Alle 5 Sekunden</option>
-          <option value={10}>Alle 10 Sekunden</option>
-          <option value={30}>Alle 30 Sekunden</option>
-          <option value={60}>Alle 60 Sekunden</option>
+          <option value={2}>2</option>
+          <option value={5}>5</option>
+          <option value={10}>10</option>
+          <option value={30}>30</option>
+          <option value={60}>60</option>
         </select>
       </div>
+
       <div>
-        <label
-          style={{
-            fontSize: '11px',
-            color: 'var(--text-muted)',
-            display: 'block',
-            marginBottom: '8px',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}
-        >
-          Sektionen
-        </label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {SECTIONS.map(({ key, label }) => (
-            <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-              <span style={{ fontSize: '13px', color: 'var(--text)' }}>{label}</span>
-              <div
-                onClick={() => onChange(key, !(config[key] ?? true))}
-                style={{
-                  width: '36px',
-                  height: '20px',
-                  borderRadius: '10px',
-                  background: (config[key] ?? true) ? 'var(--accent)' : 'var(--border)',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: (config[key] ?? true) ? '18px' : '2px',
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '50%',
-                    background: '#fff',
-                    transition: 'left 0.2s',
-                  }}
-                />
-              </div>
-            </label>
-          ))}
+        <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Anzeige — grob</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <ToggleRow label="🖥️ CPU (Sektion)" on={sub('showCpu')} onToggle={() => onChange('showCpu', !sub('showCpu'))} />
+          <ToggleRow label="💾 RAM" on={sub('showRam')} onToggle={() => onChange('showRam', !sub('showRam'))} />
+          <ToggleRow label="🗄️ Array" on={sub('showArray')} onToggle={() => onChange('showArray', !sub('showArray'))} />
+          <ToggleRow label="💿 Pools / Cache" on={sub('showPools')} onToggle={() => onChange('showPools', !sub('showPools'))} />
+          <ToggleRow label="🌐 Netzwerk" on={sub('showNetwork')} onToggle={() => onChange('showNetwork', !sub('showNetwork'))} />
         </div>
       </div>
+
+      {sub('showCpu') && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>CPU — Details</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
+            <ToggleRow label="Auslastung %" on={sub('showCpuLoad')} onToggle={() => onChange('showCpuLoad', !sub('showCpuLoad'))} />
+            <ToggleRow label="Paket-Temperatur" on={sub('showCpuPkgTemp')} onToggle={() => onChange('showCpuPkgTemp', !sub('showCpuPkgTemp'))} />
+            <ToggleRow label="Kerne / Threads" on={sub('showCpuCores')} onToggle={() => onChange('showCpuCores', !sub('showCpuCores'))} />
+          </div>
+        </div>
+      )}
+
+      {sub('showArray') && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Array — Details</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
+            <ToggleRow label="Gesamt-Balken" on={sub('showArrayTotal')} onToggle={() => onChange('showArrayTotal', !sub('showArrayTotal'))} />
+            <ToggleRow label="Einzelne Disks (Status · Temp · %)" on={sub('showArrayDisks')} onToggle={() => onChange('showArrayDisks', !sub('showArrayDisks'))} />
+          </div>
+        </div>
+      )}
+
+      {sub('showPools') && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pools / Cache — Details</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
+            <ToggleRow label="Gesamt-Balken (alle Cache-Disks)" on={sub('showPoolsTotal')} onToggle={() => onChange('showPoolsTotal', !sub('showPoolsTotal'))} />
+            <ToggleRow label="Einzelne Cache-Disks" on={sub('showPoolsDisks')} onToggle={() => onChange('showPoolsDisks', !sub('showPoolsDisks'))} />
+          </div>
+        </div>
+      )}
+
+      {sub('showNetwork') && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Netzwerk — Filter & Durchsatz</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
+            <ToggleRow
+              label="veth / shim / docker0 … ausblenden"
+              on={sub('hideVirtualIfaces', true)}
+              onToggle={() => onChange('hideVirtualIfaces', !sub('hideVirtualIfaces', true))}
+            />
+            <ToggleRow label="Durchsatz-Zeile (JSON-URL)" on={sub('showNetSpeed', false)} onToggle={() => onChange('showNetSpeed', !sub('showNetSpeed', false))} />
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>JSON-URL (GET, CORS)</label>
+            <input
+              style={inp}
+              value={(config.netSpeedJsonUrl as string) || ''}
+              onChange={(e) => onChange('netSpeedJsonUrl', e.target.value)}
+              placeholder="https://unraid/meine-net-stats.json"
+            />
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
+              Erwartetes JSON: <code style={{ fontSize: '10px' }}>{`{ "rxBps": 123456, "txBps": 78900 }`}</code>. Unraid-API:{' '}
+              <a href="https://github.com/unraid/api/issues/1559" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+                Host-RX/TX
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

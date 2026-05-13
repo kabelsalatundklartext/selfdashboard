@@ -93,10 +93,23 @@ export function WidgetWrapper({ instance, editMode }: Props) {
 
         {/* Controls — top right, only in edit mode on hover */}
         {editMode && hovering && (
-          <div style={{
-            position: 'absolute', top: '5px', right: '5px', zIndex: 15,
-            display: 'flex', gap: '3px', alignItems: 'center',
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: '5px',
+              left: '36px',
+              right: '14px',
+              zIndex: 15,
+              display: 'flex',
+              gap: '3px',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              rowGap: '4px',
+              maxWidth: 'calc(100% - 50px)',
+              pointerEvents: 'auto',
+            }}
+          >
             {/* Zoom */}
             <div style={ctrlBox}>
               <button style={ctrlBtn(canZoomOut)} onClick={() => canZoomOut && setPluginZoom(pluginZoom - 0.1)}>
