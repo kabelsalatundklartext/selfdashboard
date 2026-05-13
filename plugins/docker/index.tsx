@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Laufende (optional alle) Container über die Docker Engine API — SelfDashboard muss den Socket mounten (/api/docker-containers).',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -121,7 +121,18 @@ function Widget({ config }: PluginWidgetProps) {
         <span style={{ fontSize: '22px' }}>⚠️</span>
         <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
-          SelfDashboard braucht Zugriff auf <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> (Volume-Mount). Nur dieselbe Seite wie das Dashboard (kein externes CORS).
+          {/EACCES|permission denied/i.test(error) ? (
+            <>
+              Typisch unter Unraid: Prozess im Container darf den Socket nicht öffnen — Template nutzt{' '}
+              <code style={{ fontSize: '10px' }}>--group-add=281</code> (Docker-Gruppe). GID prüfen:{' '}
+              <code style={{ fontSize: '10px' }}>stat -c %g /var/run/docker.sock</code>. Außerdem: Volume{' '}
+              <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> mounten. Neuere Images laufen als root.
+            </>
+          ) : (
+            <>
+              SelfDashboard braucht Zugriff auf <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> (Volume-Mount). Nur dieselbe Seite wie das Dashboard (kein externes CORS).
+            </>
+          )}
         </p>
       </div>
     )

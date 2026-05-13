@@ -26,7 +26,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-USER nextjs
+# Root: bind-mounted /var/run/docker.sock is owned by host root:docker — non-root often gets EACCES without --group-add.
+USER root
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"

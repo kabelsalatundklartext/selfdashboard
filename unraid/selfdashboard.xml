@@ -9,12 +9,12 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Docker widget: bind-mount the host Docker socket (see Docker Socket). Custom plugin files on the Unraid disk only appear inside the container if you bind-mount a host folder to /app/plugins/custom — the container filesystem does not include random host paths without that volume.</Overview>
+  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Docker widget: bind-mount the host Docker socket (see Docker Socket). Extra parameter `--group-add=281` matches the usual Unraid `docker` group GID for socket access (change if `stat -c '%g' /var/run/docker.sock` differs). Custom plugin files on the Unraid disk only appear inside the container if you bind-mount a host folder to /app/plugins/custom — the container filesystem does not include random host paths without that volume.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/icon_unraid.png</Icon>
-  <ExtraParams/>
+  <ExtraParams>--group-add=281</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
@@ -76,7 +76,7 @@
     Target="/var/run/docker.sock"
     Default="/var/run/docker.sock"
     Mode="ro"
-    Description="Same as -v /var/run/docker.sock:/var/run/docker.sock (read-only). Required for the Docker widget. Only lists containers on THIS Unraid where SelfDashboard runs — not a remote Docker host."
+    Description="Same as -v /var/run/docker.sock:/var/run/docker.sock (read-only). Required for the Docker widget. If you see EACCES, the template adds --group-add=281 (typical Unraid docker GID); adjust Extra Parameters if your `stat -c '%g' /var/run/docker.sock` differs. Only this Unraid's containers, not remote Docker."
     Type="Path"
     Display="always"
     Required="false"

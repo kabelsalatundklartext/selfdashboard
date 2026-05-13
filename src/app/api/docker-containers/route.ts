@@ -62,6 +62,15 @@ export async function GET(req: Request) {
     return NextResponse.json(data)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
+    if (/EACCES|permission denied/i.test(msg)) {
+      return NextResponse.json(
+        {
+          error:
+            'Kein Zugriff auf den Docker-Socket (EACCES). Unter Unraid: Extra Parameter --group-add=281 (oder GID von stat -c %g /var/run/docker.sock). Neuere Images laufen als root und umgehen das oft automatisch.',
+        },
+        { status: 503 },
+      )
+    }
     const hint =
       msg.includes('ENOENT') || msg.includes('ENOTDIR')
         ? 'Docker-Socket nicht gefunden — z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container.'
