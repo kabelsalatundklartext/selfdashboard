@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, Netz. Array- und Pool-Zeilen mit Status, Temperatur und Belegung; feine Anzeige-Optionen.',
-  version: '1.3.1',
+  version: '1.3.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -29,6 +29,7 @@ const QUERY = `query SelfDashboardUnraid {
       name
       ipAddress
       status
+      description
     }
     os {
       hostname
@@ -92,6 +93,8 @@ interface NetIface {
   name: string
   ipAddress?: string | null
   status?: string | null
+  /** Unraid liefert hier oft keinen Speed — falls doch Text wie „2500 Mb/s“, wird er für Balken genutzt */
+  description?: string | null
 }
 
 interface UnraidData {
@@ -363,6 +366,7 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
     name: String(n.name ?? ''),
     ipAddress: n.ipAddress as string | null | undefined,
     status: n.status as string | null | undefined,
+    description: (n.description as string | null | undefined) ?? undefined,
   }))
 
   const packages = cpuInfo?.packages as { temp?: (number | null)[] } | undefined
@@ -405,14 +409,53 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
 const NET_JSON_RX_KEYS = ['rxBps', 'rx_bps', 'downloadBps', 'download', 'rx'] as const
 const NET_JSON_TX_KEYS = ['txBps', 'tx_bps', 'uploadBps', 'upload', 'tx'] as const
 
-function parseNetSpeedJson(raw: unknown): { rx: number; tx: number } | null {
+type NetSpeedRates = { rx: number; tx: number; linkMbps: number }
+
+/** Mbit/s aus Freitext (description / Skript), z. B. „2500 Mb/s“, „10 Gbps“, „2.5 Gbit“ */
+function parseLinkMbpsFromText(text: string | null | undefined): number {
+  if (!text || typeof text !== 'string') return 0
+  const s = text.replace(/,/g, '.').toLowerCase()
+
+  const g = s.match(/(\d+(?:\.\d+)?)\s*(?:g(?:bit)?(?:\/s)?(?:ps)?|gbps|gbe)\b/)
+  if (g) {
+    const v = parseFloat(g[1])
+    if (Number.isFinite(v) && v > 0) return Math.min(200_000, Math.round(v * 1000))
+  }
+
+  const m = s.match(/(\d+(?:\.\d+)?)\s*(?:m(?:bit)?(?:\/s)?(?:ps)?|mbps|mbe)\b/)
+  if (m) {
+    const v = parseFloat(m[1])
+    if (Number.isFinite(v) && v > 0) return Math.min(200_000, Math.round(v))
+  }
+
+  const compact = s.match(/\b(\d{3,5})\s*mb(?:\/s)?\b/i)
+  if (compact) {
+    const v = parseInt(compact[1], 10)
+    if (v >= 100 && v <= 200_000) return v
+  }
+
+  return 0
+}
+
+function parseNetSpeedJson(raw: unknown): NetSpeedRates | null {
   if (!raw || typeof raw !== 'object') return null
   const j = raw as Record<string, unknown>
   const hasKey = [...NET_JSON_RX_KEYS, ...NET_JSON_TX_KEYS].some((k) => k in j)
   const rx = num(j.rxBps ?? j.rx_bps ?? j.downloadBps ?? j.download ?? j.rx)
   const tx = num(j.txBps ?? j.tx_bps ?? j.uploadBps ?? j.upload ?? j.tx)
   if (!hasKey && rx === 0 && tx === 0) return null
-  return { rx, tx }
+  const linkMbps = num(
+    j.linkMbps ??
+      j.link_mbps ??
+      j.speedMbps ??
+      j.speed_mbps ??
+      j.maxMbps ??
+      j.max_mbps ??
+      j.linkSpeedMbps ??
+      j.link_speed_mbps ??
+      0,
+  )
+  return { rx, tx, linkMbps: linkMbps > 0 ? Math.min(200_000, Math.round(linkMbps)) : 0 }
 }
 
 function flag(config: Record<string, unknown>, key: string, defaultTrue = true) {
@@ -454,18 +497,34 @@ function ThroughputBlock({
   tx,
   history,
   barMaxMbps,
+  jsonLinkMbps,
+  graphqlLinkMbps,
+  scaleHint,
   showSpark,
 }: {
   rx: number
   tx: number
   history: { rx: number; tx: number }[]
   barMaxMbps: number
+  /** Aus Durchsatz-JSON (z. B. ethtool im Skript) */
+  jsonLinkMbps: number
+  /** Aus info.networkInterfaces[].description heuristisch */
+  graphqlLinkMbps: number
+  scaleHint: string
   showSpark: boolean
 }) {
   const fixed = mbpsToBpsCap(barMaxMbps)
+  const fromJson = mbpsToBpsCap(jsonLinkMbps)
+  const fromGql = mbpsToBpsCap(graphqlLinkMbps)
   const histPeak = history.reduce((m, h) => Math.max(m, h.rx, h.tx), 0)
   const cap =
-    fixed > 0 ? fixed : Math.max(8_192, histPeak * 1.08, rx, tx)
+    fixed > 0
+      ? fixed
+      : fromJson > 0
+        ? fromJson
+        : fromGql > 0
+          ? fromGql
+          : Math.max(8_192, histPeak * 1.08, rx, tx)
 
   const pr = Math.min(100, (rx / cap) * 100)
   const pt = Math.min(100, (tx / cap) * 100)
@@ -475,6 +534,7 @@ function ThroughputBlock({
 
   return (
     <div style={{ marginBottom: '6px' }}>
+      <p style={{ fontSize: '9px', color: 'var(--text-muted)', margin: '0 0 6px', lineHeight: 1.35 }}>{scaleHint}</p>
       <Row label="↓ Download" value={fmtBps(rx)} bar pct={pr} />
       <Row label="↑ Upload" value={fmtBps(tx)} bar pct={pt} />
       {showSpark && rxHist.length >= 2 && (
@@ -503,7 +563,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [data, setData] = useState<UnraidData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [netBps, setNetBps] = useState<{ rx: number; tx: number } | null>(null)
+  const [netBps, setNetBps] = useState<NetSpeedRates | null>(null)
   const [netBpsErr, setNetBpsErr] = useState<string | null>(null)
   const [netHist, setNetHist] = useState<{ rx: number; tx: number }[]>([])
 
@@ -574,7 +634,7 @@ function Widget({ config }: PluginWidgetProps) {
           const rates = parseNetSpeedJson(parsed)
           setNetBps(rates)
           setNetBpsErr(rates ? null : 'JSON unbekannt (erwarte rxBps/txBps)')
-          if (rates) setNetHist((h) => [...h.slice(-35), rates])
+          if (rates) setNetHist((h) => [...h.slice(-35), { rx: rates.rx, tx: rates.tx }])
         } catch (e) {
           setNetBpsErr(e instanceof Error ? e.message : 'Netz-Speed-URL')
           setNetBps(null)
@@ -650,6 +710,14 @@ function Widget({ config }: PluginWidgetProps) {
   const poolPct = poolAgg.total ? pct(poolAgg.used, poolAgg.total) : 0
 
   const ifaces = (data?.networkIfaces ?? []).filter((n) => (hideVirtualIfaces ? !isVirtualIface(n.name) : true))
+  const graphqlLinkMbps = ifaces.reduce((m, n) => Math.max(m, parseLinkMbpsFromText(n.description)), 0)
+
+  const netScaleHint = (() => {
+    if (barMaxMbps > 0) return `Balkenskala: ${barMaxMbps} Mbit/s (Einstellung).`
+    if (netBps && netBps.linkMbps > 0) return `Balkenskala: ${netBps.linkMbps} Mbit/s (linkMbps im JSON, z. B. ethtool).`
+    if (graphqlLinkMbps > 0) return `Balkenskala: ${graphqlLinkMbps} Mbit/s (aus Interface-Beschreibung geschätzt).`
+    return 'Balkenskala: automatisch nach letzter Last (kein fixer Link in API/JSON).'
+  })()
 
   return (
     <div style={shellStyle}>
@@ -698,7 +766,16 @@ function Widget({ config }: PluginWidgetProps) {
           {showNetSpeed && (
             <>
               {netBps ? (
-                <ThroughputBlock rx={netBps.rx} tx={netBps.tx} history={netHist} barMaxMbps={barMaxMbps} showSpark={showNetSpark} />
+                <ThroughputBlock
+                  rx={netBps.rx}
+                  tx={netBps.tx}
+                  history={netHist}
+                  barMaxMbps={barMaxMbps}
+                  jsonLinkMbps={netBps.linkMbps}
+                  graphqlLinkMbps={graphqlLinkMbps}
+                  scaleHint={netScaleHint}
+                  showSpark={showNetSpark}
+                />
               ) : (
                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '0 0 8px' }}>
                   {speedUrl
@@ -866,7 +943,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               placeholder="https://unraid/meine-net-stats.json"
             />
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '10px', marginBottom: '4px' }}>
-              Balkenskala max. Mbit/s (0 = automatisch aus Verlauf)
+              Balkenskala max. Mbit/s (0 = JSON linkMbps → API-Text → Verlauf)
             </label>
             <input
               style={inp}
@@ -878,11 +955,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               placeholder="0"
             />
             <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
-              Erwartetes JSON: <code style={{ fontSize: '10px' }}>{`{ "rxBps": 123456, "txBps": 78900 }`}</code> (Bytes pro Sekunde). Unraid-API:{' '}
+              JSON (Bytes/s): <code style={{ fontSize: '10px' }}>{`{ "rxBps": …, "txBps": …, "linkMbps": 2500 }`}</code> — optional{' '}
+              <strong>linkMbps</strong> (1&nbsp;Gbit = 1000, 2,5&nbsp;Gbit = 2500, 10&nbsp;Gbit = 10000) für Balken, z. B. aus{' '}
+              <code style={{ fontSize: '10px' }}>ethtool</code>. Die GraphQL-API liefert{' '}
+              <em>keine</em> feste Portgeschwindigkeit; nur falls etwas in <code style={{ fontSize: '10px' }}>description</code> steht, wird
+              versucht, Mbit/s zu erkennen. Unraid-Thema:{' '}
               <a href="https://github.com/unraid/api/issues/1559" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
                 Host-RX/TX
               </a>
-              . Bei fester Skala z. B. 1000 für 1&nbsp;Gbit/s-Leitung.
+              .
             </p>
           </div>
         </div>
