@@ -66,7 +66,7 @@ export type SdContainerStats = {
 
 const STATS_ONE_SHOT_TIMEOUT_MS = 6000
 
-function parseOneShotStats(body: string): SdContainerStats | null {
+export function parseOneShotStats(body: string): SdContainerStats | null {
   let j: Record<string, unknown>
   try {
     j = JSON.parse(body) as Record<string, unknown>
