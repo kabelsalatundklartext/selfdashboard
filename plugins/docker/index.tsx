@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.1',
+  version: '1.6.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -77,6 +77,9 @@ function sortContainers(a: DockerContainer, b: DockerContainer): number {
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
 }
+
+/** Volle Container-ID (API / Stats); gleiche Regel wie Server */
+const CONTAINER_ID_RE = /^[a-f0-9]{8,64}$/i
 
 function fmtBytesShort(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '—'
@@ -796,6 +799,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
+  const latestFetch = useRef(0)
 
   const showAll = config.showStopped === true
   const r = config as Record<string, unknown>
@@ -814,10 +818,12 @@ function Widget({ config }: PluginWidgetProps) {
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
 
   const fetch_ = useCallback(async () => {
+    const id = ++latestFetch.current
+    let trimmed: DockerContainer[] = []
+
     try {
       const q = showAll ? 'all=1' : 'all=0'
-      const statsQ = fetchStats ? '&stats=1' : ''
-      const res = await fetch(`/api/docker-containers?${q}${statsQ}`, { method: 'GET', cache: 'no-store' })
+      const res = await fetch(`/api/docker-containers?${q}`, { method: 'GET', cache: 'no-store' })
       const raw = await res.text()
       let data: unknown
       try {
@@ -830,21 +836,78 @@ function Widget({ config }: PluginWidgetProps) {
         throw new Error(err || `HTTP ${res.status}`)
       }
       if (!Array.isArray(data)) throw new Error('Unerwartetes Antwortformat')
+      if (latestFetch.current !== id) return
+
       const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
-      setList(sorted.slice(0, maxRows))
+      trimmed = sorted.slice(0, maxRows)
+      setList(trimmed)
       setError(null)
       setLastFetchOk(Date.now())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e))
+      if (latestFetch.current === id) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
     } finally {
-      setLoading(false)
+      if (latestFetch.current === id) setLoading(false)
+    }
+
+    if (latestFetch.current !== id || !fetchStats || trimmed.length === 0) return
+
+    const runningIds = [
+      ...new Set(
+        trimmed
+          .filter((c) => c.State === 'running' && typeof c.Id === 'string' && c.Id)
+          .map((c) => (c.Id as string).trim()),
+      ),
+    ]
+    if (runningIds.length === 0) return
+
+    try {
+      const res2 = await fetch('/api/docker-container-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: runningIds }),
+        cache: 'no-store',
+      })
+      const raw2 = await res2.text()
+      if (latestFetch.current !== id) return
+
+      let data2: unknown
+      try {
+        data2 = raw2 ? (JSON.parse(raw2) as unknown) : null
+      } catch {
+        return
+      }
+      if (!res2.ok) return
+
+      const statsMap = (data2 as { stats?: Record<string, SdContainerStats | null> }).stats
+      if (!statsMap || typeof statsMap !== 'object') return
+
+      setList((prev) =>
+        prev.map((c) => {
+          const cid = typeof c.Id === 'string' ? c.Id : ''
+          if (c.State !== 'running' || !CONTAINER_ID_RE.test(cid)) {
+            return { ...c, sdStats: null }
+          }
+          if (Object.prototype.hasOwnProperty.call(statsMap, cid)) {
+            return { ...c, sdStats: statsMap[cid] ?? null }
+          }
+          return c
+        }),
+      )
+      setLastFetchOk(Date.now())
+    } catch {
+      /* Stats sind optional; Liste bleibt sichtbar */
     }
   }, [showAll, maxRows, fetchStats])
 
   useEffect(() => {
     fetch_()
-    const id = setInterval(fetch_, refresh)
-    return () => clearInterval(id)
+    const timer = setInterval(fetch_, refresh)
+    return () => {
+      clearInterval(timer)
+      latestFetch.current++
+    }
   }, [fetch_, refresh])
 
   const goSecondStep = useCallback(() => {
