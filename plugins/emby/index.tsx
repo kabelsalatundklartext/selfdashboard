@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Emby',
   description:
     'Aktive Wiedergaben per Emby-/Jellyfin-kompatibler API: Nutzer, Titel, Gerät, Pause (Basis-URL + API-Key).',
-  version: '1.0.1',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎬',
@@ -246,25 +246,25 @@ function Widget({ config }: PluginWidgetProps) {
               >
                 <div
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(0, 0.42fr) 6px minmax(0, 1fr) 6px auto',
+                    display: 'flex',
                     alignItems: 'center',
-                    columnGap: '4px',
+                    gap: '6px',
                     width: '100%',
                     minWidth: 0,
                     fontSize: fs,
                     lineHeight: 1.35,
                   }}
                 >
-                  <span
+                  <div
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '5px',
+                      flex: '0 1 34%',
+                      minWidth: 0,
+                      maxWidth: '42%',
                       fontWeight: 700,
                       color: 'var(--text)',
-                      whiteSpace: 'nowrap',
-                      minWidth: 0,
                       overflow: 'hidden',
                     }}
                   >
@@ -280,25 +280,44 @@ function Widget({ config }: PluginWidgetProps) {
                     >
                       {paused ? '⏸' : '▶'}
                     </span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{user}</span>
-                  </span>
-                  <span style={{ color: 'var(--text-muted)', textAlign: 'center', opacity: 0.85 }}>:</span>
-                  <span
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user}</span>
+                  </div>
+                  <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
+                  <div
                     style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: '5px',
                       minWidth: 0,
+                      flex: '1 1 0%',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      color: 'var(--text)',
-                      fontWeight: 500,
                     }}
                   >
-                    {tit}
-                  </span>
-                  <span style={{ color: 'var(--text-muted)', textAlign: 'center', opacity: 0.85 }}>:</span>
-                  <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {prog}
-                  </span>
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        minWidth: 0,
+                        flex: '1 1 auto',
+                        color: 'var(--text)',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {tit}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
+                    <span
+                      style={{
+                        fontVariantNumeric: 'tabular-nums',
+                        color: 'var(--text-muted)',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {prog}
+                    </span>
+                  </div>
                 </div>
               </li>
             )

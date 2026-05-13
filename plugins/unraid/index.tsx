@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); feine Anzeige-Optionen.',
-  version: '1.4.1',
+  version: '1.4.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -178,9 +178,10 @@ function Bar({ value, danger = 90 }: { value: number; danger?: number }) {
   )
 }
 
-function Row({ label, value, bar, pct: p }: { label: string; value: string; bar?: boolean; pct?: number }) {
+function Row({ label, value, bar, pct: p, title }: { label: string; value: string; bar?: boolean; pct?: number; title?: string }) {
   return (
     <div
+      title={title}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -396,7 +397,12 @@ function parseRamDisplayMode(v: unknown): RamDisplayMode {
 }
 
 /** Eine RAM-Zeile: Label, Wertetext, Balken-% — je nach Modus */
-function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>) {
+function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>): {
+  rowLabel: string
+  value: string
+  barPct: number
+  rowTitle?: string
+} {
   const { total, used, available, percentTotal } = mem
   if (mode === 'percentTotal') {
     const p = Number.isFinite(percentTotal) ? Math.round(Math.min(100, Math.max(0, percentTotal))) : pct(used, total)
@@ -410,13 +416,14 @@ function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>) {
     const committed = Math.max(0, Math.min(total, total - available))
     const p = pct(committed, total)
     return {
-      rowLabel: 'Belegung (1−verfügbar)',
-      value: `${fmtBytes(committed)} / ${fmtBytes(total)} · verfügbar ${fmtBytes(available)}`,
+      rowLabel: 'Belegung',
+      value: `${fmtBytes(committed)} / ${fmtBytes(total)}`,
       barPct: p,
+      rowTitle: `Balken: (gesamt − verfügbar) / gesamt. Verfügbar: ${fmtBytes(available)}.`,
     }
   }
   return {
-    rowLabel: 'Verbrauch (used)',
+    rowLabel: 'Verbrauch',
     value: `${fmtBytes(used)} / ${fmtBytes(total)}`,
     barPct: pct(used, total),
   }
@@ -554,7 +561,7 @@ function Widget({ config }: PluginWidgetProps) {
       {ramResolved && (
         <>
           <Heading text="RAM" />
-          <Row label={ramResolved.rowLabel} value={ramResolved.value} bar pct={ramResolved.barPct} />
+          <Row label={ramResolved.rowLabel} value={ramResolved.value} bar pct={ramResolved.barPct} title={ramResolved.rowTitle} />
         </>
       )}
 
