@@ -14,6 +14,8 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # ghcr.io token endpoint sometimes times out on first try; retries below mitigate transient outages.
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -26,12 +28,25 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # docker/login-action hits the same token URL; transient timeouts are common — retry docker login.
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            if echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin; then
+              echo "ghcr.io login succeeded (attempt ${attempt})"
+              exit 0
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "ghcr.io login failed after 6 attempts"
+              exit 1
+            fi
+            echo "ghcr.io login attempt ${attempt} failed, retrying in 25s..."
+            sleep 25
+          done
 
       - name: Extract metadata
         id: meta
