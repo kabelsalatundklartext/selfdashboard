@@ -13,7 +13,7 @@
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/yourusername/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/yourusername/selfdashboard/main/public/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/yourusername/selfdashboard/main/public/ca-icon.svg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
