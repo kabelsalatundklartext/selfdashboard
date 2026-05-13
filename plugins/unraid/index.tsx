@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); feine Anzeige-Optionen.',
-  version: '1.4.2',
+  version: '1.5.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -169,11 +169,56 @@ function diskTypeLabel(t?: string): string {
   return map[t] ?? t
 }
 
-function Bar({ value, danger = 90 }: { value: number; danger?: number }) {
-  const c = value >= danger ? '#ef4444' : value >= 70 ? '#f59e0b' : 'var(--accent)'
+/** Ampel für Auslastung: &lt;50 % grün, 50–79 % orange, ab 80 % rot */
+const HEAT = {
+  ok: '#22c55e',
+  okHi: '#4ade80',
+  mid: '#f59e0b',
+  midHi: '#fbbf24',
+  hot: '#ef4444',
+  hotHi: '#f87171',
+} as const
+
+function heatSolid(pct: number): string {
+  const p = Math.min(100, Math.max(0, pct))
+  if (p < 50) return HEAT.ok
+  if (p < 80) return HEAT.mid
+  return HEAT.hot
+}
+
+function heatFillGradient(pct: number): string {
+  const p = Math.min(100, Math.max(0, pct))
+  if (p < 50) return `linear-gradient(90deg, ${HEAT.okHi}, ${HEAT.ok})`
+  if (p < 80) return `linear-gradient(90deg, ${HEAT.midHi}, ${HEAT.mid})`
+  return `linear-gradient(90deg, ${HEAT.hotHi}, ${HEAT.hot})`
+}
+
+function Bar({ value }: { value: number }) {
+  const w = Math.min(100, Math.max(0, value))
+  const core = heatSolid(w)
   return (
-    <div style={{ height: '3px', borderRadius: '2px', background: 'var(--border)', width: '100%', overflow: 'hidden' }}>
-      <div style={{ height: '100%', width: `${Math.min(100, value)}%`, background: c, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+    <div
+      title={`${Math.round(w)}%`}
+      style={{
+        height: '5px',
+        borderRadius: '999px',
+        width: '100%',
+        overflow: 'hidden',
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.28)',
+      }}
+    >
+      <div
+        style={{
+          height: '100%',
+          width: `${w}%`,
+          background: heatFillGradient(w),
+          borderRadius: '999px',
+          transition: 'width 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
+          boxShadow: `0 0 10px color-mix(in srgb, ${core} 55%, transparent)`,
+        }}
+      />
     </div>
   )
 }
@@ -197,31 +242,36 @@ function Row({ label, value, bar, pct: p, title }: { label: string; value: strin
           flex: '1 1 34%',
           minWidth: 0,
           fontSize: '11px',
-          color: 'var(--text-muted)',
+          color: '#ffffff',
+          fontWeight: 600,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
+          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
         }}
       >
         {label}
       </span>
       {bar && p !== undefined ? (
         <div style={{ flex: '1 1 38%', minWidth: '40px', maxWidth: '100%' }}>
-          <Bar value={p} danger={label.includes('°') || /temp/i.test(label) ? 80 : 90} />
+          <Bar value={p} />
         </div>
       ) : (
         <span style={{ flex: '1 1 38%' }} />
       )}
       <span
+        className="tabular-nums"
         style={{
           flex: '0 0 auto',
           maxWidth: '42%',
           fontSize: '11px',
-          color: 'var(--text)',
-          fontWeight: 500,
+          color: '#ffffff',
+          fontWeight: 700,
           textAlign: 'right',
           whiteSpace: 'nowrap',
           paddingLeft: '6px',
+          fontVariantNumeric: 'tabular-nums',
+          textShadow: '0 1px 2px rgba(0,0,0,0.45)',
         }}
       >
         {value}
@@ -235,11 +285,14 @@ function Heading({ text }: { text: string }) {
     <p
       style={{
         fontSize: '10px',
-        fontWeight: 700,
+        fontWeight: 800,
         textTransform: 'uppercase',
-        letterSpacing: '0.08em',
-        color: 'var(--text-muted)',
-        margin: '10px 0 6px',
+        letterSpacing: '0.1em',
+        color: 'rgba(255,255,255,0.88)',
+        margin: '12px 0 8px',
+        paddingBottom: '4px',
+        borderBottom: '1px solid rgba(255,255,255,0.12)',
+        textShadow: '0 1px 0 rgba(0,0,0,0.35)',
       }}
     >
       {text}
@@ -255,37 +308,42 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
   return (
     <div
       style={{
-        borderTop: '1px solid var(--border)',
-        paddingTop: '8px',
-        marginTop: '8px',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        paddingTop: '10px',
+        marginTop: '10px',
         minWidth: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '4px', minWidth: 0, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '6px', minWidth: 0, flexWrap: 'wrap' }}>
         <span
           style={{
             fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--text)',
+            fontWeight: 700,
+            color: '#ffffff',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             minWidth: 0,
             flex: '1 1 40%',
+            textShadow: '0 1px 2px rgba(0,0,0,0.45)',
           }}
           title={title}
         >
           {disk.name}
-          {kind ? <span style={{ fontWeight: 500, color: 'var(--text-muted)', marginLeft: '6px', fontSize: '10px' }}>({kind})</span> : null}
+          {kind ? <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.78)', marginLeft: '6px', fontSize: '10px' }}>({kind})</span> : null}
         </span>
         <span
+          className="tabular-nums"
           style={{
             fontSize: '10px',
-            color: 'var(--text-muted)',
+            color: 'rgba(255,255,255,0.9)',
             flexShrink: 0,
             textAlign: 'right',
             whiteSpace: 'nowrap',
             lineHeight: 1.35,
+            fontVariantNumeric: 'tabular-nums',
+            fontWeight: 600,
+            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
           }}
         >
           {formatDiskStatus(disk.status)}
@@ -299,7 +357,20 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
         <div style={{ flex: '1 1 auto', minWidth: '48px' }}>
           <Bar value={p} />
         </div>
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, textAlign: 'right', whiteSpace: 'nowrap', paddingLeft: '6px' }}>
+        <span
+          className="tabular-nums"
+          style={{
+            fontSize: '10px',
+            color: 'rgba(255,255,255,0.88)',
+            flexShrink: 0,
+            textAlign: 'right',
+            whiteSpace: 'nowrap',
+            paddingLeft: '6px',
+            fontVariantNumeric: 'tabular-nums',
+            fontWeight: 600,
+            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
+          }}
+        >
           {fmtKb(used)} / {fmtKb(disk.fsSize)}
         </span>
       </div>
@@ -500,14 +571,21 @@ function Widget({ config }: PluginWidgetProps) {
     overflowY: 'auto',
     overflowX: 'hidden',
     boxSizing: 'border-box',
-    padding: '10px 18px 16px',
+    padding: '12px 16px 16px',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    background:
+      'radial-gradient(120% 90% at 0% 0%, rgba(99,102,241,0.12) 0%, transparent 45%), radial-gradient(90% 70% at 100% 10%, rgba(34,197,94,0.06) 0%, transparent 42%), linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 28%)',
   }
 
   if (!url || !apiKey)
     return (
-      <div style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div
+        className="sd-plugin-no-scrollbar"
+        style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
+      >
         <span style={{ fontSize: '32px' }}>🖥️</span>
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+        <p style={{ fontSize: '12px', color: '#ffffff', marginTop: '10px', lineHeight: 1.45, fontWeight: 600 }}>
           URL & API Key
           <br />
           in Einstellungen eintragen
@@ -517,7 +595,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (loading)
     return (
-      <div style={shellStyle}>
+      <div className="sd-plugin-no-scrollbar" style={shellStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {[80, 60, 90, 70].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '12px', width: `${w}%`, borderRadius: '3px' }} />
@@ -528,10 +606,13 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (error)
     return (
-      <div style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div
+        className="sd-plugin-no-scrollbar"
+        style={{ ...shellStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
+      >
         <span style={{ fontSize: '24px' }}>⚠️</span>
-        <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
+        <p style={{ fontSize: '11px', color: '#fecaca', marginTop: '10px', wordBreak: 'break-word', fontWeight: 700 }}>{error}</p>
+        <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.88)', marginTop: '8px', lineHeight: 1.45 }}>
           URL ohne Endpfad, API-Key mit Rolle VIEWER oder ADMIN.
         </p>
       </div>
@@ -548,7 +629,7 @@ function Widget({ config }: PluginWidgetProps) {
       : null
 
   return (
-    <div style={shellStyle}>
+    <div className="sd-plugin-no-scrollbar" style={shellStyle}>
       {showCpu && data?.cpu && (
         <>
           <Heading text={`CPU — ${data.cpu.brand}`} />
