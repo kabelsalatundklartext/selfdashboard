@@ -11,25 +11,25 @@ const MAX_IDS = 120
 type OpList = {
   op: 'list'
   baseUrl: string
-  apiVersion?: string
-  tlsInsecure?: boolean
-  all?: boolean
-  stats?: boolean
+  apiVersion: string
+  tlsInsecure: boolean
+  all: boolean
+  stats: boolean
 }
 
 type OpStats = {
   op: 'stats'
   baseUrl: string
-  apiVersion?: string
-  tlsInsecure?: boolean
+  apiVersion: string
+  tlsInsecure: boolean
   ids: string[]
 }
 
 type OpAction = {
   op: 'action'
   baseUrl: string
-  apiVersion?: string
-  tlsInsecure?: boolean
+  apiVersion: string
+  tlsInsecure: boolean
   id: string
   action: 'start' | 'stop' | 'restart'
 }
