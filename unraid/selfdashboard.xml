@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard – A clean, modular, self-hosted dashboard with a plugin system. Add widgets for Unraid, Emby, WireGuard, Nextcloud, Immich, CrowdSec and more. Optional Docker socket mount (Advanced) enables the Docker container list on the same host only.</Overview>
+  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Docker widget: bind-mount the host Docker socket (see Docker Socket). Custom plugin files on the Unraid disk only appear inside the container if you bind-mount a host folder to /app/plugins/custom — the container filesystem does not include random host paths without that volume.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
@@ -58,15 +58,15 @@
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard</Config>
 
-  <!-- Plugins volume (optional, for custom plugins) -->
+  <!-- Custom plugins: host folder must be bind-mounted or the container never sees your files -->
   <Config
     Name="Custom Plugins Path"
     Target="/app/plugins/custom"
     Default="/mnt/user/appdata/selfdashboard/plugins"
     Mode="rw"
-    Description="Optional: Mount a folder with your own custom plugins."
+    Description="Bind-mount a host folder to /app/plugins/custom. Files you add on Unraid only exist inside the container through this mapping — without the volume, the container cannot see host folders (same idea as the Docker socket). Remove the mapping if you do not use custom plugins."
     Type="Path"
-    Display="advanced"
+    Display="always"
     Required="false"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
@@ -76,9 +76,9 @@
     Target="/var/run/docker.sock"
     Default="/var/run/docker.sock"
     Mode="ro"
-    Description="Optional: same as -v /var/run/docker.sock:/var/run/docker.sock — host Docker socket read-only for the Docker widget. Only containers on THIS server (where SelfDashboard runs), not a remote Unraid/Docker."
+    Description="Same as -v /var/run/docker.sock:/var/run/docker.sock (read-only). Required for the Docker widget. Only lists containers on THIS Unraid where SelfDashboard runs — not a remote Docker host."
     Type="Path"
-    Display="advanced"
+    Display="always"
     Required="false"
     Mask="false">/var/run/docker.sock</Config>
 
@@ -88,9 +88,9 @@
     Target="NODE_ENV"
     Default="production"
     Mode=""
-    Description="Node.js environment. Leave as production."
+    Description="Leave production unless you know you need development mode."
     Type="Variable"
-    Display="advanced"
+    Display="always"
     Required="false"
     Mask="false">production</Config>
 
