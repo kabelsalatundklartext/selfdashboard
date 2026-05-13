@@ -5,10 +5,12 @@ import { registerPlugin } from '@/lib/pluginRegistry'
 
 import * as bookmarks from '../../plugins/bookmarks'
 import * as clock from '../../plugins/clock'
+import * as scratchpad from '../../plugins/scratchpad'
 import * as unraid from '../../plugins/unraid'
 
 export function loadBuiltinPlugins() {
   registerPlugin(bookmarks.meta, bookmarks.component)
   registerPlugin(clock.meta, clock.component)
+  registerPlugin(scratchpad.meta, scratchpad.component)
   registerPlugin(unraid.meta, unraid.component)
 }
