@@ -24,7 +24,10 @@ export function DashboardGrid() {
   const dash = activeDashboard()
   const plugins = dash.plugins
   const measureRef = useRef<HTMLDivElement>(null)
+  const scaleInnerRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1200)
+  /** Flow height after CSS transform:scale — without this, the browser keeps the unscaled layout height and leaves an empty band below the grid when zoom is below 1. */
+  const [scaledWrapHeight, setScaledWrapHeight] = useState<number | null>(null)
 
   // Measure the grid track width so columns use the full main area (avoids a dead band on the right).
   useLayoutEffect(() => {
@@ -45,6 +48,33 @@ export function DashboardGrid() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [gridPadding, zoom])
+
+  // Collapse vertical layout space to the *visual* height when zoom ≠ 1 (transform does not shrink document flow).
+  useLayoutEffect(() => {
+    if (zoom === 1) {
+      setScaledWrapHeight(null)
+      return
+    }
+    const el = scaleInnerRef.current
+    if (!el) return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      setScaledWrapHeight((prev) => {
+        const next = Math.max(0, Math.ceil(h))
+        return prev === next ? prev : next
+      })
+    }
+    measure()
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(el)
+    const t0 = window.setTimeout(measure, 0)
+    const t1 = window.setTimeout(measure, 120)
+    return () => {
+      window.clearTimeout(t0)
+      window.clearTimeout(t1)
+      ro.disconnect()
+    }
+  }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode])
 
   const handleLayoutChange = useCallback(
     (layout: Layout[]) => {
@@ -87,8 +117,17 @@ export function DashboardGrid() {
   return (
     // Clip horizontal layout overflow from the widened pre-scale track (100/zoom %).
     // Do not cap that track with maxWidth: 100% — that breaks zoom < 1 (dead band on the right).
-    <div style={{ width: '100%', minWidth: 0, overflowX: zoom !== 1 ? 'hidden' : undefined }}>
+    <div
+      style={{
+        width: '100%',
+        minWidth: 0,
+        overflowX: zoom !== 1 ? 'hidden' : undefined,
+        height: zoom !== 1 && scaledWrapHeight != null ? scaledWrapHeight : undefined,
+        minHeight: zoom !== 1 ? 0 : undefined,
+      }}
+    >
       <div
+        ref={scaleInnerRef}
         style={{
           transformOrigin: 'top left',
           transform: `scale(${zoom})`,
