@@ -80,7 +80,7 @@ function Widget({ config }: PluginWidgetProps) {
         </p>
       )}
       {(cityName || tz) && (
-        <p style={{ fontSize: "0.75em", marginTop: "4px", padding: "2px 8px", borderRadius: "999px" }} style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+        <p style={{ fontSize: "0.75em", marginTop: "4px", padding: "2px 8px", borderRadius: "999px", background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
           {tzLabel}
         </p>
       )}
