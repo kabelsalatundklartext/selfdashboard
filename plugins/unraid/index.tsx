@@ -7,8 +7,8 @@ export const meta: PluginMeta = {
   id: 'unraid',
   name: 'Unraid',
   description:
-    'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. Array- und Pool-Zeilen mit Status, Temperatur und Belegung; feine Anzeige-Optionen.',
-  version: '1.4.0',
+    'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); feine Anzeige-Optionen.',
+  version: '1.4.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -38,6 +38,7 @@ const QUERY = `query SelfDashboardUnraid {
       total
       used
       free
+      available
       percentTotal
     }
   }
@@ -83,9 +84,18 @@ export interface Disk {
   diskType?: string
 }
 
+type RamDisplayMode = 'used' | 'available' | 'percentTotal'
+
 interface UnraidData {
   cpu?: { brand: string; cores: number; threads: number; utilization: number; temp: number }
-  memory?: { total: number; used: number; free: number }
+  memory?: {
+    total: number
+    used: number
+    free: number
+    /** gesetzt, wenn die API `available` liefert (sonst Anzeige „verfügbar“ nicht nutzbar) */
+    available?: number
+    percentTotal: number
+  }
   array?: {
     state: string
     capacity: { kilobytes: { total: number; used: number; free: number } }
@@ -342,6 +352,8 @@ function mapResponse(d: Record<string, unknown> | undefined): UnraidData {
           total: num(mMem.total),
           used: num(mMem.used),
           free: num(mMem.free),
+          available: mMem.available !== undefined && mMem.available !== null ? num(mMem.available) : undefined,
+          percentTotal: num(mMem.percentTotal),
         }
       : undefined,
     array: arr
@@ -377,6 +389,39 @@ function aggregateDisks(disks: Disk[]) {
   return { total, used }
 }
 
+function parseRamDisplayMode(v: unknown): RamDisplayMode {
+  const s = String(v ?? 'used').trim()
+  if (s === 'available' || s === 'percentTotal') return s
+  return 'used'
+}
+
+/** Eine RAM-Zeile: Label, Wertetext, Balken-% — je nach Modus */
+function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>) {
+  const { total, used, available, percentTotal } = mem
+  if (mode === 'percentTotal') {
+    const p = Number.isFinite(percentTotal) ? Math.round(Math.min(100, Math.max(0, percentTotal))) : pct(used, total)
+    return {
+      rowLabel: 'Anteil (API %)',
+      value: `${p}% · ${fmtBytes(used)} / ${fmtBytes(total)}`,
+      barPct: p,
+    }
+  }
+  if (mode === 'available' && total > 0 && available !== undefined) {
+    const committed = Math.max(0, Math.min(total, total - available))
+    const p = pct(committed, total)
+    return {
+      rowLabel: 'Belegung (1−verfügbar)',
+      value: `${fmtBytes(committed)} / ${fmtBytes(total)} · verfügbar ${fmtBytes(available)}`,
+      barPct: p,
+    }
+  }
+  return {
+    rowLabel: 'Verbrauch (used)',
+    value: `${fmtBytes(used)} / ${fmtBytes(total)}`,
+    barPct: pct(used, total),
+  }
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const [data, setData] = useState<UnraidData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -397,6 +442,7 @@ function Widget({ config }: PluginWidgetProps) {
   const showPools = flag(config, 'showPools')
   const showPoolsTotal = flag(config, 'showPoolsTotal')
   const showPoolsDisks = flag(config, 'showPoolsDisks')
+  const ramMode = parseRamDisplayMode((config as Record<string, unknown>).ramDisplayMode)
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -485,10 +531,14 @@ function Widget({ config }: PluginWidgetProps) {
     )
 
   const arrayKb = data?.array?.capacity?.kilobytes
-  const ramPct = data?.memory ? pct(data.memory.used, data.memory.total) : 0
   const poolDisks = data?.pools ?? []
   const poolAgg = aggregateDisks(poolDisks)
   const poolPct = poolAgg.total ? pct(poolAgg.used, poolAgg.total) : 0
+
+  const ramResolved =
+    showRam && data?.memory
+      ? ramRow(ramMode === 'available' && data.memory.available === undefined ? 'used' : ramMode, data.memory)
+      : null
 
   return (
     <div style={shellStyle}>
@@ -501,10 +551,10 @@ function Widget({ config }: PluginWidgetProps) {
         </>
       )}
 
-      {showRam && data?.memory && (
+      {ramResolved && (
         <>
           <Heading text="RAM" />
-          <Row label="Verbrauch" value={`${fmtBytes(data.memory.used)} / ${fmtBytes(data.memory.total)}`} bar pct={ramPct} />
+          <Row label={ramResolved.rowLabel} value={ramResolved.value} bar pct={ramResolved.barPct} />
         </>
       )}
 
@@ -654,6 +704,27 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
             <ToggleRow label="Gesamt-Balken (alle Cache-Disks)" on={sub('showPoolsTotal')} onToggle={() => onChange('showPoolsTotal', !sub('showPoolsTotal'))} />
             <ToggleRow label="Einzelne Cache-Disks" on={sub('showPoolsDisks')} onToggle={() => onChange('showPoolsDisks', !sub('showPoolsDisks'))} />
+          </div>
+        </div>
+      )}
+
+      {sub('showRam') && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>RAM — Anzeige</p>
+          <div style={{ paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Balken und Text</label>
+            <select
+              style={{ ...inp, cursor: 'pointer' }}
+              value={String((config as Record<string, unknown>).ramDisplayMode ?? 'used')}
+              onChange={(e) => onChange('ramDisplayMode', e.target.value)}
+            >
+              <option value="used">Verbrauch (used / total)</option>
+              <option value="available">Belegung (1 − verfügbar / total)</option>
+              <option value="percentTotal">API-Prozent (metrics.percentTotal)</option>
+            </select>
+            <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '8px 0 0' }}>
+              „1 − verfügbar“ wirkt oft näher am Unraid-Dashboard als reines <code style={{ fontSize: '10px' }}>used</code>. Erfordert <code style={{ fontSize: '10px' }}>metrics.memory.available</code> in der API (Unraid 7.2+).
+            </p>
           </div>
         </div>
       )}
