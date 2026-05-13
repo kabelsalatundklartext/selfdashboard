@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.3',
+  version: '1.6.4',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -854,7 +854,21 @@ function Widget({ config }: PluginWidgetProps) {
 
       const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
       trimmed = sorted.slice(0, maxRows)
-      setList(trimmed)
+      /** Phase-1 liefert keine sdStats — alte Werte kurz behalten, sonst flackern CPU/RAM bei jedem Poll */
+      setList((prev) => {
+        const keep = new Map<string, SdContainerStats | null>()
+        for (const p of prev) {
+          const pid = dockerContainerId(p)
+          if (!pid || !isDockerRunning(p)) continue
+          if (p.sdStats !== undefined) keep.set(pid, p.sdStats ?? null)
+        }
+        return trimmed.map((c) => {
+          if (!isDockerRunning(c)) return { ...c, sdStats: null }
+          const cid = dockerContainerId(c)
+          if (cid && keep.has(cid)) return { ...c, sdStats: keep.get(cid)! }
+          return { ...c }
+        })
+      })
       setError(null)
       setLastFetchOk(Date.now())
     } catch (e: unknown) {
