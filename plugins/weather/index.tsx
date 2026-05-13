@@ -1,6 +1,20 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Cloud,
+  CloudDrizzle,
+  CloudFog,
+  CloudLightning,
+  CloudMoon,
+  CloudOff,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
+  Moon,
+  Sun,
+} from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
@@ -10,7 +24,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ eingeben — Temperatur, gefühlt, Luftfeuchte, Wind und Bedingungen werden automatisch per Open-Meteo geladen (kein API-Key).',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -90,6 +104,21 @@ function windCompass(deg: number, de: boolean): string {
     : ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
   const i = Math.round(((deg % 360) + 360) % 360 / 45) % 8
   return ro[i] ?? 'N'
+}
+
+/** WMO weather code + Open-Meteo `is_day` → Lucide icon (SVG, theme-aware color from parent). */
+function wmoIconComponent(code: number, isDay: boolean): LucideIcon {
+  const c = Math.round(code)
+  if (c === 95 || c === 96 || c === 99) return CloudLightning
+  if (c === 71 || c === 73 || c === 75 || c === 77 || c === 85 || c === 86) return CloudSnow
+  if (c === 61 || c === 63 || c === 65 || c === 66 || c === 67 || c === 80 || c === 81 || c === 82) return CloudRain
+  if (c === 51 || c === 53 || c === 55 || c === 56 || c === 57) return CloudDrizzle
+  if (c === 45 || c === 48) return CloudFog
+  if (c === 3) return Cloud
+  if (c === 2) return isDay ? CloudSun : CloudMoon
+  if (c === 1) return isDay ? CloudSun : CloudMoon
+  if (c === 0) return isDay ? Sun : Moon
+  return Cloud
 }
 
 function wmoSummary(code: number, de: boolean): string {
@@ -273,7 +302,11 @@ function Widget({ config }: PluginWidgetProps) {
           textAlign: 'center',
         }}
       >
-        <p style={{ fontSize: 'clamp(20px, 8cqmin, 36px)', margin: 0 }}>🌧️</p>
+        <CloudOff
+          aria-hidden
+          strokeWidth={1.75}
+          style={{ width: 'clamp(26px, 9cqmin, 40px)', height: 'clamp(26px, 9cqmin, 40px)', color: muted }}
+        />
         <p style={{ fontSize: 'clamp(11px, 2.8cqmin, 13px)', color: muted, margin: 0 }}>{error}</p>
       </div>
     )
@@ -283,9 +316,11 @@ function Widget({ config }: PluginWidgetProps) {
   const feels = current?.apparent_temperature
   const hum = current?.relative_humidity_2m
   const code = num(current?.weather_code, 0)
+  const isDay = (current?.is_day ?? 1) === 1
   const wdir = num(current?.wind_direction_10m, 0)
   const wspd = num(current?.wind_speed_10m, 0)
   const summary = wmoSummary(code, de)
+  const WeatherIcon = wmoIconComponent(code, isDay)
 
   return (
     <div
@@ -319,6 +354,29 @@ function Widget({ config }: PluginWidgetProps) {
           {placeLabel}
         </p>
       )}
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          color: 'var(--accent)',
+          minHeight: 'clamp(26px, 10cqmin, 52px)',
+        }}
+        aria-label={summary}
+        title={summary}
+      >
+        <WeatherIcon
+          aria-hidden
+          strokeWidth={1.75}
+          style={{
+            width: 'clamp(28px, 11cqmin, 56px)',
+            height: 'clamp(28px, 11cqmin, 56px)',
+            opacity: loading && temp == null ? 0.45 : 1,
+            transition: 'opacity 0.2s',
+          }}
+        />
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
         <span
