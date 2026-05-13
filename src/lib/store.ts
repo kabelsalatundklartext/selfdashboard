@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Dashboard, PluginInstance, ThemeId } from '@/types'
 import type { Locale } from './i18n'
+import type { SearchProviderId } from './searchProviders'
+import { defaultSearchProviders, normalizeSearchProviders, firstEnabledProviderId } from './searchProviders'
 
 const DEFAULT_DASHBOARD: Dashboard = {
   id: 'home',
@@ -43,6 +45,11 @@ interface DashboardStore {
   dashboardZoom: number
   gridGap: number       // px between widgets
   gridPadding: number   // px outer padding
+  /** Navbar web search bar */
+  navbarSearchEnabled: boolean
+  navbarSearchPosition: 'left' | 'center' | 'right'
+  navbarSearchProviders: Record<SearchProviderId, boolean>
+  navbarSearchLastProvider: SearchProviderId
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -65,6 +72,10 @@ interface DashboardStore {
   removePlugin: (instanceId: string) => void
   updatePluginConfig: (instanceId: string, config: Record<string, unknown>) => void
   updatePluginLayout: (instanceId: string, layout: PluginInstance['layout']) => void
+  setNavbarSearchEnabled: (enabled: boolean) => void
+  setNavbarSearchPosition: (position: 'left' | 'center' | 'right') => void
+  setNavbarSearchProviderEnabled: (id: SearchProviderId, enabled: boolean) => void
+  setNavbarSearchLastProvider: (id: SearchProviderId) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -81,6 +92,10 @@ export const useDashboardStore = create<DashboardStore>()(
       dashboardZoom: 1,
       gridGap: 8,
       gridPadding: 12,
+      navbarSearchEnabled: false,
+      navbarSearchPosition: 'center',
+      navbarSearchProviders: defaultSearchProviders(),
+      navbarSearchLastProvider: 'duckduckgo',
 
       activeDashboard: () => {
         const s = get()
@@ -120,6 +135,16 @@ export const useDashboardStore = create<DashboardStore>()(
       removePlugin: (instanceId) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.filter((p) => p.instanceId !== instanceId) } : d) })) },
       updatePluginConfig: (instanceId, config) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, config: { ...p.config, ...config } } : p) } : d) })) },
       updatePluginLayout: (instanceId, layout) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, layout } : p) } : d) })) },
+      setNavbarSearchEnabled: (navbarSearchEnabled) => set({ navbarSearchEnabled }),
+      setNavbarSearchPosition: (navbarSearchPosition) => set({ navbarSearchPosition }),
+      setNavbarSearchProviderEnabled: (id, enabled) => set((s) => {
+        const next = { ...s.navbarSearchProviders, [id]: enabled }
+        const last = s.navbarSearchLastProvider
+        const stillOk = next[last]
+        const nextLast = stillOk ? last : firstEnabledProviderId(next)
+        return { navbarSearchProviders: next, navbarSearchLastProvider: nextLast }
+      }),
+      setNavbarSearchLastProvider: (navbarSearchLastProvider) => set({ navbarSearchLastProvider }),
     }),
     {
       name: 'selfdashboard-v2',
@@ -133,6 +158,17 @@ export const useDashboardStore = create<DashboardStore>()(
           if (typeof z !== 'number' || !Number.isFinite(z)) {
             const n = Number(z)
             state.dashboardZoom = Number.isFinite(n) ? Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10)) : 1
+          }
+          if (typeof state.navbarSearchEnabled !== 'boolean') state.navbarSearchEnabled = false
+          if (state.navbarSearchPosition !== 'left' && state.navbarSearchPosition !== 'center' && state.navbarSearchPosition !== 'right') {
+            state.navbarSearchPosition = 'center'
+          }
+          state.navbarSearchProviders = normalizeSearchProviders(state.navbarSearchProviders)
+          const ids: SearchProviderId[] = ['google', 'duckduckgo', 'bing', 'brave', 'ecosia', 'wikipedia-de', 'wikipedia-en']
+          if (!state.navbarSearchLastProvider || !ids.includes(state.navbarSearchLastProvider as SearchProviderId)) {
+            state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
+          } else if (!state.navbarSearchProviders[state.navbarSearchLastProvider as SearchProviderId]) {
+            state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
           }
           const legacyIframe = 'crowdsec-threat-map'
           state.dashboards = state.dashboards.map((d) => ({

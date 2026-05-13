@@ -6,7 +6,9 @@ import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucid
 import { useDashboardStore } from '@/lib/store'
 import { SettingsModal } from '@/components/ui/SettingsModal'
 import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
+import { NavbarSearch } from '@/components/layout/NavbarSearch'
 import { t } from '@/lib/i18n'
+import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 
 function DashboardIcon({ icon, size = 18 }: { icon: string; size?: number }) {
   if (icon?.startsWith('data:') || icon?.startsWith('http'))
@@ -20,6 +22,7 @@ export function Navbar() {
     dashboards, activeDashboardId, editMode, setEditMode, locale,
     activeDashboard, setTheme, showDashboardTabs, navbarStyle,
     dashboardZoom, setDashboardZoom,
+    navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders,
   } = useDashboardStore()
   const dash = activeDashboard()
   const isLight = dash.theme === 'light'
@@ -34,11 +37,15 @@ export function Navbar() {
   const canZoomIn = z < 1.5
   const canZoomOut = z > 0.6
 
+  const hasSearchProviders = SEARCH_PROVIDER_LIST.some((p) => navbarSearchProviders[p.id])
+  const showNavbarSearch = navbarSearchEnabled && hasSearchProviders
+
   return (
     <>
       <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3">
+        className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 min-w-0">
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
         {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {showIcon && (
@@ -68,7 +75,7 @@ export function Navbar() {
 
         {/* Dashboard Tabs */}
         {showDashboardTabs && dashboards.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0', maxWidth: 'min(52vw, 560px)' }}>
             {dashboards.filter((d) => !d.hideTab).map((d) => (
               <button key={d.id} onClick={() => router.push(`/dashboard/${d.id}`)}
                 style={{
@@ -90,43 +97,49 @@ export function Navbar() {
           </div>
         )}
 
-        <div style={{ flex: 1 }} />
-
-        {/* Zoom controls — always visible */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
-          <button
-            onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
-            style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'not-allowed', color: canZoomOut ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
-            <ZoomOut size={14} />
-          </button>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'center' }}>
-            {Math.round(z * 100)}%
-          </span>
-          <button
-            onClick={() => canZoomIn && setDashboardZoom(z + zoomStep)}
-            style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'not-allowed', color: canZoomIn ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
-            <ZoomIn size={14} />
-          </button>
+        {showNavbarSearch && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} />}
         </div>
 
-        {/* Right actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setTheme(isLight ? 'dark' : 'light')}>
-            {isLight ? <Moon size={15} /> : <Sun size={15} />}
-          </button>
-          <button className={editMode ? 'btn-accent' : 'btn-ghost'} style={editMode ? {} : { padding: '7px' }}
-            onClick={() => setEditMode(!editMode)}>
-            {editMode ? <><Check size={14} />{locale === 'de' ? 'Fertig' : 'Done'}</> : <Pencil size={15} />}
-          </button>
-          {editMode && (
-            <button className="btn-accent" style={{ padding: '7px 10px' }}
-              onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
-              <Plus size={17} />
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {showNavbarSearch && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} />}
+        </div>
+
+        {/* Right: optional search, zoom, actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {showNavbarSearch && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
+            <button
+              onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
+              style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'not-allowed', color: canZoomOut ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
+              <ZoomOut size={14} />
             </button>
-          )}
-          <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setSettingsOpen(true)}>
-            <Settings size={15} />
-          </button>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'center' }}>
+              {Math.round(z * 100)}%
+            </span>
+            <button
+              onClick={() => canZoomIn && setDashboardZoom(z + zoomStep)}
+              style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'not-allowed', color: canZoomIn ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
+              <ZoomIn size={14} />
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setTheme(isLight ? 'dark' : 'light')}>
+              {isLight ? <Moon size={15} /> : <Sun size={15} />}
+            </button>
+            <button className={editMode ? 'btn-accent' : 'btn-ghost'} style={editMode ? {} : { padding: '7px' }}
+              onClick={() => setEditMode(!editMode)}>
+              {editMode ? <><Check size={14} />{locale === 'de' ? 'Fertig' : 'Done'}</> : <Pencil size={15} />}
+            </button>
+            {editMode && (
+              <button className="btn-accent" style={{ padding: '7px 10px' }}
+                onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
+                <Plus size={17} />
+              </button>
+            )}
+            <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setSettingsOpen(true)}>
+              <Settings size={15} />
+            </button>
+          </div>
         </div>
       </nav>
 

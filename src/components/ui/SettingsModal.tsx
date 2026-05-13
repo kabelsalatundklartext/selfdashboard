@@ -9,6 +9,8 @@ import { t } from '@/lib/i18n'
 import { Portal } from '@/components/ui/Portal'
 import type { ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
+import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
+import type { SearchProviderId } from '@/lib/searchProviders'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -60,6 +62,9 @@ export function SettingsModal({ open, onClose }: Props) {
     showDashboardTabs, setShowDashboardTabs,
     navbarStyle, setNavbarStyle,
     gridGap, setGridGap, gridPadding, setGridPadding,
+    navbarSearchEnabled, setNavbarSearchEnabled,
+    navbarSearchPosition, setNavbarSearchPosition,
+    navbarSearchProviders, setNavbarSearchProviderEnabled,
   } = store
   const dash = store.activeDashboard()
 
@@ -166,6 +171,63 @@ export function SettingsModal({ open, onClose }: Props) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Navbar web search */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {locale === 'de' ? 'Navbar-Suche' : 'Navbar search'}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', marginBottom: '10px' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+                      {locale === 'de' ? 'Suchleiste anzeigen' : 'Show search bar'}
+                    </p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                      {locale === 'de' ? 'Websuche in der oberen Leiste' : 'Web search in the top bar'}
+                    </p>
+                  </div>
+                  <Toggle value={navbarSearchEnabled} onChange={setNavbarSearchEnabled} />
+                </div>
+                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 8px' }}>
+                  {locale === 'de' ? 'Position' : 'Position'}
+                </p>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  {([
+                    { id: 'left' as const, label: locale === 'de' ? 'Links' : 'Left' },
+                    { id: 'center' as const, label: locale === 'de' ? 'Mitte' : 'Center' },
+                    { id: 'right' as const, label: locale === 'de' ? 'Rechts' : 'Right' },
+                  ]).map((opt) => (
+                    <button key={opt.id} type="button" onClick={() => setNavbarSearchPosition(opt.id)}
+                      style={{
+                        flex: 1, padding: '8px 6px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                        background: navbarSearchPosition === opt.id ? 'var(--accent)' : 'var(--surface-2)',
+                        color: navbarSearchPosition === opt.id ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${navbarSearchPosition === opt.id ? 'var(--accent)' : 'var(--border)'}`,
+                      }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 8px' }}>
+                  {locale === 'de' ? 'Suchanbieter' : 'Search providers'}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {SEARCH_PROVIDER_LIST.map((p) => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text)' }}>{p.label[locale]}</span>
+                      <Toggle
+                        value={navbarSearchProviders[p.id]}
+                        onChange={(v) => setNavbarSearchProviderEnabled(p.id as SearchProviderId, v)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '10px 0 0' }}>
+                  {locale === 'de'
+                    ? 'Wenn alle Anbieter aus sind, wird keine Leiste angezeigt.'
+                    : 'If all providers are off, the search bar is hidden.'}
+                </p>
               </div>
 
 
