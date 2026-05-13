@@ -12,6 +12,18 @@ interface Props {
   editMode?: boolean
 }
 
+function coercePluginZoom(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(2, Math.max(0.5, Math.round(n * 10) / 10))
+}
+
+function coercePadding(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return 8
+  return Math.max(0, Math.min(48, Math.round(n)))
+}
+
 export function WidgetWrapper({ instance, editMode }: Props) {
   const [hovering, setHovering] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
@@ -19,15 +31,15 @@ export function WidgetWrapper({ instance, editMode }: Props) {
   const dash = activeDashboard()
   const registered = pluginRegistry.get(instance.pluginId)
 
-  const pluginZoom: number = (instance.config.__zoom as number) ?? 1
-  const pluginPadding: number = (instance.config.__padding as number) ?? 8
+  const pluginZoom = coercePluginZoom(instance.config.__zoom)
+  const pluginPadding = coercePadding(instance.config.__padding)
   const canZoomIn = pluginZoom < 2
   const canZoomOut = pluginZoom > 0.5
 
   const setPluginZoom = (zoom: number) =>
-    updatePluginConfig(instance.instanceId, { __zoom: Math.round(zoom * 10) / 10 })
+    updatePluginConfig(instance.instanceId, { __zoom: coercePluginZoom(zoom) })
   const setPluginPadding = (p: number) =>
-    updatePluginConfig(instance.instanceId, { __padding: Math.max(0, Math.min(48, p)) })
+    updatePluginConfig(instance.instanceId, { __padding: coercePadding(p) })
   const changeHeight = (delta: number) => {
     const h = Math.max(1, (instance.layout?.h ?? 4) + delta)
     updatePluginLayout(instance.instanceId, { ...instance.layout, h })
@@ -161,12 +173,31 @@ export function WidgetWrapper({ instance, editMode }: Props) {
           </div>
         )}
 
-        {/* Plugin content */}
-        <div style={{
-          height: '100%',
-          fontSize: pluginZoom !== 1 ? `${pluginZoom * 100}%` : undefined,
-        }}>
-          <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
+        {/* Plugin content — scale() so px/em-based UIs zoom reliably (fontSize % on parent did not). */}
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            containerType: 'size',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: pluginZoom !== 1 ? `scale(${pluginZoom})` : undefined,
+              transformOrigin: 'center center',
+            }}
+          >
+            <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
+          </div>
         </div>
       </div>
 

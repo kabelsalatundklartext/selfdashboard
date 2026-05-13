@@ -7,7 +7,7 @@ export const meta: PluginMeta = {
   id: 'clock',
   name: 'Clock & Date',
   description: 'Displays the current time and date with timezone support.',
-  version: '1.1.0',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🕐',
@@ -67,15 +67,46 @@ function Widget({ config }: PluginWidgetProps) {
   const tzLabel = cityName || tz || ''
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "2px" }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        width: '100%',
+        minWidth: 0,
+        gap: '2px',
+        padding: '2px 4px',
+        boxSizing: 'border-box',
+      }}
+    >
       <p
         className="tabular-nums tracking-tight"
-        style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', fontSize: showSeconds ? '2.5em' : '3em', fontWeight: 800 }}
+        style={{
+          color: 'var(--accent)',
+          fontVariantNumeric: 'tabular-nums',
+          fontSize: showSeconds
+            ? 'clamp(0.85rem, min(5vw, 18cqmin), 2.5rem)'
+            : 'clamp(0.95rem, min(5.5vw, 22cqmin), 3rem)',
+          fontWeight: 800,
+          lineHeight: 1.05,
+          textAlign: 'center',
+          wordBreak: 'break-word',
+        }}
       >
         {timeStr}
       </p>
       {showDate && (
-        <p style={{ fontSize: "0.875em", color: 'var(--text-muted)' }}>
+        <p
+          style={{
+            fontSize: 'clamp(0.65rem, min(2.8vw, 9cqmin), 0.95rem)',
+            color: 'var(--text-muted)',
+            textAlign: 'center',
+            lineHeight: 1.2,
+            maxWidth: '100%',
+          }}
+        >
           {dateStr}
         </p>
       )}

@@ -30,8 +30,9 @@ export function Navbar() {
   const showText = navbarStyle !== 'icon-only'
 
   const zoomStep = 0.1
-  const canZoomIn = dashboardZoom < 1.5
-  const canZoomOut = dashboardZoom > 0.6
+  const z = typeof dashboardZoom === 'number' && Number.isFinite(dashboardZoom) ? dashboardZoom : Number(dashboardZoom) || 1
+  const canZoomIn = z < 1.5
+  const canZoomOut = z > 0.6
 
   return (
     <>
@@ -94,15 +95,15 @@ export function Navbar() {
         {/* Zoom controls — always visible */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
           <button
-            onClick={() => canZoomOut && setDashboardZoom(Math.round((dashboardZoom - zoomStep) * 10) / 10)}
+            onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
             style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'not-allowed', color: canZoomOut ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
             <ZoomOut size={14} />
           </button>
           <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', minWidth: '36px', textAlign: 'center' }}>
-            {Math.round(dashboardZoom * 100)}%
+            {Math.round(z * 100)}%
           </span>
           <button
-            onClick={() => canZoomIn && setDashboardZoom(Math.round((dashboardZoom + zoomStep) * 10) / 10)}
+            onClick={() => canZoomIn && setDashboardZoom(z + zoomStep)}
             style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'not-allowed', color: canZoomIn ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
             <ZoomIn size={14} />
           </button>

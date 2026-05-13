@@ -104,7 +104,11 @@ export const useDashboardStore = create<DashboardStore>()(
       setEditMode: (editMode) => set({ editMode }),
       setShowDashboardTabs: (showDashboardTabs) => set({ showDashboardTabs }),
       setNavbarStyle: (navbarStyle) => set({ navbarStyle }),
-      setDashboardZoom: (dashboardZoom) => set({ dashboardZoom }),
+      setDashboardZoom: (raw) => {
+        const n = typeof raw === 'number' ? raw : Number(raw)
+        const z = Number.isFinite(n) ? Math.round(n * 10) / 10 : 1
+        set({ dashboardZoom: Math.min(1.5, Math.max(0.6, z)) })
+      },
       setGridGap: (gridGap) => set({ gridGap }),
       setGridPadding: (gridPadding) => set({ gridPadding }),
       setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme } : d) })) },
@@ -123,6 +127,13 @@ export const useDashboardStore = create<DashboardStore>()(
         if (state && state.dashboards.length === 0) {
           const m = migrateOldStore()
           if (m) { state.dashboards = m; state.activeDashboardId = m[0].id }
+        }
+        if (state) {
+          const z = state.dashboardZoom
+          if (typeof z !== 'number' || !Number.isFinite(z)) {
+            const n = Number(z)
+            state.dashboardZoom = Number.isFinite(n) ? Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10)) : 1
+          }
         }
       },
     }

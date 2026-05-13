@@ -12,8 +12,15 @@ import 'react-resizable/css/styles.css'
 const COLS = 12
 const ROW_HEIGHT = 48
 
+function coerceZoom(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10))
+}
+
 export function DashboardGrid() {
   const { activeDashboard, editMode, locale, updatePluginLayout, dashboardZoom, gridGap, gridPadding } = useDashboardStore()
+  const zoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins
   const [containerWidth, setContainerWidth] = useState(1200)
@@ -55,15 +62,16 @@ export function DashboardGrid() {
     y: p.layout?.y ?? Infinity,
     w: p.layout?.w ?? 4,
     h: p.layout?.h ?? 4,
-    minW: 2, minH: 2,
+    minW: p.layout?.minW ?? 1,
+    minH: p.layout?.minH ?? 1,
   }))
 
   return (
     // Zoom wrapper — scales the whole grid
     <div style={{
       transformOrigin: 'top left',
-      transform: `scale(${dashboardZoom})`,
-      width: dashboardZoom !== 1 ? `${100 / dashboardZoom}%` : '100%',
+      transform: `scale(${zoom})`,
+      width: zoom !== 1 ? `${100 / zoom}%` : '100%',
       transition: 'transform 0.2s ease',
     }}>
       <div style={{ padding: `${gridPadding}px` }} className="animate-fade-in">
