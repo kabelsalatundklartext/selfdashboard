@@ -431,17 +431,44 @@ function Widget({ config }: PluginWidgetProps) {
                     ) : (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                         {canStart ? (
-                          <button type="button" style={btn} title="Container starten" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'start')}>
+                          <button
+                            type="button"
+                            style={btn}
+                            title="Container starten"
+                            disabled={isBusy || pending != null}
+                            onClick={() => {
+                              if (cid == null || cid === '') return
+                              beginAction(cid, name, 'start')
+                            }}
+                          >
                             Start
                           </button>
                         ) : null}
                         {canStop ? (
-                          <button type="button" style={btn} title="Container stoppen" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'stop')}>
+                          <button
+                            type="button"
+                            style={btn}
+                            title="Container stoppen"
+                            disabled={isBusy || pending != null}
+                            onClick={() => {
+                              if (cid == null || cid === '') return
+                              beginAction(cid, name, 'stop')
+                            }}
+                          >
                             Stopp
                           </button>
                         ) : null}
                         {canRestart ? (
-                          <button type="button" style={btn} title="Container neu starten" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'restart')}>
+                          <button
+                            type="button"
+                            style={btn}
+                            title="Container neu starten"
+                            disabled={isBusy || pending != null}
+                            onClick={() => {
+                              if (cid == null || cid === '') return
+                              beginAction(cid, name, 'restart')
+                            }}
+                          >
                             Neustart
                           </button>
                         ) : null}
