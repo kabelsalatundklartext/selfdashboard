@@ -47,7 +47,7 @@ function AppIcon({ icon }: { icon: string }) {
 function Widget({ config }: PluginWidgetProps) {
   const data = parseData(config.data ?? config.apps)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', overflow: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', overflow: 'auto', justifyContent: 'center' }}>
       {data.groups.map((group) => {
         const apps = data.apps.filter((a) => a.group === group.id)
         if (apps.length === 0) return null

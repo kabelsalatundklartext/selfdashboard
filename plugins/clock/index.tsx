@@ -16,6 +16,7 @@ export const meta: PluginMeta = {
     { key: 'format24h', label: '24h Format', type: 'boolean', defaultValue: true },
     { key: 'showSeconds', label: 'Show Seconds', type: 'boolean', defaultValue: true },
     { key: 'showDate', label: 'Show Date', type: 'boolean', defaultValue: true },
+    { key: 'cityName', label: 'City Name', type: 'text', placeholder: 'z.B. Berlin, New York, Tokyo', defaultValue: '' },
   ],
 }
 
@@ -62,10 +63,11 @@ function Widget({ config }: PluginWidgetProps) {
     year: 'numeric',
   })
 
-  const tzLabel = tz || 'Local time'
+  const cityName = (config.cityName as string)?.trim()
+  const tzLabel = cityName || tz || ''
 
   return (
-    <div className="flex flex-col items-center justify-center flex-1 gap-1 py-2">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "4px" }}>
       <p
         className="tabular-nums tracking-tight"
         style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', fontSize: showSeconds ? '2.5rem' : '3rem', fontWeight: 800 }}
@@ -77,7 +79,7 @@ function Widget({ config }: PluginWidgetProps) {
           {dateStr}
         </p>
       )}
-      {tz && (
+      {(cityName || tz) && (
         <p className="text-xs mt-1 px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
           {tzLabel}
         </p>
@@ -126,6 +128,22 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
 
       {/* Toggles */}
+      {/* City Name */}
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+          Stadtname / City Name
+        </label>
+        <input
+          style={{ ...inputStyle }}
+          value={(config.cityName as string) || ''}
+          onChange={(e) => onChange('cityName', e.target.value)}
+          placeholder="z.B. Berlin, New York, Tokyo"
+        />
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+          Wird unter der Uhrzeit angezeigt
+        </p>
+      </div>
+
       {[
         { key: 'format24h', label: '24-hour format', default: true },
         { key: 'showSeconds', label: 'Show seconds', default: true },
