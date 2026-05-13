@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { usePluginLocale } from '@/lib/pluginLocale'
 
 export const meta: PluginMeta = {
   id: 'clock',
   name: 'Clock & Date',
   description: 'Displays the current time and date with timezone support.',
-  version: '1.2.0',
+  version: '1.2.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🕐',
@@ -36,18 +37,20 @@ const TIMEZONES = [
 ]
 
 function Widget({ config }: PluginWidgetProps) {
+  const { de } = usePluginLocale()
   const [now, setNow] = useState(new Date())
   const tz = (config.timezone as string) || undefined
   const is24h = config.format24h !== false
   const showSeconds = config.showSeconds !== false
   const showDate = config.showDate !== false
+  const loc = de ? 'de-DE' : 'en-GB'
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const timeStr = now.toLocaleTimeString('de-DE', {
+  const timeStr = now.toLocaleTimeString(loc, {
     timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
@@ -55,7 +58,7 @@ function Widget({ config }: PluginWidgetProps) {
     hour12: !is24h,
   })
 
-  const dateStr = now.toLocaleDateString('de-DE', {
+  const dateStr = now.toLocaleDateString(loc, {
     timeZone: tz,
     weekday: 'long',
     day: 'numeric',
@@ -120,6 +123,7 @@ function Widget({ config }: PluginWidgetProps) {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
   const inputStyle = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -136,7 +140,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       {/* Timezone */}
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          Timezone
+          {de ? 'Zeitzone' : 'Timezone'}
         </label>
         <select
           style={{ ...inputStyle, cursor: 'pointer' }}
@@ -144,17 +148,19 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           onChange={(e) => onChange('timezone', e.target.value)}
         >
           {TIMEZONES.map((tz) => (
-            <option key={tz.value} value={tz.value}>{tz.label}</option>
+            <option key={tz.value} value={tz.value}>
+              {tz.value === '' ? (de ? 'Lokal (auto)' : 'Local (auto)') : tz.label}
+            </option>
           ))}
         </select>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Not in the list? Type manually below:
+          {de ? 'Nicht in der Liste? Unten manuell eintragen:' : 'Not in the list? Enter manually below:'}
         </p>
         <input
           style={{ ...inputStyle, marginTop: '4px' }}
           value={(config.timezone as string) || ''}
           onChange={(e) => onChange('timezone', e.target.value)}
-          placeholder="e.g. America/Toronto"
+          placeholder={de ? 'z. B. America/Toronto' : 'e.g. America/Toronto'}
         />
       </div>
 
@@ -162,23 +168,23 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       {/* City Name */}
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          Stadtname / City Name
+          {de ? 'Stadtname' : 'City name'}
         </label>
         <input
           style={{ ...inputStyle }}
           value={(config.cityName as string) || ''}
           onChange={(e) => onChange('cityName', e.target.value)}
-          placeholder="z.B. Berlin, New York, Tokyo"
+          placeholder={de ? 'z. B. Berlin, New York, Tokyo' : 'e.g. Berlin, New York, Tokyo'}
         />
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          Wird unter der Uhrzeit angezeigt
+          {de ? 'Wird unter der Uhrzeit angezeigt' : 'Shown under the time'}
         </p>
       </div>
 
       {[
-        { key: 'format24h', label: '24-hour format', default: true },
-        { key: 'showSeconds', label: 'Show seconds', default: true },
-        { key: 'showDate', label: 'Show date', default: true },
+        { key: 'format24h', label: de ? '24-Stunden-Format' : '24-hour format', default: true },
+        { key: 'showSeconds', label: de ? 'Sekunden anzeigen' : 'Show seconds', default: true },
+        { key: 'showDate', label: de ? 'Datum anzeigen' : 'Show date', default: true },
       ].map(({ key, label, default: def }) => (
         <label key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
           <span style={{ fontSize: '13px', color: 'var(--text)' }}>{label}</span>

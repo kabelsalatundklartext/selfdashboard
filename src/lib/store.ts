@@ -134,6 +134,11 @@ export const useDashboardStore = create<DashboardStore>()(
             const n = Number(z)
             state.dashboardZoom = Number.isFinite(n) ? Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10)) : 1
           }
+          const legacyIframe = 'crowdsec-threat-map'
+          state.dashboards = state.dashboards.map((d) => ({
+            ...d,
+            plugins: d.plugins.map((p) => (p.pluginId === legacyIframe ? { ...p, pluginId: 'iframe' } : p)),
+          }))
         }
       },
     }

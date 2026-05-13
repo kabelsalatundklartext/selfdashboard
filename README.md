@@ -52,7 +52,7 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 | 🎬 Emby | Media | Active sessions — who is watching what | ✅ Included |
 | 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
 | 🛡️ AdGuard Home | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
-| 🗺️ CrowdSec Threat Map | Security | Embed or link to the Threat Map UI (Docker companion) | ✅ Included |
+| 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
 | 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
 | ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
@@ -262,7 +262,7 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 | 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
 | 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
 | 🛡️ AdGuard Home | Network | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
-| 🗺️ CrowdSec Threat Map | Security | Karte einbetten oder Link (Docker-Companion) | ✅ Enthalten |
+| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link — Dashboards, interne Tools, Karten | ✅ Enthalten |
 | 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
 | 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
 | ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |

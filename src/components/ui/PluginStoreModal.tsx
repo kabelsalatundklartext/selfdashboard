@@ -31,9 +31,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
   const allPlugins = pluginRegistry.getAll()
   const filtered = allPlugins.filter(
-    (p) =>
-      p.meta.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.meta.description.toLowerCase().includes(search.toLowerCase())
+    (p) => {
+      const displayName = p.meta.id === 'iframe' ? t(locale, 'iframeName') : p.meta.name
+      const displayDesc = p.meta.id === 'iframe' ? t(locale, 'iframeDesc') : p.meta.description
+      const q = search.toLowerCase()
+      return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
+    }
   )
 
   const handleAdd = (pluginId: string) => {
@@ -103,6 +106,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
           ) : (
             filtered.map(({ meta }) => {
               const isAdded = added.has(meta.id) || existingPlugins.some((p) => p.pluginId === meta.id)
+              const displayName = meta.id === 'iframe' ? t(locale, 'iframeName') : meta.name
+              const displayDesc = meta.id === 'iframe' ? t(locale, 'iframeDesc') : meta.description
               return (
                 <div
                   key={meta.id}
@@ -118,7 +123,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>
-                        {meta.name}
+                        {displayName}
                       </span>
                       <span
                         className="text-xs px-2 py-0.5 rounded-full"
@@ -128,7 +133,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       </span>
                     </div>
                     <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
-                      {meta.description}
+                      {displayDesc}
                     </p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       by {meta.author} · v{meta.version}

@@ -178,11 +178,11 @@ function wmoSummary(code: number, de: boolean): string {
   return de ? 'Wetter' : 'Weather'
 }
 
-async function geocode(query: string, countryCode: string, signal: AbortSignal): Promise<GeoHit | null> {
+async function geocode(query: string, countryCode: string, signal: AbortSignal, lang: 'de' | 'en'): Promise<GeoHit | null> {
   const params = new URLSearchParams({
     name: query,
     count: '8',
-    language: 'de',
+    language: lang,
     format: 'json',
   })
   const cc = countryCode.trim().toUpperCase()
@@ -196,7 +196,7 @@ async function geocode(query: string, countryCode: string, signal: AbortSignal):
   return first
 }
 
-async function fetchCurrent(lat: number, lon: number, signal: AbortSignal): Promise<CurrentJson> {
+async function fetchCurrent(lat: number, lon: number, signal: AbortSignal, de: boolean): Promise<CurrentJson> {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
@@ -207,7 +207,7 @@ async function fetchCurrent(lat: number, lon: number, signal: AbortSignal): Prom
   const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal, cache: 'no-store' })
   if (!res.ok) throw new Error(`Forecast HTTP ${res.status}`)
   const j = (await res.json()) as ForecastJson
-  if (!j.current) throw new Error('Keine aktuellen Werte')
+  if (!j.current) throw new Error(de ? 'Keine aktuellen Werte' : 'No current values')
   return j.current
 }
 
@@ -241,7 +241,7 @@ function Widget({ config }: PluginWidgetProps) {
       setLoading(true)
       setError(null)
       try {
-        const hit = await geocode(locationQuery, countryCode, ac.signal)
+        const hit = await geocode(locationQuery, countryCode, ac.signal, de ? 'de' : 'en')
         if (cancelled) return
         if (!hit) {
           setPlaceLabel(null)
@@ -251,7 +251,7 @@ function Widget({ config }: PluginWidgetProps) {
           return
         }
         setPlaceLabel(formatPlace(hit))
-        const cur = await fetchCurrent(hit.latitude, hit.longitude, ac.signal)
+        const cur = await fetchCurrent(hit.latitude, hit.longitude, ac.signal, de)
         if (cancelled) return
         setCurrent(cur)
         setUpdatedAt(new Date())

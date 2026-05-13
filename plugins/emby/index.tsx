@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { usePluginLocale } from '@/lib/pluginLocale'
 
 export const meta: PluginMeta = {
   id: 'emby',
   name: 'Emby',
   description:
     'Aktive Wiedergaben per Emby-/Jellyfin-kompatibler API: Nutzer, Titel, Gerät, Pause (Basis-URL + API-Key).',
-  version: '1.0.2',
+  version: '1.0.3',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎬',
@@ -100,13 +101,13 @@ function playingSessions(sessions: Session[]): Session[] {
   return sessions.filter((s) => s.NowPlayingItem && (s.NowPlayingItem.Name || s.NowPlayingItem.SeriesName))
 }
 
-function sessionTitle(s: Session): string {
+function sessionTitle(s: Session, de: boolean): string {
   const it = s.NowPlayingItem
   if (!it) return '—'
   const series = it.SeriesName?.trim()
   const name = it.Name?.trim()
   if (series && name) return `${series} — ${name}`
-  return name || series || it.Type || 'Wiedergabe'
+  return name || series || it.Type || (de ? 'Wiedergabe' : 'Playback')
 }
 
 function Heading({ text }: { text: string }) {
@@ -127,6 +128,7 @@ function Heading({ text }: { text: string }) {
 }
 
 function Widget({ config }: PluginWidgetProps) {
+  const { de } = usePluginLocale()
   const [sessions, setSessions] = useState<Session[]>([])
   const [serverName, setServerName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -179,9 +181,19 @@ function Widget({ config }: PluginWidgetProps) {
       <div style={{ ...shell, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <span style={{ fontSize: '28px' }}>🎬</span>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-          Emby-Basis-URL und API-Key
-          <br />
-          in den Einstellungen eintragen
+          {de ? (
+            <>
+              Emby-Basis-URL und API-Key
+              <br />
+              in den Einstellungen eintragen
+            </>
+          ) : (
+            <>
+              Emby base URL and API key
+              <br />
+              in settings
+            </>
+          )}
         </p>
       </div>
     )
@@ -205,7 +217,9 @@ function Widget({ config }: PluginWidgetProps) {
         <span style={{ fontSize: '22px' }}>⚠️</span>
         <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
-          CORS: Aufruf aus dem Browser — gleiche Domain/Reverse-Proxy oder Emby-Netzwerk-Zugriff prüfen.
+          {de
+            ? 'CORS: Aufruf aus dem Browser — gleiche Domain/Reverse-Proxy oder Emby-Netzwerk-Zugriff prüfen.'
+            : 'CORS: browser call — check same domain/reverse proxy or Emby network access.'}
         </p>
       </div>
     )
@@ -218,7 +232,9 @@ function Widget({ config }: PluginWidgetProps) {
     <div style={shell}>
       <Heading text={title} />
       {active.length === 0 ? (
-        <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>Keine aktive Wiedergabe.</p>
+        <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>
+          {de ? 'Keine aktive Wiedergabe.' : 'Nothing playing.'}
+        </p>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
           {active.map((s, i) => {
@@ -227,9 +243,9 @@ function Widget({ config }: PluginWidgetProps) {
             const run = num(it.RunTimeTicks)
             const prog = run > 0 ? `${formatDuration(ticksToMs(pos))} / ${formatDuration(ticksToMs(run))}` : formatDuration(ticksToMs(pos))
             const paused = s.PlayState?.IsPaused === true
-            const device = [s.DeviceName, s.Client].filter(Boolean).join(' · ') || 'Gerät'
-            const user = s.UserName || 'Nutzer'
-            const tit = sessionTitle(s)
+            const device = [s.DeviceName, s.Client].filter(Boolean).join(' · ') || (de ? 'Gerät' : 'Device')
+            const user = s.UserName || (de ? 'Nutzer' : 'User')
+            const tit = sessionTitle(s, de)
             const tip = [device, tit, prog].join('\n')
             const fs = 'clamp(10px, 2.8cqmin, 12px)'
             return (
@@ -369,6 +385,7 @@ function ToggleRow({
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -391,7 +408,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Basis-URL (ohne /emby)
+          {de ? 'Basis-URL (ohne /emby)' : 'Base URL (without /emby)'}
         </label>
         <input
           style={inp}
@@ -400,18 +417,26 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           placeholder="http://192.168.1.20:8096"
         />
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
-          Jellyfin nutzt oft denselben Port — das Plugin versucht <code style={{ fontSize: '10px' }}>/emby/Sessions</code> und <code style={{ fontSize: '10px' }}>/Sessions</code>.
+          {de ? (
+            <>
+              Jellyfin nutzt oft denselben Port — das Plugin versucht <code style={{ fontSize: '10px' }}>/emby/Sessions</code> und <code style={{ fontSize: '10px' }}>/Sessions</code>.
+            </>
+          ) : (
+            <>
+              Jellyfin often uses the same port — this plugin tries <code style={{ fontSize: '10px' }}>/emby/Sessions</code> and <code style={{ fontSize: '10px' }}>/Sessions</code>.
+            </>
+          )}
         </p>
       </div>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          API-Key
+          {de ? 'API-Key' : 'API key'}
         </label>
-        <input style={inp} type="password" value={(config.apiKey as string) || ''} onChange={(e) => onChange('apiKey', e.target.value)} placeholder="Emby → Dashboard → API-Schlüssel" />
+        <input style={inp} type="password" value={(config.apiKey as string) || ''} onChange={(e) => onChange('apiKey', e.target.value)} placeholder={de ? 'Emby → Dashboard → API-Schlüssel' : 'Emby → Dashboard → API key'} />
       </div>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Aktualisierung (Sek.)
+          {de ? 'Aktualisierung (Sek.)' : 'Refresh (sec.)'}
         </label>
         <select style={{ ...inp, cursor: 'pointer' }} value={(config.refreshInterval as number) ?? 10} onChange={(e) => onChange('refreshInterval', Number(e.target.value))}>
           <option value={5}>5</option>
@@ -421,7 +446,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value={60}>60</option>
         </select>
       </div>
-      <ToggleRow label="Servername abfragen" on={sub('showServerName', true)} onToggle={() => onChange('showServerName', !sub('showServerName', true))} />
+      <ToggleRow label={de ? 'Servername abfragen' : 'Fetch server name'} on={sub('showServerName', true)} onToggle={() => onChange('showServerName', !sub('showServerName', true))} />
     </div>
   )
 }

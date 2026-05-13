@@ -9,12 +9,13 @@ import type {
 } from '@/types'
 import { Portal } from '@/components/ui/Portal'
 import { useDashboardStore } from '@/lib/store'
+import { usePluginLocale } from '@/lib/pluginLocale'
 
 export const meta: PluginMeta = {
   id: 'scratchpad',
   name: 'Notizzettel',
   description: 'Kurzer Merkzettel — direkt im Widget bearbeitbar, Speichern mit Sicherheitsabfrage.',
-  version: '1.1.0',
+  version: '1.1.1',
   author: 'Du',
   category: 'utility',
   icon: '📝',
@@ -32,11 +33,13 @@ export const meta: PluginMeta = {
 function SaveConfirmModal({
   open,
   title,
+  de,
   onCancel,
   onConfirm,
 }: {
   open: boolean
   title: string
+  de: boolean
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -93,10 +96,14 @@ function SaveConfirmModal({
           onClick={(e) => e.stopPropagation()}
         >
           <h2 id="scratchpad-confirm-title" style={{ margin: '0 0 8px', fontSize: '1rem', fontWeight: 700, color: 'var(--text)' }}>
-            Änderungen speichern?
+            {de ? 'Änderungen speichern?' : 'Save changes?'}
           </h2>
           <p style={{ margin: '0 0 18px', fontSize: '13px', lineHeight: 1.5, color: 'var(--text-muted)' }}>
-            Die Notiz unter „{title}“ wird im Dashboard dauerhaft überschrieben. Fortfahren?
+            {de ? (
+              <>Die Notiz unter „{title}“ wird im Dashboard dauerhaft überschrieben. Fortfahren?</>
+            ) : (
+              <>The note under “{title}” will be permanently overwritten on the dashboard. Continue?</>
+            )}
           </p>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -105,10 +112,10 @@ function SaveConfirmModal({
               style={{ padding: '8px 14px', fontSize: '13px' }}
               onClick={onCancel}
             >
-              Abbrechen
+              {de ? 'Abbrechen' : 'Cancel'}
             </button>
             <button type="button" className="btn-accent" style={{ padding: '8px 16px', fontSize: '13px' }} onClick={onConfirm}>
-              Speichern
+              {de ? 'Speichern' : 'Save'}
             </button>
           </div>
         </div>
@@ -118,7 +125,8 @@ function SaveConfirmModal({
 }
 
 function Widget({ instanceId, config }: PluginWidgetProps) {
-  const title = (config.title as string) || 'Notizzettel'
+  const { de } = usePluginLocale()
+  const title = (config.title as string) || (de ? 'Notizzettel' : 'Scratchpad')
   const savedNote = (config.note as string) || ''
   const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
 
@@ -181,9 +189,9 @@ function Widget({ instanceId, config }: PluginWidgetProps) {
         style={inp}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Notiz … (Speichern nicht vergessen)"
+        placeholder={de ? 'Notiz … (Speichern nicht vergessen)' : 'Note … (remember to save)'}
         spellCheck
-        aria-label="Notiz"
+        aria-label={de ? 'Notiz' : 'Note'}
       />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
@@ -194,7 +202,7 @@ function Widget({ instanceId, config }: PluginWidgetProps) {
           disabled={!dirty}
           onClick={() => setDraft(savedNote)}
         >
-          Verwerfen
+          {de ? 'Verwerfen' : 'Discard'}
         </button>
         <button
           type="button"
@@ -203,13 +211,14 @@ function Widget({ instanceId, config }: PluginWidgetProps) {
           disabled={!dirty}
           onClick={() => setConfirmOpen(true)}
         >
-          Speichern …
+          {de ? 'Speichern …' : 'Save…'}
         </button>
       </div>
 
       <SaveConfirmModal
         open={confirmOpen}
         title={title}
+        de={de}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={persist}
       />
@@ -218,6 +227,7 @@ function Widget({ instanceId, config }: PluginWidgetProps) {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
   const inputStyle: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -241,17 +251,19 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             marginBottom: '6px',
           }}
         >
-          Titel
+          {de ? 'Titel' : 'Title'}
         </label>
         <input
           style={inputStyle}
           value={(config.title as string) || ''}
           onChange={(e) => onChange('title', e.target.value)}
-          placeholder="Überschrift"
+          placeholder={de ? 'Überschrift' : 'Heading'}
         />
       </div>
       <p style={{ fontSize: '12px', lineHeight: 1.5, color: 'var(--text-muted)', margin: 0 }}>
-        Den Notiztext trägst du direkt im Widget ein — dort wird vor dem Speichern nachgefragt, damit nichts aus Versehen überschrieben wird.
+        {de
+          ? 'Den Notiztext trägst du direkt im Widget ein — dort wird vor dem Speichern nachgefragt, damit nichts aus Versehen überschrieben wird.'
+          : 'Enter the note text in the widget — it asks before saving so nothing is overwritten by accident.'}
       </p>
     </div>
   )

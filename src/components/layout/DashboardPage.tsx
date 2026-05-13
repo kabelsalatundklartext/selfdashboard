@@ -25,7 +25,7 @@ export function DashboardPage({ id }: { id: string }) {
     <>
       <PluginBootstrap />
       <Navbar />
-      <main style={{ minHeight: '100vh', background: 'var(--background)' }}>
+      <main style={{ minHeight: '100vh', width: '100%', minWidth: 0, background: 'var(--background)' }}>
         <DashboardGrid />
       </main>
     </>

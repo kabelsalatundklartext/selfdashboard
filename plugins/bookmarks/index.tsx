@@ -3,12 +3,13 @@
 import { useRef, useState } from 'react'
 import { Plus, Trash2, ExternalLink, Edit3, Check, X, Upload, GripVertical, FolderPlus } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { usePluginLocale } from '@/lib/pluginLocale'
 
 export const meta: PluginMeta = {
   id: 'bookmarks',
   name: 'App Bookmarks',
   description: 'Quick links with groups, custom icons and drag & drop.',
-  version: '1.4.0',
+  version: '1.4.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🔖',
@@ -19,7 +20,7 @@ interface Group { id: string; name: string; hidden?: boolean }
 interface BookmarkData { apps: AppLink[]; groups: Group[] }
 
 const DEFAULT_DATA: BookmarkData = {
-  groups: [{ id: 'default', name: 'My Apps' }],
+  groups: [{ id: 'default', name: 'Meine Apps' }],
   apps: [
     { id: '1', name: 'Portainer', url: 'http://localhost:9000', icon: '🐳', newTab: true, group: 'default' },
     { id: '2', name: 'Nextcloud', url: 'http://localhost:8080', icon: '☁️', newTab: true, group: 'default' },
@@ -32,7 +33,7 @@ function parseData(raw: unknown): BookmarkData {
   try {
     const p = JSON.parse(raw as string)
     if (p?.apps) return p
-    if (Array.isArray(p) && p.length > 0) return { groups: [{ id: 'default', name: 'My Apps' }], apps: p.map((a: AppLink) => ({ ...a, group: 'default' })) }
+    if (Array.isArray(p) && p.length > 0) return { groups: [{ id: 'default', name: 'Meine Apps' }], apps: p.map((a: AppLink) => ({ ...a, group: 'default' })) }
   } catch {}
   return DEFAULT_DATA
 }
@@ -75,6 +76,7 @@ function Widget({ config }: PluginWidgetProps) {
 
 // ── Settings ─────────────────────────────────────────────────
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
   const data = parseData(config.data ?? config.apps)
   const [apps, setApps] = useState<AppLink[]>(data.apps)
   const [groups, setGroups] = useState<Group[]>(data.groups)
@@ -98,11 +100,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   }
 
   const addApp = (groupId: string) => {
-    const n: AppLink = { id: Date.now().toString(), name: 'Neue App', url: 'http://', icon: '🔗', newTab: true, group: groupId }
+    const n: AppLink = { id: Date.now().toString(), name: de ? 'Neue App' : 'New app', url: 'http://', icon: '🔗', newTab: true, group: groupId }
     saveAll([...apps, n], groups); startEdit(n)
   }
   const removeApp = (id: string) => { saveAll(apps.filter((a) => a.id !== id), groups); if (editing === id) setEditing(null) }
-  const addGroup = () => { const g: Group = { id: Date.now().toString(), name: 'Neue Gruppe' }; saveAll(apps, [...groups, g]) }
+  const addGroup = () => { const g: Group = { id: Date.now().toString(), name: de ? 'Neue Gruppe' : 'New group' }; saveAll(apps, [...groups, g]) }
   const removeGroup = (id: string) => saveAll(apps.filter((a) => a.group !== id), groups.filter((g) => g.id !== id))
   const renameGroup = (id: string, name: string) => saveAll(apps, groups.map((g) => g.id === id ? { ...g, name } : g))
 
@@ -193,12 +195,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                     <select style={inp} value={editData.group || group.id} onChange={(e) => setEditData((d) => ({ ...d, group: e.target.value }))}>
                       {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </select>
-                    <input style={inp} value={editData.name || ''} onChange={(e) => setEditData((d) => ({ ...d, name: e.target.value }))} placeholder="App Name" />
+                    <input style={inp} value={editData.name || ''} onChange={(e) => setEditData((d) => ({ ...d, name: e.target.value }))} placeholder={de ? 'App-Name' : 'App name'} />
                     <input style={inp} value={editData.url || ''} onChange={(e) => setEditData((d) => ({ ...d, url: e.target.value }))} placeholder="http://192.168.1.x:port" />
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text)', cursor: 'pointer' }}>
                         <input type="checkbox" checked={editData.newTab ?? true} onChange={(e) => setEditData((d) => ({ ...d, newTab: e.target.checked }))} />
-                        Neuer Tab
+                        {de ? 'Neuer Tab' : 'New tab'}
                       </label>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button onClick={() => setEditing(null)} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={13} /></button>
@@ -236,7 +238,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             ))}
             {apps.filter((a) => a.group === group.id).length === 0 && (
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '8px', fontStyle: 'italic' }}>
-                Gruppe ist leer — App hinzufügen oder hierher ziehen
+                {de ? 'Gruppe ist leer — App hinzufügen oder hierher ziehen' : 'Group is empty — add an app or drag here'}
               </p>
             )}
           </div>
@@ -244,7 +246,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       ))}
 
       <button onClick={addGroup} style={{ width: '100%', background: 'var(--surface-2)', border: '1px dashed var(--border)', borderRadius: '8px', padding: '8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-        <FolderPlus size={14} /> Gruppe hinzufügen
+        <FolderPlus size={14} /> {de ? 'Gruppe hinzufügen' : 'Add group'}
       </button>
     </div>
   )

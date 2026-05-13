@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import type { Locale } from '@/lib/i18n'
+import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
 export const meta: PluginMeta = {
@@ -8,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.',
-  version: '1.5.1',
+  version: '1.5.3',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -140,10 +142,10 @@ function pct(used: number, total: number) {
   return total ? Math.round((used / total) * 100) : 0
 }
 
-/** Short German-ish label for Unraid array disk status */
-function formatDiskStatus(status: string): string {
+/** Short label for Unraid array disk status */
+function formatDiskStatus(status: string, de: boolean): string {
   if (!status) return '—'
-  const map: Record<string, string> = {
+  const mapDe: Record<string, string> = {
     DISK_OK: 'OK',
     DISK_NP: 'Leer',
     DISK_NP_MISSING: 'Fehlt',
@@ -154,29 +156,72 @@ function formatDiskStatus(status: string): string {
     DISK_DSBL_NEW: 'Neu (aus)',
     DISK_NEW: 'Neu',
   }
+  const mapEn: Record<string, string> = {
+    DISK_OK: 'OK',
+    DISK_NP: 'Empty',
+    DISK_NP_MISSING: 'Missing',
+    DISK_INVALID: 'Invalid',
+    DISK_WRONG: 'Wrong',
+    DISK_DSBL: 'Disabled',
+    DISK_NP_DSBL: 'Disabled (empty)',
+    DISK_DSBL_NEW: 'New (disabled)',
+    DISK_NEW: 'New',
+  }
+  const map = de ? mapDe : mapEn
   return map[status] ?? status.replace(/^DISK_/, '')
 }
 
-function diskTypeLabel(t?: string): string {
+function diskTypeLabel(t: string | undefined, de: boolean): string {
   if (!t) return ''
-  const map: Record<string, string> = {
+  const mapDe: Record<string, string> = {
     DATA: 'Daten',
     PARITY: 'Parity',
     BOOT: 'Boot',
     FLASH: 'Flash',
     CACHE: 'Cache',
   }
+  const mapEn: Record<string, string> = {
+    DATA: 'Data',
+    PARITY: 'Parity',
+    BOOT: 'Boot',
+    FLASH: 'Flash',
+    CACHE: 'Cache',
+  }
+  const map = de ? mapDe : mapEn
   return map[t] ?? t
 }
 
-/** Ampel für Auslastung: &lt;50 % grün, 50–79 % orange, ab 80 % rot */
+/** „Array — Started“ soll ohne redundanten Status nur „Array“ heißen. */
+function arrayHeading(state: string, locale: Locale): string {
+  const raw = (state ?? '').trim()
+  if (!raw || /^started$/i.test(raw)) return 'Array'
+  return `Array — ${translateArrayState(raw, locale)}`
+}
+
+function translateArrayState(state: string, locale: Locale): string {
+  const de = locale !== 'en'
+  const k = state.trim().toLowerCase().replace(/\s+/g, '_')
+  const table: Record<string, [string, string]> = {
+    started: ['Gestartet', 'Started'],
+    stopped: ['Gestoppt', 'Stopped'],
+    stopping: ['Stoppt…', 'Stopping…'],
+    starting: ['Startet…', 'Starting…'],
+    new_array: ['Neues Array', 'New array'],
+    recon: ['Parity-Sync', 'Parity sync'],
+    parity_check: ['Parity-Check', 'Parity check'],
+    clearing: ['Wird geleert…', 'Clearing…'],
+    disabled: ['Deaktiviert', 'Disabled'],
+  }
+  const pair = table[k]
+  if (pair) return de ? pair[0] : pair[1]
+  return state
+}
+
+/** Ampel für Auslastung: &lt;50 % grün, 50–79 % orange, ab 80 % rot (ohne Verlauf im Balken) */
 const HEAT = {
   ok: '#22c55e',
-  okHi: '#4ade80',
   mid: '#f59e0b',
-  midHi: '#fbbf24',
   hot: '#ef4444',
-  hotHi: '#f87171',
 } as const
 
 function heatSolid(pct: number): string {
@@ -186,16 +231,9 @@ function heatSolid(pct: number): string {
   return HEAT.hot
 }
 
-function heatFillGradient(pct: number): string {
-  const p = Math.min(100, Math.max(0, pct))
-  if (p < 50) return `linear-gradient(90deg, ${HEAT.okHi}, ${HEAT.ok})`
-  if (p < 80) return `linear-gradient(90deg, ${HEAT.midHi}, ${HEAT.mid})`
-  return `linear-gradient(90deg, ${HEAT.hotHi}, ${HEAT.hot})`
-}
-
 function Bar({ value }: { value: number }) {
   const w = Math.min(100, Math.max(0, value))
-  const core = heatSolid(w)
+  const fill = heatSolid(w)
   return (
     <div
       title={`${Math.round(w)}%`}
@@ -206,17 +244,16 @@ function Bar({ value }: { value: number }) {
         overflow: 'hidden',
         background: 'var(--border)',
         border: '1px solid color-mix(in srgb, var(--border) 90%, transparent)',
-        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.28)',
+        boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)',
       }}
     >
       <div
         style={{
           height: '100%',
           width: `${w}%`,
-          background: heatFillGradient(w),
+          background: fill,
           borderRadius: '999px',
           transition: 'width 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
-          boxShadow: `0 0 10px color-mix(in srgb, ${core} 55%, transparent)`,
         }}
       />
     </div>
@@ -297,11 +334,11 @@ function Heading({ text }: { text: string }) {
   )
 }
 
-function DiskVolumeRow({ disk }: { disk: Disk }) {
+function DiskVolumeRow({ disk, de }: { disk: Disk; de: boolean }) {
   const used = Math.max(0, disk.fsSize - disk.fsFree)
   const p = pct(used, disk.fsSize)
-  const kind = diskTypeLabel(disk.diskType)
-  const title = [disk.name, kind, formatDiskStatus(disk.status)].filter(Boolean).join(' — ')
+  const kind = diskTypeLabel(disk.diskType, de)
+  const title = [disk.name, kind, formatDiskStatus(disk.status, de)].filter(Boolean).join(' — ')
   return (
     <div
       style={{
@@ -341,7 +378,7 @@ function DiskVolumeRow({ disk }: { disk: Disk }) {
             fontWeight: 500,
           }}
         >
-          {formatDiskStatus(disk.status)}
+          {formatDiskStatus(disk.status, de)}
           {' · '}
           {disk.temp > 0 ? `${disk.temp}°C` : '—'}
           {' · '}
@@ -462,7 +499,7 @@ function parseRamDisplayMode(v: unknown): RamDisplayMode {
 }
 
 /** Eine RAM-Zeile: Label, Wertetext, Balken-% — je nach Modus */
-function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>): {
+function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>, de: boolean): {
   rowLabel: string
   value: string
   barPct: number
@@ -472,7 +509,7 @@ function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>): {
   if (mode === 'percentTotal') {
     const p = Number.isFinite(percentTotal) ? Math.round(Math.min(100, Math.max(0, percentTotal))) : pct(used, total)
     return {
-      rowLabel: 'Anteil (API %)',
+      rowLabel: de ? 'Anteil (API %)' : 'Share (API %)',
       value: `${p}% · ${fmtBytes(used)} / ${fmtBytes(total)}`,
       barPct: p,
     }
@@ -481,20 +518,23 @@ function ramRow(mode: RamDisplayMode, mem: NonNullable<UnraidData['memory']>): {
     const committed = Math.max(0, Math.min(total, total - available))
     const p = pct(committed, total)
     return {
-      rowLabel: 'Belegung',
+      rowLabel: de ? 'Belegung' : 'Committed',
       value: `${fmtBytes(committed)} / ${fmtBytes(total)}`,
       barPct: p,
-      rowTitle: `Balken: (gesamt − verfügbar) / gesamt. Verfügbar: ${fmtBytes(available)}.`,
+      rowTitle: de
+        ? `Balken: (gesamt − verfügbar) / gesamt. Verfügbar: ${fmtBytes(available)}.`
+        : `Bar: (total − available) / total. Available: ${fmtBytes(available)}.`,
     }
   }
   return {
-    rowLabel: 'Verbrauch',
+    rowLabel: de ? 'Verbrauch' : 'Used',
     value: `${fmtBytes(used)} / ${fmtBytes(total)}`,
     barPct: pct(used, total),
   }
 }
 
 function Widget({ config }: PluginWidgetProps) {
+  const { locale, de } = usePluginLocale()
   const [data, setData] = useState<UnraidData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -568,6 +608,7 @@ function Widget({ config }: PluginWidgetProps) {
     padding: '10px 14px 14px',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
+    background: 'transparent',
   }
 
   if (!url || !apiKey)
@@ -578,9 +619,19 @@ function Widget({ config }: PluginWidgetProps) {
       >
         <span style={{ fontSize: '32px' }}>🖥️</span>
         <p style={{ fontSize: '12px', color: 'var(--text)', marginTop: '10px', lineHeight: 1.45, fontWeight: 500 }}>
-          URL & API Key
-          <br />
-          in Einstellungen eintragen
+          {de ? (
+            <>
+              URL & API Key
+              <br />
+              in Einstellungen eintragen
+            </>
+          ) : (
+            <>
+              URL & API key
+              <br />
+              in settings
+            </>
+          )}
         </p>
       </div>
     )
@@ -605,7 +656,9 @@ function Widget({ config }: PluginWidgetProps) {
         <span style={{ fontSize: '24px' }}>⚠️</span>
         <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '10px', wordBreak: 'break-word', fontWeight: 600 }}>{error}</p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
-          URL ohne Endpfad, API-Key mit Rolle VIEWER oder ADMIN.
+          {de
+            ? 'URL ohne Endpfad, API-Key mit Rolle VIEWER oder ADMIN.'
+            : 'Base URL without path; API key with VIEWER or ADMIN role.'}
         </p>
       </div>
     )
@@ -617,7 +670,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   const ramResolved =
     showRam && data?.memory
-      ? ramRow(ramMode === 'available' && data.memory.available === undefined ? 'used' : ramMode, data.memory)
+      ? ramRow(ramMode === 'available' && data.memory.available === undefined ? 'used' : ramMode, data.memory, de)
       : null
 
   return (
@@ -625,9 +678,9 @@ function Widget({ config }: PluginWidgetProps) {
       {showCpu && data?.cpu && (
         <>
           <Heading text={`CPU — ${data.cpu.brand}`} />
-          {showCpuLoad && <Row label="Auslastung" value={`${data.cpu.utilization}%`} bar pct={data.cpu.utilization} />}
-          {showCpuPkgTemp && data.cpu.temp > 0 && <Row label="Paket-Temp." value={`${data.cpu.temp}°C`} bar pct={data.cpu.temp} />}
-          {showCpuCores && <Row label="Kerne / Threads" value={`${data.cpu.cores} / ${data.cpu.threads}`} />}
+          {showCpuLoad && <Row label={de ? 'Auslastung' : 'Load'} value={`${data.cpu.utilization}%`} bar pct={data.cpu.utilization} />}
+          {showCpuPkgTemp && data.cpu.temp > 0 && <Row label={de ? 'Paket-Temp.' : 'Package temp.'} value={`${data.cpu.temp}°C`} bar pct={data.cpu.temp} />}
+          {showCpuCores && <Row label={de ? 'Kerne / Threads' : 'Cores / threads'} value={`${data.cpu.cores} / ${data.cpu.threads}`} />}
         </>
       )}
 
@@ -640,24 +693,24 @@ function Widget({ config }: PluginWidgetProps) {
 
       {showArray && data?.array && (
         <>
-          <Heading text={`Array — ${data.array.state}`} />
+          <Heading text={arrayHeading(data.array.state, locale)} />
           {showArrayTotal && arrayKb && num(arrayKb.total) > 0 && (
-            <Row label="Gesamt" value={`${fmtKb(num(arrayKb.used))} / ${fmtKb(num(arrayKb.total))}`} bar pct={pct(num(arrayKb.used), num(arrayKb.total))} />
+            <Row label={de ? 'Gesamt' : 'Total'} value={`${fmtKb(num(arrayKb.used))} / ${fmtKb(num(arrayKb.total))}`} bar pct={pct(num(arrayKb.used), num(arrayKb.total))} />
           )}
           {showArrayDisks &&
             data.array.disks
               ?.filter((d) => d.status !== 'DISK_NP' && d.fsSize > 0)
-              .map((disk) => <DiskVolumeRow key={disk.id} disk={disk} />)}
+              .map((disk) => <DiskVolumeRow key={disk.id} disk={disk} de={de} />)}
         </>
       )}
 
       {showPools && poolDisks.length > 0 && (
         <>
-          <Heading text="Pools / Cache" />
+          <Heading text={de ? 'Pools / Cache' : 'Pools / cache'} />
           {showPoolsTotal && poolAgg.total > 0 && (
-            <Row label="Gesamt (Cache)" value={`${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`} bar pct={poolPct} />
+            <Row label={de ? 'Gesamt (Cache)' : 'Total (cache)'} value={`${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`} bar pct={poolPct} />
           )}
-          {showPoolsDisks && poolDisks.map((disk) => <DiskVolumeRow key={disk.id} disk={disk} />)}
+          {showPoolsDisks && poolDisks.map((disk) => <DiskVolumeRow key={disk.id} disk={disk} de={de} />)}
         </>
       )}
 
@@ -706,6 +759,7 @@ function ToggleRow({
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -724,7 +778,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Unraid-Basis-URL
+          {de ? 'Unraid-Basis-URL' : 'Unraid base URL'}
         </label>
         <input style={inp} value={(config.url as string) || ''} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.10 oder https://tower" />
       </div>
@@ -736,7 +790,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Aktualisierung (Sek.)
+          {de ? 'Aktualisierung (Sek.)' : 'Refresh (sec.)'}
         </label>
         <select style={{ ...inp, cursor: 'pointer' }} value={(config.refreshInterval as number) ?? 5} onChange={(e) => onChange('refreshInterval', Number(e.target.value))}>
           <option value={2}>2</option>
@@ -748,62 +802,92 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
 
       <div>
-        <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Anzeige — grob</p>
+        <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {de ? 'Anzeige — grob' : 'Display — overview'}
+        </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <ToggleRow label="🖥️ CPU (Sektion)" on={sub('showCpu')} onToggle={() => onChange('showCpu', !sub('showCpu'))} />
+          <ToggleRow label={de ? '🖥️ CPU (Sektion)' : '🖥️ CPU (section)'} on={sub('showCpu')} onToggle={() => onChange('showCpu', !sub('showCpu'))} />
           <ToggleRow label="💾 RAM" on={sub('showRam')} onToggle={() => onChange('showRam', !sub('showRam'))} />
           <ToggleRow label="🗄️ Array" on={sub('showArray')} onToggle={() => onChange('showArray', !sub('showArray'))} />
-          <ToggleRow label="💿 Pools / Cache" on={sub('showPools')} onToggle={() => onChange('showPools', !sub('showPools'))} />
+          <ToggleRow label={de ? '💿 Pools / Cache' : '💿 Pools / cache'} on={sub('showPools')} onToggle={() => onChange('showPools', !sub('showPools'))} />
         </div>
       </div>
 
       {sub('showCpu') && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>CPU — Details</p>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {de ? 'CPU — Details' : 'CPU — details'}
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
-            <ToggleRow label="Auslastung %" on={sub('showCpuLoad')} onToggle={() => onChange('showCpuLoad', !sub('showCpuLoad'))} />
-            <ToggleRow label="Paket-Temperatur" on={sub('showCpuPkgTemp')} onToggle={() => onChange('showCpuPkgTemp', !sub('showCpuPkgTemp'))} />
-            <ToggleRow label="Kerne / Threads" on={sub('showCpuCores')} onToggle={() => onChange('showCpuCores', !sub('showCpuCores'))} />
+            <ToggleRow label={de ? 'Auslastung %' : 'Load %'} on={sub('showCpuLoad')} onToggle={() => onChange('showCpuLoad', !sub('showCpuLoad'))} />
+            <ToggleRow label={de ? 'Paket-Temperatur' : 'Package temperature'} on={sub('showCpuPkgTemp')} onToggle={() => onChange('showCpuPkgTemp', !sub('showCpuPkgTemp'))} />
+            <ToggleRow label={de ? 'Kerne / Threads' : 'Cores / threads'} on={sub('showCpuCores')} onToggle={() => onChange('showCpuCores', !sub('showCpuCores'))} />
           </div>
         </div>
       )}
 
       {sub('showArray') && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Array — Details</p>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {de ? 'Array — Details' : 'Array — details'}
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
-            <ToggleRow label="Gesamt-Balken" on={sub('showArrayTotal')} onToggle={() => onChange('showArrayTotal', !sub('showArrayTotal'))} />
-            <ToggleRow label="Einzelne Disks (Status · Temp · %)" on={sub('showArrayDisks')} onToggle={() => onChange('showArrayDisks', !sub('showArrayDisks'))} />
+            <ToggleRow label={de ? 'Gesamt-Balken' : 'Total bar'} on={sub('showArrayTotal')} onToggle={() => onChange('showArrayTotal', !sub('showArrayTotal'))} />
+            <ToggleRow
+              label={de ? 'Einzelne Disks (Status · Temp · %)' : 'Individual disks (status · temp · %)'}
+              on={sub('showArrayDisks')}
+              onToggle={() => onChange('showArrayDisks', !sub('showArrayDisks'))}
+            />
           </div>
         </div>
       )}
 
       {sub('showPools') && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pools / Cache — Details</p>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {de ? 'Pools / Cache — Details' : 'Pools / cache — details'}
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
-            <ToggleRow label="Gesamt-Balken (alle Cache-Disks)" on={sub('showPoolsTotal')} onToggle={() => onChange('showPoolsTotal', !sub('showPoolsTotal'))} />
-            <ToggleRow label="Einzelne Cache-Disks" on={sub('showPoolsDisks')} onToggle={() => onChange('showPoolsDisks', !sub('showPoolsDisks'))} />
+            <ToggleRow
+              label={de ? 'Gesamt-Balken (alle Cache-Disks)' : 'Total bar (all cache disks)'}
+              on={sub('showPoolsTotal')}
+              onToggle={() => onChange('showPoolsTotal', !sub('showPoolsTotal'))}
+            />
+            <ToggleRow label={de ? 'Einzelne Cache-Disks' : 'Individual cache disks'} on={sub('showPoolsDisks')} onToggle={() => onChange('showPoolsDisks', !sub('showPoolsDisks'))} />
           </div>
         </div>
       )}
 
       {sub('showRam') && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>RAM — Anzeige</p>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            {de ? 'RAM — Anzeige' : 'RAM — display'}
+          </p>
           <div style={{ paddingLeft: '4px', borderLeft: '2px solid var(--border)' }}>
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Balken und Text</label>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+              {de ? 'Balken und Text' : 'Bar and text'}
+            </label>
             <select
               style={{ ...inp, cursor: 'pointer' }}
               value={String((config as Record<string, unknown>).ramDisplayMode ?? 'used')}
               onChange={(e) => onChange('ramDisplayMode', e.target.value)}
             >
-              <option value="used">Verbrauch (used / total)</option>
-              <option value="available">Belegung (1 − verfügbar / total)</option>
-              <option value="percentTotal">API-Prozent (metrics.percentTotal)</option>
+              <option value="used">{de ? 'Verbrauch (used / total)' : 'Used (used / total)'}</option>
+              <option value="available">{de ? 'Belegung (1 − verfügbar / total)' : 'Committed (1 − available / total)'}</option>
+              <option value="percentTotal">API % (metrics.percentTotal)</option>
             </select>
             <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '8px 0 0' }}>
-              „1 − verfügbar“ wirkt oft näher am Unraid-Dashboard als reines <code style={{ fontSize: '10px' }}>used</code>. Erfordert <code style={{ fontSize: '10px' }}>metrics.memory.available</code> in der API (Unraid 7.2+).
+              {de ? (
+                <>
+                  „1 − verfügbar“ wirkt oft näher am Unraid-Dashboard als reines <code style={{ fontSize: '10px' }}>used</code>. Erfordert{' '}
+                  <code style={{ fontSize: '10px' }}>metrics.memory.available</code> in der API (Unraid 7.2+).
+                </>
+              ) : (
+                <>
+                  “1 − available” often matches the Unraid dashboard better than raw <code style={{ fontSize: '10px' }}>used</code>. Requires{' '}
+                  <code style={{ fontSize: '10px' }}>metrics.memory.available</code> in the API (Unraid 7.2+).
+                </>
+              )}
             </p>
           </div>
         </div>

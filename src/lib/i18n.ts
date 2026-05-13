@@ -33,6 +33,9 @@ export const translations = {
     bookmarksDesc: 'Quick links to your self-hosted services with custom icons.',
     clockName: 'Clock & Date',
     clockDesc: 'Displays the current time and date with timezone support.',
+    iframeName: 'Iframe',
+    iframeDesc:
+      'Embed any website by URL (iframe) or open as a link — dashboards, internal tools, maps. If X-Frame-Options blocks embedding, use link-only mode or reverse-proxy to the same origin.',
   },
   de: {
     addPlugin: 'Plugin hinzufügen',
@@ -65,6 +68,9 @@ export const translations = {
     bookmarksDesc: 'Schnelllinks zu deinen selbst gehosteten Diensten mit eigenen Icons.',
     clockName: 'Uhr & Datum',
     clockDesc: 'Zeigt die aktuelle Uhrzeit und das Datum mit Zeitzonenunterstützung.',
+    iframeName: 'Iframe',
+    iframeDesc:
+      'Beliebige Webseite per URL einbetten (iframe) oder als Link öffnen — Dashboards, interne Tools, Karten. Wenn X-Frame-Options das Einbetten blockiert: Nur-Link-Modus oder Reverse-Proxy auf dieselbe Origin.',
   },
 } as const
 

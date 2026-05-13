@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.5',
+  version: '1.6.6',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -68,6 +68,19 @@ function actionVerb(a: DockerAction): string {
   }
 }
 
+function actionVerbEn(a: DockerAction): string {
+  switch (a) {
+    case 'start':
+      return 'start'
+    case 'stop':
+      return 'stop'
+    case 'restart':
+      return 'restart'
+    default:
+      return a
+  }
+}
+
 function actionNoun(a: DockerAction): string {
   switch (a) {
     case 'start':
@@ -76,6 +89,19 @@ function actionNoun(a: DockerAction): string {
       return 'Stopp'
     case 'restart':
       return 'Neustart'
+    default:
+      return a
+  }
+}
+
+function actionNounEn(a: DockerAction): string {
+  switch (a) {
+    case 'start':
+      return 'Start'
+    case 'stop':
+      return 'Stop'
+    case 'restart':
+      return 'Restart'
     default:
       return a
   }
@@ -215,15 +241,16 @@ function serviceMark(image: string, displayName: string): { kind: 'emoji'; v: st
   return { kind: 'letter', letter: ch, bg }
 }
 
-function fmtUpdatedAgo(ts: number | null): string {
+function fmtUpdatedAgo(ts: number | null, locale: Locale): string {
   if (ts == null) return ''
+  const de = locale !== 'en'
   const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000))
-  if (sec < 8) return 'Updated a few seconds ago'
-  if (sec < 60) return `Updated ${sec}s ago`
+  if (sec < 8) return de ? 'Gerade aktualisiert' : 'Updated just now'
+  if (sec < 60) return de ? `Vor ${sec}s aktualisiert` : `Updated ${sec}s ago`
   const m = Math.floor(sec / 60)
-  if (m < 60) return `Updated ${m} min ago`
+  if (m < 60) return de ? `Vor ${m} Min. aktualisiert` : `Updated ${m} min ago`
   const h = Math.floor(m / 60)
-  return `Updated ${h}h ago`
+  return de ? `Vor ${h} Std. aktualisiert` : `Updated ${h}h ago`
 }
 
 function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
@@ -237,9 +264,9 @@ function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
 function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   const s = (state ?? '').toLowerCase()
   const de = locale !== 'en'
-  if (s === 'running') return de ? 'Aktiv' : 'On'
+  if (s === 'running') return de ? 'Aktiv' : 'Running'
   if (s === 'exited' || s === 'dead') return de ? 'Aus' : 'Off'
-  if (s === 'paused') return 'Pause'
+  if (s === 'paused') return de ? 'Pause' : 'Paused'
   if (s === 'restarting') return de ? 'Warte' : 'Wait'
   const raw = (state ?? '').trim()
   if (!raw) return de ? '?' : '?'
@@ -598,6 +625,7 @@ function HomarrDockerTable({
   executeAction,
   cancelPending,
 }: HomarrDockerTableProps) {
+  const de = locale !== 'en'
   return (
     <table
       style={{
@@ -616,11 +644,11 @@ function HomarrDockerTable({
       </colgroup>
       <thead>
         <tr>
-          <th style={thStyle}>Name</th>
-          <th style={{ ...thStyle, textAlign: 'center' }}>State</th>
+          <th style={thStyle}>{de ? 'Name' : 'Name'}</th>
+          <th style={{ ...thStyle, textAlign: 'center' }}>{de ? 'Status' : 'State'}</th>
           <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>CPU</th>
-          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Memory</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
+          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{de ? 'Speicher' : 'Memory'}</th>
+          <th style={{ ...thStyle, textAlign: 'right' }}>{de ? 'Aktionen' : 'Actions'}</th>
         </tr>
       </thead>
       <tbody>
@@ -704,7 +732,7 @@ function HomarrDockerTable({
                       <button
                         type="button"
                         style={iconAct}
-                        title="Container stoppen"
+                        title={de ? 'Container stoppen' : 'Stop container'}
                         disabled={isBusy || pending != null}
                         onClick={() => {
                           if (cid == null || cid === '') return
@@ -718,7 +746,7 @@ function HomarrDockerTable({
                       <button
                         type="button"
                         style={iconAct}
-                        title="Container starten"
+                        title={de ? 'Container starten' : 'Start container'}
                         disabled={isBusy || pending != null}
                         onClick={() => {
                           if (cid == null || cid === '') return
@@ -732,7 +760,7 @@ function HomarrDockerTable({
                       <button
                         type="button"
                         style={iconAct}
-                        title="Container neu starten"
+                        title={de ? 'Container neu starten' : 'Restart container'}
                         disabled={isBusy || pending != null}
                         onClick={() => {
                           if (cid == null || cid === '') return
@@ -769,28 +797,40 @@ function HomarrDockerTable({
                   >
                     <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
                       {rowPending.step === 1 ? (
+                        de ? (
+                          <>
+                            <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                          </>
+                        ) : (
+                          <>
+                            Really <strong>{actionVerbEn(rowPending.action)}</strong> <strong>{name}</strong>?{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                          </>
+                        )
+                      ) : de ? (
                         <>
-                          <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
-                          <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                          Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                          <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
                         </>
                       ) : (
                         <>
-                          Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                          Second confirmation: <strong>{actionNounEn(rowPending.action)}</strong> for <strong>{name}</strong>.{' '}
                           <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
                         </>
                       )}
                     </p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                       <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
-                        Abbrechen
+                        {de ? 'Abbrechen' : 'Cancel'}
                       </button>
                       {rowPending.step === 1 ? (
                         <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
-                          Weiter
+                          {de ? 'Weiter' : 'Next'}
                         </button>
                       ) : (
                         <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
-                          Ausführen
+                          {de ? 'Ausführen' : 'Run'}
                         </button>
                       )}
                     </div>
@@ -835,6 +875,7 @@ function Widget({ config }: PluginWidgetProps) {
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
   const locale = useDashboardStore((s) => s.locale) as Locale
+  const de = locale !== 'en'
 
   const fetch_ = useCallback(async () => {
     const id = ++latestFetch.current
@@ -1086,15 +1127,28 @@ function Widget({ config }: PluginWidgetProps) {
         <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
           {/EACCES|permission denied/i.test(error) ? (
+            de ? (
+              <>
+                Typisch unter Unraid: Prozess im Container darf den Socket nicht öffnen — Template nutzt{' '}
+                <code style={{ fontSize: '10px' }}>--group-add=281</code> (Docker-Gruppe). GID prüfen:{' '}
+                <code style={{ fontSize: '10px' }}>stat -c %g /var/run/docker.sock</code>. Außerdem: Volume{' '}
+                <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> mounten. Neuere Images laufen als root.
+              </>
+            ) : (
+              <>
+                Common on Unraid: the container user cannot open the socket — add{' '}
+                <code style={{ fontSize: '10px' }}>--group-add=281</code> (Docker group). Check GID:{' '}
+                <code style={{ fontSize: '10px' }}>stat -c %g /var/run/docker.sock</code>. Also mount{' '}
+                <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code>. Many images run as root.
+              </>
+            )
+          ) : de ? (
             <>
-              Typisch unter Unraid: Prozess im Container darf den Socket nicht öffnen — Template nutzt{' '}
-              <code style={{ fontSize: '10px' }}>--group-add=281</code> (Docker-Gruppe). GID prüfen:{' '}
-              <code style={{ fontSize: '10px' }}>stat -c %g /var/run/docker.sock</code>. Außerdem: Volume{' '}
-              <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> mounten. Neuere Images laufen als root.
+              SelfDashboard braucht Zugriff auf <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> (Volume-Mount). Nur dieselbe Seite wie das Dashboard (kein externes CORS).
             </>
           ) : (
             <>
-              SelfDashboard braucht Zugriff auf <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> (Volume-Mount). Nur dieselbe Seite wie das Dashboard (kein externes CORS).
+              SelfDashboard needs access to <code style={{ fontSize: '10px' }}>/var/run/docker.sock</code> (volume mount). Same origin as the dashboard (no external CORS).
             </>
           )}
         </p>
@@ -1140,12 +1194,12 @@ function Widget({ config }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <div style={scrollBody}>
-        {!homarrTable ? <Heading text={`Docker · ${list.length}${showAll ? '' : ' laufend'}`} /> : null}
+        {!homarrTable ? <Heading text={de ? `Docker · ${list.length}${showAll ? '' : ' laufend'}` : `Docker · ${list.length}${showAll ? '' : ' running'}`} /> : null}
         {actionError ? (
           <p style={{ fontSize: '10px', color: '#ef4444', margin: '0 0 8px', lineHeight: 1.4 }}>{actionError}</p>
         ) : null}
         {list.length === 0 ? (
-          <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>Keine Container in der Liste.</p>
+          <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Keine Container in der Liste.' : 'No containers in the list.'}</p>
         ) : homarrTable ? (
           <HomarrDockerTable
             list={list}
@@ -1289,7 +1343,7 @@ function Widget({ config }: PluginWidgetProps) {
                         <button
                           type="button"
                           style={btn}
-                          title="Container starten"
+                          title={de ? 'Container starten' : 'Start container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
                             if (cid == null || cid === '') return
@@ -1303,28 +1357,28 @@ function Widget({ config }: PluginWidgetProps) {
                         <button
                           type="button"
                           style={btn}
-                          title="Container stoppen"
+                          title={de ? 'Container stoppen' : 'Stop container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
                             if (cid == null || cid === '') return
                             beginAction(cid, name, 'stop')
                           }}
                         >
-                          Stopp
+                          {de ? 'Stopp' : 'Stop'}
                         </button>
                       ) : null}
                       {canRestart ? (
                         <button
                           type="button"
                           style={btn}
-                          title="Container neu starten"
+                          title={de ? 'Container neu starten' : 'Restart container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
                             if (cid == null || cid === '') return
                             beginAction(cid, name, 'restart')
                           }}
                         >
-                          Neustart
+                          {de ? 'Neustart' : 'Restart'}
                         </button>
                       ) : null}
                       {isBusy ? (
@@ -1358,27 +1412,39 @@ function Widget({ config }: PluginWidgetProps) {
                     >
                       <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
                         {rowPending.step === 1 ? (
+                          de ? (
+                            <>
+                              <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}? <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            </>
+                          ) : (
+                            <>
+                              Really <strong>{actionVerbEn(rowPending.action)}</strong> <strong>{name}</strong>?{' '}
+                              <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            </>
+                          )
+                        ) : de ? (
                           <>
-                            <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}? <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
                           </>
                         ) : (
                           <>
-                            Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                            Second confirmation: <strong>{actionNounEn(rowPending.action)}</strong> for <strong>{name}</strong>.{' '}
                             <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
                           </>
                         )}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                         <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
-                          Abbrechen
+                          {de ? 'Abbrechen' : 'Cancel'}
                         </button>
                         {rowPending.step === 1 ? (
                           <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
-                            Weiter
+                            {de ? 'Weiter' : 'Next'}
                           </button>
                         ) : (
                           <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
-                            Ausführen
+                            {de ? 'Ausführen' : 'Run'}
                           </button>
                         )}
                       </div>
@@ -1411,10 +1477,10 @@ function Widget({ config }: PluginWidgetProps) {
               🐳
             </span>
             <span>
-              Total {list.length} {list.length === 1 ? 'container' : 'containers'}
+              {de ? 'Gesamt' : 'Total'} {list.length} {list.length === 1 ? (de ? 'Container' : 'container') : de ? 'Container' : 'containers'}
             </span>
           </span>
-          <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtUpdatedAgo(lastFetchOk)}</span>
+          <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtUpdatedAgo(lastFetchOk, locale)}</span>
         </div>
       ) : null}
     </div>
@@ -1462,6 +1528,8 @@ function ToggleRow({
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const locale = useDashboardStore((s) => s.locale) as Locale
+  const de = locale !== 'en'
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -1495,35 +1563,61 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
-        Daten kommen von <code style={{ fontSize: '10px' }}>/api/docker-containers</code> (Server liest{' '}
-        <code style={{ fontSize: '10px' }}>{'/var/run/docker.sock'}</code>
-        ). Beim Docker-/Unraid-Template den Socket als Volume einbinden.
+        {de ? (
+          <>
+            Daten kommen von <code style={{ fontSize: '10px' }}>/api/docker-containers</code> (Server liest{' '}
+            <code style={{ fontSize: '10px' }}>{'/var/run/docker.sock'}</code>
+            ). Beim Docker-/Unraid-Template den Socket als Volume einbinden.
+          </>
+        ) : (
+          <>
+            Data comes from <code style={{ fontSize: '10px' }}>/api/docker-containers</code> (server reads{' '}
+            <code style={{ fontSize: '10px' }}>{'/var/run/docker.sock'}</code>
+            ). Mount the socket in your Docker/Unraid template.
+          </>
+        )}
       </p>
 
       <ToggleRow
-        label="Homarr-Tabellenansicht (Name · State · CPU · Memory · Actions)"
+        label={
+          de
+            ? 'Homarr-Tabellenansicht (Name · Status · CPU · Speicher · Aktionen)'
+            : 'Homarr table view (name · state · CPU · memory · actions)'
+        }
         on={homarrOn}
         onToggle={() => onChange('homarrTable', !homarrOn)}
       />
 
       <div style={{ opacity: homarrOn ? 1 : 0.45, pointerEvents: homarrOn ? 'auto' : 'none' }}>
         <ToggleRow
-          label="Icons: Container-Labels + CDN (walkxcode/dashboard-icons)"
+          label={
+            de
+              ? 'Icons: Container-Labels + CDN (walkxcode/dashboard-icons)'
+              : 'Icons: container labels + CDN (walkxcode/dashboard-icons)'
+          }
           on={dashboardIconsOn}
           onToggle={() => onChange('useDashboardIcons', !dashboardIconsOn)}
         />
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
-          Unraid-Community-Templates setzen oft <code style={{ fontSize: '9px' }}>net.unraid.docker.icon</code>. Ohne CDN: nur Label-URL, Emoji oder Buchstabe-Kachel.
+          {de ? (
+            <>
+              Unraid-Community-Templates setzen oft <code style={{ fontSize: '9px' }}>net.unraid.docker.icon</code>. Ohne CDN: nur Label-URL, Emoji oder Buchstabe-Kachel.
+            </>
+          ) : (
+            <>
+              Unraid community templates often set <code style={{ fontSize: '9px' }}>net.unraid.docker.icon</code>. Without CDN: label URL, emoji, or letter tile only.
+            </>
+          )}
         </p>
       </div>
 
       <div>
-        <SettingsSectionTitle>Aktionen</SettingsSectionTitle>
+        <SettingsSectionTitle>{de ? 'Aktionen' : 'Actions'}</SettingsSectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <ToggleRow label="Buttons (Start / Stopp / Neustart)" on={actionsOn} onToggle={() => onChange('allowActions', !actionsOn)} />
+          <ToggleRow label={de ? 'Buttons (Start / Stopp / Neustart)' : 'Buttons (start / stop / restart)'} on={actionsOn} onToggle={() => onChange('allowActions', !actionsOn)} />
           <div style={{ opacity: actionsOn ? 1 : 0.45, pointerEvents: actionsOn ? 'auto' : 'none' }}>
             <ToggleRow
-              label="Button: Start"
+              label={de ? 'Button: Start' : 'Button: start'}
               on={btnStartOn}
               onToggle={() => {
                 if (!actionsOn) {
@@ -1535,7 +1629,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               }}
             />
             <ToggleRow
-              label="Button: Stopp"
+              label={de ? 'Button: Stopp' : 'Button: stop'}
               on={btnStopOn}
               onToggle={() => {
                 if (!actionsOn) {
@@ -1547,7 +1641,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               }}
             />
             <ToggleRow
-              label="Button: Neustart"
+              label={de ? 'Button: Neustart' : 'Button: restart'}
               on={btnRestartOn}
               onToggle={() => {
                 if (!actionsOn) {
@@ -1563,12 +1657,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
 
       <div>
-        <SettingsSectionTitle>Auslastung</SettingsSectionTitle>
+        <SettingsSectionTitle>{de ? 'Auslastung' : 'Usage'}</SettingsSectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <ToggleRow label="Docker-Stats (CPU / RAM)" on={statsOn} onToggle={() => onChange('showStats', !statsOn)} />
+          <ToggleRow label={de ? 'Docker-Stats (CPU / RAM)' : 'Docker stats (CPU / RAM)'} on={statsOn} onToggle={() => onChange('showStats', !statsOn)} />
           <div style={{ opacity: statsOn ? 1 : 0.45, pointerEvents: statsOn ? 'auto' : 'none' }}>
             <ToggleRow
-              label="CPU anzeigen"
+              label={de ? 'CPU anzeigen' : 'Show CPU'}
               on={statCpuOn}
               onToggle={() => {
                 if (!statsOn) {
@@ -1580,7 +1674,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               }}
             />
             <ToggleRow
-              label="RAM anzeigen"
+              label={de ? 'RAM anzeigen' : 'Show RAM'}
               on={statRamOn}
               onToggle={() => {
                 if (!statsOn) {
@@ -1592,7 +1686,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               }}
             />
             <ToggleRow
-              label="CPU/RAM als Balken (wie Unraid, sonst Text in der Zeile)"
+              label={
+                de
+                  ? 'CPU/RAM als Balken (wie Unraid, sonst Text in der Zeile)'
+                  : 'CPU/RAM as bars (Unraid-style; otherwise inline text)'
+              }
               on={statBarsOn}
               onToggle={() => {
                 if (!statsOn) {
@@ -1607,10 +1705,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </div>
       </div>
 
-      <ToggleRow label="Auch gestoppte Container" on={sub('showStopped')} onToggle={() => onChange('showStopped', !sub('showStopped'))} />
+      <ToggleRow label={de ? 'Auch gestoppte Container' : 'Include stopped containers'} on={sub('showStopped')} onToggle={() => onChange('showStopped', !sub('showStopped'))} />
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Aktualisierung (Sek.)
+          {de ? 'Aktualisierung (Sek.)' : 'Refresh (sec.)'}
         </label>
         <select style={{ ...inp, cursor: 'pointer' }} value={(config.refreshInterval as number) ?? 15} onChange={(e) => onChange('refreshInterval', Number(e.target.value))}>
           <option value={5}>5</option>
@@ -1622,7 +1720,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          Max. Zeilen
+          {de ? 'Max. Zeilen' : 'Max rows'}
         </label>
         <input
           style={inp}

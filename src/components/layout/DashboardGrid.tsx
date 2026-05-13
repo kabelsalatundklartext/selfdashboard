@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { useDashboardStore } from '@/lib/store'
 import { WidgetWrapper } from '@/components/plugins/WidgetWrapper'
@@ -23,14 +23,25 @@ export function DashboardGrid() {
   const zoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins
+  const measureRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(1200)
 
-  useEffect(() => {
-    const update = () => setContainerWidth(window.innerWidth - 48)
-    update()
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
+  // Measure the grid track width so columns use the full main area (avoids a dead band on the right).
+  useLayoutEffect(() => {
+    const el = measureRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+
+    const apply = () => {
+      const w = el.getBoundingClientRect().width
+      const next = Math.max(200, Math.floor(w))
+      setContainerWidth((prev) => (prev === next ? prev : next))
+    }
+
+    apply()
+    const ro = new ResizeObserver(() => apply())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [gridPadding, zoom])
 
   const handleLayoutChange = useCallback(
     (layout: Layout[]) => {
@@ -72,9 +83,12 @@ export function DashboardGrid() {
       transformOrigin: 'top left',
       transform: `scale(${zoom})`,
       width: zoom !== 1 ? `${100 / zoom}%` : '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      boxSizing: 'border-box',
       transition: 'transform 0.2s ease',
     }}>
-      <div style={{ padding: `${gridPadding}px` }} className="animate-fade-in">
+      <div style={{ padding: `${gridPadding}px`, width: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
             <span>✏️</span>
@@ -82,6 +96,7 @@ export function DashboardGrid() {
           </div>
         )}
 
+        <div ref={measureRef} style={{ width: '100%', minWidth: 0 }}>
         <GridLayout
           className="layout"
           layout={layout}
@@ -102,6 +117,7 @@ export function DashboardGrid() {
             </div>
           ))}
         </GridLayout>
+        </div>
 
         <style>{`
           .react-grid-item.react-grid-placeholder {

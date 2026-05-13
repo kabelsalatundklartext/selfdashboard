@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'AdGuard Home',
   description:
     'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
-  version: '1.1.1',
+  version: '1.1.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -390,9 +390,22 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div
-      className="sd-plugin-no-scrollbar"
+      className="sd-plugin-no-scrollbar sd-adguard-host"
       style={{ ...shell, background: 'radial-gradient(ellipse 120% 80% at 10% -20%, rgba(56,189,248,0.08) 0%, transparent 50%)' }}
     >
+      <style>{`
+        .sd-adguard-host .sd-adguard-stat-grid {
+          display: grid;
+          gap: 8px;
+          grid-template-columns: 1fr 1fr;
+          min-width: 0;
+        }
+        @container (max-width: 340px) {
+          .sd-adguard-host .sd-adguard-stat-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
       {error && data && (
         <p style={{ fontSize: '10px', color: '#fb7185', margin: '0 0 8px', textAlign: 'center', lineHeight: 1.35 }}>{error}</p>
       )}
@@ -446,13 +459,7 @@ function Widget({ config }: PluginWidgetProps) {
         )}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '8px',
-        }}
-      >
+      <div className="sd-adguard-stat-grid">
         <StatTile label={de ? 'DNS-Anfragen' : 'DNS queries'} value={formatInt(total, locale)} tint="sky" icon={Network} />
         <StatTile label={de ? 'Gesperrt' : 'Blocked'} value={formatInt(blocked, locale)} tint="rose" icon={Ban} />
         <StatTile
