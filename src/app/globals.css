@@ -68,7 +68,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  min-height: 100vh;
+  /* No min-height: 100vh — it kept the page as tall as the viewport even when the grid was shorter (empty band below). */
   background-color: var(--background);
   color: var(--text);
   font-family: var(--font-ui);

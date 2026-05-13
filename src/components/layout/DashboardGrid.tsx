@@ -70,15 +70,19 @@ export function DashboardGrid() {
     )
   }
 
-  const layout: Layout[] = plugins.map((p) => ({
-    i: p.instanceId,
-    x: p.layout?.x ?? 0,
-    y: p.layout?.y ?? Infinity,
-    w: p.layout?.w ?? 4,
-    h: p.layout?.h ?? 4,
-    minW: p.layout?.minW ?? 1,
-    minH: p.layout?.minH ?? 1,
-  }))
+  const layout: Layout[] = plugins.map((p) => {
+    const rawY = p.layout?.y
+    const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
+    return {
+      i: p.instanceId,
+      x: p.layout?.x ?? 0,
+      y,
+      w: p.layout?.w ?? 4,
+      h: p.layout?.h ?? 4,
+      minW: p.layout?.minW ?? 1,
+      minH: p.layout?.minH ?? 1,
+    }
+  })
 
   return (
     // Clip horizontal layout overflow from the widened pre-scale track (100/zoom %).
@@ -109,6 +113,7 @@ export function DashboardGrid() {
           cols={COLS}
           rowHeight={ROW_HEIGHT}
           width={containerWidth}
+          compactType="vertical"
           isDraggable={editMode}
           isResizable={editMode}
           onLayoutChange={handleLayoutChange}
