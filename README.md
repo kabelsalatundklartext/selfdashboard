@@ -15,23 +15,29 @@
 
 ---
 
-
-
 # 🇬🇧 English
 
 ## What is SelfDashboard?
 
-SelfDashboard is a clean, self-hosted home dashboard with a plugin system — running as a single Docker container. Add widgets for your self-hosted services like Unraid, Emby, Nextcloud, WireGuard, Immich, CrowdSec and more. Plugins can be developed by anyone and installed later.
+SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. Plugins can be developed by anyone and installed later.
 
 ## Features
 
-- **Plugin System** – Add, remove and configure widgets for any service
-- **6 Color Themes** – Dark, Light, Nord, Catppuccin, Dracula, Solarized
-- **Plugin Store** – Browse and add available plugins directly in the UI
-- **Developer Friendly** – Build and share your own plugins with a simple API
-- **Persistent Config** – Dashboard layout and settings survive container restarts
-- **Single Container** – Next.js 15, no database, no Redis needed
-- **Unraid Ready** – Community Apps template included
+| Feature | Description |
+|---|---|
+| 🧩 **Plugin System** | Add, remove and configure widgets for any service |
+| 📋 **Multiple Dashboards** | Create unlimited dashboards, each with its own URL (`/dashboard/home`, `/dashboard/server`) |
+| 🎨 **6 Color Themes** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
+| 🖌️ **Custom Colors** | Override any color individually per dashboard |
+| 🖼️ **Custom Logo** | Upload your own logo per dashboard |
+| 🌍 **Multilingual** | German & English interface |
+| 🖱️ **Drag & Drop** | Move and resize widgets freely |
+| 📐 **Widget Controls** | Per-widget zoom, padding and height adjustments |
+| 🔍 **Dashboard Zoom** | Scale the entire dashboard (70%–150%) |
+| 📏 **Grid Spacing** | Adjust widget gap and outer padding |
+| 🔗 **Navbar Options** | Show icon only, text only, or both — toggle dashboard tabs |
+| 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
+| 🖥️ **Unraid Ready** | Community Apps template included |
 
 ---
 
@@ -39,10 +45,10 @@ SelfDashboard is a clean, self-hosted home dashboard with a plugin system — ru
 
 | Plugin | Category | Description | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Quick links to your self-hosted services | ✅ Included |
-| 🕐 Clock & Date | Utility | Time and date with timezone support | ✅ Included |
+| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop | ✅ Included |
+| 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🖥️ Unraid | System | CPU, RAM, GPU, Array & Pool stats | 🔜 Coming soon |
-| 🎬 Emby | Media | Active sessions – who is watching what | 🔜 Coming soon |
+| 🎬 Emby | Media | Active sessions — who is watching what | 🔜 Coming soon |
 | 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
 | 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
 | ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
@@ -53,15 +59,15 @@ SelfDashboard is a clean, self-hosted home dashboard with a plugin system — ru
 
 ## Quick Start
 
-### Option 1 – Unraid Community Apps (recommended)
+### Option 1 — Unraid Community Apps (recommended)
 
 1. Open Community Apps → search for **SelfDashboard**
-2. Install
-3. Open browser: `http://YOUR-IP:3000`
-4. Click **Add Plugin** and start building your dashboard
+2. Install and set your port (default: `3000`)
+3. Open `http://YOUR-IP:3000`
+4. Click **+** to add plugins and start building
 5. Done ✓
 
-### Option 2 – Docker run
+### Option 2 — Docker run
 
 ```bash
 docker run -d \
@@ -73,9 +79,7 @@ docker run -d \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
-Then open `http://YOUR-IP:3000`.
-
-### Option 3 – docker-compose
+### Option 3 — docker-compose
 
 ```bash
 git clone https://github.com/kabelsalatundklartext/selfdashboard.git
@@ -85,35 +89,56 @@ docker-compose up -d
 
 ---
 
-## Ports
+## Dashboard Management
 
-| Port | Usage |
+Each dashboard gets its own URL. Navigate between dashboards via the tab bar in the navbar or through **Settings → Dashboards**.
+
+| Action | How |
 |---|---|
-| `3000` | SelfDashboard Web UI |
+| Create dashboard | Settings → Dashboards → New Dashboard |
+| Switch dashboard | Click tab in navbar or Settings → Dashboards → Open |
+| Hide tab from navbar | Settings → Dashboards → 👁️ toggle per dashboard |
+| Delete dashboard | Settings → Dashboards → 🗑️ |
+| Rename / change icon | Settings → Dashboards → ✏️ |
 
 ---
 
-## Environment Variables
+## Widget Controls
 
-| Variable | Default | Description |
-|---|---|---|
-| `TZ` | `Europe/Berlin` | Your local timezone |
-| `NODE_ENV` | `production` | Node.js environment |
+In **Edit Mode** (✏️ button), hover over any widget to see controls:
+
+| Control | Function |
+|---|---|
+| ⠿ Drag handle | Move widget |
+| 🔍 `− 100% +` | Zoom widget content |
+| ↔ `− 8 +` | Inner padding |
+| ↕ `− 4 +` | Widget height |
+| ⚙️ | Plugin settings |
+| ✕ | Remove widget |
+| Resize grip (corner/edge) | Resize width and height freely |
 
 ---
 
-## Themes
+## Bookmarks Plugin
 
-| Theme | Style |
+| Feature | Description |
 |---|---|
-| Dark | Default dark theme |
-| Light | Clean light theme |
-| Nord | Arctic, north-bluish color palette |
-| Catppuccin | Pastel colors, Mocha variant |
-| Dracula | Classic dark purple theme |
-| Solarized | Precision colors for machines and people |
+| Groups | Create multiple groups, each collapsible |
+| Hide groups | Toggle visibility per group with 👁️ |
+| Custom icons | Emoji or upload PNG/JPG image |
+| Drag & drop | Reorder apps within and across groups |
+| Responsive | Switches from 2-column to 1-column when widget is narrow |
+| New tab | Per-app setting to open in new tab or same tab |
 
-Switch themes anytime via **Settings** in the top navigation bar.
+---
+
+## Settings Overview
+
+**General** — Language (DE/EN), Dashboard title, Navbar display style, Dashboard tab visibility
+
+**Dashboards** — Create, edit, delete dashboards. Toggle tab visibility per dashboard. Set emoji or custom PNG icon.
+
+**Design** — Grid spacing (widget gap + outer padding), Logo upload, Color theme, Custom color overrides per color
 
 ---
 
@@ -147,15 +172,24 @@ registerPlugin(meta, { Widget })
 
 ---
 
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `TZ` | `Europe/Berlin` | Timezone |
+| `NODE_ENV` | `production` | Node.js environment |
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
 |---|---|
-| Dashboard not loading | Check container logs: `docker logs selfdashboard` |
-| Plugin not showing | Make sure the plugin is registered before the page loads |
-| Config lost after restart | Check that `/app/data` volume is mounted correctly |
-| Port already in use | Change host port, e.g. `-p 3001:3000` |
-| Theme not applying | Hard refresh browser (Ctrl+Shift+R) |
+| Dashboard not loading | Check logs: `docker logs selfdashboard` |
+| Config lost after update | Data is stored in localStorage — no action needed |
+| Port already in use | Change host port: `-p 3001:3000` |
+| Widgets invisible in edit mode | Try refreshing the page |
+| Theme not applying | Hard refresh: Ctrl+Shift+R |
 
 ---
 
@@ -163,22 +197,15 @@ registerPlugin(meta, { Widget })
 
 - **Frontend:** Next.js 15, React 18, Tailwind CSS
 - **State:** Zustand (persisted to localStorage)
-- **Container:** Node.js 20 Alpine, ~200 MB image
+- **Grid:** react-grid-layout
+- **Container:** Node.js 20 Alpine
 - **Plugin System:** Custom registry, zero external dependencies
 
 ---
 
 ## License
 
-**MIT License**
-
-| | |
-|---|---|
-| ✅ Private & homelab use | ✅ Modify & adapt |
-| ✅ Share & distribute | ✅ Use in commercial projects |
-| ✅ Build plugins freely | ✅ No copyleft restrictions |
-
-> *"SelfDashboard" by kabelsalatundklartext — [GitHub](https://github.com/kabelsalatundklartext/selfdashboard)*
+**MIT** — free to use, modify and share.
 
 ---
 
@@ -188,17 +215,25 @@ registerPlugin(meta, { Widget })
 
 ## Was ist SelfDashboard?
 
-SelfDashboard ist ein sauberes, selbst gehostetes Home-Dashboard mit Plugin-System — als einzelner Docker-Container. Füge Widgets für deine selbst gehosteten Dienste hinzu: Unraid, Emby, Nextcloud, WireGuard, Immich, CrowdSec und mehr. Plugins können von jedem entwickelt und nachträglich installiert werden.
+SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. Plugins können von jedem entwickelt und nachträglich installiert werden.
 
 ## Features
 
-- **Plugin-System** – Widgets für beliebige Dienste hinzufügen, entfernen und konfigurieren
-- **6 Farbthemen** – Dark, Light, Nord, Catppuccin, Dracula, Solarized
-- **Plugin-Store** – Verfügbare Plugins direkt im UI durchsuchen und hinzufügen
-- **Entwicklerfreundlich** – Eigene Plugins mit einer einfachen API bauen und teilen
-- **Persistente Konfiguration** – Dashboard-Layout und Einstellungen überleben Container-Neustarts
-- **Single Container** – Next.js 15, keine Datenbank, kein Redis nötig
-- **Unraid-ready** – Community Apps Template inklusive
+| Feature | Beschreibung |
+|---|---|
+| 🧩 **Plugin-System** | Widgets für beliebige Dienste hinzufügen, entfernen und konfigurieren |
+| 📋 **Mehrere Dashboards** | Unbegrenzt viele Dashboards, jedes mit eigener URL (`/dashboard/home`, `/dashboard/server`) |
+| 🎨 **6 Farbthemen** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
+| 🖌️ **Eigene Farben** | Jede Farbe einzeln pro Dashboard anpassbar |
+| 🖼️ **Eigenes Logo** | Logo pro Dashboard hochladen |
+| 🌍 **Mehrsprachig** | Deutsch & Englisch |
+| 🖱️ **Drag & Drop** | Widgets frei verschieben und skalieren |
+| 📐 **Widget-Controls** | Zoom, Innenabstand und Höhe pro Widget einstellbar |
+| 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (70%–150%) |
+| 📏 **Grid-Abstände** | Widget-Abstand und Außenrand einstellbar |
+| 🔗 **Navbar-Optionen** | Nur Icon, nur Text oder beides — Dashboard-Tabs ein/ausblendbar |
+| 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
+| 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
 ---
 
@@ -206,29 +241,29 @@ SelfDashboard ist ein sauberes, selbst gehostetes Home-Dashboard mit Plugin-Syst
 
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Schnelllinks zu deinen selbst gehosteten Diensten | ✅ Enthalten |
-| 🕐 Uhr & Datum | Utility | Uhrzeit und Datum mit Zeitzonen-Unterstützung | ✅ Enthalten |
-| 🖥️ Unraid | System | CPU, RAM, GPU, Array & Pool Statistiken | 🔜 Bald verfügbar |
-| 🎬 Emby | Media | Aktive Sessions – wer schaut gerade was | 🔜 Bald verfügbar |
-| 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald verfügbar |
-| 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald verfügbar |
-| ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald verfügbar |
-| 🌐 Zoraxy | Network | Reverse Proxy Routen-Status | 🔜 Bald verfügbar |
-| 🛡️ CrowdSec | Security | Geblockte IPs & aktive Alerts | 🔜 Bald verfügbar |
+| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, eigenen Icons, Drag & Drop | ✅ Enthalten |
+| 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
+| 🖥️ Unraid | System | CPU, RAM, GPU, Array & Pool Statistiken | 🔜 Bald |
+| 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | 🔜 Bald |
+| 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
+| 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
+| ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |
+| 🌐 Zoraxy | Network | Reverse Proxy Routen-Status | 🔜 Bald |
+| 🛡️ CrowdSec | Security | Geblockte IPs & aktive Alerts | 🔜 Bald |
 
 ---
 
 ## Schnellstart
 
-### Option 1 – Unraid Community Apps (empfohlen)
+### Option 1 — Unraid Community Apps (empfohlen)
 
 1. Community Apps öffnen → nach **SelfDashboard** suchen
-2. Installieren
-3. Browser öffnen: `http://DEINE-IP:3000`
-4. Auf **Add Plugin** klicken und Dashboard aufbauen
+2. Installieren, Port einstellen (Standard: `3000`)
+3. `http://DEINE-IP:3000` öffnen
+4. **+** klicken, Plugins hinzufügen, Dashboard aufbauen
 5. Fertig ✓
 
-### Option 2 – Docker run
+### Option 2 — Docker run
 
 ```bash
 docker run -d \
@@ -240,9 +275,7 @@ docker run -d \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
-Dann `http://DEINE-IP:3000` öffnen.
-
-### Option 3 – docker-compose
+### Option 3 — docker-compose
 
 ```bash
 git clone https://github.com/kabelsalatundklartext/selfdashboard.git
@@ -252,11 +285,64 @@ docker-compose up -d
 
 ---
 
-## Ports
+## Dashboard-Verwaltung
 
-| Port | Verwendung |
+Jedes Dashboard hat eine eigene URL. Zwischen Dashboards wechseln per Tab in der Navbar oder über **Einstellungen → Dashboards**.
+
+| Aktion | So geht's |
 |---|---|
-| `3000` | SelfDashboard Web UI |
+| Dashboard erstellen | Einstellungen → Dashboards → Neues Dashboard |
+| Dashboard wechseln | Tab in Navbar klicken oder Einstellungen → Öffnen |
+| Tab ausblenden | Einstellungen → Dashboards → 👁️ Toggle pro Dashboard |
+| Dashboard löschen | Einstellungen → Dashboards → 🗑️ |
+| Umbenennen / Icon ändern | Einstellungen → Dashboards → ✏️ |
+
+---
+
+## Widget-Controls
+
+Im **Bearbeitungsmodus** (✏️ Button), über ein Widget hovern um Controls zu sehen:
+
+| Control | Funktion |
+|---|---|
+| ⠿ Griff | Widget verschieben |
+| 🔍 `− 100% +` | Widget-Inhalt zoomen |
+| ↔ `− 8 +` | Innenabstand |
+| ↕ `− 4 +` | Widget-Höhe |
+| ⚙️ | Plugin-Einstellungen |
+| ✕ | Widget entfernen |
+| Resize-Griff (Ecke/Rand) | Breite und Höhe frei skalieren |
+
+---
+
+## Bookmarks Plugin
+
+| Feature | Beschreibung |
+|---|---|
+| Gruppen | Mehrere Gruppen erstellen, einzeln ausblendbar |
+| Gruppen ausblenden | Sichtbarkeit pro Gruppe mit 👁️ togglen |
+| Eigene Icons | Emoji oder PNG/JPG hochladen |
+| Drag & Drop | Apps innerhalb und zwischen Gruppen verschieben |
+| Responsiv | Wechselt automatisch von 2-spaltig zu 1-spaltig |
+| Neuer Tab | Pro App einstellbar ob neuer oder gleicher Tab |
+
+---
+
+## Einstellungen-Übersicht
+
+**Allgemein** — Sprache (DE/EN), Dashboard-Titel, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
+
+**Dashboards** — Dashboards erstellen, bearbeiten, löschen. Tab-Sichtbarkeit pro Dashboard. Emoji oder PNG-Icon setzen.
+
+**Design** — Grid-Abstände (Widget-Gap + Außenrand), Logo hochladen, Farbthema, Farben einzeln anpassen
+
+---
+
+## Eigenes Plugin entwickeln
+
+Jeder kann Plugins für SelfDashboard erstellen:
+
+📄 [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)
 
 ---
 
@@ -264,53 +350,8 @@ docker-compose up -d
 
 | Variable | Standard | Beschreibung |
 |---|---|---|
-| `TZ` | `Europe/Berlin` | Deine lokale Zeitzone |
+| `TZ` | `Europe/Berlin` | Zeitzone |
 | `NODE_ENV` | `production` | Node.js Umgebung |
-
----
-
-## Themes
-
-| Theme | Stil |
-|---|---|
-| Dark | Standard-Dunkelthema |
-| Light | Sauberes Hellthema |
-| Nord | Arktische, nordblau-Farbpalette |
-| Catppuccin | Pastellfarben, Mocha-Variante |
-| Dracula | Klassisches dunkles Lila-Theme |
-| Solarized | Präzisionsfarben für Mensch und Maschine |
-
-Themes jederzeit über **Settings** in der oberen Navigationsleiste wechseln.
-
----
-
-## Eigenes Plugin entwickeln
-
-Jeder kann Plugins für SelfDashboard erstellen. Die vollständige Anleitung:
-
-📄 [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)
-
-**Minimales Beispiel:**
-
-```tsx
-import { registerPlugin } from 'selfdashboard'
-
-const meta = {
-  id: 'com.deinname.meinplugin',
-  name: 'Mein Plugin',
-  description: 'Zeigt etwas Tolles.',
-  version: '1.0.0',
-  author: 'Dein Name',
-  category: 'utility',
-  icon: '✨',
-}
-
-function Widget({ config }) {
-  return <div className="widget-panel">Hallo von meinem Plugin!</div>
-}
-
-registerPlugin(meta, { Widget })
-```
 
 ---
 
@@ -318,11 +359,11 @@ registerPlugin(meta, { Widget })
 
 | Problem | Lösung |
 |---|---|
-| Dashboard lädt nicht | Container-Logs prüfen: `docker logs selfdashboard` |
-| Plugin wird nicht angezeigt | Sicherstellen dass das Plugin vor dem Seitenaufruf registriert wird |
-| Konfiguration nach Neustart weg | Prüfen ob `/app/data` Volume korrekt gemountet ist |
-| Port bereits belegt | Host-Port ändern, z.B. `-p 3001:3000` |
-| Theme wird nicht übernommen | Browser-Cache leeren (Strg+Shift+R) |
+| Dashboard lädt nicht | Logs prüfen: `docker logs selfdashboard` |
+| Konfiguration nach Update weg | Daten liegen im localStorage — kein Handlungsbedarf |
+| Port bereits belegt | Host-Port ändern: `-p 3001:3000` |
+| Widgets im Bearbeitungsmodus unsichtbar | Seite neu laden |
+| Theme wird nicht übernommen | Browser-Cache leeren: Strg+Shift+R |
 
 ---
 
@@ -330,19 +371,12 @@ registerPlugin(meta, { Widget })
 
 - **Frontend:** Next.js 15, React 18, Tailwind CSS
 - **State:** Zustand (im localStorage gespeichert)
-- **Container:** Node.js 20 Alpine, ~200 MB Image
+- **Grid:** react-grid-layout
+- **Container:** Node.js 20 Alpine
 - **Plugin-System:** Eigene Registry, keine externen Abhängigkeiten
 
 ---
 
 ## Lizenz
 
-**MIT-Lizenz** 
-
-| | |
-|---|---|
-| ✅ Privat & Homelab nutzen | ✅ Verändern & anpassen |
-| ✅ Weitergeben & teilen | ✅ In kommerziellen Projekten nutzen |
-| ✅ Plugins frei entwickeln | ✅ Keine Copyleft-Einschränkungen |
-
-> *"SelfDashboard" von kabelsalatundklartext — [GitHub](https://github.com/kabelsalatundklartext/selfdashboard)*
+**MIT** — kostenlos nutzbar, veränderbar und weiterzugeben.
