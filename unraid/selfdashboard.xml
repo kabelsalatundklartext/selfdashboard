@@ -1,19 +1,19 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>SelfDashboard</Name>
-  <Repository>ghcr.io/yourusername/selfdashboard:latest</Repository>
-  <Registry>https://github.com/yourusername/selfdashboard/pkgs/container/selfdashboard</Registry>
+  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard:latest</Repository>
+  <Registry>https://github.com/kabelsalatundklartext/selfdashboard/pkgs/container/selfdashboard</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>sh</Shell>
   <Privileged>false</Privileged>
-  <Support>https://github.com/yourusername/selfdashboard/issues</Support>
-  <Project>https://github.com/yourusername/selfdashboard</Project>
+  <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
+  <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
   <Overview>SelfDashboard – A clean, modular, self-hosted dashboard with a plugin system. Add widgets for Unraid, Emby, WireGuard, Nextcloud, Immich, CrowdSec and more.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/yourusername/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/yourusername/selfdashboard/main/public/ca-icon.svg</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/ca-icon.svg</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>

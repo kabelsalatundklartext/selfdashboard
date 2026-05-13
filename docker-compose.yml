@@ -2,7 +2,7 @@ version: '3.9'
 
 services:
   selfdashboard:
-    image: ghcr.io/yourusername/selfdashboard:latest
+    image: ghcr.io/kabelsalatundklartext/selfdashboard:latest
     container_name: selfdashboard
     restart: unless-stopped
     ports:
