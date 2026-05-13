@@ -53,7 +53,6 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 | 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
 | 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
 | ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
-| 🌐 Zoraxy | Network | Reverse proxy hosts via Zoraxy API (`POST /api/zoraxy/proxy-list`, Plugin Bearer or `-noauth`) | ✅ Included |
 | 🛡️ CrowdSec | Security | Blocked IPs & active alerts | 🔜 Coming soon |
 
 ---
@@ -103,12 +102,6 @@ docker-compose up -d
 ### Remote / “external” Docker
 
 The current implementation **does not** list containers on **another** server. A Unix socket is **local to one host** and cannot reach Docker on a different machine over the network. Practical options: install SelfDashboard **on** that other host (and mount its socket), or use a separate **HTTP API** (e.g. Portainer) — that would be a different plugin/feature, not the socket-based widget.
-
-### Zoraxy widget
-
-- Configure **Zoraxy base URL** (management UI, e.g. `http://192.168.1.10:8000`).
-- **Default:** SelfDashboard calls **`POST /api/zoraxy/proxy-list`** with your **Plugin REST API key**; the server then requests Zoraxy **`GET /plugin/api/proxy/list`** with `Authorization: Bearer …`. Create a key in Zoraxy that allows **GET** on that path (Zoraxy plugin / developer tooling).
-- **`-noauth` labs only:** enable **“No login (-noauth)”** in the widget settings to call **`GET /api/proxy/list`** without a key (only when Zoraxy was started with `-noauth`).
 
 ---
 
@@ -173,7 +166,7 @@ Anyone can create plugins for SelfDashboard. See the full guide:
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Docker, Zoraxy, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Docker, Emby, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -270,7 +263,6 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 | 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
 | 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
 | ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |
-| 🌐 Zoraxy | Network | Reverse-Proxy-Hosts per Zoraxy-API (`POST /api/zoraxy/proxy-list`, Plugin-Bearer oder `-noauth`) | ✅ Enthalten |
 | 🛡️ CrowdSec | Security | Geblockte IPs & aktive Alerts | 🔜 Bald |
 
 ---
@@ -320,12 +312,6 @@ docker-compose up -d
 ### Anderes / „externes“ Docker
 
 Mit dem **aktuellen** Socket-Ansatz werden **keine** Container eines **anderen** Servers angezeigt. Ein Unix-Socket ist **lokal** und geht nicht übers Netz zu fremdem Docker. Praktisch: SelfDashboard **auf jenem Host** installieren (und dort den Socket mounten), oder später eine **HTTP-API** (z. B. Portainer) anbinden — das wäre ein anderes Feature als das Socket-Widget.
-
-### Zoraxy-Widget
-
-- **Basis-URL** der Zoraxy-Web-Oberfläche eintragen (z. B. `http://192.168.1.10:8000`).
-- **Standard:** SelfDashboard nutzt **`POST /api/zoraxy/proxy-list`** mit **Plugin-REST-API-Key**; der Server ruft dann **`GET /plugin/api/proxy/list`** mit `Authorization: Bearer …` auf. In Zoraxy einen Key anlegen, der **GET** auf genau diesen Pfad erlaubt.
-- **Nur mit `-noauth`:** Option **„Ohne Login“** schaltet auf **`GET /api/proxy/list`** ohne Key (nur wenn Zoraxy mit `-noauth` gestartet wurde).
 
 ---
 
@@ -390,7 +376,7 @@ Jeder kann Plugins für SelfDashboard erstellen:
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Docker, Zoraxy, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Docker, Emby, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
