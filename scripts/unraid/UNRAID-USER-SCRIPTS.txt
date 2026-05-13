@@ -1,0 +1,17 @@
+SelfDashboard — Unraid „User Scripts“
+=====================================
+
+Anfänger (nichts auf den Flash kopieren):
+  Repo-Datei  scripts/unraid/NET-STATS-USER-SCRIPT-PASTE.sh
+  komplett in User Scripts einfügen.
+  Schedule: „At First Array Start Only“.
+  JSON im Widget: https://DEIN-TOWER/net-stats.json
+
+Optional (separate Datei auf /boot):
+  scripts/unraid/net-throughput-json.sh — ein Aufruf = eine JSON-Zeile;
+  für Cron oder eigene Wrapper. Siehe Kommentarkopf in der Datei.
+
+Hinweis Newline:
+  Bash $(...) frisst trailing newlines; beide Skripte schreiben JSON mit printf '%s\n'.
+
+CORS: Browser muss den Host dürfen (siehe Plugin-Hilfetext).
