@@ -15,7 +15,7 @@ export const meta: PluginMeta = {
 }
 
 interface AppLink { id: string; name: string; url: string; icon: string; newTab: boolean; group: string }
-interface Group { id: string; name: string }
+interface Group { id: string; name: string; hidden?: boolean }
 interface BookmarkData { apps: AppLink[]; groups: Group[] }
 
 const DEFAULT_DATA: BookmarkData = {
@@ -50,11 +50,11 @@ function Widget({ config }: PluginWidgetProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', overflow: 'auto', justifyContent: 'center' }}>
       {data.groups.map((group) => {
         const apps = data.apps.filter((a) => a.group === group.id)
-        if (apps.length === 0) return null
+        if (apps.length === 0 || group.hidden) return null
         return (
           <div key={group.id}>
             {data.groups.length > 1 && <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px' }}>
               {apps.map((app) => (
                 <a key={app.id} href={app.url} target={app.newTab ? '_blank' : '_self'} rel="noopener noreferrer"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none', transition: 'border-color 0.15s' }}

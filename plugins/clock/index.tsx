@@ -70,17 +70,17 @@ function Widget({ config }: PluginWidgetProps) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "2px" }}>
       <p
         className="tabular-nums tracking-tight"
-        style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', fontSize: showSeconds ? '2.5rem' : '3rem', fontWeight: 800 }}
+        style={{ color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', fontSize: showSeconds ? '2.5em' : '3em', fontWeight: 800 }}
       >
         {timeStr}
       </p>
       {showDate && (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+        <p style={{ fontSize: "0.875em" }} style={{ color: 'var(--text-muted)' }}>
           {dateStr}
         </p>
       )}
       {(cityName || tz) && (
-        <p className="text-xs mt-1 px-2 py-0.5 rounded-full" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+        <p style={{ fontSize: "0.75em", marginTop: "4px", padding: "2px 8px", borderRadius: "999px" }} style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
           {tzLabel}
         </p>
       )}
