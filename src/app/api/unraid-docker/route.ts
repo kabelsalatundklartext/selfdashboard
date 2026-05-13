@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { assertSafeRemoteDockerBase, remoteDockerRequest } from '@/lib/dockerEngineRemote'
-import { CONTAINER_ID_RE, parseOneShotStats, poolMap } from '@/lib/dockerEngine'
+import { CONTAINER_ID_RE } from '@/lib/dockerShared'
+import { parseOneShotStats, poolMap } from '@/lib/dockerEngine'
 
 export const dynamic = 'force-dynamic'
 

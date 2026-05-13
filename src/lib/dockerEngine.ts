@@ -1,7 +1,8 @@
 import * as http from 'node:http'
+import type { SdContainerStats } from './dockerShared'
 
-/** Docker-Container-IDs sind typisch 12–64 Hex-Zeichen; etwas Spielraum für künftige Längen */
-export const CONTAINER_ID_RE = /^[a-f0-9]{8,128}$/i
+export { CONTAINER_ID_RE } from './dockerShared'
+export type { SdContainerStats } from './dockerShared'
 
 export function socketPath(): string {
   return process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock'
@@ -54,14 +55,6 @@ export function dockerRequest(
 
 export function dockerGet(pathAndQuery: string): Promise<{ ok: boolean; status: number; body: string }> {
   return dockerRequest('GET', pathAndQuery, undefined, 12_000)
-}
-
-/** Merged into each container when stats are loaded */
-export type SdContainerStats = {
-  cpuPct: number | null
-  memUsageBytes: number | null
-  memLimitBytes: number | null
-  memPct: number | null
 }
 
 const STATS_ONE_SHOT_TIMEOUT_MS = 6000

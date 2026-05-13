@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
-import { CONTAINER_ID_RE, type SdContainerStats } from '@/lib/dockerEngine'
+import { CONTAINER_ID_RE, type SdContainerStats } from '@/lib/dockerShared'
 
 export const meta: PluginMeta = {
   id: 'unraid-docker',
