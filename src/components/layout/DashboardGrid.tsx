@@ -10,10 +10,10 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 
 const COLS = 12
-const ROW_HEIGHT = 60
+const ROW_HEIGHT = 48
 
 export function DashboardGrid() {
-  const { activeDashboard, editMode, locale, updatePluginLayout, dashboardZoom } = useDashboardStore()
+  const { activeDashboard, editMode, locale, updatePluginLayout, dashboardZoom, gridGap, gridPadding } = useDashboardStore()
   const dash = activeDashboard()
   const plugins = dash.plugins
   const [containerWidth, setContainerWidth] = useState(1200)
@@ -66,7 +66,7 @@ export function DashboardGrid() {
       width: dashboardZoom !== 1 ? `${100 / dashboardZoom}%` : '100%',
       transition: 'transform 0.2s ease',
     }}>
-      <div style={{ padding: '24px' }} className="animate-fade-in">
+      <div style={{ padding: `${gridPadding}px` }} className="animate-fade-in">
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
             <span>✏️</span>
@@ -83,7 +83,7 @@ export function DashboardGrid() {
           isDraggable={editMode}
           isResizable={editMode}
           onLayoutChange={handleLayoutChange}
-          margin={[16, 16]}
+          margin={[gridGap, gridGap]}
           containerPadding={[0, 0]}
           draggableHandle=".drag-handle"
           resizeHandles={['se', 's', 'e']}

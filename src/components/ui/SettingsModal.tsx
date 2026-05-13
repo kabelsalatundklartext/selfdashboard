@@ -59,6 +59,7 @@ export function SettingsModal({ open, onClose }: Props) {
     dashboards, addDashboard, removeDashboard, updateDashboard, activeDashboardId,
     showDashboardTabs, setShowDashboardTabs,
     navbarStyle, setNavbarStyle,
+    gridGap, setGridGap, gridPadding, setGridPadding,
   } = store
   const dash = store.activeDashboard()
 
@@ -343,6 +344,39 @@ export function SettingsModal({ open, onClose }: Props) {
                       {opt.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Grid spacing */}
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  {locale === 'de' ? 'Abstände' : 'Spacing'}
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* Widget gap */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text)', minWidth: '120px' }}>
+                      {locale === 'de' ? 'Abstand Widgets' : 'Widget gap'}
+                    </span>
+                    <input type="range" min={0} max={32} step={4} value={gridGap ?? 8}
+                      onChange={(e) => setGridGap(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--accent)' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {gridGap ?? 8}px
+                    </span>
+                  </div>
+                  {/* Outer padding */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text)', minWidth: '120px' }}>
+                      {locale === 'de' ? 'Rand aussen' : 'Outer padding'}
+                    </span>
+                    <input type="range" min={0} max={48} step={4} value={gridPadding ?? 12}
+                      onChange={(e) => setGridPadding(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--accent)' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '36px', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {gridPadding ?? 12}px
+                    </span>
+                  </div>
                 </div>
               </div>
 

@@ -40,7 +40,9 @@ interface DashboardStore {
   editMode: boolean
   showDashboardTabs: boolean
   navbarStyle: "icon-text" | "icon-only" | "text-only"
-  dashboardZoom: number  // 0.7 - 1.5
+  dashboardZoom: number
+  gridGap: number       // px between widgets
+  gridPadding: number   // px outer padding
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -52,6 +54,8 @@ interface DashboardStore {
   setShowDashboardTabs: (show: boolean) => void
   setNavbarStyle: (style: "icon-text" | "icon-only" | "text-only") => void
   setDashboardZoom: (zoom: number) => void
+  setGridGap: (gap: number) => void
+  setGridPadding: (padding: number) => void
   setTheme: (theme: ThemeId) => void
   setTitle: (title: string) => void
   setCustomLogo: (url: string) => void
@@ -75,6 +79,8 @@ export const useDashboardStore = create<DashboardStore>()(
       showDashboardTabs: true,
       navbarStyle: "icon-text",
       dashboardZoom: 1,
+      gridGap: 8,
+      gridPadding: 12,
 
       activeDashboard: () => {
         const s = get()
@@ -99,6 +105,8 @@ export const useDashboardStore = create<DashboardStore>()(
       setShowDashboardTabs: (showDashboardTabs) => set({ showDashboardTabs }),
       setNavbarStyle: (navbarStyle) => set({ navbarStyle }),
       setDashboardZoom: (dashboardZoom) => set({ dashboardZoom }),
+      setGridGap: (gridGap) => set({ gridGap }),
+      setGridPadding: (gridPadding) => set({ gridPadding }),
       setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme } : d) })) },
       setTitle: (name) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, name } : d) })) },
       setCustomLogo: (customLogo) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customLogo } : d) })) },
