@@ -32,8 +32,11 @@ export function DashboardGrid() {
     if (!el || typeof ResizeObserver === 'undefined') return
 
     const apply = () => {
-      const w = el.getBoundingClientRect().width
-      const next = Math.max(200, Math.floor(w))
+      // Inside a transformed ancestor, getBoundingClientRect() is in viewport (scaled) pixels.
+      // GridLayout needs the CSS layout width — prefer offsetWidth, else undo zoom on rect width.
+      const rectW = el.getBoundingClientRect().width
+      const layoutW = el.offsetWidth > 0 ? el.offsetWidth : Math.ceil(rectW / zoom)
+      const next = Math.max(200, Math.floor(layoutW))
       setContainerWidth((prev) => (prev === next ? prev : next))
     }
 
@@ -78,16 +81,19 @@ export function DashboardGrid() {
   }))
 
   return (
-    // Zoom wrapper — scales the whole grid
-    <div style={{
-      transformOrigin: 'top left',
-      transform: `scale(${zoom})`,
-      width: zoom !== 1 ? `${100 / zoom}%` : '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      boxSizing: 'border-box',
-      transition: 'transform 0.2s ease',
-    }}>
+    // Clip horizontal layout overflow from the widened pre-scale track (100/zoom %).
+    // Do not cap that track with maxWidth: 100% — that breaks zoom < 1 (dead band on the right).
+    <div style={{ width: '100%', minWidth: 0, overflowX: zoom !== 1 ? 'hidden' : undefined }}>
+      <div
+        style={{
+          transformOrigin: 'top left',
+          transform: `scale(${zoom})`,
+          width: zoom !== 1 ? `${100 / zoom}%` : '100%',
+          minWidth: 0,
+          boxSizing: 'border-box',
+          transition: 'transform 0.2s ease',
+        }}
+      >
       <div style={{ padding: `${gridPadding}px`, width: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
@@ -152,6 +158,7 @@ export function DashboardGrid() {
             height: 20px !important;
           }
         `}</style>
+      </div>
       </div>
     </div>
   )
