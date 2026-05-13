@@ -1,6 +1,7 @@
 import * as http from 'node:http'
 
-export const CONTAINER_ID_RE = /^[a-f0-9]{8,64}$/i
+/** Docker-Container-IDs sind typisch 12–64 Hex-Zeichen; etwas Spielraum für künftige Längen */
+export const CONTAINER_ID_RE = /^[a-f0-9]{8,128}$/i
 
 export function socketPath(): string {
   return process.env.DOCKER_SOCKET_PATH || '/var/run/docker.sock'

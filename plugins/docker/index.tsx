@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.2',
+  version: '1.6.3',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -29,6 +29,19 @@ interface DockerContainer {
   Image?: string
   Labels?: Record<string, string>
   sdStats?: SdContainerStats | null
+}
+
+/** Einige Proxies/JSON liefern `id`/`state` statt `Id`/`State`. */
+function dockerContainerId(c: DockerContainer): string {
+  const o = c as Record<string, unknown>
+  const raw = c.Id ?? o.id
+  return typeof raw === 'string' ? raw.trim() : ''
+}
+
+function isDockerRunning(c: DockerContainer): boolean {
+  const o = c as Record<string, unknown>
+  const st = c.State ?? o.state
+  return typeof st === 'string' && st.toLowerCase() === 'running'
 }
 
 type DockerAction = 'start' | 'stop' | 'restart'
@@ -68,18 +81,19 @@ function actionNoun(a: DockerAction): string {
 
 function containerName(c: DockerContainer): string {
   const n = c.Names?.[0] ?? ''
-  return n.replace(/^\//, '') || (c.Id ? c.Id.slice(0, 12) : '—')
+  const id = dockerContainerId(c)
+  return n.replace(/^\//, '') || (id ? id.slice(0, 12) : '—')
 }
 
 function sortContainers(a: DockerContainer, b: DockerContainer): number {
-  const ar = a.State === 'running' ? 0 : 1
-  const br = b.State === 'running' ? 0 : 1
+  const ar = isDockerRunning(a) ? 0 : 1
+  const br = isDockerRunning(b) ? 0 : 1
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
 }
 
 /** Volle Container-ID (API / Stats); gleiche Regel wie Server */
-const CONTAINER_ID_RE = /^[a-f0-9]{8,64}$/i
+const CONTAINER_ID_RE = /^[a-f0-9]{8,128}$/i
 
 function fmtBytesShort(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return '—'
@@ -610,10 +624,10 @@ function HomarrDockerTable({
           const name = containerName(c)
           const st = c.State ?? '—'
           const imgRef = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
-          const running = st === 'running'
-          const cid = c.Id
-          const isBusy = cid != null && busyId === cid
-          const isPendingHere = pending != null && cid != null && pending.id === cid
+          const running = isDockerRunning(c)
+          const cid = dockerContainerId(c)
+          const isBusy = cid !== '' && busyId === cid
+          const isPendingHere = pending != null && cid !== '' && pending.id === cid
           const rowPending = isPendingHere ? pending : null
           const canStart = !running && showBtnStart
           const canStop = running && showBtnStop
@@ -820,9 +834,9 @@ function Widget({ config }: PluginWidgetProps) {
   const fetch_ = useCallback(async () => {
     const id = ++latestFetch.current
     let trimmed: DockerContainer[] = []
+    const q = showAll ? 'all=1' : 'all=0'
 
     try {
-      const q = showAll ? 'all=1' : 'all=0'
       const res = await fetch(`/api/docker-containers?${q}`, { method: 'GET', cache: 'no-store' })
       const raw = await res.text()
       let data: unknown
@@ -851,13 +865,29 @@ function Widget({ config }: PluginWidgetProps) {
       if (latestFetch.current === id) setLoading(false)
     }
 
+    const mergeStatsFromGet = async () => {
+      const res = await fetch(`/api/docker-containers?${q}&stats=1`, { method: 'GET', cache: 'no-store' })
+      const raw = await res.text()
+      if (latestFetch.current !== id) return
+      let data: unknown
+      try {
+        data = JSON.parse(raw) as unknown
+      } catch {
+        return
+      }
+      if (!res.ok || !Array.isArray(data)) return
+      const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
+      setList(sorted.slice(0, maxRows))
+      setLastFetchOk(Date.now())
+    }
+
     if (latestFetch.current !== id || !fetchStats || trimmed.length === 0) return
 
     const runningIds = [
       ...new Set(
         trimmed
-          .filter((c) => c.State === 'running' && typeof c.Id === 'string' && c.Id)
-          .map((c) => (c.Id as string).trim()),
+          .filter((c) => isDockerRunning(c) && CONTAINER_ID_RE.test(dockerContainerId(c)))
+          .map((c) => dockerContainerId(c)),
       ),
     ]
     if (runningIds.length === 0) return
@@ -876,28 +906,39 @@ function Widget({ config }: PluginWidgetProps) {
       try {
         data2 = raw2 ? (JSON.parse(raw2) as unknown) : null
       } catch {
+        await mergeStatsFromGet()
         return
       }
-      if (!res2.ok) return
 
       const statsMap = (data2 as { stats?: Record<string, SdContainerStats | null> }).stats
-      if (!statsMap || typeof statsMap !== 'object') return
+      const statsKeys =
+        statsMap && typeof statsMap === 'object' ? Object.keys(statsMap as Record<string, unknown>) : []
+      if (!res2.ok || statsKeys.length === 0) {
+        await mergeStatsFromGet()
+        return
+      }
 
       setList((prev) =>
         prev.map((c) => {
-          const cid = typeof c.Id === 'string' ? c.Id : ''
-          if (c.State !== 'running' || !CONTAINER_ID_RE.test(cid)) {
+          const cid = dockerContainerId(c)
+          if (!isDockerRunning(c) || !CONTAINER_ID_RE.test(cid)) {
             return { ...c, sdStats: null }
           }
-          if (Object.prototype.hasOwnProperty.call(statsMap, cid)) {
-            return { ...c, sdStats: statsMap[cid] ?? null }
+          const statsRecord = statsMap as Record<string, SdContainerStats | null>
+          let v: SdContainerStats | null | undefined = statsRecord[cid]
+          if (v === undefined) {
+            const hit = statsKeys.find((k) => k === cid || k.toLowerCase() === cid.toLowerCase())
+            if (hit !== undefined) v = statsRecord[hit]
+          }
+          if (v !== undefined) {
+            return { ...c, sdStats: v ?? null }
           }
           return c
         }),
       )
       setLastFetchOk(Date.now())
     } catch {
-      /* Stats sind optional; Liste bleibt sichtbar */
+      if (latestFetch.current === id) await mergeStatsFromGet()
     }
   }, [showAll, maxRows, fetchStats])
 
@@ -1114,20 +1155,20 @@ function Widget({ config }: PluginWidgetProps) {
             const st = c.State ?? '—'
             const status = (c.Status ?? '').trim() || st
             const img = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
-            const running = st === 'running'
+            const running = isDockerRunning(c)
             const tipParts = [name, st, status, img]
             const sl = statsLine(c, running, showStatCpu, showStatRam)
             if (sl) tipParts.push(sl)
             const tip = tipParts.filter(Boolean).join('\n')
-            const cid = c.Id
-            const isBusy = cid != null && busyId === cid
-            const isPendingHere = pending != null && cid != null && pending.id === cid
+            const cid = dockerContainerId(c)
+            const isBusy = cid !== '' && busyId === cid
+            const isPendingHere = pending != null && cid !== '' && pending.id === cid
             const rowPending = isPendingHere ? pending : null
             const canStart = !running && showBtnStart
             const canStop = running && showBtnStop
             const canRestart = running && showBtnRestart
             const anyBtn = canStart || canStop || canRestart
-            const showControls = Boolean(cid && (anyBtn || rowPending))
+            const showControls = Boolean(cid !== '' && (anyBtn || rowPending))
 
             const showStatsInRow = running && fetchStats && (showStatCpu || showStatRam)
             const s = c.sdStats
