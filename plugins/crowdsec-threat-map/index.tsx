@@ -53,7 +53,8 @@ function Widget({ config }: PluginWidgetProps) {
     setIframeLoaded(false)
     setLoadSlow(false)
     setFrameNonce((n) => n + 1)
-    skipResizeBounceUntil.current = Date.now() + 900
+    lastBoxRef.current = { w: -1, h: -1 }
+    skipResizeBounceUntil.current = Date.now() + 320
   }, [url, embed])
 
   useEffect(() => {
