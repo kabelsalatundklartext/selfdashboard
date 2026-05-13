@@ -13,6 +13,8 @@ services:
     volumes:
       # Persist dashboard config across container restarts
       - selfdashboard-data:/app/data
+      # Optional: Docker widget — same host only
+      # - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 

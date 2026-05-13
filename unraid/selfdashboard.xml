@@ -9,11 +9,11 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard – A clean, modular, self-hosted dashboard with a plugin system. Add widgets for Unraid, Emby, WireGuard, Nextcloud, Immich, CrowdSec and more.</Overview>
+  <Overview>SelfDashboard – A clean, modular, self-hosted dashboard with a plugin system. Add widgets for Unraid, Emby, WireGuard, Nextcloud, Immich, CrowdSec and more. Optional Docker socket mount (Advanced) enables the Docker container list on the same host only.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/ca-icon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/icon_unraid.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
@@ -69,6 +69,18 @@
     Display="advanced"
     Required="false"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
+
+  <!-- Docker Engine socket (optional — Docker widget, same host only) -->
+  <Config
+    Name="Docker Socket"
+    Target="/var/run/docker.sock"
+    Default="/var/run/docker.sock"
+    Mode="ro"
+    Description="Optional: same as -v /var/run/docker.sock:/var/run/docker.sock — host Docker socket read-only for the Docker widget. Only containers on THIS server (where SelfDashboard runs), not a remote Unraid/Docker."
+    Type="Path"
+    Display="advanced"
+    Required="false"
+    Mask="false">/var/run/docker.sock</Config>
 
   <!-- Node ENV -->
   <Config

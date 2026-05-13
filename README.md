@@ -49,6 +49,7 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
 | 🎬 Emby | Media | Active sessions — who is watching what | ✅ Included |
+| 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
 | 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
 | 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
 | ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
@@ -76,8 +77,11 @@ docker run -d \
   -p 3000:3000 \
   -e TZ=Europe/Berlin \
   -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
+
+*(Optional `-v /var/run/docker.sock:…` — Docker widget only; same host as the container.)*
 
 ### Option 3 — docker-compose
 
@@ -245,6 +249,7 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
 | 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
+| 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
 | 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
 | 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
 | ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |
@@ -272,8 +277,11 @@ docker run -d \
   -p 3000:3000 \
   -e TZ=Europe/Berlin \
   -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
+
+*(Optional `-v /var/run/docker.sock:…` — nur Docker-Widget; Socket vom **gleichen** Host wie der Container.)*
 
 ### Option 3 — docker-compose
 
