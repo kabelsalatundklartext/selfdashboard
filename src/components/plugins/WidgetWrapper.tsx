@@ -26,18 +26,14 @@ export function WidgetWrapper({ instance, editMode }: Props) {
 
   const setPluginZoom = (zoom: number) =>
     updatePluginConfig(instance.instanceId, { __zoom: Math.round(zoom * 10) / 10 })
-
   const setPluginPadding = (padding: number) =>
     updatePluginConfig(instance.instanceId, { __padding: padding })
 
   if (!registered) {
     return (
       <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          Plugin <strong>{instance.pluginId}</strong> not found
-        </p>
-        <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }}
-          onClick={() => removePlugin(instance.instanceId)}>Remove</button>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Plugin <strong>{instance.pluginId}</strong> not found</p>
+        <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>Remove</button>
       </div>
     )
   }
@@ -49,94 +45,81 @@ export function WidgetWrapper({ instance, editMode }: Props) {
     <>
       <div
         className="widget-panel h-full"
-        style={{ position: 'relative', padding: `${pluginPadding}px` }}
+        style={{ position: 'relative', padding: `${pluginPadding}px`, overflow: 'hidden' }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
-        {/* Edit mode border */}
+        {/* Edit border — pointer-events none so it doesn't block content */}
         {editMode && (
           <div style={{
             position: 'absolute', inset: 0, borderRadius: '14px',
-            pointerEvents: 'none', zIndex: 10,
-            border: `2px dashed var(--accent)`,
-            opacity: hovering ? 0.8 : 0.35,
+            pointerEvents: 'none', zIndex: 5,
+            border: '2px dashed var(--accent)',
+            opacity: hovering ? 0.7 : 0.3,
             transition: 'opacity 0.2s',
           }} />
         )}
 
-        {/* Drag handle */}
+        {/* Drag handle — small, top-left corner */}
         {editMode && (
           <div className="drag-handle" style={{
-            position: 'absolute', top: '6px', left: '6px', zIndex: 20,
+            position: 'absolute', top: '5px', left: '5px', zIndex: 15,
+            background: 'var(--accent)', borderRadius: '5px',
+            padding: '2px 4px', cursor: 'grab',
+            opacity: hovering ? 0.9 : 0.4,
+            transition: 'opacity 0.2s',
             display: 'flex', alignItems: 'center',
-            background: 'var(--accent)', borderRadius: '6px',
-            padding: '3px 5px', cursor: 'grab',
-            opacity: hovering ? 1 : 0.5, transition: 'opacity 0.2s',
           }}>
-            <GripVertical size={12} color="#fff" />
+            <GripVertical size={11} color="#fff" />
           </div>
         )}
 
-        {/* Controls — top right, only in edit mode on hover */}
+        {/* Controls bar — floats over content, only on hover in edit mode */}
         {editMode && hovering && (
           <div style={{
-            position: 'absolute', top: '6px', right: '6px', zIndex: 20,
-            display: 'flex', gap: '4px', alignItems: 'center',
+            position: 'absolute', top: '5px', right: '5px', zIndex: 15,
+            display: 'flex', gap: '3px', alignItems: 'center',
           }}>
             {/* Zoom */}
-            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-2)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)', gap: '1px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface)', borderRadius: '5px', border: '1px solid var(--border)', overflow: 'hidden' }}>
               <button onClick={() => canZoomOut && setPluginZoom(pluginZoom - 0.1)}
-                style={{ padding: '3px 4px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'default', color: 'var(--text-muted)', display: 'flex' }}>
-                <ZoomOut size={11} />
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'default', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                <ZoomOut size={10} />
               </button>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '26px', textAlign: 'center', fontWeight: 600 }}>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '24px', textAlign: 'center', fontWeight: 600 }}>
                 {Math.round(pluginZoom * 100)}%
               </span>
               <button onClick={() => canZoomIn && setPluginZoom(pluginZoom + 0.1)}
-                style={{ padding: '3px 4px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'default', color: 'var(--text-muted)', display: 'flex' }}>
-                <ZoomIn size={11} />
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'default', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                <ZoomIn size={10} />
               </button>
             </div>
 
             {/* Padding */}
-            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-2)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)', gap: '1px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface)', borderRadius: '5px', border: '1px solid var(--border)', overflow: 'hidden' }}>
               <button onClick={() => pluginPadding > 0 && setPluginPadding(pluginPadding - 4)}
-                style={{ padding: '3px 4px', background: 'none', border: 'none', cursor: pluginPadding > 0 ? 'pointer' : 'default', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700, lineHeight: 1 }}>
-                −
-              </button>
-              <AlignCenter size={10} style={{ color: 'var(--text-muted)' }} />
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '18px', textAlign: 'center', fontWeight: 600 }}>
-                {pluginPadding}
-              </span>
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: pluginPadding > 0 ? 'pointer' : 'default', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>−</button>
+              <AlignCenter size={9} style={{ color: 'var(--text-muted)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{pluginPadding}</span>
               <button onClick={() => pluginPadding < 48 && setPluginPadding(pluginPadding + 4)}
-                style={{ padding: '3px 4px', background: 'none', border: 'none', cursor: pluginPadding < 48 ? 'pointer' : 'default', color: 'var(--text-muted)', fontSize: '12px', fontWeight: 700, lineHeight: 1 }}>
-                +
-              </button>
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: pluginPadding < 48 ? 'pointer' : 'default', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>+</button>
             </div>
 
-            {/* Settings */}
             {hasSettings && (
               <button onClick={() => setConfigOpen(true)}
-                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-                <Settings size={12} />
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+                <Settings size={11} />
               </button>
             )}
-
-            {/* Remove */}
             <button onClick={() => removePlugin(instance.instanceId)}
-              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
-              <X size={12} />
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}>
+              <X size={11} />
             </button>
           </div>
         )}
 
-        {/* Plugin content — simple, no transform scaling */}
-        <div style={{
-          height: '100%',
-          paddingTop: editMode ? '28px' : '0',
-          boxSizing: 'border-box',
-          fontSize: pluginZoom !== 1 ? `${pluginZoom * 100}%` : undefined,
-        }}>
+        {/* Plugin content — NO paddingTop, controls float over it */}
+        <div style={{ height: '100%', fontSize: pluginZoom !== 1 ? `${pluginZoom * 100}%` : undefined }}>
           <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
         </div>
       </div>
