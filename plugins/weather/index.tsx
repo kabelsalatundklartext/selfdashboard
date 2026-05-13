@@ -23,8 +23,8 @@ export const meta: PluginMeta = {
   id: 'weather',
   name: 'Weather',
   description:
-    'Stadt oder PLZ eingeben — Temperatur, gefühlt, Luftfeuchte, Wind und Bedingungen werden automatisch per Open-Meteo geladen (kein API-Key).',
-  version: '1.0.1',
+    'Stadt oder PLZ eingeben — Temperatur, gefühlt, Luftfeuchte, Wind und Bedingungen werden automatisch per Open-Meteo geladen (kein API-Key). Wetter-Icons farbig nach Bedingung.',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -104,6 +104,26 @@ function windCompass(deg: number, de: boolean): string {
     : ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
   const i = Math.round(((deg % 360) + 360) % 360 / 45) % 8
   return ro[i] ?? 'N'
+}
+
+/** WMO-Code → Akzentfarbe für das Wetter-Icon (Lucide nutzt `currentColor` / Stroke) */
+function wmoIconColor(code: number, isDay: boolean): string {
+  const c = Math.round(code)
+  if (c === 95 || c === 96 || c === 99) return '#f97316' // Gewitter
+  if (c === 71 || c === 73 || c === 75 || c === 77 || c === 85 || c === 86) return '#7dd3fc' // Schnee
+  if (c === 61 || c === 63 || c === 65 || c === 66 || c === 67 || c === 80 || c === 81 || c === 82) return '#3b82f6' // Regen
+  if (c === 51 || c === 53 || c === 55 || c === 56 || c === 57) return '#38bdf8' // Niesel / gefrierend
+  if (c === 45 || c === 48) return '#9ca3af' // Nebel
+  if (c === 3) return '#94a3b8' // stark bewölkt
+  if (c === 2) return isDay ? '#fcd34d' : '#a5b4fc' // teils bewölkt
+  if (c === 1) return isDay ? '#fde047' : '#c4b5fd' // meist klar
+  if (c === 0) return isDay ? '#facc15' : '#a5b4fc' // klar: Sonne / Mond
+  return '#94a3b8'
+}
+
+function wmoIconGlowFilter(code: number, isDay: boolean): string {
+  const rgb = wmoIconColor(code, isDay)
+  return `drop-shadow(0 2px 8px color-mix(in srgb, ${rgb} 45%, transparent))`
 }
 
 /** WMO weather code + Open-Meteo `is_day` → Lucide icon (SVG, theme-aware color from parent). */
@@ -305,7 +325,12 @@ function Widget({ config }: PluginWidgetProps) {
         <CloudOff
           aria-hidden
           strokeWidth={1.75}
-          style={{ width: 'clamp(26px, 9cqmin, 40px)', height: 'clamp(26px, 9cqmin, 40px)', color: muted }}
+          style={{
+            width: 'clamp(26px, 9cqmin, 40px)',
+            height: 'clamp(26px, 9cqmin, 40px)',
+            color: '#fb7185',
+            filter: 'drop-shadow(0 2px 6px rgba(251, 113, 133, 0.35))',
+          }}
         />
         <p style={{ fontSize: 'clamp(11px, 2.8cqmin, 13px)', color: muted, margin: 0 }}>{error}</p>
       </div>
@@ -321,6 +346,8 @@ function Widget({ config }: PluginWidgetProps) {
   const wspd = num(current?.wind_speed_10m, 0)
   const summary = wmoSummary(code, de)
   const WeatherIcon = wmoIconComponent(code, isDay)
+  const iconColor = wmoIconColor(code, isDay)
+  const iconGlow = wmoIconGlowFilter(code, isDay)
 
   return (
     <div
@@ -360,7 +387,7 @@ function Widget({ config }: PluginWidgetProps) {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          color: 'var(--accent)',
+          color: iconColor,
           minHeight: 'clamp(26px, 10cqmin, 52px)',
         }}
         aria-label={summary}
@@ -372,8 +399,10 @@ function Widget({ config }: PluginWidgetProps) {
           style={{
             width: 'clamp(28px, 11cqmin, 56px)',
             height: 'clamp(28px, 11cqmin, 56px)',
+            color: iconColor,
+            filter: iconGlow,
             opacity: loading && temp == null ? 0.45 : 1,
-            transition: 'opacity 0.2s',
+            transition: 'opacity 0.2s, color 0.35s ease',
           }}
         />
       </div>
