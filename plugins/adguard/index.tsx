@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Activity, Ban, ExternalLink, Network, Percent, Shield, ShieldOff, type LucideIcon } from 'lucide-react'
+import { Activity, Ban, Network, Percent, Shield, ShieldOff, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
@@ -10,8 +10,8 @@ export const meta: PluginMeta = {
   id: 'adguard',
   name: 'AdGuard Home',
   description:
-    'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Anfragen laufen über SelfDashboard (/api/adguard), damit CORS kein Problem ist.',
-  version: '1.0.1',
+    'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -35,18 +35,29 @@ function normalizeBase(url: string): string {
   return s
 }
 
+function seriesOrScalar(stats: Record<string, unknown>, numKey: string, seriesKey: string): number {
+  const s = stats[seriesKey]
+  if (Array.isArray(s) && s.length > 0) {
+    return s.reduce((acc: number, x: unknown) => acc + (Number(x) || 0), 0)
+  }
+  const n = stats[numKey]
+  if (typeof n === 'number' && Number.isFinite(n)) return n
+  return 0
+}
+
 function dnsQueries(stats: Record<string, unknown>): number {
-  return num(stats.dns_queries ?? stats.num_dns_queries)
+  return Math.round(seriesOrScalar(stats, 'num_dns_queries', 'dns_queries'))
 }
 
 function blockedTotal(stats: Record<string, unknown>): number {
-  return (
-    num(stats.blocked_filtering) +
-    num(stats.blocked_safebrowsing) +
-    num(stats.blocked_parental) +
-    num(stats.blocked_threat) +
-    num(stats.blocked_malware) +
-    num(stats.blocked_ad)
+  return Math.round(
+    seriesOrScalar(stats, 'num_blocked_filtering', 'blocked_filtering') +
+      seriesOrScalar(stats, 'num_replaced_safebrowsing', 'replaced_safebrowsing') +
+      seriesOrScalar(stats, 'num_replaced_parental', 'replaced_parental') +
+      seriesOrScalar(stats, 'num_replaced_safesearch', 'replaced_safesearch') +
+      num(stats.blocked_threat) +
+      num(stats.blocked_malware) +
+      num(stats.blocked_ad),
   )
 }
 
@@ -101,11 +112,15 @@ function StatTile({
             fontSize: 'clamp(9px, 2.1cqmin, 10px)',
             fontWeight: 700,
             textTransform: 'uppercase',
-            letterSpacing: '0.07em',
+            letterSpacing: '0.06em',
             color: 'var(--text-muted)',
+            lineHeight: 1.2,
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
           }}
         >
           {label}
@@ -133,6 +148,7 @@ interface ApiOk {
   stats: Record<string, unknown>
   status: Record<string, unknown> | null
   statusHttp?: number
+  statsConfig?: Record<string, unknown> | null
 }
 
 interface ApiErr {
@@ -153,6 +169,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [data, setData] = useState<ApiOk | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [protBusy, setProtBusy] = useState(false)
 
   const fetch_ = useCallback(async () => {
     if (!base) {
@@ -180,7 +197,11 @@ function Widget({ config }: PluginWidgetProps) {
         setData(null)
         return
       }
-      setData({ stats: (j.stats ?? {}) as Record<string, unknown>, status: (j.status ?? null) as Record<string, unknown> | null })
+      setData({
+        stats: (j.stats ?? {}) as Record<string, unknown>,
+        status: (j.status ?? null) as Record<string, unknown> | null,
+        statsConfig: (j.statsConfig ?? null) as Record<string, unknown> | null,
+      })
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -189,6 +210,33 @@ function Widget({ config }: PluginWidgetProps) {
       setLoading(false)
     }
   }, [base, username, password, de])
+
+  const toggleProtection = useCallback(async () => {
+    if (!base || protBusy) return
+    const currentlyOn = data?.status?.protection_enabled === true
+    const next = !currentlyOn
+    setProtBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/adguard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ action: 'protection', url: base, username, password, enabled: next }),
+      })
+      const j = (await res.json()) as { error?: string; detail?: string }
+      if (!res.ok) {
+        const d = j.detail ? ` ${j.detail}` : ''
+        setError(de ? `Schutz konnte nicht geändert werden (${res.status}).${d}` : `Could not change protection (${res.status}).${d}`)
+        return
+      }
+      await fetch_()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setProtBusy(false)
+    }
+  }, [base, username, password, de, protBusy, data?.status?.protection_enabled, fetch_])
 
   useEffect(() => {
     void fetch_()
@@ -301,15 +349,15 @@ function Widget({ config }: PluginWidgetProps) {
 
   const stats = data?.stats ?? {}
   const status = data?.status
+  const statsCfg = data?.statsConfig
   const total = dnsQueries(stats)
   const blocked = blockedTotal(stats)
   const pct = total > 0 ? Math.min(100, Math.round((blocked / total) * 1000) / 10) : 0
-  const avgMs = num(stats.avg_processing_time)
+  const avgSec = num(stats.avg_processing_time)
+  const avgMs = avgSec > 0 ? avgSec * 1000 : 0
   const protection = status?.protection_enabled === true
   const running = status?.running === true
-  const version = str(status?.version)
-
-  const title = de ? 'AdGuard Home' : 'AdGuard Home'
+  const statsDisabled = statsCfg != null && statsCfg.enabled === false
 
   const pctBar = (
     <div style={{ marginTop: '10px' }}>
@@ -338,71 +386,22 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div style={{ ...shell, background: 'radial-gradient(ellipse 120% 80% at 10% -20%, rgba(56,189,248,0.08) 0%, transparent 50%)' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '10px',
-          marginBottom: '10px',
-          padding: '8px 10px',
-          borderRadius: '12px',
-          background: 'linear-gradient(105deg, rgba(56,189,248,0.12) 0%, rgba(192,132,252,0.1) 45%, var(--surface-2) 100%)',
-          border: '1px solid var(--border)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-          <div
-            style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '9px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'linear-gradient(145deg, rgba(56,189,248,0.35), rgba(192,132,252,0.28))',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              flexShrink: 0,
-            }}
-          >
-            <Shield size={16} strokeWidth={2.2} style={{ color: '#e0f2fe' }} aria-hidden />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 'clamp(11px, 2.6cqmin, 13px)', fontWeight: 800, color: 'var(--text)', letterSpacing: '0.02em' }}>{title}</p>
-            {version ? (
-              <p style={{ margin: '2px 0 0', fontSize: 'clamp(9px, 2.1cqmin, 10px)', color: 'var(--text-muted)', fontFamily: 'ui-monospace, monospace' }}>{version}</p>
-            ) : null}
-          </div>
-        </div>
-        <a
-          href={base}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={de ? 'AdGuard öffnen' : 'Open AdGuard'}
-          style={{
-            color: '#7dd3fc',
-            display: 'flex',
-            flexShrink: 0,
-            padding: '6px',
-            borderRadius: '8px',
-            background: 'rgba(56, 189, 248, 0.12)',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-          }}
-        >
-          <ExternalLink size={15} strokeWidth={2.25} />
-        </a>
-      </div>
-
+      {error && data && (
+        <p style={{ fontSize: '10px', color: '#fb7185', margin: '0 0 8px', textAlign: 'center', lineHeight: 1.35 }}>{error}</p>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
-        <span
+        <button
+          type="button"
+          disabled={protBusy}
+          aria-pressed={protection}
+          onClick={() => void toggleProtection()}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
             fontSize: 'clamp(10px, 2.5cqmin, 12px)',
             fontWeight: 800,
-            padding: '5px 11px',
+            padding: '6px 12px',
             borderRadius: '999px',
             border: protection ? '1px solid rgba(52, 211, 153, 0.55)' : '1px solid rgba(251, 113, 133, 0.45)',
             background: protection
@@ -410,11 +409,14 @@ function Widget({ config }: PluginWidgetProps) {
               : 'linear-gradient(120deg, rgba(251,113,133,0.22) 0%, rgba(244,63,94,0.12) 100%)',
             color: protection ? '#ecfdf5' : '#ffe4e6',
             boxShadow: protection ? '0 0 16px rgba(52, 211, 153, 0.22)' : '0 0 12px rgba(251, 113, 133, 0.15)',
+            cursor: protBusy ? 'wait' : 'pointer',
+            opacity: protBusy ? 0.75 : 1,
+            fontFamily: 'inherit',
           }}
         >
           {protection ? <Shield size={13} aria-hidden /> : <ShieldOff size={13} aria-hidden />}
-          {protection ? (de ? 'Schutz aktiv' : 'Protection on') : de ? 'Schutz aus' : 'Protection off'}
-        </span>
+          {protBusy ? '…' : protection ? (de ? 'Schutz: AN' : 'On') : de ? 'Schutz: AUS' : 'Off'}
+        </button>
         {running === false && (
           <span
             style={{
@@ -440,15 +442,15 @@ function Widget({ config }: PluginWidgetProps) {
         }}
       >
         <StatTile label={de ? 'DNS-Anfragen' : 'DNS queries'} value={formatInt(total, locale)} tint="sky" icon={Network} />
-        <StatTile label={de ? 'Blockiert' : 'Blocked'} value={formatInt(blocked, locale)} tint="rose" icon={Ban} />
+        <StatTile label={de ? 'Gesperrt' : 'Blocked'} value={formatInt(blocked, locale)} tint="rose" icon={Ban} />
         <StatTile
-          label={de ? 'Anteil blockiert' : 'Blocked %'}
+          label={de ? 'Block-Anteil' : 'Blocked %'}
           value={`${pct.toLocaleString(de ? 'de-DE' : 'en-GB')}%`}
           tint="violet"
           icon={Percent}
           footer={pctBar}
         />
-        {avgMs > 0 ? (
+        {avgSec > 0 ? (
           <StatTile label={de ? 'Ø Antwortzeit' : 'Avg response'} value={`${avgMs.toFixed(1)} ms`} tint="emerald" icon={Activity} />
         ) : (
           <div
@@ -469,6 +471,14 @@ function Widget({ config }: PluginWidgetProps) {
           </div>
         )}
       </div>
+
+      {statsDisabled && (
+        <p style={{ fontSize: '10px', color: '#fbbf24', marginTop: '10px', marginBottom: 0, textAlign: 'center', lineHeight: 1.45 }}>
+          {de
+            ? 'Statistiken sind in AdGuard Home aus — Einstellungen → Allgemeine Einstellungen → Statistiken einschalten.'
+            : 'Statistics are off in AdGuard Home — enable them under Settings → General settings → Statistics.'}
+        </p>
+      )}
     </div>
   )
 }
@@ -499,7 +509,9 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           placeholder="http://192.168.1.5:3000"
         />
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
-          AdGuard-Web-Interface-URL (ohne /control). Ohne <code style={{ fontSize: '10px' }}>http://</code> wird http angenommen.
+          Nur die Weboberflächen-Adresse (z. B. <code style={{ fontSize: '10px' }}>http://IP:3000</code>). Nicht mit{' '}
+          <code style={{ fontSize: '10px' }}>/control</code> enden — das wird automatisch ergänzt. Falls die URL schon{' '}
+          <code style={{ fontSize: '10px' }}>…/control</code> ist, wird das entfernt.
         </p>
       </div>
 
