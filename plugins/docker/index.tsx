@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Locale } from '@/lib/i18n'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
 export const meta: PluginMeta = {
@@ -8,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.4',
+  version: '1.6.5',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -232,52 +234,52 @@ function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
   return `${Math.round(p)}%`
 }
 
-function stateBadgeLabel(state: string | undefined): string {
+function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   const s = (state ?? '').toLowerCase()
-  if (s === 'running') return 'RUNNING'
-  if (s === 'exited' || s === 'dead') return 'EXITED'
-  if (s === 'paused') return 'PAUSED'
-  if (s === 'restarting') return 'RESTARTING'
-  return (state ?? 'UNKNOWN').toUpperCase()
+  const de = locale !== 'en'
+  if (s === 'running') return de ? 'Aktiv' : 'On'
+  if (s === 'exited' || s === 'dead') return de ? 'Aus' : 'Off'
+  if (s === 'paused') return 'Pause'
+  if (s === 'restarting') return de ? 'Warte' : 'Wait'
+  const raw = (state ?? '').trim()
+  if (!raw) return de ? '?' : '?'
+  return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
 function stateBadgeStyle(state: string | undefined): React.CSSProperties {
+  const base: React.CSSProperties = {
+    display: 'inline-block',
+    fontWeight: 600,
+    fontSize: '8px',
+    letterSpacing: '0.02em',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap',
+    lineHeight: 1.2,
+    textTransform: 'none',
+  }
   const s = (state ?? '').toLowerCase()
   if (s === 'running') {
     return {
+      ...base,
       background: '#15803d',
       color: '#fff',
-      fontWeight: 700,
-      fontSize: '9px',
-      letterSpacing: '0.05em',
-      padding: '3px 8px',
-      borderRadius: '6px',
-      whiteSpace: 'nowrap',
     }
   }
   if (s === 'exited' || s === 'dead') {
     return {
+      ...base,
       background: '#7f1d1d',
       color: '#fecaca',
-      fontWeight: 700,
-      fontSize: '9px',
-      letterSpacing: '0.05em',
-      padding: '3px 8px',
-      borderRadius: '6px',
-      whiteSpace: 'nowrap',
     }
   }
   if (s === 'paused') {
-    return { background: '#854d0e', color: '#fef08a', fontWeight: 700, fontSize: '9px', padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }
+    return { ...base, background: '#854d0e', color: '#fef08a' }
   }
   return {
+    ...base,
     background: 'var(--border)',
     color: 'var(--text-muted)',
-    fontWeight: 700,
-    fontSize: '9px',
-    padding: '3px 8px',
-    borderRadius: '6px',
-    whiteSpace: 'nowrap',
   }
 }
 
@@ -555,6 +557,7 @@ function ContainerAvatar({
 
 type HomarrDockerTableProps = {
   list: DockerContainer[]
+  locale: Locale
   busyId: string | null
   pending: PendingConfirm | null
   useDashboardIcons: boolean
@@ -576,6 +579,7 @@ type HomarrDockerTableProps = {
 
 function HomarrDockerTable({
   list,
+  locale,
   busyId,
   pending,
   useDashboardIcons,
@@ -605,10 +609,10 @@ function HomarrDockerTable({
     >
       <colgroup>
         <col style={{ width: '38%' }} />
-        <col style={{ width: '14%' }} />
-        <col style={{ width: '15%' }} />
-        <col style={{ width: '18%' }} />
-        <col style={{ width: '15%' }} />
+        <col style={{ width: '11%' }} />
+        <col style={{ width: '16%' }} />
+        <col style={{ width: '19%' }} />
+        <col style={{ width: '16%' }} />
       </colgroup>
       <thead>
         <tr>
@@ -669,7 +673,7 @@ function HomarrDockerTable({
                 </div>
               </td>
               <td style={{ ...tdCompact, textAlign: 'center' }}>
-                <span style={stateBadgeStyle(st)}>{stateBadgeLabel(st)}</span>
+                <span style={stateBadgeStyle(st)}>{stateBadgeLabel(st, locale)}</span>
               </td>
               <td
                 style={{
@@ -830,6 +834,7 @@ function Widget({ config }: PluginWidgetProps) {
   const fetchStats = showStatCpu || showStatRam
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
+  const locale = useDashboardStore((s) => s.locale) as Locale
 
   const fetch_ = useCallback(async () => {
     const id = ++latestFetch.current
@@ -1144,6 +1149,7 @@ function Widget({ config }: PluginWidgetProps) {
         ) : homarrTable ? (
           <HomarrDockerTable
             list={list}
+            locale={locale}
             busyId={busyId}
             pending={pending}
             useDashboardIcons={useDashboardIcons}
