@@ -117,10 +117,12 @@ export function Navbar() {
             onClick={() => setEditMode(!editMode)}>
             {editMode ? <><Check size={14} />{locale === 'de' ? 'Fertig' : 'Done'}</> : <Pencil size={15} />}
           </button>
-          <button className="btn-accent" style={{ padding: '7px 10px' }}
-            onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
-            <Plus size={17} />
-          </button>
+          {editMode && (
+            <button className="btn-accent" style={{ padding: '7px 10px' }}
+              onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
+              <Plus size={17} />
+            </button>
+          )}
           <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setSettingsOpen(true)}>
             <Settings size={15} />
           </button>

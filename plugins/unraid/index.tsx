@@ -28,6 +28,10 @@ const QUERY = `{
       id name status temp fsSize fsFree
     }
   }
+}`
+
+// Separate pools query - try independently
+const POOLS_QUERY = `{
   volumes {
     id name
     capacity { kilobytes { total used free } }
@@ -99,15 +103,25 @@ function Widget({ config }: PluginWidgetProps) {
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) { setLoading(false); return }
     try {
+      const headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey }
       const res = await fetch(`${url}/graphql`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        headers,
         body: JSON.stringify({ query: QUERY }),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       if (json.errors) throw new Error(json.errors[0]?.message ?? 'GraphQL error')
       const d = json.data
+
+      // Try pools separately - may not exist on all versions
+      let pools = null
+      try {
+        const poolRes = await fetch(`${url}/graphql`, { method: 'POST', headers, body: JSON.stringify({ query: POOLS_QUERY }) })
+        const poolJson = await poolRes.json()
+        pools = poolJson.data?.volumes ?? null
+      } catch {}
+
       const parsed: UnraidData = {
         cpu: d?.info?.cpu,
         memory: d?.info?.memory,
@@ -115,7 +129,7 @@ function Widget({ config }: PluginWidgetProps) {
         fans: d?.info?.fans,
         network: d?.info?.network,
         array: d?.array,
-        pools: d?.volumes,
+        pools,
       }
       // Net speed
       if (parsed.network?.length) {
@@ -156,9 +170,12 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   if (error) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '6px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '6px', padding: '8px' }}>
       <span style={{ fontSize: '24px' }}>⚠️</span>
       <p style={{ fontSize: '11px', color: '#ef4444', textAlign: 'center', wordBreak: 'break-all' }}>{error}</p>
+      <p style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center' }}>
+        Prüfe URL und API Key in den Einstellungen
+      </p>
     </div>
   )
 
