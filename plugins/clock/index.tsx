@@ -75,7 +75,7 @@ function Widget({ config }: PluginWidgetProps) {
         {timeStr}
       </p>
       {showDate && (
-        <p style={{ fontSize: "0.875em" }} style={{ color: 'var(--text-muted)' }}>
+        <p style={{ fontSize: "0.875em", color: 'var(--text-muted)' }}>
           {dateStr}
         </p>
       )}
