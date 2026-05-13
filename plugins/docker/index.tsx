@@ -7,8 +7,8 @@ export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Docker-Liste in einer Zeile (Name : Laufzeit : optional CPU/RAM-Balken : Buttons). Balken optional, Steuerung & Stats einzeln konfigurierbar.',
-  version: '1.5.0',
+    'Container-Tabelle im Homarr-Stil (Name, State, CPU, Memory, Actions) oder klassische Zeilenansicht. Steuerung & Stats konfigurierbar.',
+  version: '1.6.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -27,6 +27,7 @@ interface DockerContainer {
   State?: string
   Status?: string
   Image?: string
+  Labels?: Record<string, string>
   sdStats?: SdContainerStats | null
 }
 
@@ -127,6 +128,183 @@ function ramPercentForBar(s: SdContainerStats | null | undefined): number | null
   return null
 }
 
+const HEAT_GREEN = '#22c55e'
+const HEAT_AMBER = '#f59e0b'
+const HEAT_RED = '#ef4444'
+
+function heatColorForPct(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return 'var(--text-muted)'
+  if (p < 12) return HEAT_GREEN
+  if (p < 50) return HEAT_AMBER
+  return HEAT_RED
+}
+
+function fmtMemoryHomarr(s: SdContainerStats | null | undefined, running: boolean): string {
+  if (!running) return '—'
+  if (s?.memUsageBytes == null || !Number.isFinite(s.memUsageBytes)) return '—'
+  return fmtBytesShort(s.memUsageBytes)
+}
+
+const IMAGE_EMOJI: Array<[string, string]> = [
+  ['pihole', '🕳️'],
+  ['pi-hole', '🕳️'],
+  ['cloudflared', '☁️'],
+  ['uptime-kuma', '📈'],
+  ['uptime_kuma', '📈'],
+  ['sonarr', '📺'],
+  ['radarr', '🎬'],
+  ['lidarr', '🎵'],
+  ['prowlarr', '👁️'],
+  ['bazarr', '💬'],
+  ['ombi', '🍿'],
+  ['plex', '▶️'],
+  ['jellyfin', '🎞️'],
+  ['emby', '🎞️'],
+  ['immich', '🖼️'],
+  ['nextcloud', '☁️'],
+  ['mariadb', '🗄️'],
+  ['postgres', '🐘'],
+  ['mongo', '🍃'],
+  ['redis', '⭕'],
+  ['nginx', '🌊'],
+  ['caddy', '🔒'],
+  ['traefik', '🔀'],
+  ['portainer', '🧰'],
+  ['homepage', '🏠'],
+  ['homarr', '📊'],
+  ['grafana', '📈'],
+  ['prometheus', '🔥'],
+  ['nzbget', '📥'],
+  ['sabnzbd', '📥'],
+  ['ollama', '🦙'],
+  ['qbittorrent', '🧲'],
+  ['transmission', '📡'],
+  ['deluge', '🌊'],
+]
+
+function serviceMark(image: string, displayName: string): { kind: 'emoji'; v: string } | { kind: 'letter'; letter: string; bg: string } {
+  const base = (image.split(':')[0]?.split('@')[0] ?? '').toLowerCase()
+  const slug = base.split('/').pop() ?? base
+  for (const [k, emoji] of IMAGE_EMOJI) {
+    if (slug.includes(k)) return { kind: 'emoji', v: emoji }
+  }
+  const raw = displayName.replace(/^\/+/, '').trim()
+  const ch = (raw[0] || slug[0] || '?').toUpperCase()
+  let h = 0
+  for (let i = 0; i < slug.length; i++) h = (h + slug.charCodeAt(i) * (i + 1)) % 360
+  const bg = `linear-gradient(135deg, hsl(${h} 52% 40%), hsl(${(h + 48) % 360} 48% 26%))`
+  return { kind: 'letter', letter: ch, bg }
+}
+
+function fmtUpdatedAgo(ts: number | null): string {
+  if (ts == null) return ''
+  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (sec < 8) return 'Updated a few seconds ago'
+  if (sec < 60) return `Updated ${sec}s ago`
+  const m = Math.floor(sec / 60)
+  if (m < 60) return `Updated ${m} min ago`
+  const h = Math.floor(m / 60)
+  return `Updated ${h}h ago`
+}
+
+function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
+  if (!running) return '—'
+  if (p == null || !Number.isFinite(p)) return '—'
+  if (p < 10) return `${p.toFixed(2)}%`
+  if (p < 100) return `${p.toFixed(1)}%`
+  return `${Math.round(p)}%`
+}
+
+function stateBadgeLabel(state: string | undefined): string {
+  const s = (state ?? '').toLowerCase()
+  if (s === 'running') return 'RUNNING'
+  if (s === 'exited' || s === 'dead') return 'EXITED'
+  if (s === 'paused') return 'PAUSED'
+  if (s === 'restarting') return 'RESTARTING'
+  return (state ?? 'UNKNOWN').toUpperCase()
+}
+
+function stateBadgeStyle(state: string | undefined): React.CSSProperties {
+  const s = (state ?? '').toLowerCase()
+  if (s === 'running') {
+    return {
+      background: '#15803d',
+      color: '#fff',
+      fontWeight: 700,
+      fontSize: '9px',
+      letterSpacing: '0.05em',
+      padding: '3px 8px',
+      borderRadius: '6px',
+      whiteSpace: 'nowrap',
+    }
+  }
+  if (s === 'exited' || s === 'dead') {
+    return {
+      background: '#7f1d1d',
+      color: '#fecaca',
+      fontWeight: 700,
+      fontSize: '9px',
+      letterSpacing: '0.05em',
+      padding: '3px 8px',
+      borderRadius: '6px',
+      whiteSpace: 'nowrap',
+    }
+  }
+  if (s === 'paused') {
+    return { background: '#854d0e', color: '#fef08a', fontWeight: 700, fontSize: '9px', padding: '3px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }
+  }
+  return {
+    background: 'var(--border)',
+    color: 'var(--text-muted)',
+    fontWeight: 700,
+    fontSize: '9px',
+    padding: '3px 8px',
+    borderRadius: '6px',
+    whiteSpace: 'nowrap',
+  }
+}
+
+const ACTION_ICON = '#b91c1c'
+
+function IconStop({ disabled }: { disabled?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden style={{ opacity: disabled ? 0.35 : 1 }}>
+      <rect x="6" y="6" width="12" height="12" rx="2" fill={ACTION_ICON} />
+    </svg>
+  )
+}
+
+function IconPlay({ disabled }: { disabled?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden style={{ opacity: disabled ? 0.35 : 1 }}>
+      <path d="M8 5v14l11-7z" fill={ACTION_ICON} />
+    </svg>
+  )
+}
+
+function IconRestart({ disabled: _disabled }: { disabled?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        color: ACTION_ICON,
+        fontSize: '15px',
+        fontWeight: 800,
+        lineHeight: 1,
+        opacity: _disabled ? 0.35 : 1,
+        transform: 'scaleX(-1)',
+      }}
+    >
+      ↻
+    </span>
+  )
+}
+
 function MiniBar({
   label,
   fillPct,
@@ -189,6 +367,300 @@ function Heading({ text }: { text: string }) {
   )
 }
 
+type HomarrDockerTableProps = {
+  list: DockerContainer[]
+  busyId: string | null
+  pending: PendingConfirm | null
+  showStatCpu: boolean
+  showStatRam: boolean
+  showBtnStart: boolean
+  showBtnStop: boolean
+  showBtnRestart: boolean
+  btn: React.CSSProperties
+  btnMuted: React.CSSProperties
+  thStyle: React.CSSProperties
+  tdCompact: React.CSSProperties
+  iconAct: React.CSSProperties
+  beginAction: (id: string, name: string, action: DockerAction) => void
+  goSecondStep: () => void
+  executeAction: () => Promise<void>
+  cancelPending: () => void
+}
+
+function HomarrDockerTable({
+  list,
+  busyId,
+  pending,
+  showStatCpu,
+  showStatRam,
+  showBtnStart,
+  showBtnStop,
+  showBtnRestart,
+  btn,
+  btnMuted,
+  thStyle,
+  tdCompact,
+  iconAct,
+  beginAction,
+  goSecondStep,
+  executeAction,
+  cancelPending,
+}: HomarrDockerTableProps) {
+  return (
+    <table
+      style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        tableLayout: 'fixed',
+        minWidth: 0,
+      }}
+    >
+      <colgroup>
+        <col style={{ width: '38%' }} />
+        <col style={{ width: '14%' }} />
+        <col style={{ width: '15%' }} />
+        <col style={{ width: '18%' }} />
+        <col style={{ width: '15%' }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th style={thStyle}>Name</th>
+          <th style={{ ...thStyle, textAlign: 'center' }}>State</th>
+          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>CPU</th>
+          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>Memory</th>
+          <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {list.flatMap((c, i) => {
+          const name = containerName(c)
+          const st = c.State ?? '—'
+          const imgRef = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
+          const running = st === 'running'
+          const cid = c.Id
+          const isBusy = cid != null && busyId === cid
+          const isPendingHere = pending != null && cid != null && pending.id === cid
+          const rowPending = isPendingHere ? pending : null
+          const canStart = !running && showBtnStart
+          const canStop = running && showBtnStop
+          const canRestart = running && showBtnRestart
+          const anyBtn = canStart || canStop || canRestart
+          const showControls = Boolean(cid && (anyBtn || rowPending))
+          const s = c.sdStats
+          const cpuPct = s?.cpuPct ?? null
+          const ramPct = ramPercentForBar(s)
+          const memStr = fmtMemoryHomarr(s, running)
+          const tipParts = [name, st, (c.Status ?? '').trim(), imgRef]
+          const tip = tipParts.filter(Boolean).join('\n')
+          const mark = serviceMark(c.Image ?? '', name)
+          const iconLabel = c.Labels?.['org.opencontainers.image.icon'] ?? c.Labels?.['traefik.icon']
+          const iconUrl =
+            typeof iconLabel === 'string' && /^https?:\/\//i.test(iconLabel.trim()) ? iconLabel.trim() : null
+          const zebra =
+            i % 2 === 0
+              ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
+              : 'color-mix(in srgb, var(--text) 2%, var(--background))'
+
+          const avatar = iconUrl ? (
+            <img
+              src={iconUrl}
+              alt=""
+              width={22}
+              height={22}
+              style={{ width: 22, height: 22, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+            />
+          ) : mark.kind === 'emoji' ? (
+            <span
+              aria-hidden
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
+                background: 'var(--surface)',
+                flexShrink: 0,
+              }}
+            >
+              {mark.v}
+            </span>
+          ) : (
+            <span
+              aria-hidden
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 800,
+                color: '#fff',
+                background: mark.bg,
+                flexShrink: 0,
+              }}
+            >
+              {mark.letter}
+            </span>
+          )
+
+          const mainRow = (
+            <tr key={cid ?? `${name}-${i}`} style={{ background: zebra }} title={tip}>
+              <td style={{ ...tdCompact, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  {avatar}
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color: 'var(--text)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      minWidth: 0,
+                    }}
+                  >
+                    {name}
+                  </span>
+                </div>
+              </td>
+              <td style={{ ...tdCompact, textAlign: 'center' }}>
+                <span style={stateBadgeStyle(st)}>{stateBadgeLabel(st)}</span>
+              </td>
+              <td
+                style={{
+                  ...tdCompact,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                  fontWeight: 600,
+                  color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
+                }}
+              >
+                {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}
+              </td>
+              <td
+                style={{
+                  ...tdCompact,
+                  textAlign: 'right',
+                  fontVariantNumeric: 'tabular-nums',
+                  fontWeight: 600,
+                  color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
+                }}
+              >
+                {showStatRam ? memStr : '—'}
+              </td>
+              <td style={{ ...tdCompact, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                {!rowPending && showControls && anyBtn ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    {canStop ? (
+                      <button
+                        type="button"
+                        style={iconAct}
+                        title="Container stoppen"
+                        disabled={isBusy || pending != null}
+                        onClick={() => {
+                          if (cid == null || cid === '') return
+                          beginAction(cid, name, 'stop')
+                        }}
+                      >
+                        <IconStop disabled={isBusy || pending != null} />
+                      </button>
+                    ) : null}
+                    {canStart ? (
+                      <button
+                        type="button"
+                        style={iconAct}
+                        title="Container starten"
+                        disabled={isBusy || pending != null}
+                        onClick={() => {
+                          if (cid == null || cid === '') return
+                          beginAction(cid, name, 'start')
+                        }}
+                      >
+                        <IconPlay disabled={isBusy || pending != null} />
+                      </button>
+                    ) : null}
+                    {canRestart ? (
+                      <button
+                        type="button"
+                        style={iconAct}
+                        title="Container neu starten"
+                        disabled={isBusy || pending != null}
+                        onClick={() => {
+                          if (cid == null || cid === '') return
+                          beginAction(cid, name, 'restart')
+                        }}
+                      >
+                        <IconRestart disabled={isBusy || pending != null} />
+                      </button>
+                    ) : null}
+                    {isBusy ? <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>…</span> : null}
+                  </span>
+                ) : null}
+              </td>
+            </tr>
+          )
+
+          if (showControls && rowPending) {
+            const confirmRow = (
+              <tr key={`${cid ?? name}-confirm`} style={{ background: zebra }}>
+                <td
+                  colSpan={5}
+                  style={{ padding: '0 8px 10px', borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)' }}
+                >
+                  <div
+                    style={{
+                      fontSize: 'clamp(9px, 2.3cqmin, 11px)',
+                      lineHeight: 1.4,
+                      color: 'var(--text-muted)',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      padding: '6px 8px',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
+                      {rowPending.step === 1 ? (
+                        <>
+                          <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
+                          <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                        </>
+                      ) : (
+                        <>
+                          Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                          <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
+                        </>
+                      )}
+                    </p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                      <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
+                        Abbrechen
+                      </button>
+                      {rowPending.step === 1 ? (
+                        <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
+                          Weiter
+                        </button>
+                      ) : (
+                        <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
+                          Ausführen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )
+            return [mainRow, confirmRow]
+          }
+          return [mainRow]
+        })}
+      </tbody>
+    </table>
+  )
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const [list, setList] = useState<DockerContainer[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -198,9 +670,11 @@ function Widget({ config }: PluginWidgetProps) {
   pendingRef.current = pending
   const [busyId, setBusyId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
 
   const showAll = config.showStopped === true
   const r = config as Record<string, unknown>
+  const homarrTable = r.homarrTable !== false
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
   const showBtnStart = actionsOn && r.showBtnStart !== false
@@ -233,6 +707,7 @@ function Widget({ config }: PluginWidgetProps) {
       const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
       setList(sorted.slice(0, maxRows))
       setError(null)
+      setLastFetchOk(Date.now())
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -294,13 +769,22 @@ function Widget({ config }: PluginWidgetProps) {
 
   const shell: React.CSSProperties = {
     height: '100%',
-    overflowY: 'auto',
-    overflowX: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
     boxSizing: 'border-box',
-    padding: '8px 12px 12px',
+    padding: homarrTable ? 0 : '8px 12px 12px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
+    overflow: 'hidden',
+  }
+
+  const scrollBody: React.CSSProperties = {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    padding: homarrTable ? '6px 10px 4px' : 0,
   }
 
   const btn: React.CSSProperties = {
@@ -324,10 +808,12 @@ function Widget({ config }: PluginWidgetProps) {
   if (loading) {
     return (
       <div style={shell}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {[70, 55, 80, 50].map((w, i) => (
-            <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
-          ))}
+        <div style={{ ...scrollBody, padding: homarrTable ? '10px 12px' : undefined }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {[70, 55, 80, 50].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -335,7 +821,18 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (error) {
     return (
-      <div style={{ ...shell, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div style={{ ...shell, display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            ...scrollBody,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: '12px',
+          }}
+        >
         <span style={{ fontSize: '22px' }}>⚠️</span>
         <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '8px', wordBreak: 'break-word' }}>{error}</p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.45 }}>
@@ -352,21 +849,75 @@ function Widget({ config }: PluginWidgetProps) {
             </>
           )}
         </p>
+        </div>
       </div>
     )
   }
 
   const fs = 'clamp(9px, 2.6cqmin, 11px)'
 
+  const thStyle: React.CSSProperties = {
+    textAlign: 'left',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.07em',
+    textTransform: 'uppercase',
+    color: 'var(--text-muted)',
+    padding: '6px 8px',
+    borderBottom: '1px solid var(--border)',
+    whiteSpace: 'nowrap',
+  }
+
+  const tdCompact: React.CSSProperties = {
+    padding: '5px 8px',
+    verticalAlign: 'middle',
+    borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
+    fontSize: '11px',
+    lineHeight: 1.3,
+  }
+
+  const iconAct: React.CSSProperties = {
+    border: 'none',
+    background: 'transparent',
+    padding: '4px',
+    cursor: 'pointer',
+    borderRadius: '6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 0,
+  }
+
   return (
     <div style={shell}>
-      <Heading text={`Docker · ${list.length}${showAll ? '' : ' laufend'}`} />
-      {actionError ? (
-        <p style={{ fontSize: '10px', color: '#ef4444', margin: '0 0 8px', lineHeight: 1.4 }}>{actionError}</p>
-      ) : null}
-      {list.length === 0 ? (
-        <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>Keine Container in der Liste.</p>
-      ) : (
+      <div style={scrollBody}>
+        {!homarrTable ? <Heading text={`Docker · ${list.length}${showAll ? '' : ' laufend'}`} /> : null}
+        {actionError ? (
+          <p style={{ fontSize: '10px', color: '#ef4444', margin: '0 0 8px', lineHeight: 1.4 }}>{actionError}</p>
+        ) : null}
+        {list.length === 0 ? (
+          <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>Keine Container in der Liste.</p>
+        ) : homarrTable ? (
+          <HomarrDockerTable
+            list={list}
+            busyId={busyId}
+            pending={pending}
+            showStatCpu={showStatCpu}
+            showStatRam={showStatRam}
+            showBtnStart={showBtnStart}
+            showBtnStop={showBtnStop}
+            showBtnRestart={showBtnRestart}
+            btn={btn}
+            btnMuted={btnMuted}
+            thStyle={thStyle}
+            tdCompact={tdCompact}
+            iconAct={iconAct}
+            beginAction={beginAction}
+            goSecondStep={goSecondStep}
+            executeAction={executeAction}
+            cancelPending={cancelPending}
+          />
+        ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
           {list.map((c, i) => {
             const name = containerName(c)
@@ -587,7 +1138,34 @@ function Widget({ config }: PluginWidgetProps) {
             )
           })}
         </ul>
-      )}
+        )}
+      </div>
+      {homarrTable ? (
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '8px 12px',
+            borderTop: '1px solid var(--border)',
+            background: 'color-mix(in srgb, var(--surface) 90%, var(--background))',
+            fontSize: '11px',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <span aria-hidden style={{ fontSize: '15px', lineHeight: 1 }}>
+              🐳
+            </span>
+            <span>
+              Total {list.length} {list.length === 1 ? 'container' : 'containers'}
+            </span>
+          </span>
+          <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtUpdatedAgo(lastFetchOk)}</span>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -654,6 +1232,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const r = config as Record<string, unknown>
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
+  const homarrOn = r.homarrTable !== false
   const btnStartOn = actionsOn && r.showBtnStart !== false
   const btnStopOn = actionsOn && r.showBtnStop !== false
   const btnRestartOn = actionsOn && r.showBtnRestart !== false
@@ -668,6 +1247,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <code style={{ fontSize: '10px' }}>{'/var/run/docker.sock'}</code>
         ). Beim Docker-/Unraid-Template den Socket als Volume einbinden.
       </p>
+
+      <ToggleRow
+        label="Homarr-Tabellenansicht (Name · State · CPU · Memory · Actions)"
+        on={homarrOn}
+        onToggle={() => onChange('homarrTable', !homarrOn)}
+      />
 
       <div>
         <SettingsSectionTitle>Aktionen</SettingsSectionTitle>
