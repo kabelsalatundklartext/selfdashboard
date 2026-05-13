@@ -69,6 +69,14 @@ export function loadBuiltinPlugins() {
 
 ---
 
+## Builtin vs. Docker / Unraid (wichtig)
+
+- **`pluginLoader.ts`** liegt im **Quellcode** und wird beim **`next build`** / Docker-Image in die App **eingebunden**. Auf dem Server (Unraid, Docker) hängt man diese Datei **nicht** per Volume ein, um neue Plugins „nachzuladen“.
+- **Neues Plugin nutzen:** Ordner unter `plugins/<id>/` anlegen, in **`src/lib/pluginLoader.ts`** importieren und **`registerPlugin(...)`** aufrufen (siehe oben), dann **Image neu bauen** und ausrollen (oder PR ins Haupt-Repository).
+- **Unraid „Custom Plugins Path“** → `/app/plugins/custom`: Im **Standard-Image** werden daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit geladen. Das Volume ist **optional** (eigene Dateien, selbst gebautes Image, o. Ä.). Wer nur Dateien auf die Platte legt und das offizielle Image unverändert nutzt, sieht **keine** neuen Store-Einträge.
+
+---
+
 ## Plugin mit Einstellungen
 
 Plugins können eigene Einstellungen haben die der Nutzer über das ⚙️ Icon konfiguriert:
@@ -291,9 +299,7 @@ Immer CSS-Variablen verwenden damit das Plugin alle Themes unterstützt:
 
 1. GitHub Repo erstellen: `selfdashboard-plugin-meinname`
 2. Topic `selfdashboard-plugin` hinzufügen
-3. Andere können dein Plugin installieren indem sie den Ordner in `plugins/` kopieren und `pluginLoader.ts` anpassen
-
----
+3. **Mit ins Haupt-Repo mergen:** Ordner nach `plugins/` kopieren und `pluginLoader.ts` wie oben ergänzen → PR. **Oder eigenes Docker-Image** bauen (Fork), mit gleicher Registrierung — Konsumenten brauchen dann **dein** Image, nicht nur einen Datei-Kopier-Schritt auf der Platte.
 
 ---
 
@@ -360,6 +366,14 @@ export function loadBuiltinPlugins() {
 
 ---
 
+## Builtin vs. Docker / Unraid (important)
+
+- **`pluginLoader.ts`** is **source code** bundled at **`next build`** / Docker image build time. You **do not** bind-mount it on Unraid or Docker to “inject” new plugins at runtime.
+- **To ship a new plugin:** add `plugins/<id>/`, import and **`registerPlugin(...)`** in **`src/lib/pluginLoader.ts`**, then **rebuild and deploy** the image (or open a PR to the main repo).
+- **Unraid “Custom Plugins Path”** → `/app/plugins/custom`: the **stock** image **does not** auto-load arbitrary TypeScript plugins from that folder at runtime. The volume is **optional** (your files, a custom-built image, etc.). Dropping files on disk alone into a mapped folder **will not** register new store entries on the official image.
+
+---
+
 ## PluginMeta Fields
 
 | Field | Type | Required | Description |
@@ -397,4 +411,4 @@ export function loadBuiltinPlugins() {
 
 1. Create a GitHub repo: `selfdashboard-plugin-yourname`
 2. Add topic `selfdashboard-plugin`
-3. Others install by copying your folder into `plugins/` and updating `pluginLoader.ts`
+3. **Upstream:** copy your folder into `plugins/` and extend `pluginLoader.ts` as above → open a PR. **Or** publish a **forked Docker image** with the same registration — consumers need **your** image rebuild, not only copying files on disk.

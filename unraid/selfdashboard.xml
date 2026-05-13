@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Docker widget: bind-mount the host Docker socket (see Docker Socket). Extra parameter `--group-add=281` matches the usual Unraid `docker` group GID for socket access (change if `stat -c '%g' /var/run/docker.sock` differs). Custom plugin files on the Unraid disk only appear inside the container if you bind-mount a host folder to /app/plugins/custom — the container filesystem does not include random host paths without that volume.</Overview>
+  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Docker widget: bind-mount the host Docker socket (see Docker Socket). Extra parameter `--group-add=281` matches the usual Unraid `docker` group GID for socket access (change if `stat -c '%g' /var/run/docker.sock` differs). Builtin plugins are compiled into the image from `src/lib/pluginLoader.ts` (not bind-mounted). The optional “Custom Plugins Path” maps to `/app/plugins/custom`; the stock image does not auto-load TS plugins from there — use it only if you need the folder for your own files or a custom-built image. Custom plugin workflow: see README / docs/PLUGIN_DEV.md and rebuild the image.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
@@ -64,7 +64,7 @@
     Target="/app/plugins/custom"
     Default="/mnt/user/appdata/selfdashboard/plugins"
     Mode="rw"
-    Description="Bind-mount a host folder to /app/plugins/custom. Files you add on Unraid only exist inside the container through this mapping — without the volume, the container cannot see host folders (same idea as the Docker socket). Remove the mapping if you do not use custom plugins."
+    Description="Optional host folder mounted at /app/plugins/custom. Builtin plugins come from the image (see src/lib/pluginLoader.ts in the repo) — they are not loaded by editing this path alone. The stock image does not auto-register arbitrary TypeScript plugins from this directory at runtime; remove the mapping if unused, or use it for your own files / a custom image you build."
     Type="Path"
     Display="always"
     Required="false"

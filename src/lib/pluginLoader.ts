@@ -1,5 +1,5 @@
-// This file is imported once at app startup to register all built-in plugins.
-// External plugins do the same via registerPlugin() from their own package.
+// Registers built-in plugins at app startup (compiled into the image — not bind-mounted on Unraid).
+// To add a plugin: import + registerPlugin() below, then rebuild the Docker image. See README and docs/PLUGIN_DEV.md.
 
 import { registerPlugin } from '@/lib/pluginRegistry'
 
