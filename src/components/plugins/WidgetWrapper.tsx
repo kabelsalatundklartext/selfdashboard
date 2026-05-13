@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, GripVertical, Settings, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, GripVertical, Settings, ZoomIn, ZoomOut, AlignCenter } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
@@ -21,11 +21,15 @@ export function WidgetWrapper({ instance, editMode }: Props) {
 
   // Per-plugin zoom stored in config
   const pluginZoom: number = (instance.config.__zoom as number) ?? 1
+  const pluginPadding: number = (instance.config.__padding as number) ?? 16
   const canZoomIn = pluginZoom < 2
   const canZoomOut = pluginZoom > 0.5
 
   const setPluginZoom = (zoom: number) => {
     updatePluginConfig(instance.instanceId, { __zoom: Math.round(zoom * 10) / 10 })
+  }
+  const setPluginPadding = (padding: number) => {
+    updatePluginConfig(instance.instanceId, { __padding: padding })
   }
 
   if (!registered) {
@@ -44,7 +48,7 @@ export function WidgetWrapper({ instance, editMode }: Props) {
     <>
       <div
         className="widget-panel h-full"
-        style={{ position: 'relative', overflow: 'hidden' }}
+        style={{ position: 'relative', overflow: 'hidden', padding: `${pluginPadding}px` }}
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
       >
@@ -75,6 +79,22 @@ export function WidgetWrapper({ instance, editMode }: Props) {
               <button onClick={() => canZoomIn && setPluginZoom(pluginZoom + 0.1)}
                 style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: canZoomIn ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', display: 'flex' }}>
                 <ZoomIn size={12} />
+              </button>
+            </div>
+
+            {/* Padding control */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1px', background: 'var(--surface-2)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+              <button onClick={() => pluginPadding > 0 && setPluginPadding(pluginPadding - 4)}
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: pluginPadding > 0 ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', display: 'flex', fontSize: '11px', fontWeight: 700 }}>
+                −
+              </button>
+              <AlignCenter size={11} style={{ color: 'var(--text-muted)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '20px', textAlign: 'center', fontWeight: 600 }}>
+                {pluginPadding}
+              </span>
+              <button onClick={() => pluginPadding < 48 && setPluginPadding(pluginPadding + 4)}
+                style={{ padding: '3px 5px', background: 'none', border: 'none', cursor: pluginPadding < 48 ? 'pointer' : 'not-allowed', color: 'var(--text-muted)', display: 'flex', fontSize: '11px', fontWeight: 700 }}>
+                +
               </button>
             </div>
 
