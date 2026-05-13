@@ -7,8 +7,8 @@ export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Docker-Container-Liste — Auslastung (CPU/RAM) und Aktionen (Start/Stopp/Neustart) je einzeln einblendbar, jeweils mit Master-Schalter. Socket-Mount nötig.',
-  version: '1.4.0',
+    'Docker-Liste in einer Zeile (Name : Laufzeit : optional CPU/RAM-Balken : Buttons). Balken optional, Steuerung & Stats einzeln konfigurierbar.',
+  version: '1.5.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -113,6 +113,57 @@ function statsLine(c: DockerContainer, running: boolean, showCpu: boolean, showR
   return parts.join(' · ')
 }
 
+function barFillPct(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return 0
+  return Math.min(100, Math.max(0, value))
+}
+
+function ramPercentForBar(s: SdContainerStats | null | undefined): number | null {
+  if (!s) return null
+  if (s.memPct != null && Number.isFinite(s.memPct)) return s.memPct
+  if (s.memUsageBytes != null && s.memLimitBytes != null && s.memLimitBytes > 0) {
+    return (s.memUsageBytes / s.memLimitBytes) * 100
+  }
+  return null
+}
+
+function MiniBar({
+  label,
+  fillPct,
+  tooltip,
+  barColor,
+}: {
+  label: string
+  fillPct: number
+  tooltip: string
+  barColor: string
+}) {
+  const track: React.CSSProperties = {
+    width: 38,
+    height: 5,
+    background: 'var(--border)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    flexShrink: 0,
+  }
+  const fill: React.CSSProperties = {
+    display: 'block',
+    height: '100%',
+    width: `${fillPct}%`,
+    background: barColor,
+    borderRadius: 3,
+    transition: 'width 0.35s ease-out',
+  }
+  return (
+    <span title={tooltip} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+      <span style={{ fontSize: '7px', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.02em', width: '1em', textAlign: 'right' }}>{label}</span>
+      <span style={track}>
+        <span style={fill} />
+      </span>
+    </span>
+  )
+}
+
 function SettingsSectionTitle({ children }: { children: string }) {
   return (
     <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', margin: '0 0 6px' }}>
@@ -157,6 +208,7 @@ function Widget({ config }: PluginWidgetProps) {
   const showBtnRestart = actionsOn && r.showBtnRestart !== false
   const showStatCpu = statsOn && r.showStatCpu !== false
   const showStatRam = statsOn && r.showStatRam !== false
+  const showStatBars = statsOn && r.showStatBars !== false
   const fetchStats = showStatCpu || showStatRam
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
@@ -304,7 +356,7 @@ function Widget({ config }: PluginWidgetProps) {
     )
   }
 
-  const fs = 'clamp(10px, 2.8cqmin, 12px)'
+  const fs = 'clamp(9px, 2.6cqmin, 11px)'
 
   return (
     <div style={shell}>
@@ -336,6 +388,14 @@ function Widget({ config }: PluginWidgetProps) {
             const anyBtn = canStart || canStop || canRestart
             const showControls = Boolean(cid && (anyBtn || rowPending))
 
+            const showStatsInRow = running && fetchStats && (showStatCpu || showStatRam)
+            const s = c.sdStats
+            const cpuFill = running && showStatCpu ? barFillPct(s?.cpuPct ?? null) : 0
+            const ramFill = running && showStatRam ? barFillPct(ramPercentForBar(s)) : 0
+            const textStatsInline = showStatsInRow && !showStatBars ? statsLine(c, running, showStatCpu, showStatRam) : null
+            const cpuBarTip = showStatCpu ? `CPU ${fmtCpuPct(s?.cpuPct ?? null)}` : ''
+            const ramBarTip = showStatRam ? (statsLine(c, running, false, true) ?? 'RAM') : ''
+
             return (
               <li
                 key={cid ?? `${name}-${i}`}
@@ -343,7 +403,7 @@ function Widget({ config }: PluginWidgetProps) {
                 style={{
                   listStyle: 'none',
                   margin: 0,
-                  padding: i < list.length - 1 ? '0 0 8px 0' : 0,
+                  padding: i < list.length - 1 ? '0 0 6px 0' : 0,
                   borderBottom: i < list.length - 1 ? '1px solid var(--border)' : 'none',
                   minWidth: 0,
                 }}
@@ -351,130 +411,176 @@ function Widget({ config }: PluginWidgetProps) {
                 <div
                   style={{
                     display: 'flex',
-                    alignItems: 'baseline',
-                    gap: '6px',
+                    alignItems: 'center',
+                    gap: '4px 6px',
                     width: '100%',
                     minWidth: 0,
                     fontSize: fs,
                     lineHeight: 1.35,
+                    flexWrap: 'nowrap',
                   }}
                 >
-                  <span style={{ color: running ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0, width: '1em', textAlign: 'center' }} aria-hidden>
+                  <span
+                    style={{ color: running ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0, width: '0.65em', textAlign: 'center', fontSize: '0.78em' }}
+                    aria-hidden
+                  >
                     {running ? '●' : '○'}
                   </span>
-                  <span style={{ fontWeight: 600, color: 'var(--text)', flexShrink: 0, maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {name}
-                  </span>
-                  <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>:</span>
-                  <span style={{ flex: '1 1 0%', minWidth: 0, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{status}</span>
-                </div>
-                {sl ? (
-                  <div
+                  <span
                     style={{
-                      marginTop: '3px',
-                      paddingLeft: 'calc(1em + 6px)',
-                      fontSize: 'clamp(9px, 2.4cqmin, 10px)',
-                      color: 'var(--text-muted)',
-                      lineHeight: 1.35,
+                      fontWeight: 700,
+                      color: 'var(--text)',
+                      flex: '0 1 32%',
+                      minWidth: 0,
+                      maxWidth: '40%',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {name}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>:</span>
+                  <span
+                    style={{
+                      color: 'var(--text-muted)',
+                      flex: '1 1 0%',
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {status}
+                  </span>
+
+                  {showStatsInRow ? (
+                    <>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>:</span>
+                      {showStatBars ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {showStatCpu ? <MiniBar label="C" fillPct={cpuFill} tooltip={cpuBarTip} barColor="var(--accent)" /> : null}
+                          {showStatRam ? <MiniBar label="R" fillPct={ramFill} tooltip={ramBarTip} barColor="#5b9bd5" /> : null}
+                        </span>
+                      ) : textStatsInline ? (
+                        <span
+                          style={{
+                            flex: '0 1 36%',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            color: 'var(--text-muted)',
+                            fontSize: 'clamp(8px, 2.2cqmin, 10px)',
+                          }}
+                          title={textStatsInline}
+                        >
+                          {textStatsInline}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+
+                  {!rowPending && showControls && anyBtn ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, marginLeft: 'auto' }}>
+                      {canStart ? (
+                        <button
+                          type="button"
+                          style={btn}
+                          title="Container starten"
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'start')
+                          }}
+                        >
+                          Start
+                        </button>
+                      ) : null}
+                      {canStop ? (
+                        <button
+                          type="button"
+                          style={btn}
+                          title="Container stoppen"
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'stop')
+                          }}
+                        >
+                          Stopp
+                        </button>
+                      ) : null}
+                      {canRestart ? (
+                        <button
+                          type="button"
+                          style={btn}
+                          title="Container neu starten"
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'restart')
+                          }}
+                        >
+                          Neustart
+                        </button>
+                      ) : null}
+                      {isBusy ? (
+                        <span style={{ fontSize: '8px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>…</span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </div>
+
+                {showControls && rowPending ? (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      paddingLeft: 'calc(0.65em + 6px)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
                       minWidth: 0,
                     }}
-                    title={sl}
                   >
-                    {sl}
-                  </div>
-                ) : null}
-                {showControls ? (
-                  <div style={{ marginTop: '6px', paddingLeft: 'calc(1em + 6px)', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-                    {rowPending ? (
-                      <div
-                        style={{
-                          fontSize: 'clamp(9px, 2.3cqmin, 11px)',
-                          lineHeight: 1.4,
-                          color: 'var(--text-muted)',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '6px',
-                          padding: '6px 8px',
-                        }}
-                      >
-                        <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
-                          {rowPending.step === 1 ? (
-                            <>
-                              <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
-                              <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
-                            </>
-                          ) : (
-                            <>
-                              Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
-                              <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
-                            </>
-                          )}
-                        </p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                          <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
-                            Abbrechen
-                          </button>
-                          {rowPending.step === 1 ? (
-                            <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
-                              Weiter
-                            </button>
-                          ) : (
-                            <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
-                              Ausführen
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
+                    <div
+                      style={{
+                        fontSize: 'clamp(9px, 2.3cqmin, 11px)',
+                        lineHeight: 1.4,
+                        color: 'var(--text-muted)',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '6px 8px',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
+                        {rowPending.step === 1 ? (
+                          <>
+                            <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}? <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                          </>
+                        ) : (
+                          <>
+                            Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
+                          </>
+                        )}
+                      </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                        {canStart ? (
-                          <button
-                            type="button"
-                            style={btn}
-                            title="Container starten"
-                            disabled={isBusy || pending != null}
-                            onClick={() => {
-                              if (cid == null || cid === '') return
-                              beginAction(cid, name, 'start')
-                            }}
-                          >
-                            Start
+                        <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
+                          Abbrechen
+                        </button>
+                        {rowPending.step === 1 ? (
+                          <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
+                            Weiter
                           </button>
-                        ) : null}
-                        {canStop ? (
-                          <button
-                            type="button"
-                            style={btn}
-                            title="Container stoppen"
-                            disabled={isBusy || pending != null}
-                            onClick={() => {
-                              if (cid == null || cid === '') return
-                              beginAction(cid, name, 'stop')
-                            }}
-                          >
-                            Stopp
+                        ) : (
+                          <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
+                            Ausführen
                           </button>
-                        ) : null}
-                        {canRestart ? (
-                          <button
-                            type="button"
-                            style={btn}
-                            title="Container neu starten"
-                            disabled={isBusy || pending != null}
-                            onClick={() => {
-                              if (cid == null || cid === '') return
-                              beginAction(cid, name, 'restart')
-                            }}
-                          >
-                            Neustart
-                          </button>
-                        ) : null}
+                        )}
                       </div>
-                    )}
-                    {isBusy ? <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>… ausführen</span> : null}
+                    </div>
                   </div>
                 ) : null}
               </li>
@@ -553,6 +659,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const btnRestartOn = actionsOn && r.showBtnRestart !== false
   const statCpuOn = statsOn && r.showStatCpu !== false
   const statRamOn = statsOn && r.showStatRam !== false
+  const statBarsOn = statsOn && r.showStatBars !== false
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -634,6 +741,18 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                   return
                 }
                 onChange('showStatRam', !statRamOn)
+              }}
+            />
+            <ToggleRow
+              label="CPU/RAM als Balken (wie Unraid, sonst Text in der Zeile)"
+              on={statBarsOn}
+              onToggle={() => {
+                if (!statsOn) {
+                  onChange('showStats', true)
+                  onChange('showStatBars', true)
+                  return
+                }
+                onChange('showStatBars', !statBarsOn)
               }}
             />
           </div>
