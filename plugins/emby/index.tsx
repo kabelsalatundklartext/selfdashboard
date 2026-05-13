@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Emby',
   description:
     'Aktive Wiedergaben per Emby-/Jellyfin-kompatibler API: Nutzer, Titel, Gerät, Pause (Basis-URL + API-Key).',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎬',
@@ -113,12 +113,12 @@ function Heading({ text }: { text: string }) {
   return (
     <p
       style={{
-        fontSize: '10px',
+        fontSize: 'clamp(9px, 2.4cqmin, 10px)',
         fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
         color: 'var(--text-muted)',
-        margin: '8px 0 6px',
+        margin: '0 0 8px',
       }}
     >
       {text}
@@ -168,7 +168,10 @@ function Widget({ config }: PluginWidgetProps) {
     overflowY: 'auto',
     overflowX: 'hidden',
     boxSizing: 'border-box',
-    padding: '10px 14px 14px',
+    padding: '8px 12px 12px',
+    containerType: 'size',
+    minWidth: 0,
+    width: '100%',
   }
 
   if (!base || !apiKey) {
@@ -215,9 +218,9 @@ function Widget({ config }: PluginWidgetProps) {
     <div style={shell}>
       <Heading text={title} />
       {active.length === 0 ? (
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>Keine aktive Wiedergabe.</p>
+        <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>Keine aktive Wiedergabe.</p>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
           {active.map((s, i) => {
             const it = s.NowPlayingItem!
             const pos = num(s.PlayState?.PositionTicks)
@@ -225,29 +228,82 @@ function Widget({ config }: PluginWidgetProps) {
             const prog = run > 0 ? `${formatDuration(ticksToMs(pos))} / ${formatDuration(ticksToMs(run))}` : formatDuration(ticksToMs(pos))
             const paused = s.PlayState?.IsPaused === true
             const device = [s.DeviceName, s.Client].filter(Boolean).join(' · ') || 'Gerät'
+            const user = s.UserName || 'Nutzer'
+            const tit = sessionTitle(s)
+            const tip = [device, tit, prog].join('\n')
+            const fs = 'clamp(10px, 2.8cqmin, 12px)'
             return (
-              <div
-                key={s.Id ?? `${s.UserName}-${device}-${sessionTitle(s)}-${i}`}
+              <li
+                key={s.Id ?? `${user}-${device}-${tit}-${i}`}
+                title={tip}
                 style={{
-                  borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                  paddingTop: i > 0 ? 8 : 0,
+                  listStyle: 'none',
+                  padding: i < active.length - 1 ? '0 0 10px 0' : 0,
+                  margin: 0,
+                  borderBottom: i < active.length - 1 ? '1px solid var(--border)' : 'none',
+                  minWidth: 0,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'baseline', minWidth: 0 }}>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {s.UserName || 'Nutzer'}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 0.42fr) 6px minmax(0, 1fr) 6px auto',
+                    alignItems: 'center',
+                    columnGap: '4px',
+                    width: '100%',
+                    minWidth: 0,
+                    fontSize: fs,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontWeight: 700,
+                      color: 'var(--text)',
+                      whiteSpace: 'nowrap',
+                      minWidth: 0,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <span
+                      aria-hidden
+                      style={{
+                        fontSize: '0.75em',
+                        color: paused ? '#f59e0b' : 'var(--accent)',
+                        flexShrink: 0,
+                        width: '1em',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {paused ? '⏸' : '▶'}
+                    </span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{user}</span>
                   </span>
-                  <span style={{ fontSize: '10px', color: paused ? '#f59e0b' : 'var(--accent)', flexShrink: 0 }}>
-                    {paused ? 'Pause' : '▶'}
+                  <span style={{ color: 'var(--text-muted)', textAlign: 'center', opacity: 0.85 }}>:</span>
+                  <span
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--text)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {tit}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', textAlign: 'center', opacity: 0.85 }}>:</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {prog}
                   </span>
                 </div>
-                <p style={{ fontSize: '11px', color: 'var(--text)', margin: '4px 0 2px', lineHeight: 1.35, wordBreak: 'break-word' }}>{sessionTitle(s)}</p>
-                <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0 }}>{device}</p>
-                <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{prog}</p>
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
     </div>
   )
