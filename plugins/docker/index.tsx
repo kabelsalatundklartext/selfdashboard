@@ -1,17 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
 export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Laufende (optional alle) Container über die Docker Engine API — SelfDashboard muss den Socket mounten (/api/docker-containers).',
-  version: '1.0.1',
+    'Docker-Container-Liste — Auslastung (CPU/RAM) und Aktionen (Start/Stopp/Neustart) je einzeln einblendbar, jeweils mit Master-Schalter. Socket-Mount nötig.',
+  version: '1.4.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
+}
+
+interface SdContainerStats {
+  cpuPct: number | null
+  memUsageBytes: number | null
+  memLimitBytes: number | null
+  memPct: number | null
 }
 
 interface DockerContainer {
@@ -20,6 +27,42 @@ interface DockerContainer {
   State?: string
   Status?: string
   Image?: string
+  sdStats?: SdContainerStats | null
+}
+
+type DockerAction = 'start' | 'stop' | 'restart'
+
+type PendingConfirm = {
+  id: string
+  name: string
+  action: DockerAction
+  step: 1 | 2
+}
+
+function actionVerb(a: DockerAction): string {
+  switch (a) {
+    case 'start':
+      return 'starten'
+    case 'stop':
+      return 'stoppen'
+    case 'restart':
+      return 'neu starten'
+    default:
+      return a
+  }
+}
+
+function actionNoun(a: DockerAction): string {
+  switch (a) {
+    case 'start':
+      return 'Start'
+    case 'stop':
+      return 'Stopp'
+    case 'restart':
+      return 'Neustart'
+    default:
+      return a
+  }
 }
 
 function containerName(c: DockerContainer): string {
@@ -32,6 +75,50 @@ function sortContainers(a: DockerContainer, b: DockerContainer): number {
   const br = b.State === 'running' ? 0 : 1
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
+}
+
+function fmtBytesShort(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+  const gib = bytes / 1024 ** 3
+  if (gib >= 1) return `${gib < 10 ? gib.toFixed(1) : gib.toFixed(0)} GiB`
+  const mib = bytes / 1024 ** 2
+  return `${mib < 10 ? mib.toFixed(1) : mib.toFixed(0)} MiB`
+}
+
+function fmtCpuPct(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return '—'
+  if (p < 10) return `${p.toFixed(1)} %`
+  return `${Math.round(p)} %`
+}
+
+function statsLine(c: DockerContainer, running: boolean, showCpu: boolean, showRam: boolean): string | null {
+  if (!running || (!showCpu && !showRam)) return null
+  const s = c.sdStats
+  const parts: string[] = []
+  if (showCpu) {
+    parts.push(`CPU ${fmtCpuPct(s?.cpuPct ?? null)}`)
+  }
+  if (showRam) {
+    let ram = '—'
+    if (s?.memUsageBytes != null && Number.isFinite(s.memUsageBytes)) {
+      if (s.memLimitBytes != null && s.memLimitBytes > 0) {
+        ram = `${fmtBytesShort(s.memUsageBytes)} / ${fmtBytesShort(s.memLimitBytes)}`
+        if (s.memPct != null && Number.isFinite(s.memPct)) ram += ` (${s.memPct.toFixed(0)} %)`
+      } else {
+        ram = fmtBytesShort(s.memUsageBytes)
+      }
+    }
+    parts.push(`RAM ${ram}`)
+  }
+  return parts.join(' · ')
+}
+
+function SettingsSectionTitle({ children }: { children: string }) {
+  return (
+    <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', margin: '0 0 6px' }}>
+      {children}
+    </p>
+  )
 }
 
 function Heading({ text }: { text: string }) {
@@ -55,15 +142,30 @@ function Widget({ config }: PluginWidgetProps) {
   const [list, setList] = useState<DockerContainer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [pending, setPending] = useState<PendingConfirm | null>(null)
+  const pendingRef = useRef<PendingConfirm | null>(null)
+  pendingRef.current = pending
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const showAll = config.showStopped === true
+  const r = config as Record<string, unknown>
+  const actionsOn = r.allowActions !== false
+  const statsOn = r.showStats !== false
+  const showBtnStart = actionsOn && r.showBtnStart !== false
+  const showBtnStop = actionsOn && r.showBtnStop !== false
+  const showBtnRestart = actionsOn && r.showBtnRestart !== false
+  const showStatCpu = statsOn && r.showStatCpu !== false
+  const showStatRam = statsOn && r.showStatRam !== false
+  const fetchStats = showStatCpu || showStatRam
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
 
   const fetch_ = useCallback(async () => {
     try {
       const q = showAll ? 'all=1' : 'all=0'
-      const res = await fetch(`/api/docker-containers?${q}`, { method: 'GET', cache: 'no-store' })
+      const statsQ = fetchStats ? '&stats=1' : ''
+      const res = await fetch(`/api/docker-containers?${q}${statsQ}`, { method: 'GET', cache: 'no-store' })
       const raw = await res.text()
       let data: unknown
       try {
@@ -84,13 +186,59 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       setLoading(false)
     }
-  }, [showAll, maxRows])
+  }, [showAll, maxRows, fetchStats])
 
   useEffect(() => {
     fetch_()
     const id = setInterval(fetch_, refresh)
     return () => clearInterval(id)
   }, [fetch_, refresh])
+
+  const goSecondStep = useCallback(() => {
+    setPending((cur) => (cur && cur.step === 1 ? { ...cur, step: 2 } : cur))
+  }, [])
+
+  const executeAction = useCallback(async () => {
+    const p = pendingRef.current
+    if (!p || p.step !== 2 || !p.id) return
+    setBusyId(p.id)
+    setActionError(null)
+    try {
+      const res = await fetch('/api/docker-containers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, action: p.action }),
+        cache: 'no-store',
+      })
+      const raw = await res.text()
+      let data: unknown
+      try {
+        data = raw ? (JSON.parse(raw) as unknown) : null
+      } catch {
+        throw new Error(res.ok ? 'Ungültige JSON-Antwort' : `HTTP ${res.status}`)
+      }
+      if (!res.ok) {
+        const err = (data as { error?: string })?.error
+        throw new Error(err || `HTTP ${res.status}`)
+      }
+      setPending(null)
+      await fetch_()
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusyId(null)
+    }
+  }, [fetch_])
+
+  const cancelPending = useCallback(() => {
+    setPending(null)
+    setActionError(null)
+  }, [])
+
+  const beginAction = useCallback((id: string, name: string, action: DockerAction) => {
+    setActionError(null)
+    setPending({ id, name, action, step: 1 })
+  }, [])
 
   const shell: React.CSSProperties = {
     height: '100%',
@@ -101,6 +249,24 @@ function Widget({ config }: PluginWidgetProps) {
     containerType: 'size',
     minWidth: 0,
     width: '100%',
+  }
+
+  const btn: React.CSSProperties = {
+    fontSize: 'clamp(9px, 2.2cqmin, 10px)',
+    padding: '2px 7px',
+    borderRadius: '4px',
+    border: '1px solid var(--border)',
+    background: 'var(--surface)',
+    color: 'var(--text)',
+    cursor: 'pointer',
+    lineHeight: 1.25,
+    fontWeight: 600,
+  }
+
+  const btnMuted: React.CSSProperties = {
+    ...btn,
+    color: 'var(--text-muted)',
+    fontWeight: 500,
   }
 
   if (loading) {
@@ -143,6 +309,9 @@ function Widget({ config }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <Heading text={`Docker · ${list.length}${showAll ? '' : ' laufend'}`} />
+      {actionError ? (
+        <p style={{ fontSize: '10px', color: '#ef4444', margin: '0 0 8px', lineHeight: 1.4 }}>{actionError}</p>
+      ) : null}
       {list.length === 0 ? (
         <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>Keine Container in der Liste.</p>
       ) : (
@@ -153,10 +322,23 @@ function Widget({ config }: PluginWidgetProps) {
             const status = (c.Status ?? '').trim() || st
             const img = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
             const running = st === 'running'
-            const tip = [name, st, status, img].filter(Boolean).join('\n')
+            const tipParts = [name, st, status, img]
+            const sl = statsLine(c, running, showStatCpu, showStatRam)
+            if (sl) tipParts.push(sl)
+            const tip = tipParts.filter(Boolean).join('\n')
+            const cid = c.Id
+            const isBusy = cid != null && busyId === cid
+            const isPendingHere = pending != null && cid != null && pending.id === cid
+            const rowPending = isPendingHere ? pending : null
+            const canStart = !running && showBtnStart
+            const canStop = running && showBtnStop
+            const canRestart = running && showBtnRestart
+            const anyBtn = canStart || canStop || canRestart
+            const showControls = Boolean(cid && (anyBtn || rowPending))
+
             return (
               <li
-                key={c.Id ?? `${name}-${i}`}
+                key={cid ?? `${name}-${i}`}
                 title={tip}
                 style={{
                   listStyle: 'none',
@@ -186,6 +368,88 @@ function Widget({ config }: PluginWidgetProps) {
                   <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>:</span>
                   <span style={{ flex: '1 1 0%', minWidth: 0, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{status}</span>
                 </div>
+                {sl ? (
+                  <div
+                    style={{
+                      marginTop: '3px',
+                      paddingLeft: 'calc(1em + 6px)',
+                      fontSize: 'clamp(9px, 2.4cqmin, 10px)',
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.35,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      minWidth: 0,
+                    }}
+                    title={sl}
+                  >
+                    {sl}
+                  </div>
+                ) : null}
+                {showControls ? (
+                  <div style={{ marginTop: '6px', paddingLeft: 'calc(1em + 6px)', display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                    {rowPending ? (
+                      <div
+                        style={{
+                          fontSize: 'clamp(9px, 2.3cqmin, 11px)',
+                          lineHeight: 1.4,
+                          color: 'var(--text-muted)',
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '6px',
+                          padding: '6px 8px',
+                        }}
+                      >
+                        <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
+                          {rowPending.step === 1 ? (
+                            <>
+                              <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
+                              <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            </>
+                          ) : (
+                            <>
+                              Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                              <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
+                            </>
+                          )}
+                        </p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                          <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
+                            Abbrechen
+                          </button>
+                          {rowPending.step === 1 ? (
+                            <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
+                              Weiter
+                            </button>
+                          ) : (
+                            <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
+                              Ausführen
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        {canStart ? (
+                          <button type="button" style={btn} title="Container starten" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'start')}>
+                            Start
+                          </button>
+                        ) : null}
+                        {canStop ? (
+                          <button type="button" style={btn} title="Container stoppen" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'stop')}>
+                            Stopp
+                          </button>
+                        ) : null}
+                        {canRestart ? (
+                          <button type="button" style={btn} title="Container neu starten" disabled={isBusy || pending != null} onClick={() => beginAction(cid, name, 'restart')}>
+                            Neustart
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                    {isBusy ? <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>… ausführen</span> : null}
+                  </div>
+                ) : null}
               </li>
             )
           })}
@@ -254,6 +518,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     return v === true
   }
 
+  const r = config as Record<string, unknown>
+  const actionsOn = r.allowActions !== false
+  const statsOn = r.showStats !== false
+  const btnStartOn = actionsOn && r.showBtnStart !== false
+  const btnStopOn = actionsOn && r.showBtnStop !== false
+  const btnRestartOn = actionsOn && r.showBtnRestart !== false
+  const statCpuOn = statsOn && r.showStatCpu !== false
+  const statRamOn = statsOn && r.showStatRam !== false
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
@@ -261,6 +534,85 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <code style={{ fontSize: '10px' }}>{'/var/run/docker.sock'}</code>
         ). Beim Docker-/Unraid-Template den Socket als Volume einbinden.
       </p>
+
+      <div>
+        <SettingsSectionTitle>Aktionen</SettingsSectionTitle>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <ToggleRow label="Buttons (Start / Stopp / Neustart)" on={actionsOn} onToggle={() => onChange('allowActions', !actionsOn)} />
+          <div style={{ opacity: actionsOn ? 1 : 0.45, pointerEvents: actionsOn ? 'auto' : 'none' }}>
+            <ToggleRow
+              label="Button: Start"
+              on={btnStartOn}
+              onToggle={() => {
+                if (!actionsOn) {
+                  onChange('allowActions', true)
+                  onChange('showBtnStart', true)
+                  return
+                }
+                onChange('showBtnStart', !btnStartOn)
+              }}
+            />
+            <ToggleRow
+              label="Button: Stopp"
+              on={btnStopOn}
+              onToggle={() => {
+                if (!actionsOn) {
+                  onChange('allowActions', true)
+                  onChange('showBtnStop', true)
+                  return
+                }
+                onChange('showBtnStop', !btnStopOn)
+              }}
+            />
+            <ToggleRow
+              label="Button: Neustart"
+              on={btnRestartOn}
+              onToggle={() => {
+                if (!actionsOn) {
+                  onChange('allowActions', true)
+                  onChange('showBtnRestart', true)
+                  return
+                }
+                onChange('showBtnRestart', !btnRestartOn)
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <SettingsSectionTitle>Auslastung</SettingsSectionTitle>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <ToggleRow label="Docker-Stats (CPU / RAM)" on={statsOn} onToggle={() => onChange('showStats', !statsOn)} />
+          <div style={{ opacity: statsOn ? 1 : 0.45, pointerEvents: statsOn ? 'auto' : 'none' }}>
+            <ToggleRow
+              label="CPU anzeigen"
+              on={statCpuOn}
+              onToggle={() => {
+                if (!statsOn) {
+                  onChange('showStats', true)
+                  onChange('showStatCpu', true)
+                  return
+                }
+                onChange('showStatCpu', !statCpuOn)
+              }}
+            />
+            <ToggleRow
+              label="RAM anzeigen"
+              on={statRamOn}
+              onToggle={() => {
+                if (!statsOn) {
+                  onChange('showStats', true)
+                  onChange('showStatRam', true)
+                  return
+                }
+                onChange('showStatRam', !statRamOn)
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       <ToggleRow label="Auch gestoppte Container" on={sub('showStopped')} onToggle={() => onChange('showStopped', !sub('showStopped'))} />
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
