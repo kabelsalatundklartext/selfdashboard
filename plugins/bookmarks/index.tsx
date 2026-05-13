@@ -8,8 +8,8 @@ import { usePluginLocale } from '@/lib/pluginLocale'
 export const meta: PluginMeta = {
   id: 'bookmarks',
   name: 'App Bookmarks',
-  description: 'Quick links with groups, custom icons and drag & drop.',
-  version: '1.4.1',
+  description: 'Quick links with groups, custom icons, drag & drop, grid or horizontal row.',
+  version: '1.5.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🔖',
@@ -17,9 +17,10 @@ export const meta: PluginMeta = {
 
 interface AppLink { id: string; name: string; url: string; icon: string; newTab: boolean; group: string }
 interface Group { id: string; name: string; hidden?: boolean }
-interface BookmarkData { apps: AppLink[]; groups: Group[] }
+interface BookmarkData { apps: AppLink[]; groups: Group[]; layout?: 'grid' | 'row' }
 
 const DEFAULT_DATA: BookmarkData = {
+  layout: 'grid',
   groups: [{ id: 'default', name: 'Meine Apps' }],
   apps: [
     { id: '1', name: 'Portainer', url: 'http://localhost:9000', icon: '🐳', newTab: true, group: 'default' },
@@ -32,8 +33,16 @@ const DEFAULT_DATA: BookmarkData = {
 function parseData(raw: unknown): BookmarkData {
   try {
     const p = JSON.parse(raw as string)
-    if (p?.apps) return p
-    if (Array.isArray(p) && p.length > 0) return { groups: [{ id: 'default', name: 'Meine Apps' }], apps: p.map((a: AppLink) => ({ ...a, group: 'default' })) }
+    const layout: 'grid' | 'row' = p?.layout === 'row' ? 'row' : 'grid'
+    if (p?.apps) {
+      return {
+        apps: p.apps,
+        groups: p.groups?.length ? p.groups : [{ id: 'default', name: 'Meine Apps' }],
+        layout,
+      }
+    }
+    if (Array.isArray(p) && p.length > 0)
+      return { layout: 'grid', groups: [{ id: 'default', name: 'Meine Apps' }], apps: p.map((a: AppLink) => ({ ...a, group: 'default' })) }
   } catch {}
   return DEFAULT_DATA
 }
@@ -44,23 +53,73 @@ function AppIcon({ icon }: { icon: string }) {
   return <span style={{ fontSize: '18px', flexShrink: 0, lineHeight: 1 }}>{icon || '🔗'}</span>
 }
 
+const linkBaseStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  padding: '8px 10px',
+  borderRadius: '8px',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  textDecoration: 'none',
+  transition: 'border-color 0.15s',
+}
+
 // ── Widget ───────────────────────────────────────────────────
 function Widget({ config }: PluginWidgetProps) {
   const data = parseData(config.data ?? config.apps)
+  const layout = data.layout ?? 'grid'
+  const outer: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    height: '100%',
+    width: '100%',
+    overflow: 'auto',
+    justifyContent: layout === 'row' ? 'flex-start' : 'center',
+    minHeight: 0,
+  }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', overflow: 'auto', justifyContent: 'center' }}>
+    <div style={outer}>
       {data.groups.map((group) => {
         const apps = data.apps.filter((a) => a.group === group.id)
         if (apps.length === 0 || group.hidden) return null
+        const listStyle: React.CSSProperties =
+          layout === 'row'
+            ? {
+                display: 'flex',
+                flexDirection: 'row',
+                flexWrap: 'nowrap',
+                gap: '6px',
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                width: '100%',
+                minHeight: 0,
+                WebkitOverflowScrolling: 'touch',
+              }
+            : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px' }
         return (
-          <div key={group.id}>
-            {data.groups.length > 1 && <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px' }}>
+          <div key={group.id} style={{ minWidth: 0 }}>
+            {data.groups.length > 1 && (
+              <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>
+            )}
+            <div style={listStyle}>
               {apps.map((app) => (
-                <a key={app.id} href={app.url} target={app.newTab ? '_blank' : '_self'} rel="noopener noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none', transition: 'border-color 0.15s' }}
+                <a
+                  key={app.id}
+                  href={app.url}
+                  target={app.newTab ? '_blank' : '_self'}
+                  rel="noopener noreferrer"
+                  style={{
+                    ...linkBaseStyle,
+                    flex: layout === 'row' ? '0 0 auto' : undefined,
+                    minWidth: layout === 'row' ? '140px' : undefined,
+                    maxWidth: layout === 'row' ? '220px' : undefined,
+                  }}
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}>
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+                >
                   <AppIcon icon={app.icon} />
                   <span style={{ fontSize: '13px', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.name}</span>
                   {app.newTab && <ExternalLink size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
@@ -80,6 +139,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const data = parseData(config.data ?? config.apps)
   const [apps, setApps] = useState<AppLink[]>(data.apps)
   const [groups, setGroups] = useState<Group[]>(data.groups)
+  const [layout, setLayout] = useState<'grid' | 'row'>(() => parseData(config.data ?? config.apps).layout ?? 'grid')
   const [editing, setEditing] = useState<string | null>(null)
   const [editData, setEditData] = useState<Partial<AppLink>>({})
   const [dragAppId, setDragAppId] = useState<string | null>(null)
@@ -87,9 +147,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const saveAll = (a: AppLink[], g: Group[]) => {
-    setApps(a); setGroups(g)
-    onChange('data', JSON.stringify({ apps: a, groups: g }))
+  const saveAll = (a: AppLink[], g: Group[], nextLayout?: 'grid' | 'row') => {
+    const l = nextLayout ?? layout
+    setApps(a)
+    setGroups(g)
+    if (nextLayout !== undefined) setLayout(nextLayout)
+    onChange('data', JSON.stringify({ apps: a, groups: g, layout: l }))
   }
 
   const startEdit = (app: AppLink) => { setEditing(app.id); setEditData({ ...app }) }
@@ -148,8 +211,34 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
   const inp: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '6px', padding: '5px 8px', fontSize: '13px', outline: 'none', width: '100%' }
 
+  const layoutBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: '8px 10px',
+    borderRadius: '8px',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+    background: active ? 'var(--accent)22' : 'var(--surface-2)',
+    color: 'var(--text)',
+    fontSize: '12px',
+    fontWeight: active ? 600 : 400,
+    cursor: 'pointer',
+  })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div>
+        <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 6px' }}>
+          {de ? 'Darstellung' : 'Layout'}
+        </p>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button type="button" onClick={() => saveAll(apps, groups, 'grid')} style={layoutBtn(layout === 'grid')}>
+            {de ? 'Raster (mehrere Spalten wenn breit)' : 'Grid (multi-column when wide)'}
+          </button>
+          <button type="button" onClick={() => saveAll(apps, groups, 'row')} style={layoutBtn(layout === 'row')}>
+            {de ? 'Waagerecht (scrollbar)' : 'Horizontal (scroll)'}
+          </button>
+        </div>
+      </div>
+
       {groups.map((group) => (
         <div key={group.id}>
           {/* Group header — drop zone */}
