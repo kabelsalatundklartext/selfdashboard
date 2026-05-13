@@ -81,6 +81,17 @@ html, body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* Scroll area: keep overflow scroll/wheel, hide visible scrollbar (plugin UIs) */
+.sd-plugin-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sd-plugin-no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* ── Animations ────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

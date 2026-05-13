@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'AdGuard Home',
   description:
     'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
-  version: '1.1.0',
+  version: '1.1.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -247,17 +247,20 @@ function Widget({ config }: PluginWidgetProps) {
   const shell: React.CSSProperties = {
     height: '100%',
     overflowY: 'auto',
-    overflowX: 'hidden',
+    overflowX: 'visible',
     boxSizing: 'border-box',
-    padding: '8px 12px 12px',
+    padding: '14px 14px 12px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
   }
 
   if (!base) {
     return (
       <div
+        className="sd-plugin-no-scrollbar"
         style={{
           ...shell,
           display: 'flex',
@@ -300,7 +303,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (loading && !data) {
     return (
-      <div style={shell}>
+      <div className="sd-plugin-no-scrollbar" style={shell}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {[75, 50, 90, 40].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
@@ -313,6 +316,7 @@ function Widget({ config }: PluginWidgetProps) {
   if (error && !data) {
     return (
       <div
+        className="sd-plugin-no-scrollbar"
         style={{
           ...shell,
           display: 'flex',
@@ -385,30 +389,37 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   return (
-    <div style={{ ...shell, background: 'radial-gradient(ellipse 120% 80% at 10% -20%, rgba(56,189,248,0.08) 0%, transparent 50%)' }}>
+    <div
+      className="sd-plugin-no-scrollbar"
+      style={{ ...shell, background: 'radial-gradient(ellipse 120% 80% at 10% -20%, rgba(56,189,248,0.08) 0%, transparent 50%)' }}
+    >
       {error && data && (
         <p style={{ fontSize: '10px', color: '#fb7185', margin: '0 0 8px', textAlign: 'center', lineHeight: 1.35 }}>{error}</p>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px', width: '100%', alignItems: 'stretch' }}>
         <button
           type="button"
           disabled={protBusy}
           aria-pressed={protection}
           onClick={() => void toggleProtection()}
           style={{
+            width: '100%',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '6px',
+            justifyContent: 'center',
+            gap: '8px',
             fontSize: 'clamp(10px, 2.5cqmin, 12px)',
             fontWeight: 800,
-            padding: '6px 12px',
+            padding: '8px 14px',
             borderRadius: '999px',
             border: protection ? '1px solid rgba(52, 211, 153, 0.55)' : '1px solid rgba(251, 113, 133, 0.45)',
             background: protection
               ? 'linear-gradient(120deg, rgba(52,211,153,0.35) 0%, rgba(34,197,94,0.18) 100%)'
               : 'linear-gradient(120deg, rgba(251,113,133,0.22) 0%, rgba(244,63,94,0.12) 100%)',
             color: protection ? '#ecfdf5' : '#ffe4e6',
-            boxShadow: protection ? '0 0 16px rgba(52, 211, 153, 0.22)' : '0 0 12px rgba(251, 113, 133, 0.15)',
+            boxShadow: protection
+              ? 'inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 16px rgba(0,0,0,0.22), 0 0 0 1px rgba(52, 211, 153, 0.28)'
+              : 'inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.2), 0 0 0 1px rgba(251, 113, 133, 0.28)',
             cursor: protBusy ? 'wait' : 'pointer',
             opacity: protBusy ? 0.75 : 1,
             fontFamily: 'inherit',
@@ -420,6 +431,7 @@ function Widget({ config }: PluginWidgetProps) {
         {running === false && (
           <span
             style={{
+              alignSelf: 'center',
               fontSize: 'clamp(10px, 2.4cqmin, 11px)',
               color: '#fde68a',
               fontWeight: 700,
