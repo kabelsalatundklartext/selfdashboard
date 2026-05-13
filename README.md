@@ -47,8 +47,8 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop | ✅ Included |
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
-| 🖥️ Unraid | System | CPU, RAM, GPU, Array & Pool stats | 🔜 Coming soon |
-| 🎬 Emby | Media | Active sessions — who is watching what | 🔜 Coming soon |
+| 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
+| 🎬 Emby | Media | Active sessions — who is watching what | ✅ Included |
 | 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
 | 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
 | ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
@@ -243,8 +243,8 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, eigenen Icons, Drag & Drop | ✅ Enthalten |
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
-| 🖥️ Unraid | System | CPU, RAM, GPU, Array & Pool Statistiken | 🔜 Bald |
-| 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | 🔜 Bald |
+| 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
+| 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
 | 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
 | 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
 | ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |
