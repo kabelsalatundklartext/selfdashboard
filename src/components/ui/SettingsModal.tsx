@@ -257,6 +257,21 @@ export function SettingsModal({ open, onClose }: Props) {
                               style={{ background: d.id === activeDashboardId ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${d.id === activeDashboardId ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '7px', padding: '5px 10px', cursor: 'pointer', color: d.id === activeDashboardId ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, flexShrink: 0 }}>
                               <ExternalLink size={12} /> {locale === 'de' ? 'Öffnen' : 'Open'}
                             </button>
+                            {/* Tab visibility toggle */}
+                            <button
+                              onClick={() => updateDashboard(d.id, { hideTab: !d.hideTab })}
+                              title={d.hideTab ? (locale === 'de' ? 'In Navbar einblenden' : 'Show in navbar') : (locale === 'de' ? 'In Navbar ausblenden' : 'Hide from navbar')}
+                              style={{
+                                background: d.hideTab ? 'var(--surface-2)' : 'var(--accent)18',
+                                border: `1px solid ${d.hideTab ? 'var(--border)' : 'var(--accent)44'}`,
+                                borderRadius: '7px', padding: '5px 8px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                fontSize: '11px', color: d.hideTab ? 'var(--text-muted)' : 'var(--accent)',
+                                flexShrink: 0, transition: 'all 0.15s', fontWeight: 500,
+                              }}>
+                              <span style={{ fontSize: '13px', lineHeight: 1 }}>{d.hideTab ? '🙈' : '👁️'}</span>
+                              {d.hideTab ? (locale === 'de' ? 'Aus' : 'Off') : (locale === 'de' ? 'Ein' : 'On')}
+                            </button>
                             {/* Edit */}
                             <button onClick={() => setEditingDash(d.id)}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', flexShrink: 0 }}>✏️</button>
