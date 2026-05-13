@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, Netz. Array- und Pool-Zeilen mit Status, Temperatur und Belegung; feine Anzeige-Optionen.',
-  version: '1.3.2',
+  version: '1.3.3',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -458,6 +458,13 @@ function parseNetSpeedJson(raw: unknown): NetSpeedRates | null {
   return { rx, tx, linkMbps: linkMbps > 0 ? Math.min(200_000, Math.round(linkMbps)) : 0 }
 }
 
+/** SelfDashboard lädt die URL serverseitig (kein CORS im Browser). */
+function netSpeedProxyFetchUrl(speedUrl: string) {
+  const t = speedUrl.trim()
+  if (!t) return ''
+  return `/api/net-stats-proxy?target=${encodeURIComponent(t)}`
+}
+
 function flag(config: Record<string, unknown>, key: string, defaultTrue = true) {
   const v = config[key]
   if (v === undefined || v === null) return defaultTrue
@@ -623,7 +630,8 @@ function Widget({ config }: PluginWidgetProps) {
 
       if (showNetSpeed && speedUrl) {
         try {
-          const r = await fetch(speedUrl, { method: 'GET', cache: 'no-store' })
+          const proxied = netSpeedProxyFetchUrl(speedUrl)
+          const r = await fetch(proxied, { method: 'GET', cache: 'no-store' })
           const t = await r.text()
           let parsed: unknown
           try {
@@ -632,9 +640,14 @@ function Widget({ config }: PluginWidgetProps) {
             parsed = null
           }
           const rates = parseNetSpeedJson(parsed)
-          setNetBps(rates)
-          setNetBpsErr(rates ? null : 'JSON unbekannt (erwarte rxBps/txBps)')
-          if (rates) setNetHist((h) => [...h.slice(-35), { rx: rates.rx, tx: rates.tx }])
+          if (!rates && /<\s*html/i.test(t)) {
+            setNetBps(null)
+            setNetBpsErr('Antwort ist HTML (z. B. Unraid-Login) — siehe scripts/unraid/EINFACH.txt für den einfachen Weg (Port 8765).')
+          } else {
+            setNetBps(rates)
+            setNetBpsErr(rates ? null : 'JSON unbekannt (erwarte rxBps/txBps)')
+            if (rates) setNetHist((h) => [...h.slice(-35), { rx: rates.rx, tx: rates.tx }])
+          }
         } catch (e) {
           setNetBpsErr(e instanceof Error ? e.message : 'Netz-Speed-URL')
           setNetBps(null)
@@ -935,12 +948,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               on={sub('showNetSpeedSparkline', true)}
               onToggle={() => onChange('showNetSpeedSparkline', !sub('showNetSpeedSparkline', true))}
             />
-            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>JSON-URL (GET, CORS)</label>
+            <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>JSON-URL (serverseitig, ohne CORS)</label>
             <input
               style={inp}
               value={(config.netSpeedJsonUrl as string) || ''}
               onChange={(e) => onChange('netSpeedJsonUrl', e.target.value)}
-              placeholder="https://unraid/meine-net-stats.json"
+              placeholder="http://192.168.1.10:8765/net-stats.json"
             />
             <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginTop: '10px', marginBottom: '4px' }}>
               Balkenskala max. Mbit/s (0 = JSON linkMbps → API-Text → Verlauf)
@@ -955,15 +968,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               placeholder="0"
             />
             <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
-              JSON (Bytes/s): <code style={{ fontSize: '10px' }}>{`{ "rxBps": …, "txBps": …, "linkMbps": 2500 }`}</code> — optional{' '}
-              <strong>linkMbps</strong> (1&nbsp;Gbit = 1000, 2,5&nbsp;Gbit = 2500, 10&nbsp;Gbit = 10000) für Balken, z. B. aus{' '}
-              <code style={{ fontSize: '10px' }}>ethtool</code>. Die GraphQL-API liefert{' '}
-              <em>keine</em> feste Portgeschwindigkeit; nur falls etwas in <code style={{ fontSize: '10px' }}>description</code> steht, wird
-              versucht, Mbit/s zu erkennen. Unraid-Thema:{' '}
-              <a href="https://github.com/unraid/api/issues/1559" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
-                Host-RX/TX
-              </a>
-              .
+              Trage die volle <strong>http(s)://…</strong>-Adresse ein (nur <strong>private IPv4</strong>, z. B. 192.168.x.x). SelfDashboard holt sie{' '}
+              <strong>serverseitig</strong> über <code style={{ fontSize: '10px' }}>/api/net-stats-proxy</code> — kein CORS im Browser. Die Unraid-Web-Oberfläche
+              liefert <code style={{ fontSize: '10px' }}>/net-stats.json</code> oft mit Login um — deshalb der einfache Weg: kleiner Datei-Server auf extra Port, siehe{' '}
+              <code style={{ fontSize: '10px' }}>scripts/unraid/EINFACH.txt</code>. JSON:{' '}
+              <code style={{ fontSize: '10px' }}>{`{ "rxBps": …, "txBps": …, "linkMbps": 2500 }`}</code> (Bytes/s, linkMbps optional).
             </p>
           </div>
         </div>
