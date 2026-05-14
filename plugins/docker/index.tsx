@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.8',
+  version: '1.6.9',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -654,10 +654,10 @@ function HomarrDockerTable({
   const colWidths =
     !showContainerNames
       ? narrow
-        ? (['44px', '17%', '9%', '46%', '11%'] as const)
+        ? (['40px', '15%', '14%', '38%', '13%'] as const)
         : (['48px', '20%', '17%', '34%', '11%'] as const)
       : narrow
-        ? (['22%', '19%', '10%', '36%', '13%'] as const)
+        ? (['20%', '16%', '13%', '34%', '17%'] as const)
         : (['38%', '11%', '16%', '19%', '16%'] as const)
 
   const headers = narrow
@@ -766,8 +766,6 @@ function HomarrDockerTable({
                     fontWeight: 600,
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                   }}
                 >
                   {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}

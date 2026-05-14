@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.5',
+  version: '0.3.6',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -555,15 +555,15 @@ function Widget({ config }: PluginWidgetProps) {
   const colWidths: string[] = !showContainerNames
     ? col5
       ? narrow
-        ? ['44px', '17%', '9%', '46%', '11%']
+        ? ['40px', '15%', '14%', '38%', '13%']
         : ['48px', '20%', '17%', '34%', '11%']
       : narrow
-        ? ['44px', '18%', '9%', '49%']
+        ? ['40px', '15%', '14%', '46%']
         : ['52px', '22%', '20%', '46%']
     : narrow
       ? col5
-        ? ['22%', '19%', '10%', '36%', '13%']
-        : ['26%', '22%', '10%', '42%']
+        ? ['20%', '16%', '13%', '34%', '17%']
+        : ['24%', '20%', '13%', '43%']
       : col5
         ? ['38%', '11%', '16%', '19%', '16%']
         : ['44%', '12%', '18%', '26%']
@@ -730,8 +730,6 @@ function Widget({ config }: PluginWidgetProps) {
                         fontWeight: 600,
                         color: liveStats && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                       }}
                     >
                       {liveStats ? fmtCpuHomarr(cpuPct, running) : '—'}
