@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from 'graphql-ws'
-import { Square, RotateCw, Play } from 'lucide-react'
+import type { Locale } from '@/lib/i18n'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
@@ -10,28 +10,12 @@ export const meta: PluginMeta = {
   id: 'unraid-docker',
   name: 'Unraid Docker',
   description:
-    'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht mit Icons, Live-CPU/RAM per WebSocket-Subscription (optional abschaltbar).',
-  version: '0.3.0',
+    'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
+  version: '0.3.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
 }
-
-/** GitHub/Unraid-Docker-UI inspired tokens */
-const UD = {
-  bg: '#0d1117',
-  rowA: '#0d1117',
-  rowB: '#161b22',
-  border: '#21262d',
-  header: '#8b949e',
-  text: '#f0f6fc',
-  green: '#3fb950',
-  greenBadge: '#238636',
-  greenBadgeText: '#ffffff',
-  orange: '#d29922',
-  danger: '#f85149',
-  muted: '#6e7681',
-} as const
 
 const LIST_QUERY = `query SelfDashboardUnraidDocker($skipCache: Boolean!) {
   docker {
@@ -87,6 +71,18 @@ interface LiveStat {
   memPercent: number
 }
 
+/** Gleiche Heat-Skala wie `plugins/docker` (Homarr-Tabelle). */
+const HEAT_GREEN = '#22c55e'
+const HEAT_AMBER = '#f59e0b'
+const HEAT_RED = '#ef4444'
+
+function heatColorForPct(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return 'var(--text-muted)'
+  if (p < 12) return HEAT_GREEN
+  if (p < 50) return HEAT_AMBER
+  return HEAT_RED
+}
+
 function graphqlWsUrl(base: string): string {
   const trimmed = base.replace(/\/$/, '')
   const root = trimmed.replace(/\/graphql\/?$/i, '')
@@ -124,15 +120,102 @@ function sortContainers(a: GqlContainer, b: GqlContainer): number {
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
 }
 
-function fmtCpu(p: number | null | undefined): string {
+function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
+  if (!running) return '—'
   if (p == null || !Number.isFinite(p)) return '—'
   if (p < 10) return `${p.toFixed(2)}%`
-  return `${p.toFixed(1)}%`
+  if (p < 100) return `${p.toFixed(1)}%`
+  return `${Math.round(p)}%`
 }
 
-function cpuColor(p: number | null | undefined, warn: number): string {
-  if (p == null || !Number.isFinite(p)) return UD.muted
-  return p >= warn ? UD.orange : UD.green
+function stateBadgeLabel(state: string | undefined, locale: Locale): string {
+  const s = (state ?? '').toLowerCase()
+  const de = locale !== 'en'
+  if (s === 'running') return de ? 'Aktiv' : 'Running'
+  if (s === 'exited' || s === 'dead') return de ? 'Aus' : 'Off'
+  if (s === 'paused') return de ? 'Pause' : 'Paused'
+  if (s === 'restarting') return de ? 'Warte' : 'Wait'
+  const raw = (state ?? '').trim()
+  if (!raw) return de ? '?' : '?'
+  return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
+}
+
+function stateBadgeStyle(state: string | undefined): React.CSSProperties {
+  const base: React.CSSProperties = {
+    display: 'inline-block',
+    fontWeight: 600,
+    fontSize: '8px',
+    letterSpacing: '0.02em',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    whiteSpace: 'nowrap',
+    lineHeight: 1.2,
+    textTransform: 'none',
+  }
+  const s = (state ?? '').toLowerCase()
+  if (s === 'running') {
+    return { ...base, background: '#15803d', color: '#fff' }
+  }
+  if (s === 'exited' || s === 'dead') {
+    return { ...base, background: '#7f1d1d', color: '#fecaca' }
+  }
+  if (s === 'paused') {
+    return { ...base, background: '#854d0e', color: '#fef08a' }
+  }
+  return { ...base, background: 'var(--border)', color: 'var(--text-muted)' }
+}
+
+const ACTION_ICON = '#b91c1c'
+
+function IconStop({ disabled }: { disabled?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden style={{ opacity: disabled ? 0.35 : 1 }}>
+      <rect x="6" y="6" width="12" height="12" rx="2" fill={ACTION_ICON} />
+    </svg>
+  )
+}
+
+function IconPlay({ disabled }: { disabled?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden style={{ opacity: disabled ? 0.35 : 1 }}>
+      <path d="M8 5v14l11-7z" fill={ACTION_ICON} />
+    </svg>
+  )
+}
+
+function IconRestart({ disabled: _disabled }: { disabled?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        color: ACTION_ICON,
+        fontSize: '15px',
+        fontWeight: 800,
+        lineHeight: 1,
+        opacity: _disabled ? 0.35 : 1,
+        transform: 'scaleX(-1)',
+      }}
+    >
+      ↻
+    </span>
+  )
+}
+
+function fmtUpdatedAgo(ts: number | null, locale: Locale): string {
+  if (ts == null) return ''
+  const de = locale !== 'en'
+  const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000))
+  if (sec < 8) return de ? 'Gerade aktualisiert' : 'Updated just now'
+  if (sec < 60) return de ? `Vor ${sec}s aktualisiert` : `Updated ${sec}s ago`
+  const m = Math.floor(sec / 60)
+  if (m < 60) return de ? `Vor ${m} Min. aktualisiert` : `Updated ${m} min ago`
+  const h = Math.floor(m / 60)
+  return de ? `Vor ${h} Std. aktualisiert` : `Updated ${h}h ago`
 }
 
 async function graphql<T>(
@@ -169,7 +252,7 @@ async function graphql<T>(
 }
 
 function Widget({ config }: PluginWidgetProps) {
-  const { de } = usePluginLocale()
+  const { locale, de } = usePluginLocale()
   const url = String((config as Record<string, unknown>).url ?? '')
     .trim()
     .replace(/\/$/, '')
@@ -178,7 +261,6 @@ function Widget({ config }: PluginWidgetProps) {
   const skipCache = (config as Record<string, unknown>).skipCache === true
   const allowActions = (config as Record<string, unknown>).allowActions === true
   const liveStats = (config as Record<string, unknown>).liveStats !== false
-  const cpuWarn = Math.min(100, Math.max(5, Number((config as Record<string, unknown>).cpuWarnPct) || 25))
   const refresh = (Number((config as Record<string, unknown>).refreshInterval) || 20) * 1000
   const maxRows = Math.min(200, Math.max(5, Number((config as Record<string, unknown>).maxRows) || 60))
 
@@ -188,6 +270,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
   const latest = useRef(0)
 
   const fetch_ = useCallback(async () => {
@@ -211,6 +294,7 @@ function Widget({ config }: PluginWidgetProps) {
       const sorted = rows.slice().sort(sortContainers).slice(0, maxRows)
       setList(sorted)
       setError(null)
+      setLastFetchOk(Date.now())
     } catch (e: unknown) {
       if (latest.current === id) {
         setError(e instanceof Error ? e.message : String(e))
@@ -334,26 +418,61 @@ function Widget({ config }: PluginWidgetProps) {
     [runMutation, fetch_, de],
   )
 
-  const shell = useMemo(
-    (): React.CSSProperties => ({
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minHeight: 0,
-      minWidth: 0,
-      background: UD.bg,
-      color: UD.text,
-      borderRadius: '12px',
-      overflow: 'hidden',
-      fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Inter, sans-serif',
-      fontSize: '13px',
-    }),
-    [],
-  )
+  const shell: React.CSSProperties = {
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+    padding: 0,
+    containerType: 'size',
+    minWidth: 0,
+    width: '100%',
+    overflow: 'hidden',
+  }
+
+  const scrollBody: React.CSSProperties = {
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    padding: '6px 10px 4px',
+  }
+
+  const thStyle: React.CSSProperties = {
+    textAlign: 'left',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.07em',
+    textTransform: 'uppercase',
+    color: 'var(--text-muted)',
+    padding: '6px 8px',
+    borderBottom: '1px solid var(--border)',
+    whiteSpace: 'nowrap',
+  }
+
+  const tdCompact: React.CSSProperties = {
+    padding: '5px 8px',
+    verticalAlign: 'middle',
+    borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
+    fontSize: '11px',
+    lineHeight: 1.3,
+  }
+
+  const iconAct: React.CSSProperties = {
+    border: 'none',
+    background: 'transparent',
+    padding: '4px',
+    cursor: 'pointer',
+    borderRadius: '6px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: 0,
+  }
 
   if (!url || !apiKey) {
     return (
-      <div style={{ ...shell, padding: '16px', justifyContent: 'center', textAlign: 'center', color: UD.muted, fontSize: '12px', lineHeight: 1.55 }}>
+      <div style={{ ...shell, padding: '12px', justifyContent: 'center', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', lineHeight: 1.55 }}>
         {de ? (
           <>
             {'URL & API-Key'}
@@ -373,52 +492,60 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (loading && list.length === 0) {
     return (
-      <div style={{ ...shell, padding: '14px' }}>
-        <div className="skeleton" style={{ height: 10, width: '70%', borderRadius: 4, marginBottom: 8, background: UD.rowB }} />
-        <div className="skeleton" style={{ height: 10, width: '55%', borderRadius: 4, background: UD.rowB }} />
+      <div style={shell}>
+        <div style={{ ...scrollBody, padding: '10px 12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {[70, 55, 80, 50].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div style={{ ...shell, padding: '14px', color: UD.danger, fontSize: '12px', lineHeight: 1.45 }}>
-        {error}
-        <p style={{ marginTop: 10, color: UD.muted, fontSize: '11px' }}>
-          {de
-            ? 'API-Key: Docker lesen/schreiben. WebSocket (wss/ws) muss zu Unraid erreichbar sein für Live-CPU/RAM.'
-            : 'API key: Docker read/write. WebSocket (wss/ws) must reach Unraid for live CPU/RAM.'}
-        </p>
+      <div style={{ ...shell, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...scrollBody, padding: '12px', color: '#ef4444', fontSize: '12px', lineHeight: 1.45 }}>
+          {error}
+          <p style={{ marginTop: 10, color: 'var(--text-muted)', fontSize: '11px' }}>
+            {de
+              ? 'API-Key: Docker lesen/schreiben. WebSocket (wss/ws) muss zu Unraid erreichbar sein für Live-CPU/RAM.'
+              : 'API key: Docker read/write. WebSocket (wss/ws) must reach Unraid for live CPU/RAM.'}
+          </p>
+        </div>
       </div>
     )
   }
 
-  const thStyle: React.CSSProperties = {
-    textAlign: 'left',
-    fontSize: '11px',
-    fontWeight: 600,
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-    color: UD.header,
-    padding: '10px 12px',
-    borderBottom: `1px solid ${UD.border}`,
-    background: UD.bg,
-    whiteSpace: 'nowrap',
-  }
+  const actionCols = allowActions ? 1 : 0
 
   return (
     <div style={shell}>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+      <div style={scrollBody}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            tableLayout: 'fixed',
+            minWidth: 0,
+          }}
+        >
+          <colgroup>
+            <col style={{ width: allowActions ? '38%' : '44%' }} />
+            <col style={{ width: allowActions ? '11%' : '12%' }} />
+            <col style={{ width: allowActions ? '16%' : '18%' }} />
+            <col style={{ width: allowActions ? '19%' : '26%' }} />
+            {allowActions ? <col style={{ width: '16%' }} /> : null}
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: '36%' }}>{de ? 'Name' : 'Name'}</th>
-              <th style={{ ...thStyle, width: '12%', textAlign: 'center' }}>{de ? 'Status' : 'Status'}</th>
-              <th style={{ ...thStyle, width: '11%', textAlign: 'right' }}>CPU</th>
-              <th style={{ ...thStyle, width: '18%', textAlign: 'right' }}>{de ? 'Speicher' : 'Memory'}</th>
-              {allowActions ? (
-                <th style={{ ...thStyle, width: '14%', textAlign: 'right', paddingRight: '14px' }}>{de ? 'Aktionen' : 'Actions'}</th>
-              ) : null}
+              <th style={thStyle}>{de ? 'Name' : 'Name'}</th>
+              <th style={{ ...thStyle, textAlign: 'center' }}>{de ? 'Status' : 'State'}</th>
+              <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>CPU</th>
+              <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{de ? 'Speicher' : 'Memory'}</th>
+              {allowActions ? <th style={{ ...thStyle, textAlign: 'right' }}>{de ? 'Aktionen' : 'Actions'}</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -429,41 +556,68 @@ function Widget({ config }: PluginWidgetProps) {
               const paused = isPausedState(c.state)
               const stLower = graphqlStateLower(c.state)
               const busy = busyId === cid
-              const rowBg = i % 2 === 0 ? UD.rowA : UD.rowB
+              const zebra =
+                i % 2 === 0
+                  ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
+                  : 'color-mix(in srgb, var(--text) 2%, var(--background))'
               const st = statsById[cid]
-              const cpuVal = running ? st?.cpuPercent : null
+              const cpuPct = st?.cpuPercent ?? null
+              const memPct = st?.memPercent ?? null
               const memStr = running && st?.memUsage ? st.memUsage : '—'
-
               const iconSrc = (c.iconUrl ?? '').trim()
+              const tip = [name, c.state, (c.status ?? '').trim(), (c.image ?? '').split(':')[0]].filter(Boolean).join('\n')
+
+              const avatarBox = (inner: React.ReactNode) => (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 8,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {inner}
+                </span>
+              )
+
               return (
-                <tr key={cid || `${name}-${i}`} style={{ background: rowBg }}>
-                  <td style={{ padding: '8px 12px', verticalAlign: 'middle', borderBottom: `1px solid ${UD.border}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          flexShrink: 0,
-                          background: UD.rowB,
-                          border: `1px solid ${UD.border}`,
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {iconSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={iconSrc} alt="" style={{ width: 32, height: 32, objectFit: 'cover' }} loading="lazy" />
-                        ) : (
-                          <span style={{ fontSize: 16, opacity: 0.85 }}>🐳</span>
-                        )}
-                      </div>
+                <tr key={cid || `${name}-${i}`} style={{ background: zebra }} title={tip}>
+                  <td style={{ ...tdCompact, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      {iconSrc
+                        ? avatarBox(
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={iconSrc}
+                              alt=""
+                              width={24}
+                              height={24}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                              style={{
+                                width: 24,
+                                height: 24,
+                                objectFit: 'contain',
+                                display: 'block',
+                                background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
+                              }}
+                            />,
+                          )
+                        : avatarBox(
+                            <span style={{ fontSize: 14, lineHeight: 1, background: 'var(--surface)', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              🐳
+                            </span>,
+                          )}
                       <span
                         style={{
                           fontWeight: 600,
-                          color: UD.text,
+                          color: 'var(--text)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -474,127 +628,55 @@ function Widget({ config }: PluginWidgetProps) {
                       </span>
                     </div>
                   </td>
-                  <td style={{ padding: '8px 8px', verticalAlign: 'middle', borderBottom: `1px solid ${UD.border}`, textAlign: 'center' }}>
-                    {stLower === 'running' ? (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          fontWeight: 600,
-                          fontSize: '11px',
-                          padding: '3px 10px',
-                          borderRadius: 999,
-                          background: UD.greenBadge,
-                          color: UD.greenBadgeText,
-                        }}
-                      >
-                        {de ? 'Aktiv' : 'Active'}
-                      </span>
-                    ) : stLower === 'paused' ? (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          fontWeight: 600,
-                          fontSize: '11px',
-                          padding: '3px 10px',
-                          borderRadius: 999,
-                          background: UD.orange,
-                          color: '#1a1204',
-                        }}
-                      >
-                        {de ? 'Pause' : 'Paused'}
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          fontWeight: 600,
-                          fontSize: '11px',
-                          padding: '3px 10px',
-                          borderRadius: 999,
-                          background: '#30363d',
-                          color: UD.muted,
-                        }}
-                      >
-                        {de ? 'Aus' : 'Off'}
-                      </span>
-                    )}
+                  <td style={{ ...tdCompact, textAlign: 'center' }}>
+                    <span style={stateBadgeStyle(stLower)}>{stateBadgeLabel(stLower, locale)}</span>
                   </td>
                   <td
                     style={{
-                      padding: '8px 12px',
-                      verticalAlign: 'middle',
-                      borderBottom: `1px solid ${UD.border}`,
+                      ...tdCompact,
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 500,
-                      color: cpuColor(cpuVal, cpuWarn),
+                      fontWeight: 600,
+                      color: liveStats && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                     }}
                   >
-                    {running ? fmtCpu(cpuVal) : '—'}
+                    {liveStats ? fmtCpuHomarr(cpuPct, running) : '—'}
                   </td>
                   <td
                     style={{
-                      padding: '8px 12px',
-                      verticalAlign: 'middle',
-                      borderBottom: `1px solid ${UD.border}`,
+                      ...tdCompact,
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 500,
-                      color: running && memStr !== '—' ? UD.green : UD.muted,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      fontWeight: 600,
+                      color: liveStats && running && memStr !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
+                      wordBreak: 'break-word',
                     }}
                     title={memStr}
                   >
                     {memStr}
                   </td>
                   {allowActions ? (
-                    <td style={{ padding: '8px 12px', verticalAlign: 'middle', borderBottom: `1px solid ${UD.border}`, textAlign: 'right' }}>
+                    <td style={{ ...tdCompact, textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {cid ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                           {!running && !paused ? (
-                            <button
-                              type="button"
-                              title={de ? 'Start' : 'Start'}
-                              disabled={busy}
-                              onClick={() => void doAction(cid, 'start', name)}
-                              style={iconBtn}
-                            >
-                              <Play size={18} strokeWidth={2.2} />
+                            <button type="button" style={iconAct} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
+                              <IconPlay disabled={busy} />
                             </button>
                           ) : null}
                           {paused ? (
-                            <button
-                              type="button"
-                              title={de ? 'Fortsetzen' : 'Resume'}
-                              disabled={busy}
-                              onClick={() => void doAction(cid, 'unpause', name)}
-                              style={iconBtn}
-                            >
-                              <Play size={18} strokeWidth={2.2} />
+                            <button type="button" style={iconAct} title={de ? 'Fortsetzen' : 'Resume'} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
+                              <IconPlay disabled={busy} />
                             </button>
                           ) : null}
                           {running || paused ? (
                             <>
-                              <button
-                                type="button"
-                                title={de ? 'Stopp' : 'Stop'}
-                                disabled={busy}
-                                onClick={() => void doAction(cid, 'stop', name)}
-                                style={iconBtn}
-                              >
-                                <Square size={17} fill="currentColor" strokeWidth={0} />
+                              <button type="button" style={iconAct} title={de ? 'Stopp' : 'Stop'} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
+                                <IconStop disabled={busy} />
                               </button>
                               {running ? (
-                                <button
-                                  type="button"
-                                  title={de ? 'Neustart' : 'Restart'}
-                                  disabled={busy}
-                                  onClick={() => void doAction(cid, 'restart', name)}
-                                  style={iconBtn}
-                                >
-                                  <RotateCw size={18} strokeWidth={2.2} />
+                                <button type="button" style={iconAct} title={de ? 'Neustart' : 'Restart'} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
+                                  <IconRestart disabled={busy} />
                                 </button>
                               ) : null}
                             </>
@@ -611,58 +693,38 @@ function Widget({ config }: PluginWidgetProps) {
           </tbody>
         </table>
         {list.length === 0 ? (
-          <p style={{ fontSize: '12px', color: UD.muted, padding: '14px 16px' }}>{de ? 'Keine Container.' : 'No containers.'}</p>
+          <p style={{ fontSize: 'clamp(9px, 2.6cqmin, 11px)', color: 'var(--text-muted)', margin: '8px 0 0' }}>{de ? 'Keine Container.' : 'No containers.'}</p>
         ) : null}
       </div>
       <div
         style={{
           flexShrink: 0,
-          padding: '8px 14px',
-          borderTop: `1px solid ${UD.border}`,
-          fontSize: '11px',
-          color: UD.muted,
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          gap: 8,
-          background: UD.rowB,
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '8px 12px',
+          borderTop: '1px solid var(--border)',
+          background: 'color-mix(in srgb, var(--surface) 90%, var(--background))',
+          fontSize: '11px',
+          color: 'var(--text-muted)',
         }}
       >
-        <span>
-          {de ? 'Gesamt' : 'Total'} {list.length} {de ? 'Container' : 'containers'}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span aria-hidden style={{ fontSize: '15px', lineHeight: 1 }}>
+            🧱
+          </span>
+          <span>
+            {de ? 'Gesamt' : 'Total'} {list.length}{' '}
+            {list.length === 1 ? (de ? 'Container' : 'container') : de ? 'Container' : 'containers'}
+          </span>
         </span>
-        <span style={{ textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {liveStats ? (
-            statsErr ? (
-              <span style={{ color: UD.orange }} title={statsErr}>
-                {de ? 'Live-Stats: ' : 'Live: '}
-                {statsErr.slice(0, 42)}
-                {statsErr.length > 42 ? '…' : ''}
-              </span>
-            ) : (
-              <span>{de ? 'Live-CPU/RAM (WebSocket)' : 'Live CPU/RAM (WebSocket)'}</span>
-            )
-          ) : (
-            <span>{de ? 'Live-Stats aus' : 'Live stats off'}</span>
-          )}
+        <span style={{ whiteSpace: 'nowrap', flexShrink: 0, textAlign: 'right' }}>
+          {liveStats ? statsErr || fmtUpdatedAgo(lastFetchOk, locale) : de ? 'Live-Stats aus' : 'Live stats off'}
         </span>
       </div>
     </div>
   )
-}
-
-const iconBtn: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  padding: 0,
-  margin: 0,
-  cursor: 'pointer',
-  color: UD.danger,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  opacity: 0.95,
-  lineHeight: 0,
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
@@ -687,8 +749,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
         {de
-          ? 'Design orientiert sich an der Unraid-/GitHub-Docker-Tabelle. Icons kommen aus iconUrl der API. CPU/RAM laufen über die Subscription dockerContainerStats (WebSocket).'
-          : 'Visual style matches the Unraid/GitHub-style Docker table. Icons use API iconUrl. CPU/RAM use the dockerContainerStats subscription (WebSocket).'}
+          ? 'Darstellung wie beim Docker-Plugin (Homarr-Tabelle): kompakte Zeilen, Heat-Farben für CPU/RAM. Daten von Unraid GraphQL + optional WebSocket-Stats.'
+          : 'Same compact Homarr-style table as the Docker plugin, with heat colors for CPU/RAM. Data from Unraid GraphQL + optional WebSocket stats.'}
       </p>
       <div>
         <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
@@ -702,21 +764,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.liveStats !== false} onChange={(e) => onChange('liveStats', e.target.checked)} />
-        {de ? 'Live-CPU/RAM (WebSocket-Subscription)' : 'Live CPU/RAM (WebSocket subscription)'}
+        {de ? 'Live-CPU/RAM (WebSocket)' : 'Live CPU/RAM (WebSocket)'}
       </label>
-      <div>
-        <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-          {de ? 'CPU-Warnfarbe ab %' : 'CPU warning color from %'}
-        </label>
-        <input
-          style={inp}
-          type="number"
-          min={5}
-          max={99}
-          value={Number.isFinite(Number(r.cpuWarnPct)) ? Number(r.cpuWarnPct) : 25}
-          onChange={(e) => onChange('cpuWarnPct', e.target.value === '' ? 25 : Number(e.target.value))}
-        />
-      </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.showStopped === true} onChange={(e) => onChange('showStopped', e.target.checked)} />
         {de ? 'Gestoppte Container (EXITED) anzeigen' : 'Show stopped (EXITED) containers'}
@@ -727,7 +776,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.allowActions === true} onChange={(e) => onChange('allowActions', e.target.checked)} />
-        {de ? 'Aktionen (Icons)' : 'Actions (icons)'}
+        {de ? 'Aktionen' : 'Actions'}
       </label>
       <div>
         <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
