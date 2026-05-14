@@ -1,12 +1,15 @@
 'use client'
 
 import {
+  ArrowDown,
   ArrowDownCircle,
+  ArrowUp,
   ArrowUpCircle,
   Gauge,
   Globe,
   GripVertical,
   Router,
+  TrendingUp,
   Users,
   Wifi,
   type LucideIcon,
@@ -20,8 +23,8 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'FRITZ!Box WAN: Kacheln im Dashboard-Bearbeiten per Griff sortieren, Grafik-Höhe & Kachelgröße in den Einstellungen. Mbit/s.',
-  version: '1.3.2',
+    'FRITZ!Box WAN: Kacheln sortieren (Bearbeiten), Verlauf mit Ø/Peak wie Referenz (blau/grün), Grafik-Höhe & Kachelgröße in den Einstellungen.',
+  version: '1.4.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -56,7 +59,7 @@ export const meta: PluginMeta = {
       key: 'throughputChartHeightPx',
       label: 'Verlauf: Grafik-Höhe (px)',
       type: 'number',
-      defaultValue: 152,
+      defaultValue: 168,
       placeholder: '80–220',
     },
     {
@@ -101,6 +104,30 @@ function formatMbps(bps: number | null, de: boolean): string {
   const mbps = bps / 1_000_000
   const s = mbps >= 100 ? String(Math.round(mbps)) : mbps.toFixed(1)
   return de ? `${s.replace('.', ',')} Mbit/s` : `${s} Mbit/s`
+}
+
+/** Obere Y-Achse in Mbit/s auf „schöne“ Stufe runden (5er/10er). */
+function niceCeilMbpsFromBps(peakBps: number): number {
+  const mb = peakBps / 1_000_000
+  if (!Number.isFinite(mb) || mb <= 0) return 5
+  const step = mb <= 40 ? 5 : mb <= 100 ? 10 : 25
+  return Math.max(step, Math.ceil(mb / step) * step)
+}
+
+function mbpsTickList(maxMbps: number): number[] {
+  let step = maxMbps <= 40 ? 5 : maxMbps <= 100 ? 10 : 25
+  const build = (s: number) => {
+    const out: number[] = []
+    for (let v = maxMbps; v > 0; v -= s) out.push(v)
+    out.push(0)
+    return out
+  }
+  let out = build(step)
+  if (out.length > 11) {
+    step *= 2
+    out = build(step)
+  }
+  return out
 }
 
 function formatUptime(sec: number | null, de: boolean): string {
@@ -277,11 +304,68 @@ function FritzTileSlot({
   )
 }
 
+const FB_CHART_DL = '#3b82f6'
+const FB_CHART_UL = '#22c55e'
+
+function ThroughputStatPill({
+  icon: Icon,
+  label,
+  valueStr,
+  accent,
+}: {
+  icon: LucideIcon
+  label: string
+  valueStr: string
+  accent: string
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
+        background: 'rgba(0,0,0,0.22)',
+        padding: '8px 8px 10px',
+        minWidth: 0,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px', minWidth: 0 }}>
+        <Icon size={13} strokeWidth={2.25} style={{ color: accent, flexShrink: 0 }} aria-hidden />
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            color: accent,
+            letterSpacing: '0.04em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <div
+        className="tabular-nums"
+        style={{
+          fontSize: 'clamp(12px, 3.1cqmin, 1rem)',
+          fontWeight: 800,
+          color: 'var(--text)',
+          fontVariantNumeric: 'tabular-nums',
+          lineHeight: 1.15,
+        }}
+      >
+        {valueStr}
+      </div>
+    </div>
+  )
+}
+
 function ThroughputHistoryChart({
   history,
   current,
   de,
-  chartHeightPx = 152,
+  chartHeightPx = 168,
 }: {
   history: { down: number; up: number }[]
   current: { down: number; up: number } | null
@@ -291,40 +375,55 @@ function ThroughputHistoryChart({
 }) {
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
-  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 152))
+  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 168))
   const last = history[history.length - 1]!
   const downCur = current?.down ?? last.down
   const upCur = current?.up ?? last.up
 
-  /** Nur Geometrie — Beschriftung liegt als HTML außerhalb (kein Stretch der Schrift). */
+  const n = history.length
+  const sumDown = history.reduce((a, h) => a + h.down, 0)
+  const sumUp = history.reduce((a, h) => a + h.up, 0)
+  const avgDownBps = sumDown / n
+  const avgUpBps = sumUp / n
+  const peakDownBps = Math.max(...history.map((h) => h.down), downCur)
+  const peakUpBps = Math.max(...history.map((h) => h.up), upCur)
+
+  const rawPeakBps = Math.max(1, ...history.flatMap((h) => [h.down, h.up]), downCur, upCur)
+  const maxMbps = niceCeilMbpsFromBps(rawPeakBps)
+  const scaleBps = maxMbps * 1_000_000
+  const ticks = mbpsTickList(maxMbps)
+
   const UW = 1000
   const UH = 100
-  const maxY = Math.max(1_000_000, ...history.map((h) => Math.max(h.down, h.up)))
-  const midY = maxY / 2
-
   const xAt = (i: number) =>
     history.length <= 1 ? UW / 2 : (i / (history.length - 1)) * UW
-  const yAt = (bps: number) => UH - (bps / maxY) * UH
+  const yAt = (bps: number) => UH - (bps / scaleBps) * UH
 
   const downPts = history.map((p, i) => `${xAt(i)},${yAt(p.down)}`).join(' ')
   const upPts = history.map((p, i) => `${xAt(i)},${yAt(p.up)}`).join(' ')
   const downArea = `0,${UH} ${downPts} ${UW},${UH}`
-  const upArea = `0,${UH} ${upPts} ${UW},${UH}`
 
-  const fmtMbits = (bps: number) => {
-    const mbps = bps / 1_000_000
-    const s = mbps >= 10 ? String(Math.round(mbps)) : mbps.toFixed(1)
+  const fmtMbAxis = (mb: number) => {
+    if (Number.isInteger(mb)) return String(mb)
+    const s = mb.toFixed(1)
     return de ? s.replace('.', ',') : s
   }
 
   const curDownStr = formatMbps(downCur, de)
   const curUpStr = formatMbps(upCur, de)
+  const avgDownStr = formatMbps(avgDownBps, de)
+  const avgUpStr = formatMbps(avgUpBps, de)
+  const peakDownStr = formatMbps(peakDownBps, de)
+  const peakUpStr = formatMbps(peakUpBps, de)
+
   const labelMuted: CSSProperties = {
     fontSize: '9px',
     color: 'var(--text-muted)',
     fontVariantNumeric: 'tabular-nums',
-    lineHeight: 1.2,
+    lineHeight: 1.15,
   }
+
+  const scaleCapStr = de ? `${fmtMbAxis(maxMbps)} Mb` : `${fmtMbAxis(maxMbps)} Mb`
 
   return (
     <div
@@ -333,25 +432,89 @@ function ThroughputHistoryChart({
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: '6px 8px 6px',
+        padding: '8px 10px 10px',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '5px' }}>
-        <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'flex-start',
+          gap: '8px 14px',
+          marginBottom: '8px',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.07em',
+            paddingTop: '2px',
+          }}
+        >
           {de ? 'Durchsatz-Verlauf' : 'Throughput history'}
         </span>
-        <div style={{ textAlign: 'right', minWidth: 0, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px 8px' }}>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>↓ {curDownStr}</span>
-          <span style={{ fontSize: '10px', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>↑ {curUpStr}</span>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '14px 20px',
+            flex: '1 1 160px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <svg width={22} height={5} viewBox="0 0 22 5" aria-hidden style={{ flexShrink: 0 }}>
+              <line x1={0} y1={2.5} x2={22} y2={2.5} stroke={FB_CHART_DL} strokeWidth={2.5} strokeLinecap="round" />
+            </svg>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text)' }}>
+              {de ? 'Download' : 'Download'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <svg width={22} height={5} viewBox="0 0 22 5" aria-hidden style={{ flexShrink: 0 }}>
+              <line
+                x1={0}
+                y1={2.5}
+                x2={22}
+                y2={2.5}
+                stroke={FB_CHART_UL}
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeDasharray="4 3"
+              />
+            </svg>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text)' }}>
+              {de ? 'Upload' : 'Upload'}
+            </span>
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '10px 14px',
+            marginLeft: 'auto',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 700, color: FB_CHART_DL, fontVariantNumeric: 'tabular-nums' }}>
+            ↓ {curDownStr}
+          </span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: FB_CHART_UL, fontVariantNumeric: 'tabular-nums' }}>
+            ↑ {curUpStr}
+          </span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: '6px', minHeight: `${hPx}px` }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: `${hPx}px` }}>
         <div
           style={{
             flexShrink: 0,
-            width: '38px',
+            width: '44px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -361,17 +524,13 @@ function ThroughputHistoryChart({
           }}
           aria-hidden
         >
-          <span style={labelMuted} title={formatMbps(maxY, de)}>
-            {fmtMbits(maxY)}
-          </span>
-          <span style={{ ...labelMuted, opacity: 0.9 }} title={formatMbps(midY, de)}>
-            {fmtMbits(midY)}
-          </span>
-          <span style={{ ...labelMuted, fontWeight: 600 }} title={de ? '0 Mbit/s' : '0 Mbit/s'}>
-            0
-          </span>
+          {ticks.map((mb) => (
+            <span key={mb} style={labelMuted} title={formatMbps(mb * 1_000_000, de)}>
+              {fmtMbAxis(mb)} Mb
+            </span>
+          ))}
         </div>
-        <div style={{ flex: 1, minWidth: 0, borderRadius: '6px', overflow: 'hidden', background: 'rgba(0,0,0,0.12)' }}>
+        <div style={{ flex: 1, minWidth: 0, borderRadius: '8px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)' }}>
           <svg
             viewBox={`0 0 ${UW} ${UH}`}
             preserveAspectRatio="none"
@@ -382,21 +541,29 @@ function ThroughputHistoryChart({
           >
             <defs>
               <linearGradient id={`fbDownFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#34d399" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
-              </linearGradient>
-              <linearGradient id={`fbUpFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.16" />
-                <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+                <stop offset="0%" stopColor={FB_CHART_DL} stopOpacity="0.38" />
+                <stop offset="100%" stopColor={FB_CHART_DL} stopOpacity="0.04" />
               </linearGradient>
             </defs>
-            <line x1={0} y1={yAt(midY)} x2={UW} y2={yAt(midY)} stroke="var(--border)" strokeWidth="0.6" strokeDasharray="3 4" opacity={0.55} vectorEffect="non-scaling-stroke" />
-            <line x1={0} y1={UH} x2={UW} y2={UH} stroke="var(--border)" strokeWidth="0.8" opacity={0.45} vectorEffect="non-scaling-stroke" />
+            {ticks
+              .filter((mb) => mb > 0)
+              .map((mb) => (
+                <line
+                  key={`g-${mb}`}
+                  x1={0}
+                  y1={yAt(mb * 1_000_000)}
+                  x2={UW}
+                  y2={yAt(mb * 1_000_000)}
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="0.7"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            <line x1={0} y1={UH} x2={UW} y2={UH} stroke="rgba(255,255,255,0.1)" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
             <polygon points={downArea} fill={`url(#fbDownFill-${gid})`} stroke="none" />
-            <polygon points={upArea} fill={`url(#fbUpFill-${gid})`} stroke="none" />
             <polyline
               fill="none"
-              stroke="#34d399"
+              stroke={FB_CHART_DL}
               strokeWidth="2"
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -405,19 +572,68 @@ function ThroughputHistoryChart({
             />
             <polyline
               fill="none"
-              stroke="#38bdf8"
+              stroke={FB_CHART_UL}
               strokeWidth="2"
               strokeLinejoin="round"
               strokeLinecap="round"
+              strokeDasharray="5 4"
               points={upPts}
               vectorEffect="non-scaling-stroke"
             />
           </svg>
         </div>
       </div>
-      <p style={{ margin: '4px 0 0', textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.85, letterSpacing: '0.02em' }}>
-        {de ? 'älter ←  → neuer' : 'older ←  → newer'}
-      </p>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          marginTop: '6px',
+          paddingLeft: '52px',
+        }}
+      >
+        <span style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88 }}>
+          {de ? 'älter ←  → neuer' : 'older ←  → newer'}
+        </span>
+        <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+          {scaleCapStr}
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(108px, 1fr))',
+          gap: '6px',
+          marginTop: '10px',
+        }}
+      >
+        <ThroughputStatPill
+          icon={ArrowDown}
+          label={de ? 'Ø Download' : 'Avg download'}
+          valueStr={avgDownStr}
+          accent={FB_CHART_DL}
+        />
+        <ThroughputStatPill
+          icon={ArrowUp}
+          label={de ? 'Ø Upload' : 'Avg upload'}
+          valueStr={avgUpStr}
+          accent={FB_CHART_UL}
+        />
+        <ThroughputStatPill
+          icon={TrendingUp}
+          label={de ? 'Peak Down' : 'Peak down'}
+          valueStr={peakDownStr}
+          accent={FB_CHART_DL}
+        />
+        <ThroughputStatPill
+          icon={TrendingUp}
+          label={de ? 'Peak Up' : 'Peak up'}
+          valueStr={peakUpStr}
+          accent={FB_CHART_UL}
+        />
+      </div>
     </div>
   )
 }
@@ -545,7 +761,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   })()
 
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
-  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 152))
+  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 168))
   const tileDensity = r.tileSize === 'large' ? 'large' : 'default'
   const allowReorder = editMode === true && cfgBool(r, 'uiReorderTilesInEdit', true)
   const tileOrder = useMemo(() => normalizeFritzTileOrder(r), [r.fritzTileOrder])
