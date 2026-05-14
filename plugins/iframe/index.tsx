@@ -42,6 +42,15 @@ function iframeStrings(de: boolean) {
     settingsFootnote: de
       ? 'Hinweis: Bleibt die Vorschau leer, sendet die Zielseite evtl. X-Frame-Options — dann „Einbetten“ aus und nur per Link öffnen (oder Reverse-Proxy auf dieselbe Origin).'
       : 'If the preview stays blank, the target may send X-Frame-Options — turn off “Embed” and use link mode (or reverse-proxy under the same origin).',
+
+    viewportLabel: de ? 'Ansicht (Viewport)' : 'View (viewport)',
+    viewportAuto: de ? 'Automatisch (volle Widget-Breite)' : 'Automatic (full widget width)',
+    viewportMobile: de ? 'Immer mobil (schmale Spalte)' : 'Always mobile (narrow column)',
+    viewportDesktop: de ? 'Immer Desktop (breit, ggf. horizontal scrollen)' : 'Always desktop (wide; may scroll horizontally)',
+    viewportHelp: de
+      ? '„Mobil“ zentriert eine schmale iframe-Breite — viele Seiten schalten dann auf die mobile Ansicht. „Desktop“ erzwingt mindestens 1280 px Breite für eingebettete Layouts. Kein Ersatz für echte Geräte-Emulation (User-Agent).'
+      : '“Mobile” centers a narrow iframe so many sites switch to a mobile layout. “Desktop” forces at least 1280px width. This is not full device emulation (user-agent).',
+    mobileWidthLabel: de ? 'Mobile Breite (px)' : 'Mobile width (px)',
   }
 }
 
@@ -49,8 +58,8 @@ export const meta: PluginMeta = {
   id: 'iframe',
   name: 'Iframe',
   description:
-    'Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding.',
-  version: '2.0.1',
+    'Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.',
+  version: '2.1.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🖼️',
@@ -66,11 +75,29 @@ function normalizeUrl(raw: string): string {
   return /^https?:\/\//i.test(s) ? s : `http://${s}`
 }
 
+type ViewportMode = 'auto' | 'mobile' | 'desktop'
+
+function parseViewportMode(v: unknown): ViewportMode {
+  if (v === 'mobile' || v === 'desktop' || v === 'auto') return v
+  return 'auto'
+}
+
+const DESKTOP_FRAME_MIN_WIDTH = 1280
+
+function clampMobileFrameWidth(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return 390
+  return Math.min(480, Math.max(320, Math.round(n)))
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const s = useMemo(() => iframeStrings(de), [de])
   const url = normalizeUrl(str(config.url))
   const embed = config.embed !== false
+  const r = config as Record<string, unknown>
+  const viewportMode = parseViewportMode(r.viewportMode)
+  const mobileFrameWidth = clampMobileFrameWidth(r.mobileFrameWidth)
 
   const iframeHostRef = useRef<HTMLDivElement>(null)
   const [frameNonce, setFrameNonce] = useState(0)
@@ -92,7 +119,7 @@ function Widget({ config }: PluginWidgetProps) {
     setFrameNonce((n) => n + 1)
     lastBoxRef.current = { w: -1, h: -1 }
     skipResizeBounceUntil.current = Date.now() + 320
-  }, [url, embed])
+  }, [url, embed, viewportMode, mobileFrameWidth])
 
   useEffect(() => {
     if (!url || !embed) return
@@ -112,7 +139,7 @@ function Widget({ config }: PluginWidgetProps) {
 
     ro.observe(el)
     return () => ro.disconnect()
-  }, [url, embed, bumpFrame])
+  }, [url, embed, bumpFrame, viewportMode, mobileFrameWidth])
 
   useEffect(() => {
     if (!url || !embed || iframeLoaded) return
@@ -204,19 +231,53 @@ function Widget({ config }: PluginWidgetProps) {
     )
   }
 
+  const hostOuter: CSSProperties = {
+    flex: 1,
+    minHeight: 0,
+    minWidth: 0,
+    width: '100%',
+    position: 'relative',
+    background: 'var(--surface)',
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: viewportMode === 'mobile' ? 'center' : undefined,
+    alignItems: 'stretch',
+    overflow: viewportMode === 'desktop' ? 'auto' : 'hidden',
+  }
+
+  const hostInner: CSSProperties =
+    viewportMode === 'mobile'
+      ? {
+          width: '100%',
+          maxWidth: mobileFrameWidth,
+          flex: '0 1 auto',
+          alignSelf: 'stretch',
+          minHeight: 0,
+          height: '100%',
+          position: 'relative',
+        }
+      : viewportMode === 'desktop'
+        ? {
+            minWidth: DESKTOP_FRAME_MIN_WIDTH,
+            width: `max(100%, ${DESKTOP_FRAME_MIN_WIDTH}px)`,
+            minHeight: 0,
+            height: '100%',
+            position: 'relative',
+            flex: '0 0 auto',
+          }
+        : {
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+          }
+
   return (
     <div style={shell}>
-      <div
-        ref={iframeHostRef}
-        style={{
-          flex: 1,
-          minHeight: 0,
-          minWidth: 0,
-          width: '100%',
-          position: 'relative',
-          background: 'var(--surface)',
-        }}
-      >
+      <div ref={iframeHostRef} style={hostOuter}>
+        <div style={hostInner}>
         {!iframeLoaded ? (
           <div
             style={{
@@ -284,6 +345,7 @@ function Widget({ config }: PluginWidgetProps) {
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
           referrerPolicy="strict-origin-when-cross-origin"
         />
+        </div>
       </div>
       <div
         style={{
@@ -361,6 +423,42 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           aria-label={s.embedToggle}
         />
       </label>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+          {s.viewportLabel}
+        </label>
+        <select
+          style={{ ...inp, cursor: 'pointer' }}
+          value={parseViewportMode(config.viewportMode)}
+          onChange={(e) => onChange('viewportMode', e.target.value)}
+        >
+          <option value="auto">{s.viewportAuto}</option>
+          <option value="mobile">{s.viewportMobile}</option>
+          <option value="desktop">{s.viewportDesktop}</option>
+        </select>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>{s.viewportHelp}</p>
+      </div>
+
+      {parseViewportMode(config.viewportMode) === 'mobile' ? (
+        <div>
+          <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+            {s.mobileWidthLabel}
+          </label>
+          <input
+            style={inp}
+            type="number"
+            min={320}
+            max={480}
+            step={10}
+            value={clampMobileFrameWidth(config.mobileFrameWidth)}
+            onChange={(e) => {
+              const raw = e.target.value === '' ? 390 : Number(e.target.value)
+              onChange('mobileFrameWidth', Number.isFinite(raw) ? raw : 390)
+            }}
+          />
+        </div>
+      ) : null}
 
       <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>{s.settingsFootnote}</p>
     </div>
