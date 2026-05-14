@@ -45,17 +45,17 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 
 | Plugin | Category | Description | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop | ✅ Included |
+| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | ✅ Included |
+| 📅 Calendar | Productivity | Month/week view, local events, ICS feeds & CalDAV (server-side) | ✅ Included |
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | ✅ Included |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
 | 🎬 Emby | Media | Active sessions — who is watching what | ✅ Included |
 | 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
+| 🧱 Unraid Docker | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
 | 🛡️ AdGuard Home | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
-| 🔒 WireGuard | Network | Active VPN connections | 🔜 Coming soon |
-| 📸 Immich | Storage | Photo library stats & recent uploads | 🔜 Coming soon |
-| ☁️ Nextcloud | Storage | Storage usage & activity | 🔜 Coming soon |
+| 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
 
 ## Quick Start
 
@@ -143,8 +143,22 @@ In **Edit Mode** (✏️ button), hover over any widget to see controls:
 | Hide groups | Toggle visibility per group with 👁️ |
 | Custom icons | Emoji or upload PNG/JPG image |
 | Drag & drop | Reorder apps within and across groups |
-| Responsive | Switches from 2-column to 1-column when widget is narrow |
+| Layout | **Grid** (responsive columns) or **horizontal row** (scroll) |
+| Tile width | Min/max width in px; optional **fixed** column width (no stretch-to-fill in grid) |
 | New tab | Per-app setting to open in new tab or same tab |
+
+---
+
+## Calendar Plugin
+
+| Feature | Description |
+|---|---|
+| Views | **Month** (six-week grid) or **week** (single row) |
+| Local events | Tap a day to add or edit events (stored with the dashboard) |
+| **ICS / Webcal** | Subscribe to secret calendar URLs; fetched **on the server** via `POST /api/calendar-ics` (no browser CORS; works with LAN URLs) |
+| **CalDAV** | Nextcloud, Synology, etc.: collection URL + Basic auth; `POST /api/calendar-caldav` tries **GET** (ICS export) then **REPORT calendar-query** |
+| Refresh | Shared interval for ICS + CalDAV (minutes, in widget settings) |
+| Security note | CalDAV credentials are stored in **dashboard config** (localStorage export / backups) — use app passwords where possible |
 
 ---
 
@@ -166,7 +180,7 @@ Anyone can create plugins for SelfDashboard. See the full guide:
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Clock, Docker, Emby, AdGuard Home, CrowdSec Threat Map, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -255,17 +269,17 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, eigenen Icons, Drag & Drop | ✅ Enthalten |
+| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | ✅ Enthalten |
+| 📅 Kalender | Productivity | Monat/Woche, lokale Termine, ICS-Feeds & CalDAV (serverseitig) | ✅ Enthalten |
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
 | 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | ✅ Enthalten |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
 | 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
 | 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
+| 🧱 Unraid Docker | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
 | 🛡️ AdGuard Home | Network | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
-| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link — Dashboards, interne Tools, Karten | ✅ Enthalten |
-| 🔒 WireGuard | Network | Aktive VPN-Verbindungen | 🔜 Bald |
-| 📸 Immich | Storage | Foto-Bibliothek Statistiken & letzte Uploads | 🔜 Bald |
-| ☁️ Nextcloud | Storage | Speicherverbrauch & Aktivität | 🔜 Bald |
+| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
+| 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
 
 ---
 
@@ -355,8 +369,22 @@ Im **Bearbeitungsmodus** (✏️ Button), über ein Widget hovern um Controls zu
 | Gruppen ausblenden | Sichtbarkeit pro Gruppe mit 👁️ togglen |
 | Eigene Icons | Emoji oder PNG/JPG hochladen |
 | Drag & Drop | Apps innerhalb und zwischen Gruppen verschieben |
-| Responsiv | Wechselt automatisch von 2-spaltig zu 1-spaltig |
+| Darstellung | **Raster** (responsive Spalten) oder **waagerechte Zeile** (scrollbar) |
+| Kachelbreite | Min./Max. in Pixel; optional **feste** Spaltenbreite (Raster streckt nicht mit) |
 | Neuer Tab | Pro App einstellbar ob neuer oder gleicher Tab |
+
+---
+
+## Kalender-Plugin
+
+| Feature | Beschreibung |
+|---|---|
+| Ansichten | **Monat** (6 Wochenzeilen) oder **Woche** (eine Zeile) |
+| Lokale Termine | Tag antippen zum Anlegen/Bearbeiten (werden mit dem Dashboard gespeichert) |
+| **ICS / Webcal** | Geheime Kalender-URL; Abruf **serverseitig** über `POST /api/calendar-ics` (kein CORS im Browser, auch LAN-URLs) |
+| **CalDAV** | z. B. Nextcloud/Synology: Sammlungs-URL + Basic-Auth; `POST /api/calendar-caldav` nutzt zuerst **GET** (ICS-Export), sonst **REPORT calendar-query** |
+| Aktualisierung | Gemeinsames Intervall für ICS + CalDAV (Minuten, in den Widget-Einstellungen) |
+| Hinweis Sicherheit | CalDAV-Zugangsdaten stehen in der **Dashboard-Konfiguration** (Exporte/Backups) — nach Möglichkeit **App-Passwörter** nutzen |
 
 ---
 
@@ -378,7 +406,7 @@ Jeder kann Plugins für SelfDashboard erstellen:
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Docker, Emby, AdGuard Home, CrowdSec Threat Map, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Docker, Emby, AdGuard Home, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
