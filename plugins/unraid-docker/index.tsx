@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.7',
+  version: '0.3.8',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -151,17 +151,19 @@ function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
-function stateBadgeStyle(state: string | undefined, compact?: boolean): React.CSSProperties {
+function stateBadgeStyle(state: string | undefined, compact?: boolean, micro?: boolean): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-block',
     fontWeight: 600,
-    fontSize: compact ? '7px' : '8px',
-    letterSpacing: compact ? 0 : '0.02em',
-    padding: compact ? '1px 4px' : '2px 6px',
-    borderRadius: '4px',
+    fontSize: micro ? '6px' : compact ? '7px' : '8px',
+    letterSpacing: micro || compact ? 0 : '0.02em',
+    padding: micro ? '0 2px' : compact ? '1px 4px' : '2px 6px',
+    borderRadius: micro ? '3px' : '4px',
     whiteSpace: 'nowrap',
-    lineHeight: 1.2,
+    lineHeight: micro ? 1.05 : 1.2,
     textTransform: 'none',
+    maxWidth: micro ? '100%' : undefined,
+    boxSizing: 'border-box',
   }
   const s = (state ?? '').toLowerCase()
   if (s === 'running') {
@@ -549,18 +551,26 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   const col5 = allowActions
-  const tdRow: React.CSSProperties = narrow ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' } : tdCompact
-  const thDyn: React.CSSProperties = narrow ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' } : thStyle
-
   const tightMetrics = narrow && !showContainerNames
+
+  const tdRow: React.CSSProperties = tightMetrics
+    ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
+    : narrow
+      ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' }
+      : tdCompact
+  const thDyn: React.CSSProperties = tightMetrics
+    ? { ...thStyle, fontSize: '8px', letterSpacing: '0.03em', padding: '4px 3px' }
+    : narrow
+      ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
+      : thStyle
 
   const colWidths: string[] = !showContainerNames
     ? col5
       ? narrow
-        ? ['32px', '11%', '52px', '33%', '44px']
+        ? ['28px', '24%', '48px', '22%', '46px']
         : ['48px', '20%', '17%', '34%', '11%']
       : narrow
-        ? ['32px', '11%', '52px', '45%']
+        ? ['28px', '24%', '48px', '48%']
         : ['52px', '22%', '20%', '46%']
     : narrow
       ? col5
@@ -723,8 +733,16 @@ function Widget({ config }: PluginWidgetProps) {
                         ) : null}
                       </div>
                     </td>
-                    <td style={{ ...tdRow, textAlign: 'center', minWidth: narrow ? 52 : 44 }}>
-                      <span style={stateBadgeStyle(stLower, narrow)}>{stateBadgeLabel(stLower, locale)}</span>
+                    <td
+                      style={{
+                        ...tdRow,
+                        textAlign: 'center',
+                        minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
+                      }}
+                    >
+                      <span style={stateBadgeStyle(stLower, narrow, tightMetrics)} title={stateBadgeLabel(stLower, locale)}>
+                        {stateBadgeLabel(stLower, locale)}
+                      </span>
                     </td>
                     <td
                       style={{
