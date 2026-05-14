@@ -10,9 +10,8 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } f
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
-/** Plot-Höhe: 0 in den Einstellungen = Standard; sonst sinnvoller Bereich für kleine Widgets. */
+/** Plot-Höhe: 0 = Standardhöhe; 1–FB_PLOT_H_MAX = exakte Pixelhöhe. */
 const FB_PLOT_H_DEFAULT = 168
-const FB_PLOT_H_MIN = 32
 const FB_PLOT_H_MAX = 220
 
 export const meta: PluginMeta = {
@@ -20,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.2',
+  version: '2.3.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -79,7 +78,7 @@ export const meta: PluginMeta = {
       label: 'Grafik-Höhe (px)',
       type: 'number',
       defaultValue: 168,
-      placeholder: `0 = Standard (${FB_PLOT_H_DEFAULT}), ${FB_PLOT_H_MIN}–${FB_PLOT_H_MAX}`,
+      placeholder: `0 = Standard (${FB_PLOT_H_DEFAULT}), 1–${FB_PLOT_H_MAX}`,
     },
     {
       key: 'throughputChartYMaxMbps',
@@ -271,7 +270,7 @@ function ThroughputHistoryChart({
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
   const hRaw = Math.round(num(chartHeightPx))
-  const hPx = hRaw <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(FB_PLOT_H_MIN, hRaw || FB_PLOT_H_DEFAULT))
+  const hPx = hRaw <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(1, hRaw || FB_PLOT_H_DEFAULT))
 
   const {
     layout,
@@ -665,7 +664,7 @@ function Widget({ config }: PluginWidgetProps) {
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
   const rawPlotH = Math.round(num(r.throughputChartHeightPx))
   const chartHeightPx =
-    rawPlotH <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(FB_PLOT_H_MIN, rawPlotH || FB_PLOT_H_DEFAULT))
+    rawPlotH <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(1, rawPlotH || FB_PLOT_H_DEFAULT))
   const chartYMaxMbps = Math.min(2000, Math.max(0, Math.round(num(r.throughputChartYMaxMbps))))
 
   let showTitle = r.throughputShowTitle !== false
@@ -1261,20 +1260,21 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             type="number"
             min={0}
             max={FB_PLOT_H_MAX}
+            step={1}
             value={(() => {
               const v = Math.round(num(r.throughputChartHeightPx))
               if (v <= 0) return 0
-              return Math.min(FB_PLOT_H_MAX, Math.max(FB_PLOT_H_MIN, v || FB_PLOT_H_DEFAULT))
+              return Math.min(FB_PLOT_H_MAX, Math.max(1, v || FB_PLOT_H_DEFAULT))
             })()}
             onChange={(e) => {
               const n = Math.round(Number(e.target.value)) || 0
-              onChange('throughputChartHeightPx', n <= 0 ? 0 : Math.min(FB_PLOT_H_MAX, Math.max(FB_PLOT_H_MIN, n)))
+              onChange('throughputChartHeightPx', n <= 0 ? 0 : Math.min(FB_PLOT_H_MAX, Math.max(1, n)))
             }}
           />
           <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
             {de
-              ? `0 = intern ${FB_PLOT_H_DEFAULT} px (Standard). Sonst ${FB_PLOT_H_MIN}–${FB_PLOT_H_MAX} px.`
-              : `0 uses the default height (${FB_PLOT_H_DEFAULT} px). Otherwise ${FB_PLOT_H_MIN}–${FB_PLOT_H_MAX} px.`}
+              ? `0 = intern ${FB_PLOT_H_DEFAULT} px (Standard). Sonst 1–${FB_PLOT_H_MAX} px, Schrittweite 1.`
+              : `0 = default height (${FB_PLOT_H_DEFAULT} px). Otherwise 1–${FB_PLOT_H_MAX} px, step 1.`}
           </p>
         </div>
         <div>
