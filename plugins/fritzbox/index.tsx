@@ -11,7 +11,7 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { useDashboardStore } from '@/lib/store'
@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'FRITZ!Box',
   description:
     'FRITZ!Box WAN: Kacheln im Dashboard-Bearbeiten per Griff sortieren, Grafik-Höhe & Kachelgröße in den Einstellungen. Mbit/s.',
-  version: '1.3.0',
+  version: '1.3.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -56,7 +56,7 @@ export const meta: PluginMeta = {
       key: 'throughputChartHeightPx',
       label: 'Verlauf: Grafik-Höhe (px)',
       type: 'number',
-      defaultValue: 128,
+      defaultValue: 152,
       placeholder: '80–220',
     },
     {
@@ -167,13 +167,14 @@ function showFirmwareLine(r: Record<string, unknown>): boolean {
   return cfgBool(r, 'uiShowHeader', true)
 }
 
+/** Standard-Reihenfolge: Internet volle Breite, Live-Down/Up eine Zeile darunter (2 Spalten). */
 const FRITZ_TILE_IDS = [
   'internet',
+  'liveDown',
+  'liveUp',
   'publicIp',
   'maxDown',
   'maxUp',
-  'liveDown',
-  'liveUp',
   'hosts',
   'wan',
 ] as const
@@ -208,6 +209,11 @@ function swapFritzTiles(order: FritzTileId[], a: FritzTileId, b: FritzTileId): F
   return o
 }
 
+function fritzTileGridStyle(id: FritzTileId): CSSProperties {
+  if (id === 'internet') return { gridColumn: '1 / -1' }
+  return {}
+}
+
 function FritzTileSlot({
   id,
   reorder,
@@ -223,7 +229,7 @@ function FritzTileSlot({
 }) {
   return (
     <div
-      style={{ position: 'relative', minWidth: 0 }}
+      style={{ position: 'relative', minWidth: 0, ...fritzTileGridStyle(id) }}
       onDragOver={
         reorder
           ? (e) => {
@@ -275,7 +281,7 @@ function ThroughputHistoryChart({
   history,
   current,
   de,
-  chartHeightPx = 128,
+  chartHeightPx = 152,
 }: {
   history: { down: number; up: number }[]
   current: { down: number; up: number } | null
@@ -285,7 +291,7 @@ function ThroughputHistoryChart({
 }) {
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
-  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 128))
+  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 152))
   const scale = hPx / 128
   const last = history[history.length - 1]!
   const downCur = current?.down ?? last.down
@@ -348,7 +354,7 @@ function ThroughputHistoryChart({
       </div>
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="none"
         style={{ width: '100%', height: `${hPx}px`, display: 'block' }}
         aria-hidden
       >
@@ -504,7 +510,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   })()
 
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
-  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 128))
+  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 152))
   const tileDensity = r.tileSize === 'large' ? 'large' : 'default'
   const allowReorder = editMode === true && cfgBool(r, 'uiReorderTilesInEdit', true)
   const tileOrder = useMemo(() => normalizeFritzTileOrder(r), [r.fritzTileOrder])
