@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.6',
+  version: '2.3.7',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -370,17 +370,9 @@ function ThroughputHistoryChart({
   const anyStat = showStatAvgDown || showStatAvgUp || showStatPeakDown || showStatPeakUp
 
   const headerBlock = showHeaderRow ? (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'space-between',
-        gap: '10px',
-        flexWrap: 'wrap',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', minWidth: 0, overflow: 'visible' }}>
       {showTitle || showLegend ? (
-        <div style={{ minWidth: 0, flex: '1 1 140px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px 14px', minWidth: 0 }}>
           {showTitle ? (
             <div
               style={{
@@ -389,14 +381,14 @@ function ThroughputHistoryChart({
                 letterSpacing: '0.12em',
                 color: 'var(--text-muted)',
                 textTransform: 'uppercase',
-                marginBottom: showLegend ? '4px' : 0,
+                flexShrink: 0,
               }}
             >
               {title}
             </div>
           ) : null}
           {showLegend ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', fontSize: '10px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', fontSize: '10px', minWidth: 0 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_DL, fontWeight: 600 }}>
                 <span style={{ width: '14px', height: '2px', background: FB_CHART_DL, borderRadius: '1px', flexShrink: 0 }} />
                 Download
@@ -415,20 +407,21 @@ function ThroughputHistoryChart({
             </div>
           ) : null}
         </div>
-      ) : (
-        <div style={{ flex: '1 1 auto', minWidth: 0 }} />
-      )}
+      ) : null}
       {showLive ? (
         <div
           style={{
+            width: '100%',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '2px',
-            fontSize: '11px',
+            justifyContent: 'flex-end',
+            flexWrap: 'wrap',
+            gap: '10px 16px',
+            fontSize: '12px',
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
             flexShrink: 0,
+            overflow: 'visible',
+            lineHeight: 1.35,
           }}
         >
           <span style={{ color: FB_CHART_DL, whiteSpace: 'nowrap' }}>↓ {liveDown}</span>
