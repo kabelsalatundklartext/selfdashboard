@@ -18,8 +18,8 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'WAN per UPnP-IGD/TR-064: Status, öffentliche IPv4, max. Sync, aktuelle Download-/Upload-Rate (aus Byte-Zählern), Digest-Auth über /api/fritzbox. Für FRITZ!Box u. ä. IGD-Geräte.',
-  version: '1.0.4',
+    'WAN per UPnP-IGD/TR-064: Status, IPv4, Sync, aktuelle Rate (Byte-Zähler). Optional schneller Live-Takt nur für Zähler. Digest-Auth über /api/fritzbox.',
+  version: '1.0.5',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -35,6 +35,13 @@ export const meta: PluginMeta = {
     { key: 'username', label: 'Benutzername', type: 'text', defaultValue: '', placeholder: 'FRITZ!Box-Benutzer' },
     { key: 'password', label: 'Passwort', type: 'password', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
+    {
+      key: 'liveIntervalSeconds',
+      label: 'Live-Zähler (Sek., leer=5)',
+      type: 'number',
+      defaultValue: 5,
+      placeholder: '0=aus, 3–15=schneller Takt',
+    },
     { key: 'insecureTls', label: 'HTTPS: selbstsigniert erlauben', type: 'boolean', defaultValue: false },
   ],
 }
@@ -205,17 +212,30 @@ function Widget({ config }: PluginWidgetProps) {
   const password = typeof (config as Record<string, unknown>).password === 'string' ? String((config as Record<string, unknown>).password) : ''
   const insecureTls = (config as Record<string, unknown>).insecureTls === true
   const refreshSec = Math.min(300, Math.max(15, Math.round(num((config as Record<string, unknown>).refreshSeconds) || 30)))
+  const liveInput = (config as Record<string, unknown>).liveIntervalSeconds
+  const liveEvery = (() => {
+    if (liveInput === undefined || liveInput === null || liveInput === '') return 5
+    const n = Math.round(Number(liveInput))
+    if (!Number.isFinite(n)) return 5
+    if (n <= 0) return 0
+    return Math.min(15, Math.max(3, n))
+  })()
 
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [liveBps, setLiveBps] = useState<{ down: number; up: number } | null>(null)
   const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
+  const dataRef = useRef<Summary | null>(null)
 
   useEffect(() => {
     prevBytesRef.current = null
     setLiveBps(null)
   }, [baseUrl, username])
+
+  useEffect(() => {
+    dataRef.current = data
+  }, [data])
 
   const load = useCallback(async () => {
     if (!baseUrl) {
@@ -254,11 +274,54 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }, [baseUrl, username, password, insecureTls, de])
 
+  const loadLite = useCallback(async () => {
+    if (!baseUrl || liveEvery <= 0) return
+    const cur = dataRef.current
+    if (!cur || (!cur.wanTotalBytesReceived && !cur.wanTotalBytesSent)) return
+    try {
+      const res = await fetch('/api/fritzbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ baseUrl, username, password, insecureTls, lite: true }),
+      })
+      const j = (await res.json()) as {
+        ok?: boolean
+        wanTotalBytesReceived?: string | null
+        wanTotalBytesSent?: string | null
+      }
+      if (!res.ok || j.ok === false) return
+      setData((d) => {
+        if (!d) return d
+        const next = { ...d }
+        if (typeof j.wanTotalBytesReceived === 'string' && /^\d+$/.test(j.wanTotalBytesReceived)) {
+          next.wanTotalBytesReceived = j.wanTotalBytesReceived
+        }
+        if (typeof j.wanTotalBytesSent === 'string' && /^\d+$/.test(j.wanTotalBytesSent)) {
+          next.wanTotalBytesSent = j.wanTotalBytesSent
+        }
+        return next
+      })
+    } catch {
+      /* ignorieren */
+    }
+  }, [baseUrl, username, password, insecureTls, liveEvery])
+
   useEffect(() => {
     void load()
     const id = window.setInterval(() => void load(), refreshSec * 1000)
     return () => window.clearInterval(id)
   }, [load, refreshSec])
+
+  useEffect(() => {
+    if (liveEvery <= 0) return undefined
+    const t = window.setTimeout(() => void loadLite(), 600)
+    const id = window.setInterval(() => void loadLite(), liveEvery * 1000)
+    return () => {
+      window.clearTimeout(t)
+      window.clearInterval(id)
+    }
+  }, [liveEvery, loadLite])
 
   useEffect(() => {
     if (!data) return
@@ -323,9 +386,13 @@ function Widget({ config }: PluginWidgetProps) {
     ? de
       ? 'Zähler nicht unterstützt'
       : 'Counters not supported'
-    : de
-      ? 'Ø seit letztem Abruf'
-      : 'avg since last poll'
+    : liveEvery > 0
+      ? de
+        ? `≈ Live · Zähler alle ${liveEvery} s`
+        : `~Live · counters every ${liveEvery}s`
+      : de
+        ? `Mittel über ${refreshSec} s (nur voller Abruf)`
+        : `Avg over ${refreshSec}s (full poll only)`
 
   if (!baseUrl && !loading) {
     return (
@@ -405,7 +472,7 @@ function Widget({ config }: PluginWidgetProps) {
             />
             <Tile label={de ? 'Upload (max.)' : 'Upload (max)'} value={formatMbps(data.upstreamMaxBps, de)} tint="violet" icon={ArrowUpCircle} />
             <Tile
-              label={de ? 'Download (jetzt)' : 'Download (now)'}
+              label={de ? 'Download (live)' : 'Download (live)'}
               value={liveDownStr}
               tint="emerald"
               icon={Gauge}
@@ -414,7 +481,7 @@ function Widget({ config }: PluginWidgetProps) {
               }
             />
             <Tile
-              label={de ? 'Upload (jetzt)' : 'Upload (now)'}
+              label={de ? 'Upload (live)' : 'Upload (live)'}
               value={liveUpStr}
               tint="emerald"
               icon={Gauge}
@@ -500,6 +567,13 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     boxSizing: 'border-box',
   }
   const refresh = Math.min(300, Math.max(15, Math.round(num(r.refreshSeconds) || 30)))
+  const liveSettingsVal = (() => {
+    const v = r.liveIntervalSeconds
+    if (v === undefined || v === null || v === '') return 5
+    const n = Math.round(Number(v))
+    if (!Number.isFinite(n)) return 5
+    return Math.min(15, Math.max(0, n))
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -575,6 +649,35 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           value={refresh}
           onChange={(e) => onChange('refreshSeconds', Math.min(300, Math.max(15, Math.round(Number(e.target.value)) || 30)))}
         />
+      </div>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+          {de ? 'Live-Zähler (Sekunden)' : 'Live counters (seconds)'}
+        </label>
+        <input
+          style={inp}
+          type="number"
+          min={0}
+          max={15}
+          value={liveSettingsVal}
+          onChange={(e) =>
+            onChange('liveIntervalSeconds', Math.min(15, Math.max(0, Math.round(Number(e.target.value)) || 0)))
+          }
+        />
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+          {de ? (
+            <>
+              <strong>0</strong> = nur „voller“ Abruf oben (weniger Last). <strong>3–15</strong> = zusätzlich nur
+              Byte-Zähler in diesem Takt → flüssigere Live-Rate. Leer / neu = <strong>5</strong>.
+            </>
+          ) : (
+            <>
+              <strong>0</strong> = full refresh only. <strong>3–15</strong> = extra light counter poll for smoother
+              live rate. Empty / new = <strong>5</strong>.
+            </>
+          )}
+        </p>
       </div>
     </div>
   )

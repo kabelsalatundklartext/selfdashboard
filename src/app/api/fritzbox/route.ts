@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
-import { fetchFritzBoxSummary, fritzboxRootFromInput } from '@/lib/fritzboxTr064'
+import {
+  fetchFritzBoxByteCountersOnly,
+  fetchFritzBoxSummary,
+  fritzboxRootFromInput,
+} from '@/lib/fritzboxTr064'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,11 +39,25 @@ export async function POST(req: Request) {
   const username = clampStr(body.username, 200)
   const password = typeof body.password === 'string' ? body.password.slice(0, 500) : ''
   const insecureTls = body.insecureTls === true
+  const lite = body.lite === true
 
   const ac = new AbortController()
   const to = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
 
   try {
+    if (lite) {
+      const counters = await fetchFritzBoxByteCountersOnly(
+        { baseUrl, username, password, insecureTls },
+        ac.signal,
+      )
+      return NextResponse.json({
+        ok: true,
+        lite: true,
+        ...counters,
+        fetchedAt: new Date().toISOString(),
+      })
+    }
+
     const summary = await fetchFritzBoxSummary(
       { baseUrl, username, password, insecureTls },
       ac.signal,

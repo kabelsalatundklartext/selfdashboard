@@ -414,3 +414,96 @@ export async function fetchFritzBoxSummary(
     wanTotalBytesSent,
   }
 }
+
+/** Nur WAN-Byte-Zähler (weniger SOAP) — für schnellere Live-Takte im UI. */
+export async function fetchFritzBoxByteCountersOnly(
+  conn: FritzBoxConnection,
+  signal: AbortSignal,
+): Promise<{ wanTotalBytesReceived: string | null; wanTotalBytesSent: string | null }> {
+  const root = fritzboxRootFromInput(conn.baseUrl)
+  const origin = tr064OriginFromRoot(root)
+  const isHttps = new URL(origin).protocol === 'https:'
+  const agent =
+    isHttps && conn.insecureTls
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined
+  const fetchOpts = agent ? { agent } : {}
+  const client = digestClient(conn.username, conn.password)
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
+  const services = parseTr064Services(descXml)
+  const wanCommonSvc =
+    services.find((s) => s.type.endsWith('WANCommonInterfaceConfig:1')) ||
+    services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
+    null
+
+  let wanTotalBytesReceived: string | null = null
+  let wanTotalBytesSent: string | null = null
+
+  if (wanCommonSvc) {
+    const ctl = absUrl(origin, wanCommonSvc.controlUrl)
+    const urn = wanCommonSvc.type
+    try {
+      const addon = await soapAction(client, ctl, urn, 'GetAddonInfos', signal, fetchOpts)
+      wanTotalBytesReceived = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesReceived64',
+        'NewX_AVM_DE_TotalBytesReceived64',
+        'NewTotalBytesReceived',
+        'TotalBytesReceived',
+      )
+      wanTotalBytesSent = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesSent64',
+        'NewX_AVM_DE_TotalBytesSent64',
+        'NewTotalBytesSent',
+        'TotalBytesSent',
+      )
+    } catch {
+      /* optional */
+    }
+    if (!wanTotalBytesReceived) {
+      try {
+        const rxXml = await soapAction(client, ctl, urn, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
+      }
+    }
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, urn, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
+    }
+  }
+
+  const wanIpServices = services.filter((s) => {
+    const t = s.type
+    return t.includes('WANIPConnection') && !t.includes('WANIPv6')
+  })
+  const primaryWanIp = wanIpServices[0] ?? null
+  if (primaryWanIp) {
+    const ctl = absUrl(origin, primaryWanIp.controlUrl)
+    const t = primaryWanIp.type
+    if (!wanTotalBytesReceived) {
+      try {
+        const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
+      }
+    }
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
+    }
+  }
+
+  return { wanTotalBytesReceived, wanTotalBytesSent }
+}
