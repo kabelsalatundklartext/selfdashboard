@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from 'graphql-ws'
 import type { Locale } from '@/lib/i18n'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.2',
+  version: '0.3.4',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -130,6 +130,15 @@ function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
   return `${Math.round(p)}%`
 }
 
+/** Nur genutzter Speicher (vor „ / …“), eine Zeile wie beim Docker-Homarr. */
+function fmtMemUsageCompact(raw: string | undefined): string {
+  if (!raw?.trim()) return ''
+  const t = raw.trim()
+  const idx = t.indexOf(' / ')
+  if (idx === -1) return t
+  return t.slice(0, idx).trim()
+}
+
 function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   const s = (state ?? '').toLowerCase()
   const de = locale !== 'en'
@@ -142,13 +151,13 @@ function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
-function stateBadgeStyle(state: string | undefined): React.CSSProperties {
+function stateBadgeStyle(state: string | undefined, compact?: boolean): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-block',
     fontWeight: 600,
-    fontSize: '8px',
-    letterSpacing: '0.02em',
-    padding: '2px 6px',
+    fontSize: compact ? '7px' : '8px',
+    letterSpacing: compact ? 0 : '0.02em',
+    padding: compact ? '1px 4px' : '2px 6px',
     borderRadius: '4px',
     whiteSpace: 'nowrap',
     lineHeight: 1.2,
@@ -265,6 +274,8 @@ function Widget({ config }: PluginWidgetProps) {
   const liveStats = (config as Record<string, unknown>).liveStats !== false
   const refresh = (Number((config as Record<string, unknown>).refreshInterval) || 20) * 1000
   const maxRows = Math.min(200, Math.max(5, Number((config as Record<string, unknown>).maxRows) || 60))
+  const showContainerNames = (config as Record<string, unknown>).showContainerNames !== false
+  const memoryShowLimit = (config as Record<string, unknown>).memoryShowLimit === true
 
   const [list, setList] = useState<GqlContainer[]>([])
   const [statsById, setStatsById] = useState<Record<string, LiveStat>>({})
@@ -274,6 +285,8 @@ function Widget({ config }: PluginWidgetProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
   const latest = useRef(0)
+  const tableWrapRef = useRef<HTMLDivElement>(null)
+  const [narrow, setNarrow] = useState(false)
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -420,6 +433,20 @@ function Widget({ config }: PluginWidgetProps) {
     [runMutation, fetch_, de],
   )
 
+  useLayoutEffect(() => {
+    const el = tableWrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const apply = () => {
+      const w = el.getBoundingClientRect().width
+      const next = w > 0 && w < 440
+      setNarrow((prev) => (prev === next ? prev : next))
+    }
+    apply()
+    const ro = new ResizeObserver(() => apply())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [allowActions, list.length])
+
   const shell: React.CSSProperties = {
     height: '100%',
     display: 'flex',
@@ -521,182 +548,246 @@ function Widget({ config }: PluginWidgetProps) {
     )
   }
 
-  const actionCols = allowActions ? 1 : 0
+  const col5 = allowActions
+  const tdRow: React.CSSProperties = narrow ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' } : tdCompact
+  const thDyn: React.CSSProperties = narrow ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' } : thStyle
+
+  const colWidths: string[] = !showContainerNames
+    ? col5
+      ? ['48px', '20%', '17%', '34%', '11%']
+      : ['52px', '22%', '20%', '46%']
+    : narrow
+      ? col5
+        ? ['22%', '21%', '15%', '27%', '15%']
+        : ['26%', '24%', '18%', '32%']
+      : col5
+        ? ['38%', '11%', '16%', '19%', '16%']
+        : ['44%', '12%', '18%', '26%']
+
+  const headRow: string[] = (() => {
+    if (!col5) {
+      if (narrow) {
+        return showContainerNames
+          ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.']
+          : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.']
+      }
+      return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory']
+    }
+    if (narrow) {
+      return showContainerNames
+        ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+        : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+    }
+    return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+  })()
+
+  const tableMinW = !showContainerNames ? 220 : narrow ? 300 : 0
 
   return (
     <div style={shell}>
       <div style={scrollBody}>
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            tableLayout: 'fixed',
-            minWidth: 0,
-          }}
-        >
-          <colgroup>
-            <col style={{ width: allowActions ? '38%' : '44%' }} />
-            <col style={{ width: allowActions ? '11%' : '12%' }} />
-            <col style={{ width: allowActions ? '16%' : '18%' }} />
-            <col style={{ width: allowActions ? '19%' : '26%' }} />
-            {allowActions ? <col style={{ width: '16%' }} /> : null}
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={thStyle}>{de ? 'Name' : 'Name'}</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>{de ? 'Status' : 'State'}</th>
-              <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>CPU</th>
-              <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{de ? 'Speicher' : 'Memory'}</th>
-              {allowActions ? <th style={{ ...thStyle, textAlign: 'right' }}>{de ? 'Aktionen' : 'Actions'}</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((c, i) => {
-              const name = containerName(c)
-              const cid = c.id.trim()
-              const running = isRunningState(c.state)
-              const paused = isPausedState(c.state)
-              const stLower = graphqlStateLower(c.state)
-              const busy = busyId === cid
-              const zebra =
-                i % 2 === 0
-                  ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
-                  : 'color-mix(in srgb, var(--text) 2%, var(--background))'
-              const st = statsById[cid]
-              const cpuPct = st?.cpuPercent ?? null
-              const memPct = st?.memPercent ?? null
-              const memStr = running && st?.memUsage ? st.memUsage : '—'
-              const iconSrc = (c.iconUrl ?? '').trim()
-              const tip = [name, c.state, (c.status ?? '').trim(), (c.image ?? '').split(':')[0]].filter(Boolean).join('\n')
+        <div ref={tableWrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              tableLayout: 'fixed',
+              minWidth: tableMinW || undefined,
+            }}
+          >
+            <colgroup>
+              {colWidths.map((w, idx) => (
+                <col key={idx} style={{ width: w }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+                  {headRow[0] || '\u00a0'}
+                </th>
+                <th style={{ ...thDyn, textAlign: 'center' }}>{headRow[1]}</th>
+                <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headRow[2]}</th>
+                <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
+                {col5 ? <th style={{ ...thDyn, textAlign: 'right' }}>{headRow[4]}</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((c, i) => {
+                const name = containerName(c)
+                const cid = c.id.trim()
+                const running = isRunningState(c.state)
+                const paused = isPausedState(c.state)
+                const stLower = graphqlStateLower(c.state)
+                const busy = busyId === cid
+                const zebra =
+                  i % 2 === 0
+                    ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
+                    : 'color-mix(in srgb, var(--text) 2%, var(--background))'
+                const st = statsById[cid]
+                const cpuPct = st?.cpuPercent ?? null
+                const memPct = st?.memPercent ?? null
+                const memFull = running && st?.memUsage ? st.memUsage : '—'
+                const memCell = memFull === '—' ? '—' : memoryShowLimit ? memFull : fmtMemUsageCompact(memFull)
+                const iconSrc = (c.iconUrl ?? '').trim()
+                const tip = [name, c.state, (c.status ?? '').trim(), (c.image ?? '').split(':')[0]].filter(Boolean).join('\n')
 
-              const avatarBox = (inner: React.ReactNode) => (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 8,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    overflow: 'hidden',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {inner}
-                </span>
-              )
+                const avatarBox = (inner: React.ReactNode) => (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 8,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {inner}
+                  </span>
+                )
 
-              return (
-                <tr key={cid || `${name}-${i}`} style={{ background: zebra }} title={tip}>
-                  <td style={{ ...tdCompact, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      {iconSrc
-                        ? avatarBox(
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={iconSrc}
-                              alt=""
-                              width={24}
-                              height={24}
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                              style={{
-                                width: 24,
-                                height: 24,
-                                objectFit: 'contain',
-                                display: 'block',
-                                background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
-                              }}
-                            />,
-                          )
-                        : avatarBox(
-                            <span style={{ fontSize: 14, lineHeight: 1, background: 'var(--surface)', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              🐳
-                            </span>,
-                          )}
-                      <span
+                return (
+                  <tr key={cid || `${name}-${i}`} style={{ background: zebra }} title={tip}>
+                    <td style={{ ...tdRow, minWidth: 0 }}>
+                      <div
                         style={{
-                          fontWeight: 600,
-                          color: 'var(--text)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: showContainerNames ? 8 : 4,
                           minWidth: 0,
+                          justifyContent: showContainerNames ? undefined : 'center',
                         }}
                       >
-                        {name}
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ ...tdCompact, textAlign: 'center' }}>
-                    <span style={stateBadgeStyle(stLower)}>{stateBadgeLabel(stLower, locale)}</span>
-                  </td>
-                  <td
-                    style={{
-                      ...tdCompact,
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 600,
-                      color: liveStats && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
-                    }}
-                  >
-                    {liveStats ? fmtCpuHomarr(cpuPct, running) : '—'}
-                  </td>
-                  <td
-                    style={{
-                      ...tdCompact,
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      fontWeight: 600,
-                      color: liveStats && running && memStr !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
-                      wordBreak: 'break-word',
-                    }}
-                    title={memStr}
-                  >
-                    {memStr}
-                  </td>
-                  {allowActions ? (
-                    <td style={{ ...tdCompact, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {cid ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                          {!running && !paused ? (
-                            <button type="button" style={iconAct} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
-                              <IconPlay disabled={busy} />
-                            </button>
-                          ) : null}
-                          {paused ? (
-                            <button type="button" style={iconAct} title={de ? 'Fortsetzen' : 'Resume'} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
-                              <IconPlay disabled={busy} />
-                            </button>
-                          ) : null}
-                          {running || paused ? (
-                            <>
-                              <button type="button" style={iconAct} title={de ? 'Stopp' : 'Stop'} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
-                                <IconStop disabled={busy} />
-                              </button>
-                              {running ? (
-                                <button type="button" style={iconAct} title={de ? 'Neustart' : 'Restart'} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
-                                  <IconRestart disabled={busy} />
-                                </button>
-                              ) : null}
-                            </>
-                          ) : null}
+                        <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
+                          {iconSrc
+                            ? avatarBox(
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={iconSrc}
+                                  alt=""
+                                  width={24}
+                                  height={24}
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                  style={{
+                                    width: 24,
+                                    height: 24,
+                                    objectFit: 'contain',
+                                    display: 'block',
+                                    background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
+                                  }}
+                                />,
+                              )
+                            : avatarBox(
+                                <span
+                                  style={{
+                                    fontSize: 14,
+                                    lineHeight: 1,
+                                    background: 'var(--surface)',
+                                    width: '100%',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                >
+                                  🐳
+                                </span>,
+                              )}
                         </span>
-                      ) : (
-                        '—'
-                      )}
+                        {showContainerNames ? (
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: 'var(--text)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              minWidth: 0,
+                            }}
+                          >
+                            {name}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
-                  ) : null}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {list.length === 0 ? (
-          <p style={{ fontSize: 'clamp(9px, 2.6cqmin, 11px)', color: 'var(--text-muted)', margin: '8px 0 0' }}>{de ? 'Keine Container.' : 'No containers.'}</p>
-        ) : null}
+                    <td style={{ ...tdRow, textAlign: 'center', minWidth: narrow ? 52 : 44 }}>
+                      <span style={stateBadgeStyle(stLower, narrow)}>{stateBadgeLabel(stLower, locale)}</span>
+                    </td>
+                    <td
+                      style={{
+                        ...tdRow,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        fontWeight: 600,
+                        color: liveStats && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {liveStats ? fmtCpuHomarr(cpuPct, running) : '—'}
+                    </td>
+                    <td
+                      style={{
+                        ...tdRow,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
+                        fontWeight: 600,
+                        color: liveStats && running && memCell !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={memFull}
+                    >
+                      {memCell}
+                    </td>
+                    {col5 ? (
+                      <td style={{ ...tdRow, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {cid ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: narrow ? 4 : 6 }}>
+                            {!running && !paused ? (
+                              <button type="button" style={iconAct} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
+                                <IconPlay disabled={busy} />
+                              </button>
+                            ) : null}
+                            {paused ? (
+                              <button type="button" style={iconAct} title={de ? 'Fortsetzen' : 'Resume'} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
+                                <IconPlay disabled={busy} />
+                              </button>
+                            ) : null}
+                            {running || paused ? (
+                              <>
+                                <button type="button" style={iconAct} title={de ? 'Stopp' : 'Stop'} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
+                                  <IconStop disabled={busy} />
+                                </button>
+                                {running ? (
+                                  <button type="button" style={iconAct} title={de ? 'Neustart' : 'Restart'} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
+                                    <IconRestart disabled={busy} />
+                                  </button>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    ) : null}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {list.length === 0 ? (
+            <p style={{ fontSize: 'clamp(9px, 2.6cqmin, 11px)', color: 'var(--text-muted)', margin: '8px 0 0' }}>{de ? 'Keine Container.' : 'No containers.'}</p>
+          ) : null}
+        </div>
       </div>
       <div
         style={{
@@ -751,8 +842,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
         {de
-          ? 'Darstellung wie beim Docker-Plugin (Homarr-Tabelle): kompakte Zeilen, Heat-Farben für CPU/RAM. Daten von Unraid GraphQL + optional WebSocket-Stats.'
-          : 'Same compact Homarr-style table as the Docker plugin, with heat colors for CPU/RAM. Data from Unraid GraphQL + optional WebSocket stats.'}
+          ? 'Homarr-Tabelle: unter ~440px Breite kürzere Spaltenüberschriften; optional Namen ausblenden (nur Icon). Speicher standardmäßig nur „genutzt“ (eine Zeile), vollständig mit Limit per Option.'
+          : 'Homarr-style table: under ~440px width, shorter headers; optional hide names (icon only). Memory shows usage only by default; enable option for full used/total string.'}
       </p>
       <div>
         <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
@@ -767,6 +858,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.liveStats !== false} onChange={(e) => onChange('liveStats', e.target.checked)} />
         {de ? 'Live-CPU/RAM (WebSocket)' : 'Live CPU/RAM (WebSocket)'}
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
+        <input type="checkbox" checked={r.showContainerNames !== false} onChange={(e) => onChange('showContainerNames', e.target.checked)} />
+        {de ? 'Namen in der Tabelle (aus: nur Icon, Tooltip = Name)' : 'Show names in table (off: icon only, tooltip = name)'}
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
+        <input type="checkbox" checked={r.memoryShowLimit === true} onChange={(e) => onChange('memoryShowLimit', e.target.checked)} />
+        {de ? 'Speicher: genutzt + Limit (längere Zeile)' : 'Memory: show used + limit (longer line)'}
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px', color: 'var(--text)' }}>
         <input type="checkbox" checked={r.showStopped === true} onChange={(e) => onChange('showStopped', e.target.checked)} />

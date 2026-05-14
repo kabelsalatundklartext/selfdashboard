@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.6',
+  version: '1.6.7',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -274,13 +274,13 @@ function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
-function stateBadgeStyle(state: string | undefined): React.CSSProperties {
+function stateBadgeStyle(state: string | undefined, compact?: boolean): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-block',
     fontWeight: 600,
-    fontSize: '8px',
-    letterSpacing: '0.02em',
-    padding: '2px 6px',
+    fontSize: compact ? '7px' : '8px',
+    letterSpacing: compact ? 0 : '0.02em',
+    padding: compact ? '1px 4px' : '2px 6px',
     borderRadius: '4px',
     whiteSpace: 'nowrap',
     lineHeight: 1.2,
@@ -589,6 +589,8 @@ type HomarrDockerTableProps = {
   busyId: string | null
   pending: PendingConfirm | null
   useDashboardIcons: boolean
+  /** false: nur Icon in der ersten Spalte (Name im Tooltip). Spart Breite in schmalen Widgets. */
+  showContainerNames: boolean
   showStatCpu: boolean
   showStatRam: boolean
   showBtnStart: boolean
@@ -611,6 +613,7 @@ function HomarrDockerTable({
   busyId,
   pending,
   useDashboardIcons,
+  showContainerNames,
   showStatCpu,
   showStatRam,
   showBtnStart,
@@ -626,225 +629,281 @@ function HomarrDockerTable({
   executeAction,
   cancelPending,
 }: HomarrDockerTableProps) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [narrow, setNarrow] = useState(false)
+  useLayoutEffect(() => {
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const apply = () => {
+      const w = el.getBoundingClientRect().width
+      const next = w > 0 && w < 440
+      setNarrow((prev) => (prev === next ? prev : next))
+    }
+    apply()
+    const ro = new ResizeObserver(() => apply())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const de = locale !== 'en'
+  const tdRow: React.CSSProperties = narrow ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' } : tdCompact
+  const thDyn: React.CSSProperties = narrow
+    ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
+    : thStyle
+
+  const colWidths =
+    !showContainerNames
+      ? (['48px', '20%', '17%', '34%', '11%'] as const)
+      : narrow
+        ? (['22%', '21%', '15%', '27%', '15%'] as const)
+        : (['38%', '11%', '16%', '19%', '16%'] as const)
+
+  const headers = narrow
+    ? showContainerNames
+      ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+      : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+    : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+
+  const tableMinW = !showContainerNames ? 220 : narrow ? 300 : 0
+
   return (
-    <table
-      style={{
-        width: '100%',
-        borderCollapse: 'collapse',
-        tableLayout: 'fixed',
-        minWidth: 0,
-      }}
-    >
-      <colgroup>
-        <col style={{ width: '38%' }} />
-        <col style={{ width: '11%' }} />
-        <col style={{ width: '16%' }} />
-        <col style={{ width: '19%' }} />
-        <col style={{ width: '16%' }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th style={thStyle}>{de ? 'Name' : 'Name'}</th>
-          <th style={{ ...thStyle, textAlign: 'center' }}>{de ? 'Status' : 'State'}</th>
-          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>CPU</th>
-          <th style={{ ...thStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{de ? 'Speicher' : 'Memory'}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{de ? 'Aktionen' : 'Actions'}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {list.flatMap((c, i) => {
-          const name = containerName(c)
-          const st = c.State ?? '—'
-          const imgRef = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
-          const running = isDockerRunning(c)
-          const cid = dockerContainerId(c)
-          const isBusy = cid !== '' && busyId === cid
-          const isPendingHere = pending != null && cid !== '' && pending.id === cid
-          const rowPending = isPendingHere ? pending : null
-          const canStart = !running && showBtnStart
-          const canStop = running && showBtnStop
-          const canRestart = running && showBtnRestart
-          const anyBtn = canStart || canStop || canRestart
-          const showControls = Boolean(cid && (anyBtn || rowPending))
-          const s = c.sdStats
-          const cpuPct = s?.cpuPct ?? null
-          const ramPct = ramPercentForBar(s)
-          const memStr = fmtMemoryHomarr(s, running)
-          const tipParts = [name, st, (c.Status ?? '').trim(), imgRef]
-          const tip = tipParts.filter(Boolean).join('\n')
-          const zebra =
-            i % 2 === 0
-              ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
-              : 'color-mix(in srgb, var(--text) 2%, var(--background))'
+    <div ref={wrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
+      <table
+        style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          minWidth: tableMinW || undefined,
+        }}
+      >
+        <colgroup>
+          {colWidths.map((w, idx) => (
+            <col key={idx} style={{ width: w }} />
+          ))}
+        </colgroup>
+        <thead>
+          <tr>
+            <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+              {headers[0] || '\u00a0'}
+            </th>
+            <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
+            <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
+            <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+            <th style={{ ...thDyn, textAlign: 'right' }}>{headers[4]}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.flatMap((c, i) => {
+            const name = containerName(c)
+            const st = c.State ?? '—'
+            const imgRef = (c.Image ?? '').split(':')[0]?.split('@')[0] ?? ''
+            const running = isDockerRunning(c)
+            const cid = dockerContainerId(c)
+            const isBusy = cid !== '' && busyId === cid
+            const isPendingHere = pending != null && cid !== '' && pending.id === cid
+            const rowPending = isPendingHere ? pending : null
+            const canStart = !running && showBtnStart
+            const canStop = running && showBtnStop
+            const canRestart = running && showBtnRestart
+            const anyBtn = canStart || canStop || canRestart
+            const showControls = Boolean(cid && (anyBtn || rowPending))
+            const s = c.sdStats
+            const cpuPct = s?.cpuPct ?? null
+            const ramPct = ramPercentForBar(s)
+            const memStr = fmtMemoryHomarr(s, running)
+            const tipParts = [name, st, (c.Status ?? '').trim(), imgRef]
+            const tip = tipParts.filter(Boolean).join('\n')
+            const zebra =
+              i % 2 === 0
+                ? 'color-mix(in srgb, var(--text) 5%, var(--background))'
+                : 'color-mix(in srgb, var(--text) 2%, var(--background))'
 
-          const avatar = (
-            <ContainerAvatar image={c.Image ?? ''} name={name} labels={c.Labels} useDashboardIcons={useDashboardIcons} />
-          )
+            const avatar = (
+              <ContainerAvatar image={c.Image ?? ''} name={name} labels={c.Labels} useDashboardIcons={useDashboardIcons} />
+            )
 
-          const mainRow = (
-            <tr key={cid ?? `${name}-${i}`} style={{ background: zebra }} title={tip}>
-              <td style={{ ...tdCompact, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  {avatar}
-                  <span
-                    style={{
-                      fontWeight: 600,
-                      color: 'var(--text)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      minWidth: 0,
-                    }}
-                  >
-                    {name}
-                  </span>
-                </div>
-              </td>
-              <td style={{ ...tdCompact, textAlign: 'center' }}>
-                <span style={stateBadgeStyle(st)}>{stateBadgeLabel(st, locale)}</span>
-              </td>
-              <td
-                style={{
-                  ...tdCompact,
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                  fontWeight: 600,
-                  color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
-                }}
-              >
-                {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}
-              </td>
-              <td
-                style={{
-                  ...tdCompact,
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                  fontWeight: 600,
-                  color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
-                }}
-              >
-                {showStatRam ? memStr : '—'}
-              </td>
-              <td style={{ ...tdCompact, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                {!rowPending && showControls && anyBtn ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                    {canStop ? (
-                      <button
-                        type="button"
-                        style={iconAct}
-                        title={de ? 'Container stoppen' : 'Stop container'}
-                        disabled={isBusy || pending != null}
-                        onClick={() => {
-                          if (cid == null || cid === '') return
-                          beginAction(cid, name, 'stop')
-                        }}
-                      >
-                        <IconStop disabled={isBusy || pending != null} />
-                      </button>
-                    ) : null}
-                    {canStart ? (
-                      <button
-                        type="button"
-                        style={iconAct}
-                        title={de ? 'Container starten' : 'Start container'}
-                        disabled={isBusy || pending != null}
-                        onClick={() => {
-                          if (cid == null || cid === '') return
-                          beginAction(cid, name, 'start')
-                        }}
-                      >
-                        <IconPlay disabled={isBusy || pending != null} />
-                      </button>
-                    ) : null}
-                    {canRestart ? (
-                      <button
-                        type="button"
-                        style={iconAct}
-                        title={de ? 'Container neu starten' : 'Restart container'}
-                        disabled={isBusy || pending != null}
-                        onClick={() => {
-                          if (cid == null || cid === '') return
-                          beginAction(cid, name, 'restart')
-                        }}
-                      >
-                        <IconRestart disabled={isBusy || pending != null} />
-                      </button>
-                    ) : null}
-                    {isBusy ? <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>…</span> : null}
-                  </span>
-                ) : null}
-              </td>
-            </tr>
-          )
-
-          if (showControls && rowPending) {
-            const confirmRow = (
-              <tr key={`${cid ?? name}-confirm`} style={{ background: zebra }}>
-                <td
-                  colSpan={5}
-                  style={{ padding: '0 8px 10px', borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)' }}
-                >
+            const mainRow = (
+              <tr key={cid ?? `${name}-${i}`} style={{ background: zebra }} title={tip}>
+                <td style={{ ...tdRow, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 'clamp(9px, 2.3cqmin, 11px)',
-                      lineHeight: 1.4,
-                      color: 'var(--text-muted)',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      padding: '6px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: showContainerNames ? 8 : 4,
+                      minWidth: 0,
+                      justifyContent: showContainerNames ? undefined : 'center',
                     }}
                   >
-                    <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
-                      {rowPending.step === 1 ? (
-                        de ? (
-                          <>
-                            <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
-                            <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
-                          </>
-                        ) : (
-                          <>
-                            Really <strong>{actionVerbEn(rowPending.action)}</strong> <strong>{name}</strong>?{' '}
-                            <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
-                          </>
-                        )
-                      ) : de ? (
-                        <>
-                          Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
-                          <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
-                        </>
-                      ) : (
-                        <>
-                          Second confirmation: <strong>{actionNounEn(rowPending.action)}</strong> for <strong>{name}</strong>.{' '}
-                          <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
-                        </>
-                      )}
-                    </p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                      <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
-                        {de ? 'Abbrechen' : 'Cancel'}
-                      </button>
-                      {rowPending.step === 1 ? (
-                        <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
-                          {de ? 'Weiter' : 'Next'}
-                        </button>
-                      ) : (
-                        <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
-                          {de ? 'Ausführen' : 'Run'}
-                        </button>
-                      )}
-                    </div>
+                    <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
+                      {avatar}
+                    </span>
+                    {showContainerNames ? (
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: 'var(--text)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                        }}
+                      >
+                        {name}
+                      </span>
+                    ) : null}
                   </div>
+                </td>
+                <td style={{ ...tdRow, textAlign: 'center', minWidth: narrow ? 52 : 44 }}>
+                  <span style={stateBadgeStyle(st, narrow)}>{stateBadgeLabel(st, locale)}</span>
+                </td>
+                <td
+                  style={{
+                    ...tdRow,
+                    textAlign: 'right',
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 600,
+                    color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}
+                </td>
+                <td
+                  style={{
+                    ...tdRow,
+                    textAlign: 'right',
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 600,
+                    color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {showStatRam ? memStr : '—'}
+                </td>
+                <td style={{ ...tdRow, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {!rowPending && showControls && anyBtn ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: narrow ? 4 : 6 }}>
+                      {canStop ? (
+                        <button
+                          type="button"
+                          style={iconAct}
+                          title={de ? 'Container stoppen' : 'Stop container'}
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'stop')
+                          }}
+                        >
+                          <IconStop disabled={isBusy || pending != null} />
+                        </button>
+                      ) : null}
+                      {canStart ? (
+                        <button
+                          type="button"
+                          style={iconAct}
+                          title={de ? 'Container starten' : 'Start container'}
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'start')
+                          }}
+                        >
+                          <IconPlay disabled={isBusy || pending != null} />
+                        </button>
+                      ) : null}
+                      {canRestart ? (
+                        <button
+                          type="button"
+                          style={iconAct}
+                          title={de ? 'Container neu starten' : 'Restart container'}
+                          disabled={isBusy || pending != null}
+                          onClick={() => {
+                            if (cid == null || cid === '') return
+                            beginAction(cid, name, 'restart')
+                          }}
+                        >
+                          <IconRestart disabled={isBusy || pending != null} />
+                        </button>
+                      ) : null}
+                      {isBusy ? <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>…</span> : null}
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             )
-            return [mainRow, confirmRow]
-          }
-          return [mainRow]
-        })}
-      </tbody>
-    </table>
+
+            if (showControls && rowPending) {
+              const confirmRow = (
+                <tr key={`${cid ?? name}-confirm`} style={{ background: zebra }}>
+                  <td
+                    colSpan={5}
+                    style={{ padding: '0 8px 10px', borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)' }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 'clamp(9px, 2.3cqmin, 11px)',
+                        lineHeight: 1.4,
+                        color: 'var(--text-muted)',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '6px',
+                        padding: '6px 8px',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 6px', color: 'var(--text)' }}>
+                        {rowPending.step === 1 ? (
+                          de ? (
+                            <>
+                              <strong>{name}</strong> wirklich {actionVerb(rowPending.action)}?{' '}
+                              <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            </>
+                          ) : (
+                            <>
+                              Really <strong>{actionVerbEn(rowPending.action)}</strong> <strong>{name}</strong>?{' '}
+                              <span style={{ color: 'var(--text-muted)' }}>(1/2)</span>
+                            </>
+                          )
+                        ) : de ? (
+                          <>
+                            Zweite Bestätigung: <strong>{actionNoun(rowPending.action)}</strong> für <strong>{name}</strong>.{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
+                          </>
+                        ) : (
+                          <>
+                            Second confirmation: <strong>{actionNounEn(rowPending.action)}</strong> for <strong>{name}</strong>.{' '}
+                            <span style={{ color: 'var(--text-muted)' }}>(2/2)</span>
+                          </>
+                        )}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                        <button type="button" style={btnMuted} onClick={cancelPending} disabled={isBusy}>
+                          {de ? 'Abbrechen' : 'Cancel'}
+                        </button>
+                        {rowPending.step === 1 ? (
+                          <button type="button" style={btn} onClick={goSecondStep} disabled={isBusy}>
+                            {de ? 'Weiter' : 'Next'}
+                          </button>
+                        ) : (
+                          <button type="button" style={btn} onClick={() => void executeAction()} disabled={isBusy}>
+                            {de ? 'Ausführen' : 'Run'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )
+              return [mainRow, confirmRow]
+            }
+            return [mainRow]
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -864,6 +923,7 @@ function Widget({ config }: PluginWidgetProps) {
   const r = config as Record<string, unknown>
   const homarrTable = r.homarrTable !== false
   const useDashboardIcons = r.useDashboardIcons !== false
+  const showContainerNames = r.showContainerNames !== false
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
   const showBtnStart = actionsOn && r.showBtnStart !== false
@@ -1208,6 +1268,7 @@ function Widget({ config }: PluginWidgetProps) {
             busyId={busyId}
             pending={pending}
             useDashboardIcons={useDashboardIcons}
+            showContainerNames={showContainerNames}
             showStatCpu={showStatCpu}
             showStatRam={showStatRam}
             showBtnStart={showBtnStart}
@@ -1590,6 +1651,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       />
 
       <div style={{ opacity: homarrOn ? 1 : 0.45, pointerEvents: homarrOn ? 'auto' : 'none' }}>
+        <ToggleRow
+          label={
+            de
+              ? 'Namen in der Tabelle anzeigen (aus: nur Icon, Name im Tooltip)'
+              : 'Show names in table (off: icon only, name in tooltip)'
+          }
+          on={sub('showContainerNames', true)}
+          onToggle={() => onChange('showContainerNames', !sub('showContainerNames', true))}
+        />
         <ToggleRow
           label={
             de
