@@ -27,6 +27,8 @@ export interface PluginMeta {
   minAppVersion?: string
   homepage?: string
   configSchema?: PluginConfigField[]
+  /** Merged with `{ x: 0, y: Infinity, w: 4, h: 4 }` when adding a widget from the plugin store. */
+  defaultLayout?: Partial<WidgetLayout>
 }
 
 export interface PluginConfigField {

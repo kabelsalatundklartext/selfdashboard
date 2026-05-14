@@ -42,11 +42,13 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const handleAdd = (pluginId: string) => {
     const plugin = pluginRegistry.get(pluginId)
     if (!plugin) return
+    const baseLayout = { x: 0, y: Infinity, w: 4, h: 4 }
+    const fromMeta = plugin.meta.defaultLayout ?? {}
     addPlugin({
       instanceId: nanoid(),
       pluginId,
       config: {},
-      layout: { x: 0, y: Infinity, w: 4, h: 4 },
+      layout: { ...baseLayout, ...fromMeta },
     })
     setAdded((prev) => new Set(prev).add(pluginId))
     // Reset checkmark after 1.5s

@@ -11,10 +11,12 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.1',
+  version: '0.3.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
+  /** Halbe Rasterbreite (6/12) wie typisches Docker-Widget; minW verhindert zu schmale Spalte. */
+  defaultLayout: { w: 6, h: 5, minW: 4 },
 }
 
 const LIST_QUERY = `query SelfDashboardUnraidDocker($skipCache: Boolean!) {

@@ -14,6 +14,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
+  defaultLayout: { w: 6, h: 5, minW: 4 },
 }
 
 interface SdContainerStats {

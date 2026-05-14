@@ -173,25 +173,28 @@ export function WidgetWrapper({ instance, editMode }: Props) {
           </div>
         )}
 
-        {/* Plugin content — scale() so px/em-based UIs zoom reliably (fontSize % on parent did not). */}
+        {/* Plugin content — scale(); stretch to full grid cell (centering shrink-wraps narrow tables). */}
         <div
           style={{
             height: '100%',
             width: '100%',
+            minWidth: 0,
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
             overflow: 'hidden',
             containerType: 'size',
           }}
         >
           <div
             style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
               width: '100%',
-              height: '100%',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              flexDirection: 'column',
+              alignItems: 'stretch',
+              justifyContent: 'flex-start',
               transform: pluginZoom !== 1 ? `scale(${pluginZoom})` : undefined,
               transformOrigin: 'center center',
             }}
