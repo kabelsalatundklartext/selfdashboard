@@ -1,7 +1,7 @@
 'use client'
 
 import type { CSSProperties } from 'react'
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Plus, Trash2, ExternalLink, Edit3, Check, X, Upload, GripVertical, FolderPlus } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'bookmarks',
   name: 'App Bookmarks',
   description: 'Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.',
-  version: '1.5.1',
+  version: '1.6.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🔖',
@@ -18,10 +18,23 @@ export const meta: PluginMeta = {
 
 interface AppLink { id: string; name: string; url: string; icon: string; newTab: boolean; group: string }
 interface Group { id: string; name: string; hidden?: boolean }
-interface BookmarkData { apps: AppLink[]; groups: Group[]; layout?: 'grid' | 'row' }
+interface BookmarkData {
+  apps: AppLink[]
+  groups: Group[]
+  layout?: 'grid' | 'row'
+  /** Mindestbreite einer Kachel (px), Raster + Zeile. */
+  tileMinPx?: number
+  /** Max. Breite beim Mitwachsen (px), nur wenn tileFixed false. */
+  tileMaxPx?: number
+  /** true = feste Spaltenbreite (kein 1fr-Aufziehen). */
+  tileFixed?: boolean
+}
 
 const DEFAULT_DATA: BookmarkData = {
   layout: 'grid',
+  tileMinPx: 108,
+  tileMaxPx: 240,
+  tileFixed: false,
   groups: [{ id: 'default', name: 'Meine Apps' }],
   apps: [
     { id: '1', name: 'Portainer', url: 'http://localhost:9000', icon: '🐳', newTab: true, group: 'default' },
@@ -31,21 +44,63 @@ const DEFAULT_DATA: BookmarkData = {
   ],
 }
 
+function clampTileMin(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+  if (!Number.isFinite(n)) return 108
+  return Math.min(240, Math.max(72, Math.round(n)))
+}
+
+function clampTileMax(v: unknown, minPx: number): number {
+  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+  if (!Number.isFinite(n)) return Math.max(200, minPx + 32)
+  return Math.min(400, Math.max(minPx + 40, Math.round(n)))
+}
+
+function normalizeTiles(p: Record<string, unknown> | undefined): Pick<BookmarkData, 'tileMinPx' | 'tileMaxPx' | 'tileFixed'> {
+  const raw = p ?? {}
+  const min = clampTileMin(raw.tileMinPx)
+  return {
+    tileMinPx: min,
+    tileMaxPx: clampTileMax(raw.tileMaxPx, min),
+    tileFixed: raw.tileFixed === true,
+  }
+}
+
 function parseData(raw: unknown): BookmarkData {
   try {
     const p = JSON.parse(raw as string)
     const layout: 'grid' | 'row' = p?.layout === 'row' ? 'row' : 'grid'
+    const tiles = normalizeTiles(p as Record<string, unknown>)
     if (p?.apps) {
       return {
         apps: p.apps,
         groups: p.groups?.length ? p.groups : [{ id: 'default', name: 'Meine Apps' }],
         layout,
+        ...tiles,
       }
     }
     if (Array.isArray(p) && p.length > 0)
-      return { layout: 'grid', groups: [{ id: 'default', name: 'Meine Apps' }], apps: p.map((a: AppLink) => ({ ...a, group: 'default' })) }
+      return {
+        layout: 'grid',
+        groups: [{ id: 'default', name: 'Meine Apps' }],
+        apps: p.map((a: AppLink) => ({ ...a, group: 'default' })),
+        ...normalizeTiles(undefined),
+      }
   } catch {}
   return DEFAULT_DATA
+}
+
+function serializeBookmarkData(
+  a: AppLink[],
+  g: Group[],
+  l: 'grid' | 'row',
+  tileMin: number,
+  tileMax: number,
+  tileFixed: boolean,
+): string {
+  const min = clampTileMin(tileMin)
+  const max = clampTileMax(tileMax, min)
+  return JSON.stringify({ apps: a, groups: g, layout: l, tileMinPx: min, tileMaxPx: max, tileFixed })
 }
 
 function AppIcon({ icon }: { icon: string }) {
@@ -85,6 +140,17 @@ const linkBaseStyle: CSSProperties = {
 function Widget({ config }: PluginWidgetProps) {
   const data = parseData(config.data ?? config.apps)
   const layout = data.layout ?? 'grid'
+  const minPx = clampTileMin(data.tileMinPx)
+  const maxPx = clampTileMax(data.tileMaxPx ?? 240, minPx)
+  const tileFixed = data.tileFixed === true
+
+  const gridTemplateColumns =
+    layout === 'grid'
+      ? tileFixed
+        ? `repeat(auto-fill, minmax(${minPx}px, ${minPx}px))`
+        : `repeat(auto-fit, minmax(min(100%, clamp(${minPx}px, 24cqmin, ${maxPx}px)), 1fr))`
+      : undefined
+
   const outer: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -118,7 +184,7 @@ function Widget({ config }: PluginWidgetProps) {
               }
             : {
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, clamp(92px, 24cqmin, 200px)), 1fr))',
+                gridTemplateColumns: gridTemplateColumns!,
                 gap: 'clamp(4px, 1.5cqmin, 10px)',
                 alignContent: 'start',
                 width: '100%',
@@ -140,8 +206,9 @@ function Widget({ config }: PluginWidgetProps) {
                   style={{
                     ...linkBaseStyle,
                     flex: layout === 'row' ? '0 0 auto' : undefined,
-                    minWidth: layout === 'row' ? 'min(220px, 85cqw)' : undefined,
-                    maxWidth: layout === 'row' ? 'min(280px, 95cqw)' : undefined,
+                    width: layout === 'grid' ? '100%' : undefined,
+                    minWidth: layout === 'row' ? `${minPx}px` : undefined,
+                    maxWidth: layout === 'row' ? (tileFixed ? `${minPx}px` : `min(${maxPx}px, 95cqw)`) : undefined,
                     minHeight: layout === 'grid' ? 'clamp(40px, 11cqmin, 52px)' : undefined,
                     boxSizing: 'border-box',
                   }}
@@ -175,12 +242,36 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [tileMin, setTileMin] = useState(() => clampTileMin(data.tileMinPx))
+  const [tileMax, setTileMax] = useState(() => clampTileMax(data.tileMaxPx ?? 240, clampTileMin(data.tileMinPx)))
+  const [tileFixed, setTileFixed] = useState(() => data.tileFixed === true)
+
+  useEffect(() => {
+    const d = parseData(config.data ?? config.apps)
+    setApps(d.apps)
+    setGroups(d.groups)
+    setLayout(d.layout ?? 'grid')
+    setTileMin(clampTileMin(d.tileMinPx))
+    setTileMax(clampTileMax(d.tileMaxPx ?? 240, clampTileMin(d.tileMinPx)))
+    setTileFixed(d.tileFixed === true)
+  }, [config.data, config.apps])
+
   const saveAll = (a: AppLink[], g: Group[], nextLayout?: 'grid' | 'row') => {
     const l = nextLayout ?? layout
     setApps(a)
     setGroups(g)
-    if (nextLayout !== undefined) setLayout(nextLayout)
-    onChange('data', JSON.stringify({ apps: a, groups: g, layout: l }))
+    if (nextLayout !== undefined) setLayout(l)
+    onChange('data', serializeBookmarkData(a, g, l, tileMin, tileMax, tileFixed))
+  }
+
+  const persistTiles = (next: { min?: number; max?: number; fixed?: boolean }) => {
+    const tm = clampTileMin(next.min ?? tileMin)
+    const tx = clampTileMax(next.max ?? tileMax, tm)
+    const tf = next.fixed ?? tileFixed
+    setTileMin(tm)
+    setTileMax(tx)
+    if (next.fixed !== undefined) setTileFixed(tf)
+    onChange('data', serializeBookmarkData(apps, groups, layout, tm, tx, tf))
   }
 
   const startEdit = (app: AppLink) => { setEditing(app.id); setEditData({ ...app }) }
@@ -264,6 +355,67 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <button type="button" onClick={() => saveAll(apps, groups, 'row')} style={layoutBtn(layout === 'row')}>
             {de ? 'Waagerecht (scrollbar)' : 'Horizontal (scroll)'}
           </button>
+        </div>
+      </div>
+
+      <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 8px' }}>
+          {de ? 'Kachelbreite' : 'Tile width'}
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'flex-end' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text)' }}>
+            {de ? 'Min. (px)' : 'Min (px)'}
+            <input
+              type="number"
+              min={72}
+              max={240}
+              step={4}
+              value={tileMin}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10)
+                if (!Number.isFinite(n)) return
+                persistTiles({ min: n })
+              }}
+              style={{ ...inp, width: '88px' }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              fontSize: '12px',
+              color: layout === 'grid' && tileFixed ? 'var(--text-muted)' : 'var(--text)',
+              opacity: layout === 'grid' && tileFixed ? 0.6 : 1,
+            }}
+            title={
+              layout === 'grid' && tileFixed
+                ? (de ? 'Bei festem Raster entspricht die Spaltenbreite der Mindestbreite.' : 'With fixed grid, column width equals min width.')
+                : undefined
+            }
+          >
+            {de ? 'Max. (px)' : 'Max (px)'}
+            <input
+              type="number"
+              min={112}
+              max={400}
+              step={4}
+              disabled={layout === 'grid' && tileFixed}
+              value={tileMax}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10)
+                if (!Number.isFinite(n)) return
+                persistTiles({ max: n })
+              }}
+              style={{ ...inp, width: '88px', opacity: layout === 'grid' && tileFixed ? 0.7 : 1 }}
+            />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text)', cursor: 'pointer', paddingBottom: '6px', maxWidth: '320px' }}>
+            <input type="checkbox" checked={tileFixed} onChange={(e) => persistTiles({ fixed: e.target.checked })} />
+            {de
+              ? 'Feste Breite: Raster ohne Strecken; waagerecht gleich breite Kacheln.'
+              : 'Fixed width: grid columns do not stretch; horizontal row uses equal tile width.'}
+          </label>
         </div>
       </div>
 
