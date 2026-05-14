@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.7',
+  version: '1.6.8',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -653,9 +653,11 @@ function HomarrDockerTable({
 
   const colWidths =
     !showContainerNames
-      ? (['48px', '20%', '17%', '34%', '11%'] as const)
+      ? narrow
+        ? (['44px', '17%', '9%', '46%', '11%'] as const)
+        : (['48px', '20%', '17%', '34%', '11%'] as const)
       : narrow
-        ? (['22%', '21%', '15%', '27%', '15%'] as const)
+        ? (['22%', '19%', '10%', '36%', '13%'] as const)
         : (['38%', '11%', '16%', '19%', '16%'] as const)
 
   const headers = narrow
