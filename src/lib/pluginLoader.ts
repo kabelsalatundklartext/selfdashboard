@@ -13,6 +13,7 @@ import * as adguard from '../../plugins/adguard'
 import * as scratchpad from '../../plugins/scratchpad'
 import * as unraid from '../../plugins/unraid'
 import * as unraidDocker from '../../plugins/unraid-docker'
+import * as fritzbox from '../../plugins/fritzbox'
 import * as weather from '../../plugins/weather'
 
 export function loadBuiltinPlugins() {
@@ -23,6 +24,7 @@ export function loadBuiltinPlugins() {
   registerPlugin(docker.meta, docker.component)
   registerPlugin(emby.meta, emby.component)
   registerPlugin(adguard.meta, adguard.component)
+  registerPlugin(fritzbox.meta, fritzbox.component)
   registerPlugin(scratchpad.meta, scratchpad.component)
   registerPlugin(unraid.meta, unraid.component)
   registerPlugin(unraidDocker.meta, unraidDocker.component)
