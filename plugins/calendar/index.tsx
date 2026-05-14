@@ -10,8 +10,8 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Calendar',
   description:
-    'Monats- oder Wochenansicht, Wochenstart, lokale Termine (im Widget speicherbar), optional nur anstehende Termine in der Liste.',
-  version: '1.2.0',
+    'Monats-/Wochenansicht, lokale Termine, optional ICS-Abonnements (Google, Microsoft, Apple, Nextcloud, Synology …) über Server-Proxy.',
+  version: '1.3.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -68,6 +68,12 @@ export const meta: PluginMeta = {
       type: 'number',
       defaultValue: 15,
     },
+    {
+      key: 'icsRefreshMinutes',
+      label: 'ICS-Feeds aktualisieren (Min)',
+      type: 'number',
+      defaultValue: 30,
+    },
   ],
 }
 
@@ -109,6 +115,42 @@ function clampListMax(v: unknown): number {
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : ''
+}
+
+type IcsFeedConfig = { url: string; name?: string }
+
+interface RemoteCalEvent {
+  id: string
+  title: string
+  date: string
+  timeLabel?: string | null
+  feedIndex: number
+  feedName?: string
+}
+
+type ListEntry =
+  | { mode: 'local'; id: string; date: string; title: string }
+  | { mode: 'remote'; id: string; date: string; title: string; time?: string; source?: string }
+
+function parseIcsFeeds(raw: unknown): IcsFeedConfig[] {
+  if (!Array.isArray(raw)) return []
+  const out: IcsFeedConfig[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const url = str(o.url)
+    if (!url) continue
+    const name = str(o.name)
+    out.push({ url: url.slice(0, 2000), ...(name ? { name: name.slice(0, 120) } : {}) })
+    if (out.length >= 8) break
+  }
+  return out
+}
+
+function clampIcsRefresh(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+  if (!Number.isFinite(n)) return 30
+  return Math.min(240, Math.max(5, Math.round(n)))
 }
 
 function toYmd(d: Date): string {
@@ -204,17 +246,103 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showEventList = (config as Record<string, unknown>).showEventList !== false
   const listUpcomingOnly = (config as Record<string, unknown>).listUpcomingOnly === true
   const maxListEntries = clampListMax((config as Record<string, unknown>).maxListEntries)
+  const icsRefreshMinutes = clampIcsRefresh((config as Record<string, unknown>).icsRefreshMinutes)
   const startsMonday = weekStartsMonday(weekMode, de)
 
   const rawEvents = (config as Record<string, unknown>).events
+  const rawIcsFeeds = (config as Record<string, unknown>).icsFeeds
   const events = useMemo(() => parseEvents(rawEvents), [rawEvents])
+  const icsFeeds = useMemo(() => parseIcsFeeds(rawIcsFeeds), [rawIcsFeeds])
+
+  const [remoteEvents, setRemoteEvents] = useState<RemoteCalEvent[]>([])
+  const [icsErrors, setIcsErrors] = useState<Record<number, string>>({})
+  const [icsLoading, setIcsLoading] = useState(false)
+
+  useEffect(() => {
+    if (icsFeeds.length === 0) {
+      setRemoteEvents([])
+      setIcsErrors({})
+      setIcsLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const winStart = new Date()
+    winStart.setDate(winStart.getDate() - 14)
+    winStart.setHours(0, 0, 0, 0)
+    const winEnd = new Date()
+    winEnd.setDate(winEnd.getDate() + 180)
+    winEnd.setHours(23, 59, 59, 999)
+
+    const load = async () => {
+      setIcsLoading(true)
+      const errs: Record<number, string> = {}
+      const merged: RemoteCalEvent[] = []
+      for (let i = 0; i < icsFeeds.length; i++) {
+        const feed = icsFeeds[i]!
+        try {
+          const res = await fetch('/api/calendar-ics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: feed.url,
+              windowStart: winStart.toISOString(),
+              windowEnd: winEnd.toISOString(),
+            }),
+          })
+          const j = (await res.json()) as {
+            ok?: boolean
+            error?: string
+            events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
+          }
+          if (!j?.ok) throw new Error(j?.error || `http_${res.status}`)
+          let host = 'ICS'
+          try {
+            host = new URL(feed.url).hostname
+          } catch {
+            /* ignore */
+          }
+          const label = feed.name?.trim() || host
+          for (const ev of j.events ?? []) {
+            merged.push({
+              id: `r${i}-${ev.id}`,
+              title: ev.title,
+              date: ev.date,
+              timeLabel: ev.timeLabel,
+              feedIndex: i,
+              feedName: label,
+            })
+          }
+        } catch (e) {
+          errs[i] = e instanceof Error ? e.message : String(e)
+        }
+      }
+      if (!cancelled) {
+        setRemoteEvents(merged)
+        setIcsErrors(errs)
+        setIcsLoading(false)
+      }
+    }
+
+    void load()
+    const ms = Math.max(5, icsRefreshMinutes) * 60_000
+    const timer = window.setInterval(() => void load(), ms)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [icsFeeds, icsRefreshMinutes])
+
   const eventsByDay = useMemo(() => {
     const map = new Map<string, number>()
     for (const e of events) {
       map.set(e.date, (map.get(e.date) ?? 0) + 1)
     }
+    for (const r of remoteEvents) {
+      map.set(r.date, (map.get(r.date) ?? 0) + 1)
+    }
     return map
-  }, [events])
+  }, [events, remoteEvents])
 
   const persistEvents = useCallback(
     (next: CalendarEventRow[]) => {
@@ -300,16 +428,49 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   }, [viewMode, startsMonday])
 
   const listRows = useMemo(() => {
-    let rows = [...events]
-    rows.sort((a, b) => (a.date === b.date ? a.title.localeCompare(b.title, loc) : a.date.localeCompare(b.date)))
-    if (listUpcomingOnly) rows = rows.filter((e) => e.date >= todayYmd)
-    return rows.slice(0, maxListEntries)
-  }, [events, listUpcomingOnly, maxListEntries, todayYmd, loc])
+    const rows: ListEntry[] = events.map((e) => ({
+      mode: 'local' as const,
+      id: e.id,
+      date: e.date,
+      title: e.title,
+    }))
+    for (const r of remoteEvents) {
+      rows.push({
+        mode: 'remote',
+        id: r.id,
+        date: r.date,
+        title: r.title,
+        time: r.timeLabel ?? undefined,
+        source: r.feedName,
+      })
+    }
+    rows.sort((a, b) => {
+      const c = a.date.localeCompare(b.date)
+      if (c !== 0) return c
+      const ta = `${a.mode === 'remote' ? a.time ?? '' : ''}${a.title}`
+      const tb = `${b.mode === 'remote' ? b.time ?? '' : ''}${b.title}`
+      return ta.localeCompare(tb, loc)
+    })
+    let out = rows
+    if (listUpcomingOnly) out = out.filter((x) => x.date >= todayYmd)
+    return out.slice(0, maxListEntries)
+  }, [events, remoteEvents, listUpcomingOnly, maxListEntries, todayYmd, loc])
 
-  const dayEvents = useMemo(() => {
+  const dayLocalEvents = useMemo(() => {
     if (!pickerYmd) return []
     return events.filter((e) => e.date === pickerYmd).sort((a, b) => a.title.localeCompare(b.title, loc))
   }, [events, pickerYmd, loc])
+
+  const dayRemoteEvents = useMemo(() => {
+    if (!pickerYmd) return []
+    return remoteEvents
+      .filter((r) => r.date === pickerYmd)
+      .sort((a, b) => {
+        const ta = `${a.timeLabel ?? ''}${a.title}`
+        const tb = `${b.timeLabel ?? ''}${b.title}`
+        return ta.localeCompare(tb, loc)
+      })
+  }, [remoteEvents, pickerYmd, loc])
 
   const pickerLabel = useMemo(() => {
     if (!pickerYmd) return ''
@@ -471,6 +632,35 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </button>
       </div>
 
+      {icsFeeds.length > 0 && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: '10px',
+            color: Object.keys(icsErrors).length > 0 ? '#fb7185' : muted,
+            textAlign: 'center',
+            lineHeight: 1.35,
+            flexShrink: 0,
+          }}
+        >
+          {icsLoading
+            ? de
+              ? 'ICS-Feeds werden geladen …'
+              : 'Loading ICS feeds…'
+            : Object.keys(icsErrors).length > 0
+              ? de
+                ? `ICS: ${Object.entries(icsErrors)
+                    .map(([i, msg]) => `${(icsFeeds[Number(i)]?.name || `Feed ${Number(i) + 1}`)}: ${msg}`)
+                    .join(' · ')}`
+                : `ICS: ${Object.entries(icsErrors)
+                    .map(([i, msg]) => `${(icsFeeds[Number(i)]?.name || `Feed ${Number(i) + 1}`)}: ${msg}`)
+                    .join(' · ')}`
+              : de
+                ? `${remoteEvents.length} ICS-Termine im Fenster · alle ${icsRefreshMinutes} min aktualisiert`
+                : `${remoteEvents.length} ICS events in window · refresh every ${icsRefreshMinutes} min`}
+        </p>
+      )}
+
       <div
         role="grid"
         aria-label={de ? 'Kalender' : 'Calendar'}
@@ -626,9 +816,53 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             </button>
           </div>
 
-          {dayEvents.length === 0 && <p style={{ margin: 0, fontSize: '11px', color: muted }}>{lab.emptyDay}</p>}
+          {dayRemoteEvents.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                {de ? 'ICS / Cloud' : 'ICS / cloud'}
+              </p>
+              {dayRemoteEvents.map((rev) => (
+                <div
+                  key={rev.id}
+                  style={{
+                    fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                    color: text,
+                    padding: '5px 8px',
+                    borderRadius: '6px',
+                    background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+                  }}
+                >
+                  <span style={{ color: muted, fontSize: '10px', display: 'block', lineHeight: 1.2 }}>{rev.feedName}</span>
+                  <span>
+                    {rev.timeLabel ? `${rev.timeLabel} · ` : ''}
+                    {rev.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
-          {dayEvents.map((ev) =>
+          {dayLocalEvents.length > 0 && (
+            <p
+              style={{
+                margin: dayRemoteEvents.length ? '8px 0 0' : '6px 0 0',
+                fontSize: '10px',
+                fontWeight: 600,
+                color: muted,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {de ? 'Lokal' : 'Local'}
+            </p>
+          )}
+
+          {dayLocalEvents.length === 0 && dayRemoteEvents.length === 0 && (
+            <p style={{ margin: 0, fontSize: '11px', color: muted }}>{lab.emptyDay}</p>
+          )}
+
+          {dayLocalEvents.map((ev) =>
             editing?.id === ev.id ? (
               <div key={ev.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '10px', color: muted }}>{lab.titleLabel}</label>
@@ -740,12 +974,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             <p style={{ margin: 0, fontSize: '11px', color: muted }}>{de ? 'Keine Einträge.' : 'No entries.'}</p>
           ) : (
             <ul style={{ margin: 0, padding: '0 0 0 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {listRows.map((ev) => (
-                <li key={ev.id} style={{ fontSize: 'clamp(10px, 2.1cqmin, 12px)', color: text }}>
+              {listRows.map((row) => (
+                <li key={row.id} style={{ fontSize: 'clamp(10px, 2.1cqmin, 12px)', color: text }}>
                   <button
                     type="button"
                     onClick={() => {
-                      setPickerYmd(ev.date)
+                      setPickerYmd(row.date)
                       setEditing(null)
                       setNewTitle('')
                     }}
@@ -763,9 +997,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     }}
                   >
                     <span className="tabular-nums" style={{ fontVariantNumeric: 'tabular-nums', color: muted }}>
-                      {ev.date}
-                    </span>{' '}
-                    — {ev.title}
+                      {row.date}
+                    </span>
+                    {row.mode === 'remote' && row.time ? (
+                      <span className="tabular-nums" style={{ fontVariantNumeric: 'tabular-nums', color: muted }}>
+                        {' '}
+                        {row.time}
+                      </span>
+                    ) : null}{' '}
+                    — {row.title}
+                    {row.mode === 'remote' && row.source ? (
+                      <span style={{ color: muted, fontSize: '10px' }}> · {row.source}</span>
+                    ) : null}
                   </button>
                 </li>
               ))}
@@ -953,6 +1196,131 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           max={50}
           value={clampListMax((config as Record<string, unknown>).maxListEntries)}
           onChange={(e) => onChange('maxListEntries', clampListMax(e.target.value))}
+        />
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
+          {de ? 'ICS-Abonnements (Internet-Kalender)' : 'ICS subscriptions (web calendars)'}
+        </p>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
+          {de ? (
+            <>
+              Trage die <strong>geheime iCal-/ICS-Adresse</strong> ein (meist „öffentlicher Kalender“ oder „Abonnement-URL“).
+              Der Abruf läuft über den SelfDashboard-Server (CORS), damit Google, Microsoft, Apple iCloud,{' '}
+              <strong>Synology Calendar</strong>, Nextcloud &amp; Co. funktionieren — auch <strong>URLs im Heimnetz</strong>{' '}
+              (z.&nbsp;B. <code style={{ fontSize: '10px' }}>https://diskstation.me:5001/...</code>).
+            </>
+          ) : (
+            <>
+              Paste the <strong>secret iCal / ICS URL</strong> (often “public calendar” or “subscription link”). Fetches go
+              through the SelfDashboard server to avoid browser CORS issues — works with Google, Microsoft, Apple iCloud,{' '}
+              <strong>Synology Calendar</strong>, Nextcloud, etc., including <strong>LAN URLs</strong>.
+            </>
+          )}
+        </p>
+        <ul style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 12px', paddingLeft: '18px', lineHeight: 1.5 }}>
+          <li>
+            <a href="https://support.google.com/calendar/answer/37648" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+              Google Calendar
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://support.microsoft.com/office/share-your-calendar-in-outlook-on-the-web-3538412d-811d-4e95-acb0-4c7bf37d09a8"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent)' }}
+            >
+              Microsoft Outlook / 365
+            </a>
+          </li>
+          <li>
+            <a href="https://support.apple.com/guide/icloud/share-a-calendar-mm6b1a044a/icloud" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+              Apple iCloud
+            </a>
+          </li>
+          <li>
+            <a href="https://kb.synology.com/en-global/DSM/help/Calendar/calendar_subscribe_ical" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+              Synology Calendar
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://docs.nextcloud.com/server/latest/user_manual/en/groupware/calendar.html#subscribe-to-a-calendar"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent)' }}
+            >
+              Nextcloud
+            </a>
+          </li>
+        </ul>
+
+        {(() => {
+          const feeds = parseIcsFeeds((config as Record<string, unknown>).icsFeeds)
+          const setFeeds = (next: IcsFeedConfig[]) => onChange('icsFeeds', next)
+          return (
+            <>
+              {feeds.map((feed, i) => (
+                <div key={i} style={{ marginBottom: '12px', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface-2)' }}>
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    {de ? 'Anzeigename (optional)' : 'Label (optional)'}
+                  </label>
+                  <input
+                    style={{ ...inp, marginBottom: '8px' }}
+                    value={feed.name ?? ''}
+                    placeholder={de ? 'z. B. Arbeit, Familie, Synology' : 'e.g. Work, Family, Synology'}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, name: v } : f)))
+                    }}
+                  />
+                  <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    iCal / ICS URL (https://…)
+                  </label>
+                  <input
+                    style={inp}
+                    value={feed.url}
+                    placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, url: v } : f)))
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    style={{ marginTop: '8px', fontSize: '12px', padding: '4px 10px' }}
+                    onClick={() => setFeeds(feeds.filter((_, idx) => idx !== i))}
+                  >
+                    {de ? 'Feed entfernen' : 'Remove feed'}
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ fontSize: '12px', padding: '6px 12px', marginBottom: '12px' }}
+                disabled={feeds.length >= 8}
+                onClick={() => setFeeds([...feeds, { url: '', name: '' }])}
+              >
+                {de ? '+ ICS-Feed hinzufügen' : '+ Add ICS feed'}
+              </button>
+            </>
+          )
+        })()}
+
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+          {de ? 'ICS alle X Minuten neu laden' : 'Refresh ICS every X minutes'}
+        </label>
+        <input
+          style={inp}
+          type="number"
+          min={5}
+          max={240}
+          value={clampIcsRefresh((config as Record<string, unknown>).icsRefreshMinutes)}
+          onChange={(e) => onChange('icsRefreshMinutes', clampIcsRefresh(e.target.value))}
         />
       </div>
     </div>
