@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.5',
+  version: '1.7.6',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -119,6 +119,49 @@ function sortContainers(a: DockerContainer, b: DockerContainer): number {
   const br = isDockerRunning(b) ? 0 : 1
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
+}
+
+/** Anzeige-Reihenfolge (Einstellung `listSort`). */
+type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc'
+
+function parseListSort(v: unknown): ListSortMode {
+  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc') return v
+  return 'default'
+}
+
+function dockerCpuPct(c: DockerContainer): number | null {
+  const p = c.sdStats?.cpuPct
+  return typeof p === 'number' && Number.isFinite(p) ? p : null
+}
+
+function dockerMemSortKey(c: DockerContainer): number | null {
+  const b = c.sdStats?.memUsageBytes
+  if (typeof b === 'number' && Number.isFinite(b) && b >= 0) return b
+  const mp = c.sdStats?.memPct
+  return typeof mp === 'number' && Number.isFinite(mp) && mp >= 0 ? mp : null
+}
+
+function applyDockerSort(arr: DockerContainer[], mode: ListSortMode): DockerContainer[] {
+  const copy = arr.slice()
+  if (mode === 'default') {
+    copy.sort(sortContainers)
+    return copy
+  }
+  if (mode === 'name') {
+    copy.sort((a, b) => containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' }))
+    return copy
+  }
+  const desc = mode === 'cpu_desc' || mode === 'mem_desc'
+  const useMem = mode === 'mem_desc' || mode === 'mem_asc'
+  copy.sort((a, b) => {
+    const va = useMem ? dockerMemSortKey(a) : dockerCpuPct(a)
+    const vb = useMem ? dockerMemSortKey(b) : dockerCpuPct(b)
+    if (va != null && vb != null && va !== vb) return desc ? vb - va : va - vb
+    if (va != null && vb == null) return -1
+    if (va == null && vb != null) return 1
+    return sortContainers(a, b)
+  })
+  return copy
 }
 
 /** Volle Container-ID (API / Stats); gleiche Regel wie Server */
@@ -988,6 +1031,8 @@ function Widget({ config }: PluginWidgetProps) {
   const fetchStats = showStatCpu || showStatRam
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
+  const listSort = parseListSort(r.listSort)
+  const displayList = useMemo(() => applyDockerSort(list, listSort), [list, listSort])
   const locale = useDashboardStore((s) => s.locale) as Locale
   const de = locale !== 'en'
 
@@ -1012,7 +1057,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (!Array.isArray(data)) throw new Error('Unerwartetes Antwortformat')
       if (latestFetch.current !== id) return
 
-      const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
+      const sorted = applyDockerSort(data as DockerContainer[], listSort)
       trimmed = sorted.slice(0, maxRows)
       /** Phase-1 liefert keine sdStats — alte Werte kurz behalten, sonst flackern CPU/RAM bei jedem Poll */
       setList((prev) => {
@@ -1050,7 +1095,7 @@ function Widget({ config }: PluginWidgetProps) {
         return
       }
       if (!res.ok || !Array.isArray(data)) return
-      const sorted = (data as DockerContainer[]).slice().sort(sortContainers)
+      const sorted = applyDockerSort(data as DockerContainer[], listSort)
       setList(sorted.slice(0, maxRows))
       setLastFetchOk(Date.now())
     }
@@ -1093,28 +1138,31 @@ function Widget({ config }: PluginWidgetProps) {
       }
 
       setList((prev) =>
-        prev.map((c) => {
-          const cid = dockerContainerId(c)
-          if (!isDockerRunning(c) || !CONTAINER_ID_RE.test(cid)) {
-            return { ...c, sdStats: null }
-          }
-          const statsRecord = statsMap as Record<string, SdContainerStats | null>
-          let v: SdContainerStats | null | undefined = statsRecord[cid]
-          if (v === undefined) {
-            const hit = statsKeys.find((k) => k === cid || k.toLowerCase() === cid.toLowerCase())
-            if (hit !== undefined) v = statsRecord[hit]
-          }
-          if (v !== undefined) {
-            return { ...c, sdStats: v ?? null }
-          }
-          return c
-        }),
+        applyDockerSort(
+          prev.map((c) => {
+            const cid = dockerContainerId(c)
+            if (!isDockerRunning(c) || !CONTAINER_ID_RE.test(cid)) {
+              return { ...c, sdStats: null }
+            }
+            const statsRecord = statsMap as Record<string, SdContainerStats | null>
+            let v: SdContainerStats | null | undefined = statsRecord[cid]
+            if (v === undefined) {
+              const hit = statsKeys.find((k) => k === cid || k.toLowerCase() === cid.toLowerCase())
+              if (hit !== undefined) v = statsRecord[hit]
+            }
+            if (v !== undefined) {
+              return { ...c, sdStats: v ?? null }
+            }
+            return c
+          }),
+          listSort,
+        ),
       )
       setLastFetchOk(Date.now())
     } catch {
       if (latestFetch.current === id) await mergeStatsFromGet()
     }
-  }, [showAll, maxRows, fetchStats])
+  }, [showAll, maxRows, fetchStats, listSort])
 
   useEffect(() => {
     fetch_()
@@ -1316,7 +1364,7 @@ function Widget({ config }: PluginWidgetProps) {
           <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Keine Container in der Liste.' : 'No containers in the list.'}</p>
         ) : homarrTable ? (
           <HomarrDockerTable
-            list={list}
+            list={displayList}
             locale={locale}
             busyId={busyId}
             pending={pending}
@@ -1339,7 +1387,7 @@ function Widget({ config }: PluginWidgetProps) {
           />
         ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
-          {list.map((c, i) => {
+          {displayList.map((c, i) => {
             const name = containerName(c)
             const st = c.State ?? '—'
             const status = (c.Status ?? '').trim() || st
@@ -1374,8 +1422,8 @@ function Widget({ config }: PluginWidgetProps) {
                 style={{
                   listStyle: 'none',
                   margin: 0,
-                  padding: i < list.length - 1 ? '0 0 6px 0' : 0,
-                  borderBottom: i < list.length - 1 ? '1px solid var(--border)' : 'none',
+                  padding: i < displayList.length - 1 ? '0 0 6px 0' : 0,
+                  borderBottom: i < displayList.length - 1 ? '1px solid var(--border)' : 'none',
                   minWidth: 0,
                 }}
               >
@@ -1855,6 +1903,29 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           value={Number.isFinite(Number(config.maxRows)) ? Number(config.maxRows) : 80}
           onChange={(e) => onChange('maxRows', e.target.value === '' ? 80 : Number(e.target.value))}
         />
+      </div>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {de ? 'Container-Reihenfolge' : 'Container order'}
+        </label>
+        <select
+          style={{ ...inp, cursor: 'pointer' }}
+          value={parseListSort(r.listSort)}
+          onChange={(e) => onChange('listSort', e.target.value)}
+        >
+          <option value="default">{de ? 'Standard (laufend zuerst, dann Name)' : 'Default (running first, then name)'}</option>
+          <option value="name">{de ? 'Nur Name (A–Z)' : 'Name only (A–Z)'}</option>
+          <option value="cpu_desc">{de ? 'CPU (höchste zuerst)' : 'CPU (highest first)'}</option>
+          <option value="cpu_asc">{de ? 'CPU (niedrigste zuerst)' : 'CPU (lowest first)'}</option>
+          <option value="mem_desc">{de ? 'RAM (höchste zuerst)' : 'RAM (highest first)'}</option>
+          <option value="mem_asc">{de ? 'RAM (niedrigste zuerst)' : 'RAM (lowest first)'}</option>
+        </select>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+          {de
+            ? 'CPU/RAM nutzen die angezeigten Messwerte, wenn vorhanden; sonst wie „Standard“.'
+            : 'CPU/RAM use live values when available; otherwise tie-break like “Default”.'}
+        </p>
       </div>
     </div>
   )

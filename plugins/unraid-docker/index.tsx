@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): Homarr-Tabelle oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.1',
+  version: '0.4.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -120,6 +120,48 @@ function sortContainers(a: GqlContainer, b: GqlContainer): number {
   const br = isRunningState(b.state) ? 0 : isPausedState(b.state) ? 1 : 2
   if (ar !== br) return ar - br
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
+}
+
+type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc'
+
+function parseListSort(v: unknown): ListSortMode {
+  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc') return v
+  return 'default'
+}
+
+function unraidCpuFromStats(c: GqlContainer, stats: Record<string, LiveStat>): number | null {
+  const s = stats[c.id]
+  const p = s?.cpuPercent
+  return typeof p === 'number' && Number.isFinite(p) ? p : null
+}
+
+function unraidMemFromStats(c: GqlContainer, stats: Record<string, LiveStat>): number | null {
+  const s = stats[c.id]
+  const p = s?.memPercent
+  return typeof p === 'number' && Number.isFinite(p) ? p : null
+}
+
+function applyUnraidSort(arr: GqlContainer[], mode: ListSortMode, stats: Record<string, LiveStat>): GqlContainer[] {
+  const copy = arr.slice()
+  if (mode === 'default') {
+    copy.sort(sortContainers)
+    return copy
+  }
+  if (mode === 'name') {
+    copy.sort((a, b) => containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' }))
+    return copy
+  }
+  const desc = mode === 'cpu_desc' || mode === 'mem_desc'
+  const useMem = mode === 'mem_desc' || mode === 'mem_asc'
+  copy.sort((a, b) => {
+    const va = useMem ? unraidMemFromStats(a, stats) : unraidCpuFromStats(a, stats)
+    const vb = useMem ? unraidMemFromStats(b, stats) : unraidCpuFromStats(b, stats)
+    if (va != null && vb != null && va !== vb) return desc ? vb - va : va - vb
+    if (va != null && vb == null) return -1
+    if (va == null && vb != null) return 1
+    return sortContainers(a, b)
+  })
+  return copy
 }
 
 function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
@@ -701,6 +743,7 @@ function Widget({ config }: PluginWidgetProps) {
   const wsEnabled = liveStats && (showStatCpu || showStatRam)
   const refresh = (Number(r.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(r.maxRows) || 80))
+  const listSort = parseListSort(r.listSort)
 
   const [list, setList] = useState<GqlContainer[]>([])
   const [statsById, setStatsById] = useState<Record<string, LiveStat>>({})
@@ -717,6 +760,8 @@ function Widget({ config }: PluginWidgetProps) {
   const layoutRef = useRef<HTMLDivElement>(null)
   const tableWrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
+
+  const displayList = useMemo(() => applyUnraidSort(list, listSort, statsById), [list, listSort, statsById])
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -736,7 +781,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (!showStopped) {
         rows = rows.filter((c) => String(c.state ?? '').toUpperCase() !== 'EXITED')
       }
-      const sorted = rows.slice().sort(sortContainers).slice(0, maxRows)
+      const sorted = applyUnraidSort(rows, listSort, {}).slice(0, maxRows)
       setList(sorted)
       setError(null)
       setLastFetchOk(Date.now())
@@ -747,7 +792,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       if (latest.current === id) setLoading(false)
     }
-  }, [url, apiKey, showStopped, skipCache, maxRows, de])
+  }, [url, apiKey, showStopped, skipCache, maxRows, listSort, de])
 
   useEffect(() => {
     setLoading(true)
@@ -1107,7 +1152,7 @@ function Widget({ config }: PluginWidgetProps) {
               </tr>
             </thead>
             <tbody>
-              {list.flatMap((c, i) => {
+              {displayList.flatMap((c, i) => {
                 const name = containerName(c)
                 const cid = c.id.trim()
                 const running = isRunningState(c.state)
@@ -1393,7 +1438,7 @@ function Widget({ config }: PluginWidgetProps) {
         </div>
         ) : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
-            {list.map((c, i) => {
+            {displayList.map((c, i) => {
               const name = containerName(c)
               const cid = c.id.trim()
               const running = isRunningState(c.state)
@@ -1428,8 +1473,8 @@ function Widget({ config }: PluginWidgetProps) {
                   style={{
                     listStyle: 'none',
                     margin: 0,
-                    padding: i < list.length - 1 ? '0 0 6px 0' : 0,
-                    borderBottom: i < list.length - 1 ? '1px solid var(--border)' : 'none',
+                    padding: i < displayList.length - 1 ? '0 0 6px 0' : 0,
+                    borderBottom: i < displayList.length - 1 ? '1px solid var(--border)' : 'none',
                     minWidth: 0,
                   }}
                 >
@@ -1884,6 +1929,25 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           value={Number.isFinite(Number(r.maxRows)) ? Number(r.maxRows) : 80}
           onChange={(e) => onChange('maxRows', e.target.value === '' ? 80 : Number(e.target.value))}
         />
+      </div>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {de ? 'Container-Reihenfolge' : 'Container order'}
+        </label>
+        <select style={{ ...inp, cursor: 'pointer' }} value={parseListSort(r.listSort)} onChange={(e) => onChange('listSort', e.target.value)}>
+          <option value="default">{de ? 'Standard (läuft / pausiert / gestoppt, dann Name)' : 'Default (running / paused / stopped, then name)'}</option>
+          <option value="name">{de ? 'Nur Name (A–Z)' : 'Name only (A–Z)'}</option>
+          <option value="cpu_desc">{de ? 'CPU (höchste zuerst)' : 'CPU (highest first)'}</option>
+          <option value="cpu_asc">{de ? 'CPU (niedrigste zuerst)' : 'CPU (lowest first)'}</option>
+          <option value="mem_desc">{de ? 'RAM % (höchste zuerst)' : 'RAM % (highest first)'}</option>
+          <option value="mem_asc">{de ? 'RAM % (niedrigste zuerst)' : 'RAM % (lowest first)'}</option>
+        </select>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+          {de
+            ? 'CPU/RAM-Sortierung nutzt Live-WebSocket-Werte, sobald vorhanden; sonst wie „Standard“.'
+            : 'CPU/RAM sorting uses live WebSocket values when available; otherwise tie-break like “Default”.'}
+        </p>
       </div>
     </div>
   )
