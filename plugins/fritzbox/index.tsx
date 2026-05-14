@@ -6,6 +6,7 @@ import {
   Gauge,
   Globe,
   Router,
+  SlidersHorizontal,
   Users,
   Wifi,
   type LucideIcon,
@@ -13,17 +14,18 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { useDashboardStore } from '@/lib/store'
 
 export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'WAN per UPnP-IGD/TR-064: Status, IPv4, Sync, aktuelle Rate (Byte-Zähler). Optional schneller Live-Takt nur für Zähler. Digest-Auth über /api/fritzbox.',
-  version: '1.0.5',
+    'FRITZ!Box WAN (UPnP IGD): Kacheln, Live-Rate, Verlaufsgrafik. „Anzeige“ im Widget blendet Bereiche ein/aus (wird gespeichert). /api/fritzbox.',
+  version: '1.1.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
-  defaultLayout: { w: 4, h: 6, minW: 3, minH: 5 },
+  defaultLayout: { w: 4, h: 7, minW: 3, minH: 6 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -43,6 +45,13 @@ export const meta: PluginMeta = {
       placeholder: '0=aus, 3–15=schneller Takt',
     },
     { key: 'insecureTls', label: 'HTTPS: selbstsigniert erlauben', type: 'boolean', defaultValue: false },
+    {
+      key: 'chartHistoryPoints',
+      label: 'Verlauf: max. Messpunkte',
+      type: 'number',
+      defaultValue: 48,
+      placeholder: '16–120',
+    },
   ],
 }
 
@@ -61,7 +70,7 @@ function formatMbps(bps: number | null, de: boolean): string {
   if (bps == null || !Number.isFinite(bps) || bps <= 0) return '—'
   const mbps = bps / 1_000_000
   const s = mbps >= 100 ? String(Math.round(mbps)) : mbps.toFixed(1)
-  return de ? `${s.replace('.', ',')} Mb/s` : `${s} Mb/s`
+  return de ? `${s.replace('.', ',')} Mbit/s` : `${s} Mbit/s`
 }
 
 function formatUptime(sec: number | null, de: boolean): string {
@@ -106,6 +115,61 @@ function truncateMid(s: string, max: number): string {
   if (s.length <= max) return s
   const half = Math.floor((max - 1) / 2)
   return `${s.slice(0, half)}…${s.slice(s.length - half)}`
+}
+
+function cfgBool(r: Record<string, unknown>, key: string, defaultValue = true): boolean {
+  const v = r[key]
+  if (v === undefined || v === null) return defaultValue
+  if (v === false || v === 'false' || v === 0 || v === '0') return false
+  if (v === true || v === 'true' || v === 1 || v === '1') return true
+  return defaultValue
+}
+
+function ThroughputHistoryChart({
+  history,
+  de,
+}: {
+  history: { down: number; up: number }[]
+  de: boolean
+}) {
+  if (history.length < 2) return null
+  const W = 100
+  const H = 34
+  const pad = 2
+  const maxY = Math.max(1, ...history.map((h) => Math.max(h.down, h.up)))
+  const xAt = (i: number) => pad + (history.length === 1 ? W / 2 : (i / (history.length - 1)) * (W - pad * 2))
+  const yAt = (v: number) => H - pad - (v / maxY) * (H - pad * 2)
+  const downPts = history.map((p, i) => `${xAt(i)},${yAt(p.down)}`).join(' ')
+  const upPts = history.map((p, i) => `${xAt(i)},${yAt(p.up)}`).join(' ')
+  return (
+    <div
+      style={{
+        borderRadius: '10px',
+        border: '1px solid var(--border)',
+        background: 'var(--surface-2)',
+        padding: '6px 8px 4px',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {de ? 'Durchsatz-Verlauf' : 'Throughput history'}
+        </span>
+        <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>
+          {de ? '↓ grün · ↑ blau' : '↓ green · ↑ blue'}
+        </span>
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        style={{ width: '100%', height: 'clamp(40px, 11cqmin, 64px)', display: 'block' }}
+        aria-hidden
+      >
+        <polyline fill="none" stroke="#34d399" strokeWidth="1.1" vectorEffect="non-scaling-stroke" points={downPts} />
+        <polyline fill="none" stroke="#38bdf8" strokeWidth="1.1" vectorEffect="non-scaling-stroke" points={upPts} />
+      </svg>
+    </div>
+  )
 }
 
 const TINT = {
@@ -205,14 +269,16 @@ type Summary = {
   fetchedAt?: string
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
-  const baseUrl = str((config as Record<string, unknown>).baseUrl)
-  const username = str((config as Record<string, unknown>).username)
-  const password = typeof (config as Record<string, unknown>).password === 'string' ? String((config as Record<string, unknown>).password) : ''
-  const insecureTls = (config as Record<string, unknown>).insecureTls === true
-  const refreshSec = Math.min(300, Math.max(15, Math.round(num((config as Record<string, unknown>).refreshSeconds) || 30)))
-  const liveInput = (config as Record<string, unknown>).liveIntervalSeconds
+  const r = config as Record<string, unknown>
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
+  const baseUrl = str(r.baseUrl)
+  const username = str(r.username)
+  const password = typeof r.password === 'string' ? String(r.password) : ''
+  const insecureTls = r.insecureTls === true
+  const refreshSec = Math.min(300, Math.max(15, Math.round(num(r.refreshSeconds) || 30)))
+  const liveInput = r.liveIntervalSeconds
   const liveEvery = (() => {
     if (liveInput === undefined || liveInput === null || liveInput === '') return 5
     const n = Math.round(Number(liveInput))
@@ -221,16 +287,21 @@ function Widget({ config }: PluginWidgetProps) {
     return Math.min(15, Math.max(3, n))
   })()
 
+  const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
+
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [liveBps, setLiveBps] = useState<{ down: number; up: number } | null>(null)
+  const [displayPanel, setDisplayPanel] = useState(false)
+  const [bpsHistory, setBpsHistory] = useState<{ down: number; up: number }[]>([])
   const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
   const dataRef = useRef<Summary | null>(null)
 
   useEffect(() => {
     prevBytesRef.current = null
     setLiveBps(null)
+    setBpsHistory([])
   }, [baseUrl, username])
 
   useEffect(() => {
@@ -356,6 +427,11 @@ function Widget({ config }: PluginWidgetProps) {
     prevBytesRef.current = { rx, tx, t: now }
   }, [data])
 
+  useEffect(() => {
+    if (!liveBps || !Number.isFinite(liveBps.down) || !Number.isFinite(liveBps.up)) return
+    setBpsHistory((prev) => [...prev, { down: liveBps.down, up: liveBps.up }].slice(-chartCap))
+  }, [liveBps, chartCap])
+
   const muted = 'var(--text-muted)'
   const text = 'var(--text)'
 
@@ -394,6 +470,38 @@ function Widget({ config }: PluginWidgetProps) {
         ? `Mittel über ${refreshSec} s (nur voller Abruf)`
         : `Avg over ${refreshSec}s (full poll only)`
 
+  const showHeader = cfgBool(r, 'uiShowHeader', true)
+  const showTileInternet = cfgBool(r, 'uiShowTileInternet', true)
+  const showTilePublicIp = cfgBool(r, 'uiShowTilePublicIp', true)
+  const showTileMaxDown = cfgBool(r, 'uiShowTileMaxDown', true)
+  const showTileMaxUp = cfgBool(r, 'uiShowTileMaxUp', true)
+  const showTileLiveDown = cfgBool(r, 'uiShowTileLiveDown', true)
+  const showTileLiveUp = cfgBool(r, 'uiShowTileLiveUp', true)
+  const showTileHosts = cfgBool(r, 'uiShowTileHosts', true)
+  const showTileWanDetails = cfgBool(r, 'uiShowTileWanDetails', true)
+  const showFooter = cfgBool(r, 'uiShowFooter', true)
+  const showThroughputChart = cfgBool(r, 'uiShowThroughputChart', true)
+
+  const flipUi = (key: string) => {
+    updatePluginConfig(instanceId, { [key]: !cfgBool(r, key, true) })
+  }
+
+  const setAllTiles = (on: boolean) => {
+    updatePluginConfig(instanceId, {
+      uiShowHeader: on,
+      uiShowTileInternet: on,
+      uiShowTilePublicIp: on,
+      uiShowTileMaxDown: on,
+      uiShowTileMaxUp: on,
+      uiShowTileLiveDown: on,
+      uiShowTileLiveUp: on,
+      uiShowTileHosts: on,
+      uiShowTileWanDetails: on,
+      uiShowFooter: on,
+      uiShowThroughputChart: on,
+    })
+  }
+
   if (!baseUrl && !loading) {
     return (
       <div style={{ padding: '12px', color: muted, fontSize: '12px', textAlign: 'center' }}>
@@ -418,22 +526,158 @@ function Widget({ config }: PluginWidgetProps) {
         overflow: 'auto',
       }}
     >
-      <div style={{ flexShrink: 0 }}>
-        <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
-          {data?.manufacturer && data?.modelName ? `${data.manufacturer} ${data.modelName}` : data?.modelName || 'FRITZ!Box'}
-        </p>
-        <p style={{ margin: '2px 0 0', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
-          {data?.softwareVersion
-            ? de
-              ? `FRITZ!OS ${data.softwareVersion}`
-              : `FRITZ!OS ${data.softwareVersion}`
-            : loading
-              ? de
-                ? 'Lade…'
-                : 'Loading…'
-              : '—'}
-        </p>
-      </div>
+      {baseUrl ? (
+        <>
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+            {showHeader ? (
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
+                  {data?.manufacturer && data?.modelName
+                    ? `${data.manufacturer} ${data.modelName}`
+                    : data?.modelName || 'FRITZ!Box'}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
+                  {data?.softwareVersion
+                    ? de
+                      ? `FRITZ!OS ${data.softwareVersion}`
+                      : `FRITZ!OS ${data.softwareVersion}`
+                    : loading
+                      ? de
+                        ? 'Lade…'
+                        : 'Loading…'
+                      : '—'}
+                </p>
+              </div>
+            ) : (
+              <div style={{ flex: 1 }} />
+            )}
+            <button
+              type="button"
+              onClick={() => setDisplayPanel((o) => !o)}
+              style={{
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 8px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface-2)',
+                color: 'var(--text-muted)',
+                fontSize: '10px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <SlidersHorizontal size={13} strokeWidth={2.25} aria-hidden />
+              {de ? 'Anzeige' : 'Display'}
+            </button>
+          </div>
+          {displayPanel && (
+            <div
+              style={{
+                flexShrink: 0,
+                borderRadius: '10px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                padding: '10px 10px 8px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                {de ? 'Sichtbarkeit' : 'Visibility'}
+              </p>
+              {(
+                [
+                  [de ? 'Kopfzeile (Modell)' : 'Header (model)', 'uiShowHeader'] as const,
+                  [de ? 'Internet' : 'Internet', 'uiShowTileInternet'] as const,
+                  [de ? 'Öffentliche IPv4' : 'Public IPv4', 'uiShowTilePublicIp'] as const,
+                  [de ? 'Download (max.)' : 'Download (max)', 'uiShowTileMaxDown'] as const,
+                  [de ? 'Upload (max.)' : 'Upload (max)', 'uiShowTileMaxUp'] as const,
+                  [de ? 'Download (live)' : 'Download (live)', 'uiShowTileLiveDown'] as const,
+                  [de ? 'Upload (live)' : 'Upload (live)', 'uiShowTileLiveUp'] as const,
+                  [de ? 'Heimnetz-Geräte' : 'LAN devices', 'uiShowTileHosts'] as const,
+                  [de ? 'WAN-Details' : 'WAN details', 'uiShowTileWanDetails'] as const,
+                  [de ? 'Fußzeile' : 'Footer', 'uiShowFooter'] as const,
+                  [de ? 'Verlaufsgrafik' : 'History chart', 'uiShowThroughputChart'] as const,
+                ] as const
+              ).map(([label, key]) => (
+                <label
+                  key={key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    fontSize: '11px',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ lineHeight: 1.3 }}>{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={cfgBool(r, key, true)}
+                    onChange={() => flipUi(key)}
+                    style={{ width: '15px', height: '15px', accentColor: 'var(--accent)', flexShrink: 0 }}
+                  />
+                </label>
+              ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setAllTiles(true)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {de ? 'Alle an' : 'Show all'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllTiles(false)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface-2)',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {de ? 'Alle aus' : 'Hide all'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDisplayPanel(false)}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    marginLeft: 'auto',
+                  }}
+                >
+                  {de ? 'Schließen' : 'Close'}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
 
       {error && (
         <p style={{ margin: 0, fontSize: '11px', color: '#fb7185', textAlign: 'center', lineHeight: 1.4 }}>{error}</p>
@@ -450,96 +694,141 @@ function Widget({ config }: PluginWidgetProps) {
               minHeight: 0,
             }}
           >
-            <Tile
-              label={de ? 'Internet' : 'Internet'}
-              value={wanOk ? (de ? 'Verbunden' : 'Up') : de ? 'Prüfen' : 'Check'}
-              tint={wanOk ? 'emerald' : 'amber'}
-              icon={Wifi}
-              footer={
-                internetSubline ? (
-                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{internetSubline}</span>
-                ) : data?.connectionStatus && !wanOk ? (
-                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.connectionStatus}</span>
-                ) : null
-              }
-            />
-            <Tile label={de ? 'Öffentliche IPv4' : 'Public IPv4'} value={data.externalIpv4 || '—'} tint="sky" icon={Globe} />
-            <Tile
-              label={de ? 'Download (max.)' : 'Download (max)'}
-              value={formatMbps(data.downstreamMaxBps, de)}
-              tint="violet"
-              icon={ArrowDownCircle}
-            />
-            <Tile label={de ? 'Upload (max.)' : 'Upload (max)'} value={formatMbps(data.upstreamMaxBps, de)} tint="violet" icon={ArrowUpCircle} />
-            <Tile
-              label={de ? 'Download (live)' : 'Download (live)'}
-              value={liveDownStr}
-              tint="emerald"
-              icon={Gauge}
-              footer={
-                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
-              }
-            />
-            <Tile
-              label={de ? 'Upload (live)' : 'Upload (live)'}
-              value={liveUpStr}
-              tint="emerald"
-              icon={Gauge}
-              footer={
-                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
-              }
-            />
-            <Tile
-              label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
-              value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
-              tint="amber"
-              icon={Users}
-              footer={
-                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>
-                  {de ? 'laut Hosts-Tabelle' : 'per host table'}
-                </span>
-              }
-            />
-            <Tile
-              label={de ? 'WAN-Details' : 'WAN details'}
-              value={(() => {
-                const name = data.wanConnectionName?.trim()
-                if (name) return name.length > 32 ? `${name.slice(0, 30)}…` : name
-                if (data.natEnabled != null)
-                  return de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`
-                const t = humanizeWanTech(data.wanConnectionType, de)
-                return t || '—'
-              })()}
-              tint="sky"
-              icon={Router}
-              footer={
-                <>
-                  {data.natEnabled != null && data.wanConnectionName?.trim() ? (
-                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>
-                      {de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`}
+            {[
+              showTileInternet ? (
+                <Tile
+                  key="int"
+                  label={de ? 'Internet' : 'Internet'}
+                  value={wanOk ? (de ? 'Verbunden' : 'Up') : de ? 'Prüfen' : 'Check'}
+                  tint={wanOk ? 'emerald' : 'amber'}
+                  icon={Wifi}
+                  footer={
+                    internetSubline ? (
+                      <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{internetSubline}</span>
+                    ) : data?.connectionStatus && !wanOk ? (
+                      <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.connectionStatus}</span>
+                    ) : null
+                  }
+                />
+              ) : null,
+              showTilePublicIp ? (
+                <Tile key="ip" label={de ? 'Öffentliche IPv4' : 'Public IPv4'} value={data.externalIpv4 || '—'} tint="sky" icon={Globe} />
+              ) : null,
+              showTileMaxDown ? (
+                <Tile
+                  key="maxd"
+                  label={de ? 'Download (max.)' : 'Download (max)'}
+                  value={formatMbps(data.downstreamMaxBps, de)}
+                  tint="violet"
+                  icon={ArrowDownCircle}
+                />
+              ) : null,
+              showTileMaxUp ? (
+                <Tile
+                  key="maxu"
+                  label={de ? 'Upload (max.)' : 'Upload (max)'}
+                  value={formatMbps(data.upstreamMaxBps, de)}
+                  tint="violet"
+                  icon={ArrowUpCircle}
+                />
+              ) : null,
+              showTileLiveDown ? (
+                <Tile
+                  key="liveD"
+                  label={de ? 'Download (live)' : 'Download (live)'}
+                  value={liveDownStr}
+                  tint="emerald"
+                  icon={Gauge}
+                  footer={
+                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+                  }
+                />
+              ) : null,
+              showTileLiveUp ? (
+                <Tile
+                  key="liveU"
+                  label={de ? 'Upload (live)' : 'Upload (live)'}
+                  value={liveUpStr}
+                  tint="emerald"
+                  icon={Gauge}
+                  footer={
+                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+                  }
+                />
+              ) : null,
+              showTileHosts ? (
+                <Tile
+                  key="hosts"
+                  label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
+                  value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
+                  tint="amber"
+                  icon={Users}
+                  footer={
+                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>
+                      {de ? 'laut Hosts-Tabelle' : 'per host table'}
                     </span>
-                  ) : null}
-                  {data.wanDnsServers ? (
-                    <span
-                      style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-all' }}
-                      title={data.wanDnsServers}
-                    >
-                      DNS: {truncateMid(data.wanDnsServers.replace(/\s+/g, ' ').trim(), 44)}
-                    </span>
-                  ) : null}
-                </>
-              }
-            />
+                  }
+                />
+              ) : null,
+              showTileWanDetails ? (
+                <Tile
+                  key="wan"
+                  label={de ? 'WAN-Details' : 'WAN details'}
+                  value={(() => {
+                    const name = data.wanConnectionName?.trim()
+                    if (name) return name.length > 32 ? `${name.slice(0, 30)}…` : name
+                    if (data.natEnabled != null)
+                      return de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`
+                    const t = humanizeWanTech(data.wanConnectionType, de)
+                    return t || '—'
+                  })()}
+                  tint="sky"
+                  icon={Router}
+                  footer={
+                    <>
+                      {data.natEnabled != null && data.wanConnectionName?.trim() ? (
+                        <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>
+                          {de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`}
+                        </span>
+                      ) : null}
+                      {data.wanDnsServers ? (
+                        <span
+                          style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-all' }}
+                          title={data.wanDnsServers}
+                        >
+                          DNS: {truncateMid(data.wanDnsServers.replace(/\s+/g, ' ').trim(), 44)}
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                />
+              ) : null,
+            ].filter((n) => n != null)}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexShrink: 0 }}>
-            <p style={{ margin: 0, fontSize: '9px', color: muted }}>
-              {de ? 'Verbunden seit' : 'Up for'}: <span style={{ color: text }}>{formatUptime(data.uptimeSec, de)}</span>
+          {!showTileInternet &&
+          !showTilePublicIp &&
+          !showTileMaxDown &&
+          !showTileMaxUp &&
+          !showTileLiveDown &&
+          !showTileLiveUp &&
+          !showTileHosts &&
+          !showTileWanDetails ? (
+            <p style={{ margin: 0, fontSize: '11px', color: muted, textAlign: 'center' }}>
+              {de ? 'Alle Kacheln ausgeblendet.' : 'All tiles hidden.'}
             </p>
-            <p style={{ margin: 0, fontSize: '9px', color: muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Router size={10} aria-hidden />
-              UPnP IGD
-            </p>
-          </div>
+          ) : null}
+          {showThroughputChart ? <ThroughputHistoryChart history={bpsHistory} de={de} /> : null}
+          {showFooter ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexShrink: 0 }}>
+              <p style={{ margin: 0, fontSize: '9px', color: muted }}>
+                {de ? 'Verbunden seit' : 'Up for'}: <span style={{ color: text }}>{formatUptime(data.uptimeSec, de)}</span>
+              </p>
+              <p style={{ margin: 0, fontSize: '9px', color: muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Router size={10} aria-hidden />
+                UPnP IGD
+              </p>
+            </div>
+          ) : null}
           {data.lastError && data.lastError !== 'ERROR_NONE' && (
             <p style={{ margin: 0, fontSize: '10px', color: '#fb7185', lineHeight: 1.35 }}>
               {de ? 'Letzter WAN-Fehler: ' : 'Last WAN error: '}
@@ -677,6 +966,27 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               live rate. Empty / new = <strong>5</strong>.
             </>
           )}
+        </p>
+      </div>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+          {de ? 'Verlauf: Messpunkte' : 'History: sample cap'}
+        </label>
+        <input
+          style={inp}
+          type="number"
+          min={16}
+          max={120}
+          value={Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))}
+          onChange={(e) =>
+            onChange('chartHistoryPoints', Math.min(120, Math.max(16, Math.round(Number(e.target.value)) || 48)))
+          }
+        />
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+          {de
+            ? 'Maximale Anzahl gespeicherter Live-Messungen für die Grafik (16–120).'
+            : 'Max stored live samples for the chart (16–120).'}
         </p>
       </div>
     </div>
