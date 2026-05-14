@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.6.9',
+  version: '1.7.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -651,10 +651,12 @@ function HomarrDockerTable({
     ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
     : thStyle
 
+  const tightMetrics = narrow && !showContainerNames
+
   const colWidths =
     !showContainerNames
       ? narrow
-        ? (['40px', '15%', '14%', '38%', '13%'] as const)
+        ? (['32px', '11%', '52px', '33%', '44px'] as const)
         : (['48px', '20%', '17%', '34%', '11%'] as const)
       : narrow
         ? (['20%', '16%', '13%', '34%', '17%'] as const)
@@ -666,7 +668,9 @@ function HomarrDockerTable({
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
     : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  const tableMinW = !showContainerNames ? 220 : narrow ? 300 : 0
+  const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
+
+  const tableMinW = !showContainerNames ? 200 : narrow ? 300 : 0
 
   return (
     <div ref={wrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
@@ -689,8 +693,8 @@ function HomarrDockerTable({
               {headers[0] || '\u00a0'}
             </th>
             <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
-            <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
-            <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+            <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
+            <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
             <th style={{ ...thDyn, textAlign: 'right' }}>{headers[4]}</th>
           </tr>
         </thead>
@@ -761,11 +765,13 @@ function HomarrDockerTable({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: 'right',
+                    textAlign: metricAlign,
                     fontVariantNumeric: 'tabular-nums',
                     fontWeight: 600,
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
+                    paddingLeft: tightMetrics ? 2 : undefined,
+                    paddingRight: tightMetrics ? 4 : undefined,
                   }}
                 >
                   {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}
@@ -773,13 +779,15 @@ function HomarrDockerTable({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: 'right',
+                    textAlign: metricAlign,
                     fontVariantNumeric: 'tabular-nums',
                     fontWeight: 600,
                     color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    overflow: tightMetrics ? undefined : 'hidden',
+                    textOverflow: tightMetrics ? undefined : 'ellipsis',
+                    paddingLeft: tightMetrics ? 2 : undefined,
+                    paddingRight: tightMetrics ? 4 : undefined,
                   }}
                 >
                   {showStatRam ? memStr : '—'}

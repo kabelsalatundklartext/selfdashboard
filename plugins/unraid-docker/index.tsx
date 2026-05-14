@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.6',
+  version: '0.3.7',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -552,13 +552,15 @@ function Widget({ config }: PluginWidgetProps) {
   const tdRow: React.CSSProperties = narrow ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' } : tdCompact
   const thDyn: React.CSSProperties = narrow ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' } : thStyle
 
+  const tightMetrics = narrow && !showContainerNames
+
   const colWidths: string[] = !showContainerNames
     ? col5
       ? narrow
-        ? ['40px', '15%', '14%', '38%', '13%']
+        ? ['32px', '11%', '52px', '33%', '44px']
         : ['48px', '20%', '17%', '34%', '11%']
       : narrow
-        ? ['40px', '15%', '14%', '46%']
+        ? ['32px', '11%', '52px', '45%']
         : ['52px', '22%', '20%', '46%']
     : narrow
       ? col5
@@ -585,7 +587,9 @@ function Widget({ config }: PluginWidgetProps) {
     return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
   })()
 
-  const tableMinW = !showContainerNames ? 220 : narrow ? 300 : 0
+  const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
+
+  const tableMinW = !showContainerNames ? 200 : narrow ? 300 : 0
 
   return (
     <div style={shell}>
@@ -610,8 +614,8 @@ function Widget({ config }: PluginWidgetProps) {
                   {headRow[0] || '\u00a0'}
                 </th>
                 <th style={{ ...thDyn, textAlign: 'center' }}>{headRow[1]}</th>
-                <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headRow[2]}</th>
-                <th style={{ ...thDyn, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
+                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[2]}</th>
+                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
                 {col5 ? <th style={{ ...thDyn, textAlign: 'right' }}>{headRow[4]}</th> : null}
               </tr>
             </thead>
@@ -725,11 +729,13 @@ function Widget({ config }: PluginWidgetProps) {
                     <td
                       style={{
                         ...tdRow,
-                        textAlign: 'right',
+                        textAlign: metricAlign,
                         fontVariantNumeric: 'tabular-nums',
                         fontWeight: 600,
                         color: liveStats && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
+                        paddingLeft: tightMetrics ? 2 : undefined,
+                        paddingRight: tightMetrics ? 4 : undefined,
                       }}
                     >
                       {liveStats ? fmtCpuHomarr(cpuPct, running) : '—'}
@@ -737,13 +743,15 @@ function Widget({ config }: PluginWidgetProps) {
                     <td
                       style={{
                         ...tdRow,
-                        textAlign: 'right',
+                        textAlign: metricAlign,
                         fontVariantNumeric: 'tabular-nums',
                         fontWeight: 600,
                         color: liveStats && running && memCell !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        overflow: tightMetrics ? undefined : 'hidden',
+                        textOverflow: tightMetrics ? undefined : 'ellipsis',
+                        paddingLeft: tightMetrics ? 2 : undefined,
+                        paddingRight: tightMetrics ? 4 : undefined,
                       }}
                       title={memFull}
                     >
