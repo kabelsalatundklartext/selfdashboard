@@ -173,10 +173,11 @@ export function WidgetWrapper({ instance, editMode }: Props) {
           </div>
         )}
 
-        {/* Plugin content — scale(); stretch to full grid cell (centering shrink-wraps narrow tables). */}
+        {/* Plugin slot: flex-1 fills the panel; inner column stretches so plugins with height:100% reach the card bottom (no dead band under short content). */}
         <div
           style={{
-            height: '100%',
+            flex: 1,
+            minHeight: 0,
             width: '100%',
             minWidth: 0,
             display: 'flex',
@@ -199,7 +200,18 @@ export function WidgetWrapper({ instance, editMode }: Props) {
               transformOrigin: 'center center',
             }}
           >
-            <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                minWidth: 0,
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
+            </div>
           </div>
         </div>
       </div>

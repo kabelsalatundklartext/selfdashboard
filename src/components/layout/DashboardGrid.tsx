@@ -162,7 +162,7 @@ export function DashboardGrid() {
           resizeHandles={['se', 's', 'e']}
         >
           {plugins.map((instance) => (
-            <div key={instance.instanceId}>
+            <div key={instance.instanceId} style={{ height: '100%', width: '100%', minHeight: 0, minWidth: 0 }}>
               <WidgetWrapper instance={instance} editMode={editMode} />
             </div>
           ))}
