@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'AdGuard Home',
   description:
     'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
-  version: '1.1.2',
+  version: '1.1.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -91,13 +91,12 @@ function StatTile({
   const c = TINT[tint]
   return (
     <div
+      className="sd-adguard-tile"
       style={{
         borderRadius: '12px',
-        padding: '10px 10px 10px 12px',
         background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-        minHeight: 'clamp(68px, 22cqmin, 92px)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -108,8 +107,8 @@ function StatTile({
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
         <Icon size={13} strokeWidth={2.25} style={{ color: c.solid, flexShrink: 0, opacity: 0.95 }} aria-hidden />
         <span
+          className="sd-adguard-tile-label"
           style={{
-            fontSize: 'clamp(9px, 2.1cqmin, 10px)',
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
@@ -127,9 +126,8 @@ function StatTile({
         </span>
       </div>
       <span
-        className="tabular-nums"
+        className="tabular-nums sd-adguard-tile-value"
         style={{
-          fontSize: 'clamp(1.05rem, 5.2cqmin, 1.55rem)',
           fontWeight: 800,
           color: c.solid,
           lineHeight: 1.12,
@@ -246,23 +244,24 @@ function Widget({ config }: PluginWidgetProps) {
 
   const shell: React.CSSProperties = {
     height: '100%',
+    minHeight: 0,
     overflowY: 'auto',
-    overflowX: 'visible',
+    overflowX: 'hidden',
     boxSizing: 'border-box',
-    padding: '14px 14px 12px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
     scrollbarWidth: 'none',
     msOverflowStyle: 'none',
   }
+  const shellPadded: React.CSSProperties = { ...shell, padding: '14px 14px 12px' }
 
   if (!base) {
     return (
       <div
         className="sd-plugin-no-scrollbar"
         style={{
-          ...shell,
+          ...shellPadded,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -303,7 +302,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (loading && !data) {
     return (
-      <div className="sd-plugin-no-scrollbar" style={shell}>
+      <div className="sd-plugin-no-scrollbar" style={shellPadded}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {[75, 50, 90, 40].map((w, i) => (
             <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
@@ -318,7 +317,7 @@ function Widget({ config }: PluginWidgetProps) {
       <div
         className="sd-plugin-no-scrollbar"
         style={{
-          ...shell,
+          ...shellPadded,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -364,7 +363,7 @@ function Widget({ config }: PluginWidgetProps) {
   const statsDisabled = statsCfg != null && statsCfg.enabled === false
 
   const pctBar = (
-    <div style={{ marginTop: '10px' }}>
+    <div className="sd-adguard-pctbar" style={{ marginTop: '10px' }}>
       <div
         style={{
           height: '7px',
@@ -394,26 +393,97 @@ function Widget({ config }: PluginWidgetProps) {
       style={{ ...shell, background: 'radial-gradient(ellipse 120% 80% at 10% -20%, rgba(56,189,248,0.08) 0%, transparent 50%)' }}
     >
       <style>{`
+        .sd-adguard-host {
+          padding: 14px 14px 12px;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
         .sd-adguard-host .sd-adguard-stat-grid {
           display: grid;
           gap: 8px;
           grid-template-columns: 1fr 1fr;
           min-width: 0;
+          flex: 1 1 auto;
+          min-height: 0;
+          align-content: start;
         }
-        @container (max-width: 340px) {
+        /* Schmal + viel Höhe: eine Spalte lesbar. Schmal + wenig Höhe: zwei Spalten, damit alles ohne Scroll passt */
+        @container (max-width: 320px) and (min-height: 500px) {
           .sd-adguard-host .sd-adguard-stat-grid {
             grid-template-columns: 1fr;
+          }
+        }
+        @container (max-height: 460px) {
+          .sd-adguard-host .sd-adguard-stat-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+          }
+        }
+        .sd-adguard-host .sd-adguard-tile {
+          padding: 9px 10px 9px 11px;
+          min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
+        }
+        .sd-adguard-host .sd-adguard-tile-value {
+          font-size: clamp(0.78rem, min(4.8cqmin, 3.8cqh), 1.45rem);
+        }
+        .sd-adguard-host .sd-adguard-tile .sd-adguard-tile-label {
+          font-size: clamp(8px, min(1.9cqmin, 1.6cqh), 10px);
+        }
+        @container (max-height: 380px) {
+          .sd-adguard-host {
+            padding: 9px 9px 8px;
+          }
+          .sd-adguard-host .sd-adguard-top {
+            gap: 5px !important;
+            margin-bottom: 6px !important;
+          }
+          .sd-adguard-host .sd-adguard-prot-btn {
+            padding: 5px 10px !important;
+          }
+          .sd-adguard-host .sd-adguard-tile {
+            min-height: clamp(40px, min(12cqmin, 10cqh), 72px);
+            padding: 5px 7px 5px 8px;
+          }
+          .sd-adguard-host .sd-adguard-tile-value {
+            font-size: clamp(0.68rem, min(4cqmin, 3.2cqh), 1.15rem);
+            margin-top: 2px !important;
+          }
+          .sd-adguard-host .sd-adguard-pctbar {
+            margin-top: 5px !important;
+          }
+          .sd-adguard-host .sd-adguard-pctbar > div:first-child {
+            height: 5px !important;
+          }
+        }
+        @container (max-height: 260px) {
+          .sd-adguard-host {
+            padding: 6px 6px 5px;
+          }
+          .sd-adguard-host .sd-adguard-stat-grid {
+            gap: 4px;
+          }
+          .sd-adguard-host .sd-adguard-tile {
+            min-height: 0;
+            padding: 4px 5px;
+          }
+          .sd-adguard-host .sd-adguard-tile-value {
+            font-size: clamp(0.62rem, min(3.5cqmin, 2.8cqh), 0.95rem);
           }
         }
       `}</style>
       {error && data && (
         <p style={{ fontSize: '10px', color: '#fb7185', margin: '0 0 8px', textAlign: 'center', lineHeight: 1.35 }}>{error}</p>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px', width: '100%', alignItems: 'stretch' }}>
+      <div
+        className="sd-adguard-top"
+        style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px', width: '100%', alignItems: 'stretch', flexShrink: 0 }}
+      >
         <button
           type="button"
           disabled={protBusy}
           aria-pressed={protection}
+          className="sd-adguard-prot-btn"
           onClick={() => void toggleProtection()}
           style={{
             width: '100%',
@@ -421,7 +491,7 @@ function Widget({ config }: PluginWidgetProps) {
             alignItems: 'center',
             justifyContent: 'center',
             gap: '8px',
-            fontSize: 'clamp(10px, 2.5cqmin, 12px)',
+            fontSize: 'clamp(9px, min(2.4cqmin, 2cqh), 12px)',
             fontWeight: 800,
             padding: '8px 14px',
             borderRadius: '999px',
@@ -473,11 +543,11 @@ function Widget({ config }: PluginWidgetProps) {
           <StatTile label={de ? 'Ø Antwortzeit' : 'Avg response'} value={`${avgMs.toFixed(1)} ms`} tint="emerald" icon={Activity} />
         ) : (
           <div
+            className="sd-adguard-tile sd-adguard-tile-placeholder"
             style={{
               borderRadius: '12px',
               border: '1px dashed rgba(52, 211, 153, 0.35)',
               background: 'rgba(52, 211, 153, 0.06)',
-              minHeight: 'clamp(68px, 22cqmin, 92px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
