@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Cloud,
@@ -24,7 +24,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag). Kein API-Key.',
-  version: '1.1.0',
+  version: '1.1.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -262,6 +262,9 @@ async function fetchForecast(
   return { current: j.current, daily }
 }
 
+/** Ab dieser Widget-Breite (px): aktuelles Wetter links, 7-Tage-Vorschau rechts (mit gleichmäßigem Tages-Raster). */
+const WEATHER_SPLIT_MIN_PX = 420
+
 function Widget({ config }: PluginWidgetProps) {
   const locale = useDashboardStore((s) => s.locale) as Locale
   const de = locale !== 'en'
@@ -330,6 +333,24 @@ function Widget({ config }: PluginWidgetProps) {
       window.clearInterval(id)
     }
   }, [locationQuery, countryCode, refreshMinutes, de, showDailyForecast])
+
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [splitLayout, setSplitLayout] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const measure = () => {
+      const w = el.getBoundingClientRect().width
+      const next = w >= WEATHER_SPLIT_MIN_PX && showDailyForecast && daily.length > 0
+      setSplitLayout((p) => (p === next ? p : next))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [showDailyForecast, daily.length])
 
   const t = useMemo(
     () => ({
@@ -407,21 +428,24 @@ function Widget({ config }: PluginWidgetProps) {
   const iconColor = wmoIconColor(code, isDay)
   const iconGlow = wmoIconGlowFilter(code, isDay)
 
+  const hasDaily = showDailyForecast && daily.length > 0
+  const splitView = splitLayout && hasDaily
+
   return (
     <div
+      ref={rootRef}
       style={{
         height: '100%',
         width: '100%',
         minWidth: 0,
         minHeight: 0,
+        containerType: 'size',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        gap: 'clamp(4px, 1.2cqmin, 8px)',
+        gap: 'clamp(4px, 1.1cqmin, 8px)',
         padding: 'clamp(6px, 2cqmin, 12px)',
         boxSizing: 'border-box',
-        overflowY: 'auto',
-        overflowX: 'hidden',
+        overflow: 'auto',
       }}
     >
       {placeLabel && (
@@ -436,6 +460,7 @@ function Widget({ config }: PluginWidgetProps) {
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
           title={placeLabel}
         >
@@ -445,193 +470,256 @@ function Widget({ config }: PluginWidgetProps) {
 
       <div
         style={{
+          flex: 1,
+          minHeight: 0,
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          color: iconColor,
-          minHeight: 'clamp(26px, 10cqmin, 52px)',
+          flexDirection: splitView ? 'row' : 'column',
+          alignItems: splitView ? 'stretch' : undefined,
+          justifyContent: splitView ? 'flex-start' : 'center',
+          gap: splitView ? 'clamp(10px, 2.2cqmin, 20px)' : undefined,
         }}
-        aria-label={summary}
-        title={summary}
       >
-        <WeatherIcon
-          aria-hidden
-          strokeWidth={1.75}
+        <div
           style={{
-            width: 'clamp(28px, 11cqmin, 56px)',
-            height: 'clamp(28px, 11cqmin, 56px)',
-            color: iconColor,
-            filter: iconGlow,
-            opacity: loading && temp == null ? 0.45 : 1,
-            transition: 'opacity 0.2s, color 0.35s ease',
-          }}
-        />
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-        <span
-          className="tabular-nums"
-          style={{
-            fontSize: 'clamp(1.4rem, min(10cqmin, 18vw), 2.75rem)',
-            fontWeight: 800,
-            color: 'var(--accent)',
-            fontVariantNumeric: 'tabular-nums',
-            lineHeight: 1,
+            flex: splitView ? '0 1 44%' : undefined,
+            maxWidth: splitView ? '48%' : undefined,
+            minWidth: splitView ? 0 : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 'clamp(4px, 1.2cqmin, 8px)',
+            ...(splitView
+              ? {
+                  paddingRight: 'clamp(6px, 1.5cqmin, 12px)',
+                  borderRight: '1px solid color-mix(in srgb, var(--border) 55%, transparent)',
+                }
+              : {}),
           }}
         >
-          {loading && temp == null ? '…' : temp != null ? `${Math.round(temp)}°` : '—'}
-        </span>
-        {feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && (
-          <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted }}>
-            {t.feels} {Math.round(feels)}°
-          </span>
-        )}
-      </div>
-
-      <p
-        style={{
-          margin: 0,
-          textAlign: 'center',
-          fontSize: 'clamp(11px, 2.6cqmin, 14px)',
-          color: text,
-          fontWeight: 600,
-          lineHeight: 1.25,
-        }}
-      >
-        {summary}
-      </p>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 'clamp(8px, 3cqmin, 16px)',
-          flexWrap: 'wrap',
-          fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-          color: muted,
-        }}
-      >
-        {hum != null && (
-          <span>
-            {t.hum} {Math.round(hum)}%
-          </span>
-        )}
-        {wspd > 0 && (
-          <span>
-            {t.wind} {Math.round(wspd)} km/h {windCompass(wdir, de)}
-          </span>
-        )}
-      </div>
-
-      {showDailyForecast && daily.length > 0 && (
-        <div style={{ marginTop: 'clamp(2px, 0.8cqmin, 6px)', minHeight: 0, flexShrink: 0 }}>
-          <p
-            style={{
-              margin: '0 0 4px',
-              textAlign: 'center',
-              fontSize: 'clamp(9px, 2cqmin, 11px)',
-              fontWeight: 600,
-              color: muted,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {t.nextDays}
-          </p>
           <div
             style={{
               display: 'flex',
-              flexDirection: 'row',
-              gap: 'clamp(4px, 1.2cqmin, 8px)',
-              justifyContent: 'flex-start',
-              overflowX: 'auto',
-              overflowY: 'hidden',
-              paddingBottom: '4px',
-              WebkitOverflowScrolling: 'touch',
-              scrollbarWidth: 'thin',
+              justifyContent: 'center',
+              alignItems: 'center',
+              color: iconColor,
+              minHeight: 'clamp(26px, 10cqmin, 52px)',
+            }}
+            aria-label={summary}
+            title={summary}
+          >
+            <WeatherIcon
+              aria-hidden
+              strokeWidth={1.75}
+              style={{
+                width: 'clamp(28px, 11cqmin, 56px)',
+                height: 'clamp(28px, 11cqmin, 56px)',
+                color: iconColor,
+                filter: iconGlow,
+                opacity: loading && temp == null ? 0.45 : 1,
+                transition: 'opacity 0.2s, color 0.35s ease',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span
+              className="tabular-nums"
+              style={{
+                fontSize: 'clamp(1.4rem, min(10cqmin, 18vw), 2.75rem)',
+                fontWeight: 800,
+                color: 'var(--accent)',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1,
+              }}
+            >
+              {loading && temp == null ? '…' : temp != null ? `${Math.round(temp)}°` : '—'}
+            </span>
+            {feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && (
+              <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted }}>
+                {t.feels} {Math.round(feels)}°
+              </span>
+            )}
+          </div>
+
+          <p
+            style={{
+              margin: 0,
+              textAlign: 'center',
+              fontSize: 'clamp(11px, 2.6cqmin, 14px)',
+              color: text,
+              fontWeight: 600,
+              lineHeight: 1.25,
             }}
           >
-            {daily.map((day) => {
-              const d = new Date(day.date + 'T12:00:00')
-              const weekday = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { weekday: 'short' })
-              const dayNum = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric' })
-              const DayIcon = wmoIconComponent(day.code, true)
-              const dayColor = wmoIconColor(day.code, true)
-              const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
-              return (
-                <div
-                  key={day.date}
-                  title={tip}
-                  style={{
-                    flex: '0 0 auto',
-                    minWidth: 'clamp(42px, 11cqmin, 56px)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '2px',
-                    padding: '4px 3px 3px',
-                    borderRadius: '8px',
-                    background: 'color-mix(in srgb, var(--surface) 92%, var(--background))',
-                    border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 'clamp(8px, 1.8cqmin, 10px)',
-                      fontWeight: 700,
-                      color: muted,
-                      textTransform: 'capitalize',
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {weekday}
-                  </span>
-                  <span style={{ fontSize: 'clamp(7px, 1.6cqmin, 9px)', color: muted, lineHeight: 1 }}>{dayNum}</span>
-                  <DayIcon
-                    aria-hidden
-                    strokeWidth={1.85}
-                    style={{
-                      width: 'clamp(16px, 4.5cqmin, 22px)',
-                      height: 'clamp(16px, 4.5cqmin, 22px)',
-                      color: dayColor,
-                      filter: wmoIconGlowFilter(day.code, true),
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    className="tabular-nums"
-                    style={{
-                      fontSize: 'clamp(9px, 2cqmin, 11px)',
-                      fontWeight: 700,
-                      color: 'var(--accent)',
-                      fontVariantNumeric: 'tabular-nums',
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {Math.round(day.max)}°
-                  </span>
-                  <span
-                    className="tabular-nums"
-                    style={{
-                      fontSize: 'clamp(8px, 1.8cqmin, 10px)',
-                      fontWeight: 600,
-                      color: muted,
-                      fontVariantNumeric: 'tabular-nums',
-                      lineHeight: 1,
-                    }}
-                  >
-                    {Math.round(day.min)}°
-                  </span>
-                </div>
-              )
-            })}
+            {summary}
+          </p>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 'clamp(8px, 3cqmin, 16px)',
+              flexWrap: 'wrap',
+              fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+              color: muted,
+            }}
+          >
+            {hum != null && (
+              <span>
+                {t.hum} {Math.round(hum)}%
+              </span>
+            )}
+            {wspd > 0 && (
+              <span>
+                {t.wind} {Math.round(wspd)} km/h {windCompass(wdir, de)}
+              </span>
+            )}
           </div>
         </div>
-      )}
+
+        {hasDaily && (
+          <div
+            style={{
+              flex: splitView ? '1 1 0' : undefined,
+              minWidth: splitView ? 0 : undefined,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: splitView ? 'center' : undefined,
+              marginTop: splitView ? 0 : 'clamp(2px, 0.8cqmin, 6px)',
+            }}
+          >
+            <p
+              style={{
+                margin: '0 0 6px',
+                textAlign: 'center',
+                fontSize: 'clamp(9px, 2cqmin, 11px)',
+                fontWeight: 600,
+                color: muted,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {t.nextDays}
+            </p>
+            <div
+              style={
+                splitView
+                  ? {
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                      gap: 'clamp(3px, 0.9cqmin, 8px)',
+                      width: '100%',
+                      minHeight: 0,
+                      alignContent: 'center',
+                    }
+                  : {
+                      display: 'flex',
+                      flexDirection: 'row',
+                      gap: 'clamp(4px, 1.2cqmin, 8px)',
+                      justifyContent: 'flex-start',
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                      paddingBottom: '4px',
+                      WebkitOverflowScrolling: 'touch',
+                      scrollbarWidth: 'thin',
+                    }
+              }
+            >
+              {daily.map((day) => {
+                const d = new Date(day.date + 'T12:00:00')
+                const weekday = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { weekday: 'short' })
+                const dayNum = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric' })
+                const DayIcon = wmoIconComponent(day.code, true)
+                const dayColor = wmoIconColor(day.code, true)
+                const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
+                return (
+                  <div
+                    key={day.date}
+                    title={tip}
+                    style={{
+                      minWidth: splitView ? 0 : 'clamp(42px, 11cqmin, 56px)',
+                      width: splitView ? '100%' : undefined,
+                      flex: splitView ? undefined : '0 0 auto',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      padding: splitView ? '5px 2px 4px' : '4px 3px 3px',
+                      borderRadius: '8px',
+                      background: 'color-mix(in srgb, var(--surface) 92%, var(--background))',
+                      border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: splitView ? 'clamp(7px, 1.6cqmin, 9px)' : 'clamp(8px, 1.8cqmin, 10px)',
+                        fontWeight: 700,
+                        color: muted,
+                        textTransform: 'capitalize',
+                        lineHeight: 1.05,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {weekday}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: splitView ? 'clamp(6px, 1.4cqmin, 8px)' : 'clamp(7px, 1.6cqmin, 9px)',
+                        color: muted,
+                        lineHeight: 1,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {dayNum}
+                    </span>
+                    <DayIcon
+                      aria-hidden
+                      strokeWidth={1.85}
+                      style={{
+                        width: splitView ? 'clamp(14px, 3.8cqmin, 20px)' : 'clamp(16px, 4.5cqmin, 22px)',
+                        height: splitView ? 'clamp(14px, 3.8cqmin, 20px)' : 'clamp(16px, 4.5cqmin, 22px)',
+                        color: dayColor,
+                        filter: wmoIconGlowFilter(day.code, true),
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      className="tabular-nums"
+                      style={{
+                        fontSize: splitView ? 'clamp(8px, 1.8cqmin, 10px)' : 'clamp(9px, 2cqmin, 11px)',
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1.05,
+                      }}
+                    >
+                      {Math.round(day.max)}°
+                    </span>
+                    <span
+                      className="tabular-nums"
+                      style={{
+                        fontSize: splitView ? 'clamp(7px, 1.6cqmin, 9px)' : 'clamp(8px, 1.8cqmin, 10px)',
+                        fontWeight: 600,
+                        color: muted,
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1,
+                      }}
+                    >
+                      {Math.round(day.min)}°
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {updatedAt && (
-        <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
+        <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted, flexShrink: 0 }}>
           {t.updated}: {updatedAt.toLocaleString(de ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
         </p>
       )}
