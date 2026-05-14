@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
-import { expandIcsString, toLocalYmd } from '@/lib/calendarIcs'
+import { toLocalYmd } from '@/lib/calendarIcs'
 import {
   CALENDAR_FETCH_TIMEOUT_MS,
-  CALENDAR_MAX_ICS_BYTES,
   normalizeCalendarHttpUrl,
   parseCalendarWindow,
+  splitUrlBasicAuth,
 } from '@/lib/calendarApiShared'
+import { fetchCalDavOccurrences } from '@/lib/calendarCaldav'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_BODY_BYTES = 12_000
+const MAX_BODY_BYTES = 40_000
+
+function clampStr(v: unknown, max: number): string {
+  if (typeof v !== 'string') return ''
+  return v.trim().slice(0, max)
+}
 
 export async function POST(req: Request) {
   const len = Number(req.headers.get('content-length') || 0)
@@ -26,11 +32,17 @@ export async function POST(req: Request) {
 
   let url: URL
   try {
-    url = normalizeCalendarHttpUrl(String(body.url ?? ''))
+    url = normalizeCalendarHttpUrl(String(body.calendarUrl ?? ''))
   } catch (e) {
     const code = e instanceof Error ? e.message : 'bad_url'
     return NextResponse.json({ ok: false, error: code }, { status: 400 })
   }
+
+  const { href, urlUser, urlPass } = splitUrlBasicAuth(url)
+  const userBody = clampStr(body.username, 800)
+  const passBody = typeof body.password === 'string' ? body.password.slice(0, 2000) : ''
+  const username = userBody || urlUser
+  const password = passBody || urlPass
 
   let range: { start: Date; end: Date }
   try {
@@ -44,37 +56,21 @@ export async function POST(req: Request) {
   const to = setTimeout(() => ac.abort(), CALENDAR_FETCH_TIMEOUT_MS)
 
   try {
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow',
-      cache: 'no-store',
-      signal: ac.signal,
-      headers: {
-        Accept: 'text/calendar, application/calendar+json, text/plain, */*',
-        'User-Agent': 'SelfDashboard-calendar-ics/1.0',
-      },
-    })
+    const result = await fetchCalDavOccurrences(href, username, password, range.start, range.end, ac.signal)
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, error: 'upstream_http', status: res.status },
-        { status: 502 },
-      )
+    if (!result.ok) {
+      const status =
+        result.error === 'unauthorized'
+          ? 401
+          : result.error === 'ics_too_large'
+            ? 413
+            : result.error === 'not_calendar_data'
+              ? 422
+              : 502
+      return NextResponse.json({ ok: false, error: result.error, upstreamStatus: result.status }, { status })
     }
 
-    const buf = await res.arrayBuffer()
-    if (buf.byteLength > CALENDAR_MAX_ICS_BYTES) {
-      return NextResponse.json({ ok: false, error: 'ics_too_large' }, { status: 413 })
-    }
-
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(buf)
-    if (!/BEGIN:VCALENDAR/i.test(text) && !/BEGIN:VEVENT/i.test(text)) {
-      return NextResponse.json({ ok: false, error: 'not_calendar_data' }, { status: 422 })
-    }
-
-    const occ = expandIcsString(text, range.start, range.end)
-
-    const events = occ.map((o) => ({
+    const events = result.occurrences.map((o) => ({
       id: o.stableId,
       uid: o.uid,
       title: o.title,
@@ -87,6 +83,7 @@ export async function POST(req: Request) {
       ok: true,
       events,
       fetchedAt: new Date().toISOString(),
+      via: result.via,
       window: { start: toLocalYmd(range.start), end: toLocalYmd(range.end) },
     })
   } catch (e) {
