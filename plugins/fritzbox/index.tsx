@@ -353,13 +353,18 @@ function ThroughputHistoryChart({
     return de ? s.replace('.', ',') : s
   }
 
-  const scaleCapStr = `${fmtMbAxis(maxMbps)} Mb`
-
   const labelMuted: CSSProperties = {
     fontSize: '9px',
     color: 'var(--text-muted)',
     fontVariantNumeric: 'tabular-nums',
     lineHeight: 1.15,
+  }
+
+  /** Y-Achse: etwas kleiner, damit „NN Mbit/s“ in schmale Spalte passt. */
+  const labelAxisY: CSSProperties = {
+    ...labelMuted,
+    fontSize: '8px',
+    lineHeight: 1.12,
   }
 
   const title = de ? 'DURCHSATZ-VERLAUF' : 'THROUGHPUT HISTORY'
@@ -437,7 +442,7 @@ function ThroughputHistoryChart({
         <div
           style={{
             flexShrink: 0,
-            width: '52px',
+            width: '58px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -448,8 +453,8 @@ function ThroughputHistoryChart({
           aria-hidden
         >
           {ticks.map((mb) => (
-            <span key={mb} style={labelMuted} title={formatMbps(mb * 1_000_000, de)}>
-              {fmtMbAxis(mb)} Mb
+            <span key={mb} style={labelAxisY} title={formatMbps(mb * 1_000_000, de)}>
+              {fmtMbAxis(mb)} Mbit/s
             </span>
           ))}
         </div>
@@ -511,24 +516,14 @@ function ThroughputHistoryChart({
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '8px',
             marginTop: '2px',
-            paddingLeft: '60px',
+            paddingLeft: '66px',
           }}
         >
-          <span style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88 }}>
+          <span style={{ fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88, textAlign: 'center' }}>
             {de ? 'älter ←  → neuer' : 'older ←  → newer'}
-          </span>
-          <span
-            style={{
-              fontSize: '9px',
-              fontWeight: 600,
-              color: 'var(--text-muted)',
-              flexShrink: 0,
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {scaleCapStr}
           </span>
         </div>
       ) : null}
