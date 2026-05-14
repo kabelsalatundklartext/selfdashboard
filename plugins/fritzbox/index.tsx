@@ -3,13 +3,14 @@
 import {
   ArrowDownCircle,
   ArrowUpCircle,
+  Gauge,
   Globe,
   Router,
   Users,
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
@@ -17,12 +18,12 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'TR-064: Modell, FRITZ!OS, WAN-Status, öffentliche IPv4, Sync-Raten (Digest-Auth, Abruf über /api/fritzbox). Für Fiber 5590 & andere FRITZ!OS-Geräte im Heimnetz.',
-  version: '1.0.2',
+    'WAN per UPnP-IGD/TR-064: Status, öffentliche IPv4, max. Sync, aktuelle Download-/Upload-Rate (aus Byte-Zählern), Digest-Auth über /api/fritzbox. Für FRITZ!Box u. ä. IGD-Geräte.',
+  version: '1.0.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
-  defaultLayout: { w: 4, h: 5, minW: 3, minH: 4 },
+  defaultLayout: { w: 4, h: 6, minW: 3, minH: 5 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -192,6 +193,8 @@ type Summary = {
   natEnabled: boolean | null
   wanDnsServers: string | null
   hostCount: number | null
+  wanTotalBytesReceived: string | null
+  wanTotalBytesSent: string | null
   fetchedAt?: string
 }
 
@@ -206,6 +209,13 @@ function Widget({ config }: PluginWidgetProps) {
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [liveBps, setLiveBps] = useState<{ down: number; up: number } | null>(null)
+  const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
+
+  useEffect(() => {
+    prevBytesRef.current = null
+    setLiveBps(null)
+  }, [baseUrl, username])
 
   const load = useCallback(async () => {
     if (!baseUrl) {
@@ -250,6 +260,39 @@ function Widget({ config }: PluginWidgetProps) {
     return () => window.clearInterval(id)
   }, [load, refreshSec])
 
+  useEffect(() => {
+    if (!data) return
+    if (!data.wanTotalBytesReceived || !data.wanTotalBytesSent) {
+      setLiveBps(null)
+      prevBytesRef.current = null
+      return
+    }
+    const rx = data.wanTotalBytesReceived
+    const tx = data.wanTotalBytesSent
+    const now = Date.now()
+    const pr = prevBytesRef.current
+    if (pr) {
+      const dt = (now - pr.t) / 1000
+      if (dt >= 0.4 && dt < 600) {
+        try {
+          const drx = BigInt(rx) - BigInt(pr.rx)
+          const dtx = BigInt(tx) - BigInt(pr.tx)
+          const zero = BigInt(0)
+          if (drx >= zero && dtx >= zero) {
+            const down = Number(drx * BigInt(8)) / dt
+            const up = Number(dtx * BigInt(8)) / dt
+            if (Number.isFinite(down) && Number.isFinite(up)) setLiveBps({ down, up })
+          } else {
+            setLiveBps(null)
+          }
+        } catch {
+          setLiveBps(null)
+        }
+      }
+    }
+    prevBytesRef.current = { rx, tx, t: now }
+  }, [data])
+
   const muted = 'var(--text-muted)'
   const text = 'var(--text)'
 
@@ -268,6 +311,21 @@ function Widget({ config }: PluginWidgetProps) {
     const line = parts.filter(Boolean).join(' · ')
     return line || (data.wanAccessType && data.wanAccessType !== 'Other' ? data.wanAccessType : null)
   })()
+
+  const hasByteCounters = !!(data?.wanTotalBytesReceived && data?.wanTotalBytesSent)
+  const liveDownStr = !hasByteCounters
+    ? '—'
+    : liveBps
+      ? formatMbps(liveBps.down, de)
+      : '…'
+  const liveUpStr = !hasByteCounters ? '—' : liveBps ? formatMbps(liveBps.up, de) : '…'
+  const liveFooter = !hasByteCounters
+    ? de
+      ? 'Zähler nicht unterstützt'
+      : 'Counters not supported'
+    : de
+      ? 'Ø seit letztem Abruf'
+      : 'avg since last poll'
 
   if (!baseUrl && !loading) {
     return (
@@ -347,6 +405,24 @@ function Widget({ config }: PluginWidgetProps) {
             />
             <Tile label={de ? 'Upload (max.)' : 'Upload (max)'} value={formatMbps(data.upstreamMaxBps, de)} tint="violet" icon={ArrowUpCircle} />
             <Tile
+              label={de ? 'Download (jetzt)' : 'Download (now)'}
+              value={liveDownStr}
+              tint="emerald"
+              icon={Gauge}
+              footer={
+                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+              }
+            />
+            <Tile
+              label={de ? 'Upload (jetzt)' : 'Upload (now)'}
+              value={liveUpStr}
+              tint="emerald"
+              icon={Gauge}
+              footer={
+                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+              }
+            />
+            <Tile
               label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
               value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
               tint="amber"
@@ -394,7 +470,7 @@ function Widget({ config }: PluginWidgetProps) {
             </p>
             <p style={{ margin: 0, fontSize: '9px', color: muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Router size={10} aria-hidden />
-              TR-064
+              UPnP IGD
             </p>
           </div>
           {data.lastError && data.lastError !== 'ERROR_NONE' && (

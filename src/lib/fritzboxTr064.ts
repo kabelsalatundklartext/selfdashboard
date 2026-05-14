@@ -38,6 +38,9 @@ export type FritzBoxSummary = {
   wanDnsServers: string | null
   /** Bekannte Heimnetz-Geräte (Hosts:1 / Hosts:2) */
   hostCount: number | null
+  /** WAN-Gesamtbytes (Zähler der Box), für aktuelle Rate: Differenz zwischen Abrufen */
+  wanTotalBytesReceived: string | null
+  wanTotalBytesSent: string | null
 }
 
 function normalizeBaseUrl(raw: string): URL {
@@ -128,6 +131,15 @@ function parseIntSafe(v: string | null): number | null {
   if (v == null) return null
   const n = parseInt(v, 10)
   return Number.isFinite(n) ? n : null
+}
+
+/** Zähler aus SOAP (nur Ziffern, als String wegen großer Werte). */
+function parseDecimalUIntString(xml: string, ...localNames: string[]): string | null {
+  for (const name of localNames) {
+    const v = xmlFirst(xml, name)
+    if (v && /^\d+$/.test(v)) return v
+  }
+  return null
 }
 
 export type Tr064Service = { type: string; controlUrl: string }
@@ -313,6 +325,29 @@ export async function fetchFritzBoxSummary(
     }
   }
 
+  let wanTotalBytesReceived: string | null = null
+  let wanTotalBytesSent: string | null = null
+  if (primaryWanIp) {
+    const ctl = absUrl(origin, primaryWanIp.controlUrl)
+    const t = primaryWanIp.type
+    try {
+      const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
+      wanTotalBytesReceived = parseDecimalUIntString(
+        rxXml,
+        'NewTotalBytesReceived',
+        'TotalBytesReceived',
+      )
+    } catch {
+      /* optional — nicht jede IGD-Implementierung unterstützt die Aktion */
+    }
+    try {
+      const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
+      wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+    } catch {
+      /* optional */
+    }
+  }
+
   let hostCount: number | null = null
   if (hostsSvc) {
     try {
@@ -340,5 +375,7 @@ export async function fetchFritzBoxSummary(
     natEnabled,
     wanDnsServers,
     hostCount,
+    wanTotalBytesReceived,
+    wanTotalBytesSent,
   }
 }
