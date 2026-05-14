@@ -1,7 +1,7 @@
 'use client'
 
 import { GripVertical } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
@@ -862,17 +862,17 @@ function HomarrDockerTable({
               reorderEnabled && cid
                 ? {
                     draggable: true,
-                    onDragStart: (e) => {
+                    onDragStart: (e: DragEvent<HTMLTableRowElement>) => {
                       e.stopPropagation()
                       e.dataTransfer.setData('text/plain', cid)
                       e.dataTransfer.effectAllowed = 'move'
                     },
-                    onDragOver: (e) => {
+                    onDragOver: (e: DragEvent<HTMLTableRowElement>) => {
                       e.preventDefault()
                       e.stopPropagation()
                       e.dataTransfer.dropEffect = 'move'
                     },
-                    onDrop: (e) => {
+                    onDrop: (e: DragEvent<HTMLTableRowElement>) => {
                       e.preventDefault()
                       e.stopPropagation()
                       const d = e.dataTransfer.getData('text/plain')
@@ -1548,17 +1548,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             const dragClassicProps = reorderRow
               ? {
                   draggable: true as const,
-                  onDragStart: (e) => {
+                  onDragStart: (e: DragEvent<HTMLLIElement>) => {
                     e.stopPropagation()
                     e.dataTransfer.setData('text/plain', cid)
                     e.dataTransfer.effectAllowed = 'move'
                   },
-                  onDragOver: (e) => {
+                  onDragOver: (e: DragEvent<HTMLLIElement>) => {
                     e.preventDefault()
                     e.stopPropagation()
                     e.dataTransfer.dropEffect = 'move'
                   },
-                  onDrop: (e) => {
+                  onDrop: (e: DragEvent<HTMLLIElement>) => {
                     e.preventDefault()
                     e.stopPropagation()
                     const d = e.dataTransfer.getData('text/plain')
