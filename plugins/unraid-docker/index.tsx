@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): Homarr-Tabelle oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.0',
+  version: '0.4.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -142,7 +142,7 @@ function fmtMemUsageCompact(raw: string | undefined): string {
 function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   const s = (state ?? '').toLowerCase()
   const de = locale !== 'en'
-  if (s === 'running') return de ? 'Aktiv' : 'Running'
+  if (s === 'running') return de ? 'Aktiv' : 'Active'
   if (s === 'exited' || s === 'dead') return de ? 'Aus' : 'Off'
   if (s === 'paused') return de ? 'Pause' : 'Paused'
   if (s === 'restarting') return de ? 'Warte' : 'Wait'

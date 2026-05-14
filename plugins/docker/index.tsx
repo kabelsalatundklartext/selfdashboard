@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.4',
+  version: '1.7.5',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -265,7 +265,7 @@ function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
 function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   const s = (state ?? '').toLowerCase()
   const de = locale !== 'en'
-  if (s === 'running') return de ? 'Aktiv' : 'Running'
+  if (s === 'running') return de ? 'Aktiv' : 'Active'
   if (s === 'exited' || s === 'dead') return de ? 'Aus' : 'Off'
   if (s === 'paused') return de ? 'Pause' : 'Paused'
   if (s === 'restarting') return de ? 'Warte' : 'Wait'
