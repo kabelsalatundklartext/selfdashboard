@@ -10,13 +10,19 @@ export const meta: PluginMeta = {
   name: 'FRITZ!Box',
   description:
     'TR-064: Modell, FRITZ!OS, WAN-Status, öffentliche IPv4, Sync-Raten (Digest-Auth, Abruf über /api/fritzbox). Für Fiber 5590 & andere FRITZ!OS-Geräte im Heimnetz.',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
   defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
   configSchema: [
-    { key: 'baseUrl', label: 'TR-064 Basis-URL', type: 'text', defaultValue: 'http://fritz.box', placeholder: 'http://fritz.box oder http://192.168.178.1' },
+    {
+      key: 'baseUrl',
+      label: 'TR-064 Basis-URL',
+      type: 'text',
+      defaultValue: 'http://fritz.box',
+      placeholder: 'Nur Host (z. B. http://fritz.box) — ohne /tr064; Port 49000/49443 wird ergänzt',
+    },
     { key: 'username', label: 'Benutzername', type: 'text', defaultValue: '', placeholder: 'FRITZ!Box-Benutzer' },
     { key: 'password', label: 'Passwort', type: 'password', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },

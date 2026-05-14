@@ -55,9 +55,55 @@ export function fritzboxRootFromInput(raw: string): string {
   return path ? `${origin}${path}` : origin
 }
 
-function absUrl(root: string, relativeOrAbsolute: string): string {
+/** Host inkl. Port — für Descriptor & controlURL-Auflösung (immer Wurzel des TR-064-Ports). */
+function tr064OriginFromRoot(root: string): string {
+  const u = new URL(root)
+  return `${u.protocol}//${u.hostname}:${u.port}`
+}
+
+/** Bekannte Pfade zur Gerätebeschreibung (AVM / FRITZ!OS variiert). */
+const DESCRIPTOR_PATHS = [
+  '/tr064desc.xml',
+  '/tr064/tr064desc.xml',
+  '/tr064dev.xml',
+  '/tr064/tr064dev.xml',
+  '/igddesc.xml',
+]
+
+function looksLikeDeviceDescription(xml: string): boolean {
+  if (!xml || xml.length < 80) return false
+  if (/<html[\s>]/i.test(xml) && /<body/i.test(xml)) return false
+  return (
+    /<serviceType>/i.test(xml) &&
+    (/<deviceType>/i.test(xml) || /<root xmlns/i.test(xml) || /InternetGatewayDevice/i.test(xml))
+  )
+}
+
+async function fetchDescriptorXml(
+  client: DigestClient,
+  origin: string,
+  signal: AbortSignal,
+  fetchOpts: { agent?: https.Agent },
+): Promise<{ xml: string; path: string }> {
+  const tried: string[] = []
+  for (const p of DESCRIPTOR_PATHS) {
+    const url = `${origin.replace(/\/+$/, '')}${p}`
+    tried.push(p)
+    const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
+    const text = await descRes.text()
+    if (descRes.status === 401 || descRes.status === 403) {
+      throw new Error('unauthorized')
+    }
+    if (!descRes.ok) continue
+    if (!looksLikeDeviceDescription(text)) continue
+    return { xml: text, path: p }
+  }
+  throw new Error(`desc_not_found:${tried.join(',')}`)
+}
+
+function absUrl(origin: string, relativeOrAbsolute: string): string {
   if (/^https?:\/\//i.test(relativeOrAbsolute)) return relativeOrAbsolute
-  const base = root.endsWith('/') ? root.slice(0, -1) : root
+  const base = origin.replace(/\/+$/, '')
   const rel = relativeOrAbsolute.startsWith('/') ? relativeOrAbsolute : `/${relativeOrAbsolute}`
   return `${base}${rel}`
 }
@@ -135,22 +181,16 @@ export async function fetchFritzBoxSummary(
   signal: AbortSignal,
 ): Promise<FritzBoxSummary> {
   const root = fritzboxRootFromInput(conn.baseUrl)
-  const u = new URL(root)
-  const isHttps = u.protocol === 'https:'
+  const origin = tr064OriginFromRoot(root)
+  const isHttps = new URL(origin).protocol === 'https:'
   const agent =
     isHttps && conn.insecureTls
       ? new https.Agent({ rejectUnauthorized: false })
       : undefined
   const fetchOpts = agent ? { agent } : {}
 
-  const descUrl = absUrl(root, '/tr064desc.xml')
   const client = digestClient(conn.username, conn.password)
-
-  const descRes = await client.fetch(descUrl, { method: 'GET', signal, ...fetchOpts } as RequestInit)
-  const descXml = await descRes.text()
-  if (!descRes.ok) {
-    throw new Error(descRes.status === 401 || descRes.status === 403 ? 'unauthorized' : `desc_${descRes.status}`)
-  }
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
 
   const services = parseTr064Services(descXml)
 
@@ -168,7 +208,7 @@ export async function fetchFritzBoxSummary(
   let manufacturer: string | null = null
 
   if (deviceSvc) {
-    const ctl = absUrl(root, deviceSvc.controlUrl)
+    const ctl = absUrl(origin, deviceSvc.controlUrl)
     const xml = await soapAction(client, ctl, deviceSvc.type, 'GetInfo', signal, fetchOpts)
     modelName = xmlFirst(xml, 'NewModelName')
     softwareVersion = xmlFirst(xml, 'NewSoftwareVersion') || xmlFirst(xml, 'NewDescriptionVersion')
@@ -179,7 +219,7 @@ export async function fetchFritzBoxSummary(
   let downstreamMaxBps: number | null = null
   let upstreamMaxBps: number | null = null
   if (wanCommonSvc) {
-    const ctl = absUrl(root, wanCommonSvc.controlUrl)
+    const ctl = absUrl(origin, wanCommonSvc.controlUrl)
     const xml = await soapAction(client, ctl, wanCommonSvc.type, 'GetCommonLinkProperties', signal, fetchOpts)
     wanAccessType = xmlFirst(xml, 'NewWANAccessType')
     downstreamMaxBps = parseIntSafe(xmlFirst(xml, 'NewLayer1DownstreamMaxBitRate'))
@@ -197,7 +237,7 @@ export async function fetchFritzBoxSummary(
   let lastError: string | null = null
 
   for (const svc of wanIpServices) {
-    const ctl = absUrl(root, svc.controlUrl)
+    const ctl = absUrl(origin, svc.controlUrl)
     try {
       const stXml = await soapAction(client, ctl, svc.type, 'GetStatusInfo', signal, fetchOpts)
       connectionStatus = xmlFirst(stXml, 'NewConnectionStatus') ?? connectionStatus
