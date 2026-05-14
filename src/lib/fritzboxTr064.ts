@@ -29,6 +29,15 @@ export type FritzBoxSummary = {
   uptimeSec: number | null
   externalIpv4: string | null
   lastError: string | null
+  /** z. B. IP_Routed, PPPoE (WANIPConnection GetInfo) */
+  wanConnectionType: string | null
+  /** Anzeigename der WAN-Verbindung in der Box */
+  wanConnectionName: string | null
+  natEnabled: boolean | null
+  /** DNS-Server der WAN-Verbindung, Leerzeichen-getrennt */
+  wanDnsServers: string | null
+  /** Bekannte Heimnetz-Geräte (Hosts:1 / Hosts:2) */
+  hostCount: number | null
 }
 
 function normalizeBaseUrl(raw: string): URL {
@@ -203,6 +212,12 @@ export async function fetchFritzBoxSummary(
     services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
     null
 
+  const hostsSvc =
+    services.find((s) => /:Hosts:1$/i.test(s.type)) ||
+    services.find((s) => /:Hosts:2$/i.test(s.type)) ||
+    services.find((s) => s.type.includes('Hosts:') && !s.type.includes('IPv6')) ||
+    null
+
   let modelName: string | null = null
   let softwareVersion: string | null = null
   let manufacturer: string | null = null
@@ -235,6 +250,11 @@ export async function fetchFritzBoxSummary(
   let uptimeSec: number | null = null
   let externalIpv4: string | null = null
   let lastError: string | null = null
+  let wanConnectionType: string | null = null
+  let wanConnectionName: string | null = null
+  let natEnabled: boolean | null = null
+  let wanDnsServers: string | null = null
+  let primaryWanIp: Tr064Service | null = null
 
   for (const svc of wanIpServices) {
     const ctl = absUrl(origin, svc.controlUrl)
@@ -243,15 +263,43 @@ export async function fetchFritzBoxSummary(
       connectionStatus = xmlFirst(stXml, 'NewConnectionStatus') ?? connectionStatus
       uptimeSec = parseIntSafe(xmlFirst(stXml, 'NewUptime')) ?? uptimeSec
       lastError = xmlFirst(stXml, 'NewLastConnectionError') ?? lastError
+      if (!primaryWanIp) primaryWanIp = svc
 
       const ipXml = await soapAction(client, ctl, svc.type, 'GetExternalIPAddress', signal, fetchOpts)
       const ip = xmlFirst(ipXml, 'NewExternalIPAddress')
       if (ip && ip !== '0.0.0.0') {
         externalIpv4 = ip
+        primaryWanIp = svc
         break
       }
     } catch {
       /* nächster WANIPConnection-Dienst */
+    }
+  }
+
+  if (primaryWanIp) {
+    try {
+      const ctl = absUrl(origin, primaryWanIp.controlUrl)
+      const infoXml = await soapAction(client, ctl, primaryWanIp.type, 'GetInfo', signal, fetchOpts)
+      wanConnectionType = xmlFirst(infoXml, 'NewConnectionType')
+      wanConnectionName = xmlFirst(infoXml, 'NewName')
+      const nat = xmlFirst(infoXml, 'NewNATEnabled')
+      if (nat === '1' || /^true$/i.test(nat ?? '')) natEnabled = true
+      else if (nat === '0' || /^false$/i.test(nat ?? '')) natEnabled = false
+      wanDnsServers = xmlFirst(infoXml, 'NewDNSServers')
+    } catch {
+      /* optional */
+    }
+  }
+
+  let hostCount: number | null = null
+  if (hostsSvc) {
+    try {
+      const hCtl = absUrl(origin, hostsSvc.controlUrl)
+      const hXml = await soapAction(client, hCtl, hostsSvc.type, 'GetHostNumberOfEntries', signal, fetchOpts)
+      hostCount = parseIntSafe(xmlFirst(hXml, 'NewHostNumberOfEntries'))
+    } catch {
+      /* optional */
     }
   }
 
@@ -266,5 +314,10 @@ export async function fetchFritzBoxSummary(
     uptimeSec,
     externalIpv4,
     lastError,
+    wanConnectionType,
+    wanConnectionName,
+    natEnabled,
+    wanDnsServers,
+    hostCount,
   }
 }

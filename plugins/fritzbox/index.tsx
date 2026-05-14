@@ -1,6 +1,14 @@
 'use client'
 
-import { ArrowDownCircle, ArrowUpCircle, Globe, Router, Wifi, type LucideIcon } from 'lucide-react'
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Globe,
+  Router,
+  Users,
+  Wifi,
+  type LucideIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -10,11 +18,11 @@ export const meta: PluginMeta = {
   name: 'FRITZ!Box',
   description:
     'TR-064: Modell, FRITZ!OS, WAN-Status, öffentliche IPv4, Sync-Raten (Digest-Auth, Abruf über /api/fritzbox). Für Fiber 5590 & andere FRITZ!OS-Geräte im Heimnetz.',
-  version: '1.0.1',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
-  defaultLayout: { w: 4, h: 4, minW: 3, minH: 3 },
+  defaultLayout: { w: 4, h: 5, minW: 3, minH: 4 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -54,6 +62,42 @@ function formatUptime(sec: number | null, de: boolean): string {
   const h = Math.floor((sec % 86400) / 3600)
   if (de) return `${d} T., ${h} Std.`
   return `${d}d ${h}h`
+}
+
+/** TR-064 `NewConnectionType` / `NewWANAccessType` — kurz lesbar machen */
+function humanizeWanTech(raw: string | null, de: boolean): string {
+  if (!raw || !raw.trim()) return ''
+  const r = raw.trim()
+  const mapDe: Record<string, string> = {
+    IP_Routed: 'IP (geroutet)',
+    PPPoE: 'PPPoE',
+    PPTP_Relay: 'PPTP',
+    L2TP_Relay: 'L2TP',
+    Unconfigured: '—',
+    Ethernet: 'Ethernet',
+    DSL: 'DSL',
+    Fiber: 'Glasfaser',
+    Other: '',
+  }
+  const mapEn: Record<string, string> = {
+    IP_Routed: 'IP routed',
+    PPPoE: 'PPPoE',
+    PPTP_Relay: 'PPTP',
+    L2TP_Relay: 'L2TP',
+    Unconfigured: '—',
+    Ethernet: 'Ethernet',
+    DSL: 'DSL',
+    Fiber: 'Fiber',
+    Other: '',
+  }
+  const m = de ? mapDe : mapEn
+  return m[r] !== undefined ? m[r] || '' : r
+}
+
+function truncateMid(s: string, max: number): string {
+  if (s.length <= max) return s
+  const half = Math.floor((max - 1) / 2)
+  return `${s.slice(0, half)}…${s.slice(s.length - half)}`
 }
 
 const TINT = {
@@ -143,6 +187,11 @@ type Summary = {
   uptimeSec: number | null
   externalIpv4: string | null
   lastError: string | null
+  wanConnectionType: string | null
+  wanConnectionName: string | null
+  natEnabled: boolean | null
+  wanDnsServers: string | null
+  hostCount: number | null
   fetchedAt?: string
 }
 
@@ -209,6 +258,17 @@ function Widget({ config }: PluginWidgetProps) {
     return st.includes('verbunden') || st.includes('connect') || st === 'up' || !!data?.externalIpv4
   })()
 
+  const internetSubline = (() => {
+    if (!data) return null
+    const parts: string[] = []
+    const layer = humanizeWanTech(data.wanAccessType, de)
+    const conn = humanizeWanTech(data.wanConnectionType, de)
+    if (layer) parts.push(layer)
+    if (conn && conn !== layer) parts.push(conn)
+    const line = parts.filter(Boolean).join(' · ')
+    return line || (data.wanAccessType && data.wanAccessType !== 'Other' ? data.wanAccessType : null)
+  })()
+
   if (!baseUrl && !loading) {
     return (
       <div style={{ padding: '12px', color: muted, fontSize: '12px', textAlign: 'center' }}>
@@ -271,8 +331,10 @@ function Widget({ config }: PluginWidgetProps) {
               tint={wanOk ? 'emerald' : 'amber'}
               icon={Wifi}
               footer={
-                data.wanAccessType ? (
-                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.wanAccessType}</span>
+                internetSubline ? (
+                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{internetSubline}</span>
+                ) : data?.connectionStatus && !wanOk ? (
+                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.connectionStatus}</span>
                 ) : null
               }
             />
@@ -284,6 +346,47 @@ function Widget({ config }: PluginWidgetProps) {
               icon={ArrowDownCircle}
             />
             <Tile label={de ? 'Upload (max.)' : 'Upload (max)'} value={formatMbps(data.upstreamMaxBps, de)} tint="violet" icon={ArrowUpCircle} />
+            <Tile
+              label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
+              value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
+              tint="amber"
+              icon={Users}
+              footer={
+                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>
+                  {de ? 'laut Hosts-Tabelle' : 'per host table'}
+                </span>
+              }
+            />
+            <Tile
+              label={de ? 'WAN-Details' : 'WAN details'}
+              value={(() => {
+                const name = data.wanConnectionName?.trim()
+                if (name) return name.length > 32 ? `${name.slice(0, 30)}…` : name
+                if (data.natEnabled != null)
+                  return de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`
+                const t = humanizeWanTech(data.wanConnectionType, de)
+                return t || '—'
+              })()}
+              tint="sky"
+              icon={Router}
+              footer={
+                <>
+                  {data.natEnabled != null && data.wanConnectionName?.trim() ? (
+                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>
+                      {de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`}
+                    </span>
+                  ) : null}
+                  {data.wanDnsServers ? (
+                    <span
+                      style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-all' }}
+                      title={data.wanDnsServers}
+                    >
+                      DNS: {truncateMid(data.wanDnsServers.replace(/\s+/g, ' ').trim(), 44)}
+                    </span>
+                  ) : null}
+                </>
+              }
+            />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexShrink: 0 }}>
             <p style={{ margin: 0, fontSize: '9px', color: muted }}>
