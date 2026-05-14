@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.9',
+  version: '0.3.11',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -564,10 +564,11 @@ function Widget({ config }: PluginWidgetProps) {
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  const colWidths: string[] = !showContainerNames
+  /** RAM column `null`: absorbs horizontal slack so the actions column stays narrow (see table-layout: fixed). */
+  const colWidths: (string | null)[] = !showContainerNames
     ? col5
       ? narrow
-        ? ['28px', '21%', '46px', '17%', '84px']
+        ? ['28px', '20%', '44px', null, '60px']
         : ['48px', '20%', '17%', '34%', '11%']
       : narrow
         ? ['28px', '24%', '48px', '48%']
@@ -598,8 +599,9 @@ function Widget({ config }: PluginWidgetProps) {
   })()
 
   const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
+  const memAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'right' : metricAlign
 
-  const tableMinW = !showContainerNames ? 240 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
@@ -618,7 +620,7 @@ function Widget({ config }: PluginWidgetProps) {
           >
             <colgroup>
               {colWidths.map((w, idx) => (
-                <col key={idx} style={{ width: w }} />
+                <col key={idx} style={w != null ? { width: w } : undefined} />
               ))}
             </colgroup>
             <thead>
@@ -628,8 +630,18 @@ function Widget({ config }: PluginWidgetProps) {
                 </th>
                 <th style={{ ...thDyn, textAlign: 'center' }}>{headRow[1]}</th>
                 <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[2]}</th>
-                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
-                {col5 ? <th style={{ ...thDyn, textAlign: 'right' }}>{headRow[4]}</th> : null}
+                <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
+                {col5 ? (
+                  <th
+                    style={{
+                      ...thDyn,
+                      textAlign: tightMetrics ? 'left' : 'right',
+                      ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+                    }}
+                  >
+                    {headRow[4]}
+                  </th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -764,7 +776,7 @@ function Widget({ config }: PluginWidgetProps) {
                     <td
                       style={{
                         ...tdRow,
-                        textAlign: metricAlign,
+                        textAlign: memAlign,
                         fontVariantNumeric: 'tabular-nums',
                         fontWeight: 600,
                         color: liveStats && running && memCell !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
@@ -772,7 +784,7 @@ function Widget({ config }: PluginWidgetProps) {
                         overflow: tightMetrics ? undefined : 'hidden',
                         textOverflow: tightMetrics ? undefined : 'ellipsis',
                         paddingLeft: tightMetrics ? 2 : undefined,
-                        paddingRight: tightMetrics ? 4 : undefined,
+                        paddingRight: tightMetrics ? (memAlign === 'right' ? 2 : 4) : undefined,
                       }}
                       title={memFull}
                     >
@@ -782,14 +794,21 @@ function Widget({ config }: PluginWidgetProps) {
                       <td
                         style={{
                           ...tdRow,
-                          textAlign: 'right',
+                          textAlign: tightMetrics ? 'left' : 'right',
                           whiteSpace: 'nowrap',
                           overflow: 'visible',
-                          minWidth: tightMetrics ? 80 : undefined,
+                          ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
                         }}
                       >
                         {cid ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: actionBtnGap }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: tightMetrics ? 'flex-start' : 'flex-end',
+                              gap: actionBtnGap,
+                            }}
+                          >
                             {!running && !paused ? (
                               <button type="button" style={iconActEff} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
                                 <IconPlay disabled={busy} />

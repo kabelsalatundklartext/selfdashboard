@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.2',
+  version: '1.7.4',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -661,10 +661,11 @@ function HomarrDockerTable({
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
+  /** RAM column uses `null` width so extra table width goes here, not into the actions column (fixes ~128px AKT cells). */
   const colWidths =
     !showContainerNames
       ? narrow
-        ? (['28px', '21%', '46px', '17%', '84px'] as const)
+        ? (['28px', '20%', '44px', null, '60px'] as const)
         : (['48px', '20%', '17%', '34%', '11%'] as const)
       : narrow
         ? (['20%', '16%', '13%', '34%', '17%'] as const)
@@ -677,8 +678,10 @@ function HomarrDockerTable({
     : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
   const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
+  /** Tight icon row: RAM hugs the action buttons (avoids a wide empty strip before the icons). */
+  const memAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'right' : metricAlign
 
-  const tableMinW = !showContainerNames ? 240 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
@@ -695,7 +698,7 @@ function HomarrDockerTable({
       >
         <colgroup>
           {colWidths.map((w, idx) => (
-            <col key={idx} style={{ width: w }} />
+            <col key={idx} style={w != null ? { width: w } : undefined} />
           ))}
         </colgroup>
         <thead>
@@ -705,8 +708,16 @@ function HomarrDockerTable({
             </th>
             <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
             <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
-            <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
-            <th style={{ ...thDyn, textAlign: 'right' }}>{headers[4]}</th>
+            <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+            <th
+              style={{
+                ...thDyn,
+                textAlign: tightMetrics ? 'left' : 'right',
+                ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+              }}
+            >
+              {headers[4]}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -798,7 +809,7 @@ function HomarrDockerTable({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: metricAlign,
+                    textAlign: memAlign,
                     fontVariantNumeric: 'tabular-nums',
                     fontWeight: 600,
                     color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
@@ -806,7 +817,7 @@ function HomarrDockerTable({
                     overflow: tightMetrics ? undefined : 'hidden',
                     textOverflow: tightMetrics ? undefined : 'ellipsis',
                     paddingLeft: tightMetrics ? 2 : undefined,
-                    paddingRight: tightMetrics ? 4 : undefined,
+                    paddingRight: tightMetrics ? (memAlign === 'right' ? 2 : 4) : undefined,
                   }}
                 >
                   {showStatRam ? memStr : '—'}
@@ -814,14 +825,21 @@ function HomarrDockerTable({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: 'right',
+                    textAlign: tightMetrics ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
-                    minWidth: tightMetrics ? 80 : undefined,
+                    ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {!rowPending && showControls && anyBtn ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: actionBtnGap }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: tightMetrics ? 'flex-start' : 'flex-end',
+                        gap: actionBtnGap,
+                      }}
+                    >
                       {canStop ? (
                         <button
                           type="button"
