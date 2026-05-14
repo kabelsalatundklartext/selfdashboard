@@ -48,8 +48,8 @@ function iframeStrings(de: boolean) {
     viewportMobile: de ? 'Immer mobil (schmale Spalte)' : 'Always mobile (narrow column)',
     viewportDesktop: de ? 'Immer Desktop (breit, ggf. horizontal scrollen)' : 'Always desktop (wide; may scroll horizontally)',
     viewportHelp: de
-      ? '„Mobil“ zentriert eine schmale iframe-Breite — viele Seiten schalten dann auf die mobile Ansicht. „Desktop“ erzwingt mindestens 1280 px Breite für eingebettete Layouts. Kein Ersatz für echte Geräte-Emulation (User-Agent).'
-      : '“Mobile” centers a narrow iframe so many sites switch to a mobile layout. “Desktop” forces at least 1280px width. This is not full device emulation (user-agent).',
+      ? '„Mobil“: schmale Layout-Breite (wie Phone). Ist das Panel breiter, wird horizontal gestreckt, damit das Fenster die volle Breite füllt — ohne echte User-Agent-Emulation.'
+      : '“Mobile”: narrow layout width (phone-like). If the panel is wider, the view is stretched horizontally to fill the space — not full user-agent emulation.',
     mobileWidthLabel: de ? 'Mobile Breite (px)' : 'Mobile width (px)',
   }
 }
@@ -59,7 +59,7 @@ export const meta: PluginMeta = {
   name: 'Iframe',
   description:
     'Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.',
-  version: '2.1.0',
+  version: '2.1.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🖼️',
@@ -103,6 +103,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [frameNonce, setFrameNonce] = useState(0)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [loadSlow, setLoadSlow] = useState(false)
+  const [slotW, setSlotW] = useState(0)
   const lastBoxRef = useRef<{ w: number; h: number }>({ w: -1, h: -1 })
   const skipResizeBounceUntil = useRef(0)
 
@@ -131,6 +132,11 @@ function Widget({ config }: PluginWidgetProps) {
       if (!cr) return
       const w = Math.round(cr.width)
       const h = Math.round(cr.height)
+      if (viewportMode === 'mobile') {
+        setSlotW(w)
+      } else {
+        setSlotW(0)
+      }
       const prev = lastBoxRef.current
       lastBoxRef.current = { w, h }
       if (Date.now() < skipResizeBounceUntil.current) return
@@ -240,45 +246,54 @@ function Widget({ config }: PluginWidgetProps) {
     background: 'var(--surface)',
     display: 'flex',
     flexDirection: 'row',
-    justifyContent: viewportMode === 'mobile' ? 'center' : undefined,
     alignItems: 'stretch',
     overflow: viewportMode === 'desktop' ? 'auto' : 'hidden',
   }
 
   const hostInner: CSSProperties =
-    viewportMode === 'mobile'
+    viewportMode === 'desktop'
       ? {
-          width: '100%',
-          maxWidth: mobileFrameWidth,
-          flex: '0 1 auto',
-          alignSelf: 'stretch',
+          minWidth: DESKTOP_FRAME_MIN_WIDTH,
+          width: `max(100%, ${DESKTOP_FRAME_MIN_WIDTH}px)`,
           minHeight: 0,
           height: '100%',
           position: 'relative',
+          flex: '0 0 auto',
         }
-      : viewportMode === 'desktop'
-        ? {
-            minWidth: DESKTOP_FRAME_MIN_WIDTH,
-            width: `max(100%, ${DESKTOP_FRAME_MIN_WIDTH}px)`,
-            minHeight: 0,
-            height: '100%',
-            position: 'relative',
-            flex: '0 0 auto',
-          }
-        : {
-            flex: 1,
-            minHeight: 0,
-            minWidth: 0,
-            width: '100%',
-            height: '100%',
-            position: 'relative',
-          }
+      : {
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+        }
 
-  return (
-    <div style={shell}>
-      <div ref={iframeHostRef} style={hostOuter}>
-        <div style={hostInner}>
-        {!iframeLoaded ? (
+  const wideMobileSlot = slotW > mobileFrameWidth
+  const mobileStage: CSSProperties = {
+    width: wideMobileSlot ? mobileFrameWidth : '100%',
+    height: '100%',
+    position: 'relative',
+    transform: wideMobileSlot ? `scaleX(${slotW / mobileFrameWidth})` : undefined,
+    transformOrigin: 'top left',
+  }
+  const mobileFlexFill: CSSProperties = {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  }
+  const mobileClip: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+  }
+
+  const frameBody = (
+    <>
+      {!iframeLoaded ? (
           <div
             style={{
               position: 'absolute',
@@ -345,7 +360,21 @@ function Widget({ config }: PluginWidgetProps) {
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
           referrerPolicy="strict-origin-when-cross-origin"
         />
-        </div>
+    </>
+  )
+
+  return (
+    <div style={shell}>
+      <div ref={iframeHostRef} style={hostOuter}>
+        {viewportMode === 'mobile' ? (
+          <div style={mobileFlexFill}>
+            <div style={mobileClip}>
+              <div style={mobileStage}>{frameBody}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={hostInner}>{frameBody}</div>
+        )}
       </div>
       <div
         style={{
