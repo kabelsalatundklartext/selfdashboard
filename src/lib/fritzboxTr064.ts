@@ -145,6 +145,21 @@ export function parseTr064Services(descXml: string): Tr064Service[] {
   return out
 }
 
+/** UPnP root device (z. B. igddesc.xml): Modell, wenn kein TR-064 DeviceInfo. */
+function parseUpnpRootDeviceBasics(descXml: string): {
+  friendlyName: string | null
+  modelName: string | null
+  manufacturer: string | null
+} {
+  const m = descXml.match(/<device[\s>][\s\S]*?<\/device>/i)
+  const block = m?.[0] ?? descXml
+  return {
+    friendlyName: xmlFirst(block, 'friendlyName'),
+    modelName: xmlFirst(block, 'modelName'),
+    manufacturer: xmlFirst(block, 'manufacturer'),
+  }
+}
+
 function soapEnvelope(serviceUrn: string, action: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
@@ -228,6 +243,12 @@ export async function fetchFritzBoxSummary(
     modelName = xmlFirst(xml, 'NewModelName')
     softwareVersion = xmlFirst(xml, 'NewSoftwareVersion') || xmlFirst(xml, 'NewDescriptionVersion')
     manufacturer = xmlFirst(xml, 'NewManufacturerName')
+  }
+
+  if (!modelName || !manufacturer) {
+    const igd = parseUpnpRootDeviceBasics(descXml)
+    if (!manufacturer && igd.manufacturer) manufacturer = igd.manufacturer
+    if (!modelName) modelName = igd.modelName || igd.friendlyName
   }
 
   let wanAccessType: string | null = null
