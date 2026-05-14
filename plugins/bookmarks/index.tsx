@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useRef, useState } from 'react'
 import { Plus, Trash2, ExternalLink, Edit3, Check, X, Upload, GripVertical, FolderPlus } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
@@ -8,8 +9,8 @@ import { usePluginLocale } from '@/lib/pluginLocale'
 export const meta: PluginMeta = {
   id: 'bookmarks',
   name: 'App Bookmarks',
-  description: 'Quick links with groups, custom icons, drag & drop, grid or horizontal row.',
-  version: '1.5.0',
+  description: 'Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.',
+  version: '1.5.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🔖',
@@ -49,11 +50,25 @@ function parseData(raw: unknown): BookmarkData {
 
 function AppIcon({ icon }: { icon: string }) {
   if (icon?.startsWith('data:') || icon?.startsWith('http'))
-    return <img src={icon} alt="" style={{ width: '22px', height: '22px', borderRadius: '4px', objectFit: 'cover', flexShrink: 0 }} />
-  return <span style={{ fontSize: '18px', flexShrink: 0, lineHeight: 1 }}>{icon || '🔗'}</span>
+    return (
+      <img
+        src={icon}
+        alt=""
+        style={{
+          width: 'clamp(18px, 5cqmin, 26px)',
+          height: 'clamp(18px, 5cqmin, 26px)',
+          borderRadius: '4px',
+          objectFit: 'cover',
+          flexShrink: 0,
+        }}
+      />
+    )
+  return (
+    <span style={{ fontSize: 'clamp(16px, 4.5cqmin, 20px)', flexShrink: 0, lineHeight: 1 }}>{icon || '🔗'}</span>
+  )
 }
 
-const linkBaseStyle: React.CSSProperties = {
+const linkBaseStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
@@ -70,22 +85,25 @@ const linkBaseStyle: React.CSSProperties = {
 function Widget({ config }: PluginWidgetProps) {
   const data = parseData(config.data ?? config.apps)
   const layout = data.layout ?? 'grid'
-  const outer: React.CSSProperties = {
+  const outer: CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
     height: '100%',
     width: '100%',
     overflow: 'auto',
-    justifyContent: layout === 'row' ? 'flex-start' : 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
     minHeight: 0,
+    boxSizing: 'border-box',
+    containerType: 'size',
   }
   return (
     <div style={outer}>
       {data.groups.map((group) => {
         const apps = data.apps.filter((a) => a.group === group.id)
         if (apps.length === 0 || group.hidden) return null
-        const listStyle: React.CSSProperties =
+        const listStyle: CSSProperties =
           layout === 'row'
             ? {
                 display: 'flex',
@@ -98,9 +116,17 @@ function Widget({ config }: PluginWidgetProps) {
                 minHeight: 0,
                 WebkitOverflowScrolling: 'touch',
               }
-            : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '6px' }
+            : {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, clamp(92px, 24cqmin, 200px)), 1fr))',
+                gap: 'clamp(4px, 1.5cqmin, 10px)',
+                alignContent: 'start',
+                width: '100%',
+                flex: 1,
+                minHeight: 0,
+              }
         return (
-          <div key={group.id} style={{ minWidth: 0 }}>
+          <div key={group.id} style={{ minWidth: 0, flex: layout === 'grid' ? 1 : undefined, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {data.groups.length > 1 && (
               <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '6px' }}>{group.name}</p>
             )}
@@ -114,14 +140,16 @@ function Widget({ config }: PluginWidgetProps) {
                   style={{
                     ...linkBaseStyle,
                     flex: layout === 'row' ? '0 0 auto' : undefined,
-                    minWidth: layout === 'row' ? '140px' : undefined,
-                    maxWidth: layout === 'row' ? '220px' : undefined,
+                    minWidth: layout === 'row' ? 'min(220px, 85cqw)' : undefined,
+                    maxWidth: layout === 'row' ? 'min(280px, 95cqw)' : undefined,
+                    minHeight: layout === 'grid' ? 'clamp(40px, 11cqmin, 52px)' : undefined,
+                    boxSizing: 'border-box',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--accent)')}
                   onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
                 >
                   <AppIcon icon={app.icon} />
-                  <span style={{ fontSize: '13px', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.name}</span>
+                  <span style={{ fontSize: 'clamp(11px, 3.2cqmin, 14px)', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{app.name}</span>
                   {app.newTab && <ExternalLink size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />}
                 </a>
               ))}
@@ -209,9 +237,9 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     onDragEnd()
   }
 
-  const inp: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '6px', padding: '5px 8px', fontSize: '13px', outline: 'none', width: '100%' }
+  const inp: CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: '6px', padding: '5px 8px', fontSize: '13px', outline: 'none', width: '100%' }
 
-  const layoutBtn = (active: boolean): React.CSSProperties => ({
+  const layoutBtn = (active: boolean): CSSProperties => ({
     flex: 1,
     padding: '8px 10px',
     borderRadius: '8px',
@@ -231,7 +259,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </p>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button type="button" onClick={() => saveAll(apps, groups, 'grid')} style={layoutBtn(layout === 'grid')}>
-            {de ? 'Raster (mehrere Spalten wenn breit)' : 'Grid (multi-column when wide)'}
+            {de ? 'Raster (Kacheln füllen die Breite, weniger Spalten wenn schmal)' : 'Grid (tiles grow to fill width; fewer columns when narrow)'}
           </button>
           <button type="button" onClick={() => saveAll(apps, groups, 'row')} style={layoutBtn(layout === 'row')}>
             {de ? 'Waagerecht (scrollbar)' : 'Horizontal (scroll)'}
