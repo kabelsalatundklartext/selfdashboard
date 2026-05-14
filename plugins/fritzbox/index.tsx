@@ -15,7 +15,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.2.0',
+  version: '2.3.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -51,11 +51,30 @@ export const meta: PluginMeta = {
       ],
     },
     {
+      key: 'throughputPanelLayout',
+      label: 'Anordnung',
+      type: 'select',
+      defaultValue: 'vertical',
+      options: [
+        { label: 'Vertikal (Grafik über Karten)', value: 'vertical' },
+        { label: 'Waagerecht (Grafik neben Karten)', value: 'horizontal' },
+      ],
+    },
+    { key: 'throughputShowTitle', label: 'Überschrift „Durchsatz-Verlauf“', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowLegend', label: 'Legende Download/Upload', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowLive', label: 'Live-Werte (↓ / ↑)', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowChart', label: 'Kurve anzeigen', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowChartFooter', label: 'Zeitachsen-Hinweis (älter/neuer)', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowStatAvgDown', label: 'Karte: Ø Download', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowStatAvgUp', label: 'Karte: Ø Upload', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowStatPeakDown', label: 'Karte: Peak Down', type: 'boolean', defaultValue: true },
+    { key: 'throughputShowStatPeakUp', label: 'Karte: Peak Up', type: 'boolean', defaultValue: true },
+    {
       key: 'throughputChartHeightPx',
       label: 'Grafik-Höhe (px)',
       type: 'number',
       defaultValue: 168,
-      placeholder: '80–220',
+      placeholder: '0 = Standard (168), 80–220',
     },
     {
       key: 'throughputChartYMaxMbps',
@@ -83,6 +102,50 @@ function num(v: unknown): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v1'
+const FB_BPS_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+function fritzboxBpsHistoryStorageKey(baseUrl: string, username: string): string {
+  return `${FB_BPS_HISTORY_STORAGE}:${encodeURIComponent(baseUrl)}:${encodeURIComponent(username)}`
+}
+
+function readCachedBpsHistory(key: string, maxPoints: number): { down: number; up: number }[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return []
+    const j = JSON.parse(raw) as { t?: number; points?: unknown }
+    if (typeof j.t === 'number' && Date.now() - j.t > FB_BPS_HISTORY_MAX_AGE_MS) {
+      localStorage.removeItem(key)
+      return []
+    }
+    if (!Array.isArray(j.points) || j.points.length < 2) return []
+    const cap = Math.min(120, Math.max(2, maxPoints))
+    const out: { down: number; up: number }[] = []
+    for (const p of j.points) {
+      if (!p || typeof p !== 'object') continue
+      const o = p as Record<string, unknown>
+      const down = Number(o.down)
+      const up = Number(o.up)
+      if (!Number.isFinite(down) || !Number.isFinite(up) || down < 0 || up < 0) continue
+      out.push({ down, up })
+    }
+    if (out.length < 2) return []
+    return out.slice(-cap)
+  } catch {
+    return []
+  }
+}
+
+function writeCachedBpsHistory(key: string, points: { down: number; up: number }[]) {
+  if (typeof window === 'undefined' || points.length < 2) return
+  try {
+    localStorage.setItem(key, JSON.stringify({ t: Date.now(), points: points.slice(-120) }))
+  } catch {
+    /* Speicher voll — ignorieren */
+  }
 }
 
 /** Texte im Plugin: fest DE/EN oder wie Dashboard (`auto`). */
@@ -126,6 +189,19 @@ function mbpsTickList(maxMbps: number): number[] {
 
 const FB_CHART_DL = '#3b82f6'
 const FB_CHART_UL = '#22c55e'
+
+type ThroughputPanelDisplay = {
+  layout: 'vertical' | 'horizontal'
+  showTitle: boolean
+  showLegend: boolean
+  showLive: boolean
+  showChart: boolean
+  showChartFooter: boolean
+  showStatAvgDown: boolean
+  showStatAvgUp: boolean
+  showStatPeakDown: boolean
+  showStatPeakUp: boolean
+}
 
 function ThroughputStatPill({
   icon: Icon,
@@ -177,6 +253,7 @@ function ThroughputHistoryChart({
   de,
   chartHeightPx = 168,
   yMaxMbps = 0,
+  display,
 }: {
   history: { down: number; up: number }[]
   current: { down: number; up: number } | null
@@ -184,10 +261,25 @@ function ThroughputHistoryChart({
   chartHeightPx?: number
   /** > 0: fester Skalen-Endwert in Mbit/s (Werte darüber werden am oberen Rand abgeschnitten). */
   yMaxMbps?: number
+  display: ThroughputPanelDisplay
 }) {
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
-  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 168))
+  const hRaw = Math.round(num(chartHeightPx))
+  const hPx = hRaw <= 0 ? 168 : Math.min(220, Math.max(80, hRaw || 168))
+
+  const {
+    layout,
+    showTitle,
+    showLegend,
+    showLive,
+    showChart,
+    showChartFooter,
+    showStatAvgDown,
+    showStatAvgUp,
+    showStatPeakDown,
+    showStatPeakUp,
+  } = display
 
   const rawPeakBps = Math.max(1, ...history.flatMap((h) => [h.down, h.up]))
   const autoMaxMbps = niceCeilMbpsFromBps(rawPeakBps)
@@ -239,54 +331,59 @@ function ThroughputHistoryChart({
   const liveDown = formatMbps(current?.down ?? null, de)
   const liveUp = formatMbps(current?.up ?? null, de)
 
-  return (
+  const showHeaderRow = showTitle || showLegend || showLive
+  const anyStat = showStatAvgDown || showStatAvgUp || showStatPeakDown || showStatPeakUp
+
+  const headerBlock = showHeaderRow ? (
     <div
       style={{
-        borderRadius: '12px',
-        border: '1px solid var(--border)',
-        background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: '8px 8px 10px',
-        flexShrink: 0,
-        width: '100%',
-        minWidth: 0,
         display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: '10px',
+        flexWrap: 'wrap',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+      {showTitle || showLegend ? (
         <div style={{ minWidth: 0, flex: '1 1 140px' }}>
-          <div
-            style={{
-              fontSize: '9px',
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              marginBottom: '4px',
-            }}
-          >
-            {title}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', fontSize: '10px' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_DL, fontWeight: 600 }}>
-              <span style={{ width: '14px', height: '2px', background: FB_CHART_DL, borderRadius: '1px', flexShrink: 0 }} />
-              Download
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_UL, fontWeight: 600 }}>
-              <span
-                style={{
-                  width: '14px',
-                  height: 0,
-                  borderTop: `2px dashed ${FB_CHART_UL}`,
-                  flexShrink: 0,
-                }}
-              />
-              Upload
-            </span>
-          </div>
+          {showTitle ? (
+            <div
+              style={{
+                fontSize: '9px',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                marginBottom: showLegend ? '4px' : 0,
+              }}
+            >
+              {title}
+            </div>
+          ) : null}
+          {showLegend ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', fontSize: '10px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_DL, fontWeight: 600 }}>
+                <span style={{ width: '14px', height: '2px', background: FB_CHART_DL, borderRadius: '1px', flexShrink: 0 }} />
+                Download
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_UL, fontWeight: 600 }}>
+                <span
+                  style={{
+                    width: '14px',
+                    height: 0,
+                    borderTop: `2px dashed ${FB_CHART_UL}`,
+                    flexShrink: 0,
+                  }}
+                />
+                Upload
+              </span>
+            </div>
+          ) : null}
         </div>
+      ) : (
+        <div style={{ flex: '1 1 auto', minWidth: 0 }} />
+      )}
+      {showLive ? (
         <div
           style={{
             display: 'flex',
@@ -299,15 +396,15 @@ function ThroughputHistoryChart({
             flexShrink: 0,
           }}
         >
-          <span style={{ color: FB_CHART_DL, whiteSpace: 'nowrap' }}>
-            ↓ {liveDown}
-          </span>
-          <span style={{ color: FB_CHART_UL, whiteSpace: 'nowrap' }}>
-            ↑ {liveUp}
-          </span>
+          <span style={{ color: FB_CHART_DL, whiteSpace: 'nowrap' }}>↓ {liveDown}</span>
+          <span style={{ color: FB_CHART_UL, whiteSpace: 'nowrap' }}>↑ {liveUp}</span>
         </div>
-      </div>
+      ) : null}
+    </div>
+  ) : null
 
+  const chartBody = showChart ? (
+    <>
       <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: `${hPx}px` }}>
         <div
           style={{
@@ -381,57 +478,136 @@ function ThroughputHistoryChart({
           </svg>
         </div>
       </div>
+      {showChartFooter ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '2px',
+            paddingLeft: '60px',
+          }}
+        >
+          <span style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88 }}>
+            {de ? 'älter ←  → neuer' : 'older ←  → newer'}
+          </span>
+          <span
+            style={{
+              fontSize: '9px',
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+              flexShrink: 0,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {scaleCapStr}
+          </span>
+        </div>
+      ) : null}
+    </>
+  ) : null
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          marginTop: '2px',
-          paddingLeft: '60px',
-        }}
-      >
-        <span style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88 }}>
-          {de ? 'älter ←  → neuer' : 'older ←  → newer'}
-        </span>
-        <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-          {scaleCapStr}
-        </span>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-          gap: '8px',
-          marginTop: '4px',
-        }}
-      >
+  const statsSection = anyStat ? (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: '8px',
+        marginTop: layout === 'vertical' && showChart ? '4px' : 0,
+        width: '100%',
+      }}
+    >
+      {showStatAvgDown ? (
         <ThroughputStatPill
           icon={ArrowDown}
           label={de ? 'Download' : 'Download'}
           value={formatMbps(avgDownBps, de)}
           color={FB_CHART_DL}
         />
+      ) : null}
+      {showStatAvgUp ? (
         <ThroughputStatPill
           icon={ArrowUp}
           label={de ? 'Upload' : 'Upload'}
           value={formatMbps(avgUpBps, de)}
           color={FB_CHART_UL}
         />
+      ) : null}
+      {showStatPeakDown ? (
         <ThroughputStatPill
           icon={TrendingUp}
           label="Peak Down"
           value={formatMbps(peakDownBps, de)}
           color={FB_CHART_DL}
         />
+      ) : null}
+      {showStatPeakUp ? (
         <ThroughputStatPill
           icon={TrendingUp}
           label="Peak Up"
           value={formatMbps(peakUpBps, de)}
           color={FB_CHART_UL}
         />
+      ) : null}
+    </div>
+  ) : null
+
+  const chartColumn = showChart ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 160px', minWidth: 0, width: '100%' }}>
+      {chartBody}
+    </div>
+  ) : null
+
+  const mainBody =
+    layout === 'horizontal' ? (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: '10px',
+          width: '100%',
+          flexWrap: 'wrap',
+        }}
+      >
+        {chartColumn}
+        {anyStat ? (
+          <div
+            style={{
+              flex: showChart ? '0 1 clamp(152px, 36%, 280px)' : '1 1 100%',
+              minWidth: showChart ? 'min(152px, 100%)' : 0,
+              maxWidth: '100%',
+            }}
+          >
+            {statsSection}
+          </div>
+        ) : null}
       </div>
+    ) : (
+      <>
+        {chartColumn}
+        {statsSection}
+      </>
+    )
+
+  return (
+    <div
+      style={{
+        borderRadius: '12px',
+        border: '1px solid var(--border)',
+        background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+        padding: '8px 8px 10px',
+        flexShrink: 0,
+        width: '100%',
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+      }}
+    >
+      {headerBlock}
+      {mainBody}
     </div>
   )
 }
@@ -482,22 +658,85 @@ function Widget({ config }: PluginWidgetProps) {
   })()
 
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
-  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 168))
+  const rawPlotH = Math.round(num(r.throughputChartHeightPx))
+  const chartHeightPx = rawPlotH <= 0 ? 168 : Math.min(220, Math.max(80, rawPlotH || 168))
   const chartYMaxMbps = Math.min(2000, Math.max(0, Math.round(num(r.throughputChartYMaxMbps))))
+
+  let showTitle = r.throughputShowTitle !== false
+  let showLegend = r.throughputShowLegend !== false
+  let showLive = r.throughputShowLive !== false
+  let showChart = r.throughputShowChart !== false
+  let showChartFooter = r.throughputShowChartFooter !== false
+  let showStatAvgDown = r.throughputShowStatAvgDown !== false
+  let showStatAvgUp = r.throughputShowStatAvgUp !== false
+  let showStatPeakDown = r.throughputShowStatPeakDown !== false
+  let showStatPeakUp = r.throughputShowStatPeakUp !== false
+  if (
+    !showTitle &&
+    !showLegend &&
+    !showLive &&
+    !showChart &&
+    !(showStatAvgDown || showStatAvgUp || showStatPeakDown || showStatPeakUp)
+  ) {
+    showChart = true
+    showStatAvgDown = true
+    showStatAvgUp = true
+    showStatPeakDown = true
+    showStatPeakUp = true
+  }
+  const panelLayout = str(r.throughputPanelLayout).toLowerCase() === 'horizontal' ? 'horizontal' : 'vertical'
+  const throughputDisplay: ThroughputPanelDisplay = {
+    layout: panelLayout,
+    showTitle,
+    showLegend,
+    showLive,
+    showChart,
+    showChartFooter,
+    showStatAvgDown,
+    showStatAvgUp,
+    showStatPeakDown,
+    showStatPeakUp,
+  }
 
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [liveBps, setLiveBps] = useState<{ down: number; up: number } | null>(null)
-  const [bpsHistory, setBpsHistory] = useState<{ down: number; up: number }[]>([])
+  const [bpsHistory, setBpsHistory] = useState<{ down: number; up: number }[]>(() => {
+    if (typeof window === 'undefined' || !baseUrl) return []
+    return readCachedBpsHistory(fritzboxBpsHistoryStorageKey(baseUrl, username), 120)
+  })
   const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
   const dataRef = useRef<Summary | null>(null)
+  const bpsHistoryKeyRef = useRef<string>('')
 
   useEffect(() => {
-    prevBytesRef.current = null
-    setLiveBps(null)
-    setBpsHistory([])
-  }, [baseUrl, username])
+    if (!baseUrl) {
+      bpsHistoryKeyRef.current = ''
+      prevBytesRef.current = null
+      setLiveBps(null)
+      setBpsHistory([])
+      return
+    }
+    const key = fritzboxBpsHistoryStorageKey(baseUrl, username)
+    if (key !== bpsHistoryKeyRef.current) {
+      bpsHistoryKeyRef.current = key
+      prevBytesRef.current = null
+      setLiveBps(null)
+      setBpsHistory(readCachedBpsHistory(key, 120))
+      return
+    }
+    setBpsHistory((prev) => {
+      const fromDisk = readCachedBpsHistory(key, 120)
+      const expanded = fromDisk.length > prev.length ? fromDisk : prev
+      return expanded.slice(-Math.max(2, chartCap))
+    })
+  }, [baseUrl, username, chartCap])
+
+  useEffect(() => {
+    if (!baseUrl || bpsHistory.length < 2) return
+    writeCachedBpsHistory(fritzboxBpsHistoryStorageKey(baseUrl, username), bpsHistory)
+  }, [baseUrl, username, bpsHistory])
 
   useEffect(() => {
     dataRef.current = data
@@ -682,6 +921,7 @@ function Widget({ config }: PluginWidgetProps) {
             de={de}
             chartHeightPx={chartHeightPx}
             yMaxMbps={chartYMaxMbps}
+            display={throughputDisplay}
           />
         ) : (
           <div
@@ -897,6 +1137,115 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
           {de ? 'Grafik' : 'Chart'}
         </p>
+        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', margin: 0 }}>
+          {de ? 'Layout & Sichtbarkeit' : 'Layout & visibility'}
+        </p>
+        <div>
+          <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+            {de ? 'Anordnung' : 'Arrangement'}
+          </label>
+          <select
+            style={inp}
+            value={str(r.throughputPanelLayout).toLowerCase() === 'horizontal' ? 'horizontal' : 'vertical'}
+            onChange={(e) => onChange('throughputPanelLayout', e.target.value)}
+          >
+            <option value="vertical">{de ? 'Vertikal (Grafik über Karten)' : 'Vertical (chart above tiles)'}</option>
+            <option value="horizontal">{de ? 'Waagerecht (Grafik neben Karten)' : 'Horizontal (chart beside tiles)'}</option>
+          </select>
+          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+            {de
+              ? 'Waagerecht nutzt die Breite des Widgets: bei schmalen Kacheln ggf. breiter ziehen.'
+              : 'Horizontal uses widget width — drag the tile wider if it feels cramped.'}
+          </p>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+            {de ? 'Überschrift „Durchsatz-Verlauf“' : 'Throughput title'}
+          </span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowTitle !== false}
+            onChange={(e) => onChange('throughputShowTitle', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>{de ? 'Legende Download/Upload' : 'Download / upload legend'}</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowLegend !== false}
+            onChange={(e) => onChange('throughputShowLegend', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>{de ? 'Live-Werte (↓ / ↑)' : 'Live values (↓ / ↑)'}</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowLive !== false}
+            onChange={(e) => onChange('throughputShowLive', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>{de ? 'Kurve anzeigen' : 'Show chart'}</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowChart !== false}
+            onChange={(e) => onChange('throughputShowChart', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+            {de ? 'Zeitachsen-Hinweis (älter / neuer)' : 'Time-axis hint (older / newer)'}
+          </span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowChartFooter !== false}
+            onChange={(e) => onChange('throughputShowChartFooter', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+          {de ? 'Karten (Kacheln)' : 'Summary tiles'}
+        </p>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>{de ? 'Ø Download' : 'Avg download'}</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowStatAvgDown !== false}
+            onChange={(e) => onChange('throughputShowStatAvgDown', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>{de ? 'Ø Upload' : 'Avg upload'}</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowStatAvgUp !== false}
+            onChange={(e) => onChange('throughputShowStatAvgUp', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>Peak Down</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowStatPeakDown !== false}
+            onChange={(e) => onChange('throughputShowStatPeakDown', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text)' }}>Peak Up</span>
+          <input
+            type="checkbox"
+            checked={r.throughputShowStatPeakUp !== false}
+            onChange={(e) => onChange('throughputShowStatPeakUp', e.target.checked)}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+          />
+        </label>
         <div>
           <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
             {de ? 'Plot-Höhe (px)' : 'Plot height (px)'}
@@ -904,13 +1253,23 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <input
             style={inp}
             type="number"
-            min={80}
+            min={0}
             max={220}
-            value={Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 168))}
-            onChange={(e) =>
-              onChange('throughputChartHeightPx', Math.min(220, Math.max(80, Math.round(Number(e.target.value)) || 168)))
-            }
+            value={(() => {
+              const v = Math.round(num(r.throughputChartHeightPx))
+              if (v <= 0) return 0
+              return Math.min(220, Math.max(80, v || 168))
+            })()}
+            onChange={(e) => {
+              const n = Math.round(Number(e.target.value)) || 0
+              onChange('throughputChartHeightPx', n <= 0 ? 0 : Math.min(220, Math.max(80, n)))
+            }}
           />
+          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+            {de
+              ? '0 = intern 168 px (Standard). Sonst 80–220.'
+              : '0 uses the built-in default height (168 px). Otherwise use 80–220.'}
+          </p>
         </div>
         <div>
           <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
