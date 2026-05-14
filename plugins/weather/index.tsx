@@ -23,8 +23,8 @@ export const meta: PluginMeta = {
   id: 'weather',
   name: 'Weather',
   description:
-    'Stadt oder PLZ eingeben — Temperatur, gefühlt, Luftfeuchte, Wind und Bedingungen werden automatisch per Open-Meteo geladen (kein API-Key). Wetter-Icons farbig nach Bedingung.',
-  version: '1.0.2',
+    'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag). Kein API-Key.',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -48,6 +48,12 @@ export const meta: PluginMeta = {
       label: 'Aktualisieren alle (Minuten)',
       type: 'number',
       defaultValue: 15,
+    },
+    {
+      key: 'showDailyForecast',
+      label: '7-Tage-Vorschau',
+      type: 'boolean',
+      defaultValue: false,
     },
   ],
 }
@@ -76,6 +82,19 @@ interface CurrentJson {
 
 interface ForecastJson {
   current?: CurrentJson
+  daily?: {
+    time?: string[]
+    weather_code?: number[]
+    temperature_2m_max?: number[]
+    temperature_2m_min?: number[]
+  }
+}
+
+interface DailyDay {
+  date: string
+  code: number
+  max: number
+  min: number
 }
 
 function str(v: unknown): string {
@@ -196,7 +215,34 @@ async function geocode(query: string, countryCode: string, signal: AbortSignal, 
   return first
 }
 
-async function fetchCurrent(lat: number, lon: number, signal: AbortSignal, de: boolean): Promise<CurrentJson> {
+function parseDailyForecast(j: ForecastJson, maxDays: number): DailyDay[] {
+  const d = j.daily
+  if (!d?.time?.length) return []
+  const codes = d.weather_code ?? []
+  const maxT = d.temperature_2m_max ?? []
+  const minT = d.temperature_2m_min ?? []
+  const out: DailyDay[] = []
+  const n = Math.min(maxDays, d.time.length, codes.length, maxT.length, minT.length)
+  for (let i = 0; i < n; i++) {
+    const date = d.time[i]!
+    const code = num(codes[i], 0)
+    out.push({
+      date,
+      code,
+      max: num(maxT[i], NaN),
+      min: num(minT[i], NaN),
+    })
+  }
+  return out.filter((x) => Number.isFinite(x.max) && Number.isFinite(x.min))
+}
+
+async function fetchForecast(
+  lat: number,
+  lon: number,
+  signal: AbortSignal,
+  de: boolean,
+  includeDaily: boolean,
+): Promise<{ current: CurrentJson; daily: DailyDay[] }> {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
@@ -204,11 +250,16 @@ async function fetchCurrent(lat: number, lon: number, signal: AbortSignal, de: b
     current:
       'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m',
   })
+  if (includeDaily) {
+    params.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
+    params.set('forecast_days', '7')
+  }
   const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal, cache: 'no-store' })
   if (!res.ok) throw new Error(`Forecast HTTP ${res.status}`)
   const j = (await res.json()) as ForecastJson
   if (!j.current) throw new Error(de ? 'Keine aktuellen Werte' : 'No current values')
-  return j.current
+  const daily = includeDaily ? parseDailyForecast(j, 7) : []
+  return { current: j.current, daily }
 }
 
 function Widget({ config }: PluginWidgetProps) {
@@ -218,9 +269,11 @@ function Widget({ config }: PluginWidgetProps) {
   const locationQuery = str(config.locationQuery)
   const countryCode = str(config.countryCode)
   const refreshMinutes = clampRefresh(config.refreshMinutes)
+  const showDailyForecast = (config as Record<string, unknown>).showDailyForecast === true
 
   const [placeLabel, setPlaceLabel] = useState<string | null>(null)
   const [current, setCurrent] = useState<CurrentJson | null>(null)
+  const [daily, setDaily] = useState<DailyDay[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
@@ -233,6 +286,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (!locationQuery) {
         setPlaceLabel(null)
         setCurrent(null)
+        setDaily([])
         setError(null)
         setUpdatedAt(null)
         setLoading(false)
@@ -246,19 +300,22 @@ function Widget({ config }: PluginWidgetProps) {
         if (!hit) {
           setPlaceLabel(null)
           setCurrent(null)
+          setDaily([])
           setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
           setUpdatedAt(null)
           return
         }
         setPlaceLabel(formatPlace(hit))
-        const cur = await fetchCurrent(hit.latitude, hit.longitude, ac.signal, de)
+        const { current: cur, daily: dail } = await fetchForecast(hit.latitude, hit.longitude, ac.signal, de, showDailyForecast)
         if (cancelled) return
         setCurrent(cur)
+        setDaily(dail)
         setUpdatedAt(new Date())
       } catch (e) {
         if (cancelled || (e as Error).name === 'AbortError') return
         setError(de ? 'Netzwerk- oder API-Fehler.' : 'Network or API error.')
         setCurrent(null)
+        setDaily([])
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -272,7 +329,7 @@ function Widget({ config }: PluginWidgetProps) {
       ac.abort()
       window.clearInterval(id)
     }
-  }, [locationQuery, countryCode, refreshMinutes, de])
+  }, [locationQuery, countryCode, refreshMinutes, de, showDailyForecast])
 
   const t = useMemo(
     () => ({
@@ -282,6 +339,7 @@ function Widget({ config }: PluginWidgetProps) {
       hum: de ? 'Luftfeuchte' : 'Humidity',
       wind: de ? 'Wind' : 'Wind',
       updated: de ? 'Stand' : 'Updated',
+      nextDays: de ? 'Nächste Tage' : 'Next days',
     }),
     [de],
   )
@@ -355,12 +413,15 @@ function Widget({ config }: PluginWidgetProps) {
         height: '100%',
         width: '100%',
         minWidth: 0,
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         gap: 'clamp(4px, 1.2cqmin, 8px)',
         padding: 'clamp(6px, 2cqmin, 12px)',
         boxSizing: 'border-box',
+        overflowY: 'auto',
+        overflowX: 'hidden',
       }}
     >
       {placeLabel && (
@@ -462,6 +523,113 @@ function Widget({ config }: PluginWidgetProps) {
         )}
       </div>
 
+      {showDailyForecast && daily.length > 0 && (
+        <div style={{ marginTop: 'clamp(2px, 0.8cqmin, 6px)', minHeight: 0, flexShrink: 0 }}>
+          <p
+            style={{
+              margin: '0 0 4px',
+              textAlign: 'center',
+              fontSize: 'clamp(9px, 2cqmin, 11px)',
+              fontWeight: 600,
+              color: muted,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {t.nextDays}
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 'clamp(4px, 1.2cqmin, 8px)',
+              justifyContent: 'flex-start',
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              paddingBottom: '4px',
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'thin',
+            }}
+          >
+            {daily.map((day) => {
+              const d = new Date(day.date + 'T12:00:00')
+              const weekday = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { weekday: 'short' })
+              const dayNum = d.toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric' })
+              const DayIcon = wmoIconComponent(day.code, true)
+              const dayColor = wmoIconColor(day.code, true)
+              const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
+              return (
+                <div
+                  key={day.date}
+                  title={tip}
+                  style={{
+                    flex: '0 0 auto',
+                    minWidth: 'clamp(42px, 11cqmin, 56px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px',
+                    padding: '4px 3px 3px',
+                    borderRadius: '8px',
+                    background: 'color-mix(in srgb, var(--surface) 92%, var(--background))',
+                    border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 'clamp(8px, 1.8cqmin, 10px)',
+                      fontWeight: 700,
+                      color: muted,
+                      textTransform: 'capitalize',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {weekday}
+                  </span>
+                  <span style={{ fontSize: 'clamp(7px, 1.6cqmin, 9px)', color: muted, lineHeight: 1 }}>{dayNum}</span>
+                  <DayIcon
+                    aria-hidden
+                    strokeWidth={1.85}
+                    style={{
+                      width: 'clamp(16px, 4.5cqmin, 22px)',
+                      height: 'clamp(16px, 4.5cqmin, 22px)',
+                      color: dayColor,
+                      filter: wmoIconGlowFilter(day.code, true),
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    className="tabular-nums"
+                    style={{
+                      fontSize: 'clamp(9px, 2cqmin, 11px)',
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {Math.round(day.max)}°
+                  </span>
+                  <span
+                    className="tabular-nums"
+                    style={{
+                      fontSize: 'clamp(8px, 1.8cqmin, 10px)',
+                      fontWeight: 600,
+                      color: muted,
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {Math.round(day.min)}°
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {updatedAt && (
         <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
           {t.updated}: {updatedAt.toLocaleString(de ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
@@ -472,6 +640,10 @@ function Widget({ config }: PluginWidgetProps) {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
+  const locale = useDashboardStore((s) => s.locale) as Locale
+  const de = locale !== 'en'
+  const dailyOn = (config as Record<string, unknown>).showDailyForecast === true
+
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -511,6 +683,35 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           placeholder="z. B. DE"
           maxLength={2}
         />
+      </div>
+
+      <div>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            color: 'var(--text)',
+            lineHeight: 1.35,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={dailyOn}
+            onChange={(e) => onChange('showDailyForecast', e.target.checked)}
+            style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--accent)' }}
+          />
+          <span>
+            <strong>{de ? '7-Tage-Vorschau' : '7-day forecast'}</strong>
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '4px' }}>
+              {de
+                ? 'Zeigt die nächsten sieben Tage mit Symbol, Höchst- und Tiefsttemperatur (Open-Meteo daily).'
+                : 'Shows the next seven days with icon, high and low temperatures (Open-Meteo daily).'}
+            </span>
+          </span>
+        </label>
       </div>
 
       <div>
