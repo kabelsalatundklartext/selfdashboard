@@ -173,31 +173,33 @@ export function WidgetWrapper({ instance, editMode }: Props) {
           </div>
         )}
 
-        {/* Plugin slot: flex-1 fills the panel; inner column stretches so plugins with height:100% reach the card bottom (no dead band under short content). */}
+        {/* Plugin slot: clip to panel; scale pre-layout size so visual bounds match panel (same idea as DashboardGrid). */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
             width: '100%',
             minWidth: 0,
+            position: 'relative',
+            overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
             containerType: 'size',
           }}
         >
           <div
             style={{
-              flex: 1,
+              position: 'absolute',
+              inset: 0,
+              transformOrigin: 'top left',
+              transform: pluginZoom !== 1 ? `scale(${pluginZoom})` : undefined,
+              width: pluginZoom !== 1 ? `${100 / pluginZoom}%` : '100%',
+              height: pluginZoom !== 1 ? `${100 / pluginZoom}%` : '100%',
               minWidth: 0,
               minHeight: 0,
-              width: '100%',
+              boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'stretch',
-              justifyContent: 'flex-start',
-              transform: pluginZoom !== 1 ? `scale(${pluginZoom})` : undefined,
-              transformOrigin: 'center center',
             }}
           >
             <div
