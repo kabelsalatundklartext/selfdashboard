@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { GripVertical } from 'lucide-react'
 import { createClient } from 'graphql-ws'
 import type { Locale } from '@/lib/i18n'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
 
 export const meta: PluginMeta = {
@@ -11,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): Homarr-Tabelle oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.2',
+  version: '0.4.3',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -122,11 +124,56 @@ function sortContainers(a: GqlContainer, b: GqlContainer): number {
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
 }
 
-type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc'
+type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc' | 'custom'
 
 function parseListSort(v: unknown): ListSortMode {
-  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc') return v
+  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc' || v === 'custom') return v
   return 'default'
+}
+
+function normalizeIdOrder(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim())
+}
+
+function applyCustomContainerOrder<T>(
+  items: T[],
+  customOrder: string[],
+  getId: (t: T) => string,
+  sortFallback: (a: T, b: T) => number,
+): T[] {
+  const map = new Map<string, T>()
+  for (const t of items) {
+    const id = getId(t)
+    if (id) map.set(id, t)
+  }
+  const used = new Set<string>()
+  const out: T[] = []
+  for (const oid of customOrder) {
+    let hit: T | undefined = map.get(oid)
+    if (!hit) {
+      for (const [kid, t] of map) {
+        if (used.has(kid)) continue
+        if (kid === oid || kid.startsWith(oid) || oid.startsWith(kid.slice(0, 12))) {
+          hit = t
+          break
+        }
+      }
+    }
+    if (hit) {
+      const id = getId(hit)
+      if (id && !used.has(id)) {
+        out.push(hit)
+        used.add(id)
+      }
+    }
+  }
+  const rest = items.filter((t) => {
+    const id = getId(t)
+    return id ? !used.has(id) : true
+  })
+  rest.sort(sortFallback)
+  return [...out, ...rest]
 }
 
 function unraidCpuFromStats(c: GqlContainer, stats: Record<string, LiveStat>): number | null {
@@ -143,6 +190,10 @@ function unraidMemFromStats(c: GqlContainer, stats: Record<string, LiveStat>): n
 
 function applyUnraidSort(arr: GqlContainer[], mode: ListSortMode, stats: Record<string, LiveStat>): GqlContainer[] {
   const copy = arr.slice()
+  if (mode === 'custom') {
+    copy.sort(sortContainers)
+    return copy
+  }
   if (mode === 'default') {
     copy.sort(sortContainers)
     return copy
@@ -162,6 +213,21 @@ function applyUnraidSort(arr: GqlContainer[], mode: ListSortMode, stats: Record<
     return sortContainers(a, b)
   })
   return copy
+}
+
+function buildOrderedUnraidList(
+  items: GqlContainer[],
+  listSort: ListSortMode,
+  customOrder: string[],
+  stats: Record<string, LiveStat>,
+): GqlContainer[] {
+  if (listSort === 'custom' && customOrder.length > 0) {
+    return applyCustomContainerOrder(items, customOrder, (c) => c.id.trim(), sortContainers)
+  }
+  if (listSort === 'custom') {
+    return applyUnraidSort(items, 'default', stats)
+  }
+  return applyUnraidSort(items, listSort, stats)
 }
 
 function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
@@ -718,7 +784,7 @@ async function graphql<T>(
   return json.data
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const url = String((config as Record<string, unknown>).url ?? '')
     .trim()
@@ -744,6 +810,8 @@ function Widget({ config }: PluginWidgetProps) {
   const refresh = (Number(r.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(r.maxRows) || 80))
   const listSort = parseListSort(r.listSort)
+  const customOrder = useMemo(() => normalizeIdOrder(r.customContainerOrder), [r.customContainerOrder])
+  const customOrderKey = customOrder.join('|')
 
   const [list, setList] = useState<GqlContainer[]>([])
   const [statsById, setStatsById] = useState<Record<string, LiveStat>>({})
@@ -761,7 +829,28 @@ function Widget({ config }: PluginWidgetProps) {
   const tableWrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
 
-  const displayList = useMemo(() => applyUnraidSort(list, listSort, statsById), [list, listSort, statsById])
+  const editMode = useDashboardStore((s) => s.editMode)
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
+
+  const displayList = useMemo(
+    () => buildOrderedUnraidList(list, listSort, customOrder, statsById),
+    [list, listSort, customOrderKey, statsById],
+  )
+
+  const onReorderRows = useCallback(
+    (dragId: string, dropId: string) => {
+      if (!dragId || !dropId || dragId === dropId) return
+      const ids = displayList.map((c) => c.id.trim()).filter(Boolean)
+      const from = ids.indexOf(dragId)
+      const to = ids.indexOf(dropId)
+      if (from < 0 || to < 0) return
+      const next = ids.slice()
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      updatePluginConfig(instanceId, { customContainerOrder: next, listSort: 'custom' })
+    },
+    [displayList, instanceId, updatePluginConfig],
+  )
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -781,7 +870,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (!showStopped) {
         rows = rows.filter((c) => String(c.state ?? '').toUpperCase() !== 'EXITED')
       }
-      const sorted = applyUnraidSort(rows, listSort, {}).slice(0, maxRows)
+      const sorted = buildOrderedUnraidList(rows, listSort, customOrder, {}).slice(0, maxRows)
       setList(sorted)
       setError(null)
       setLastFetchOk(Date.now())
@@ -792,7 +881,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       if (latest.current === id) setLoading(false)
     }
-  }, [url, apiKey, showStopped, skipCache, maxRows, listSort, de])
+  }, [url, apiKey, showStopped, skipCache, maxRows, listSort, customOrderKey, de])
 
   useEffect(() => {
     setLoading(true)
@@ -1181,8 +1270,31 @@ function Widget({ config }: PluginWidgetProps) {
                 const iconSrc = (c.iconUrl ?? '').trim()
                 const tip = [name, c.state, (c.status ?? '').trim(), (c.image ?? '').split(':')[0]].filter(Boolean).join('\n')
 
+                const dragTrProps =
+                  editMode && displayList.length > 1 && cid
+                    ? {
+                        draggable: true as const,
+                        onDragStart: (e) => {
+                          e.stopPropagation()
+                          e.dataTransfer.setData('text/plain', cid)
+                          e.dataTransfer.effectAllowed = 'move'
+                        },
+                        onDragOver: (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          e.dataTransfer.dropEffect = 'move'
+                        },
+                        onDrop: (e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          const d = e.dataTransfer.getData('text/plain')
+                          if (d && d !== cid) onReorderRows(d, cid)
+                        },
+                      }
+                    : {}
+
                 const mainRow = (
-                  <tr key={cid || `${name}-${i}`} style={{ background: zebra }} title={tip}>
+                  <tr key={cid || `${name}-${i}`} style={{ background: zebra }} title={tip} {...dragTrProps}>
                     <td style={{ ...tdRow, minWidth: 0 }}>
                       <div
                         style={{
@@ -1193,6 +1305,22 @@ function Widget({ config }: PluginWidgetProps) {
                           justifyContent: showContainerNames ? undefined : 'center',
                         }}
                       >
+                        {editMode && displayList.length > 1 && cid ? (
+                          <span
+                            style={{
+                              cursor: 'grab',
+                              flexShrink: 0,
+                              color: 'var(--text-muted)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              lineHeight: 0,
+                              paddingRight: 2,
+                            }}
+                            title={de ? 'Zeile ziehen zum Umsortieren' : 'Drag row to reorder'}
+                          >
+                            <GripVertical size={14} strokeWidth={2.2} />
+                          </span>
+                        ) : null}
                         <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
                           {iconSrc ? (
                             <span
@@ -1466,9 +1594,33 @@ function Widget({ config }: PluginWidgetProps) {
               const cpuBarTip = showStatCpu ? `CPU ${fmtCpuHomarr(st?.cpuPercent ?? null, true)}` : ''
               const ramBarTip = showStatRam ? (statsLineUnraid(running, st, false, true, !memoryShowLimit) ?? 'RAM') : ''
 
+              const reorderRow = editMode && displayList.length > 1 && !!cid
+              const dragClassicProps = reorderRow
+                ? {
+                    draggable: true as const,
+                    onDragStart: (e) => {
+                      e.stopPropagation()
+                      e.dataTransfer.setData('text/plain', cid)
+                      e.dataTransfer.effectAllowed = 'move'
+                    },
+                    onDragOver: (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.dataTransfer.dropEffect = 'move'
+                    },
+                    onDrop: (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const d = e.dataTransfer.getData('text/plain')
+                      if (d && d !== cid) onReorderRows(d, cid)
+                    },
+                  }
+                : {}
+
               return (
                 <li
                   key={cid || `${name}-${i}`}
+                  {...dragClassicProps}
                   title={tip}
                   style={{
                     listStyle: 'none',
@@ -1490,6 +1642,21 @@ function Widget({ config }: PluginWidgetProps) {
                       flexWrap: 'nowrap',
                     }}
                   >
+                    {reorderRow ? (
+                      <span
+                        style={{
+                          cursor: 'grab',
+                          flexShrink: 0,
+                          color: 'var(--text-muted)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          lineHeight: 0,
+                        }}
+                        title={de ? 'Ziehen zum Umsortieren' : 'Drag to reorder'}
+                      >
+                        <GripVertical size={14} strokeWidth={2.2} />
+                      </span>
+                    ) : null}
                     <span
                       style={{
                         color: running ? 'var(--accent)' : 'var(--text-muted)',
@@ -1942,11 +2109,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value="cpu_asc">{de ? 'CPU (niedrigste zuerst)' : 'CPU (lowest first)'}</option>
           <option value="mem_desc">{de ? 'RAM % (höchste zuerst)' : 'RAM % (highest first)'}</option>
           <option value="mem_asc">{de ? 'RAM % (niedrigste zuerst)' : 'RAM % (lowest first)'}</option>
+          <option value="custom">
+            {de ? 'Manuell (im Bearbeitungsmodus Zeilen ziehen)' : 'Manual (drag rows in edit mode)'}
+          </option>
         </select>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
           {de
-            ? 'CPU/RAM-Sortierung nutzt Live-WebSocket-Werte, sobald vorhanden; sonst wie „Standard“.'
-            : 'CPU/RAM sorting uses live WebSocket values when available; otherwise tie-break like “Default”.'}
+            ? 'CPU/RAM-Sortierung nutzt Live-WebSocket-Werte, sobald vorhanden; sonst wie „Standard“. Manuell: Bearbeitung an, Zeilen mit ⋮⋮ ziehen.'
+            : 'CPU/RAM sorting uses live WebSocket values when available; otherwise tie-break like “Default”. Manual: edit mode on, drag ⋮⋮ rows.'}
         </p>
       </div>
     </div>

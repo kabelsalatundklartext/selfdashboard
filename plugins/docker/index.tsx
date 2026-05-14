@@ -1,5 +1,6 @@
 'use client'
 
+import { GripVertical } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
@@ -10,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.6',
+  version: '1.7.7',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -121,12 +122,67 @@ function sortContainers(a: DockerContainer, b: DockerContainer): number {
   return containerName(a).localeCompare(containerName(b), undefined, { sensitivity: 'base' })
 }
 
-/** Anzeige-Reihenfolge (Einstellung `listSort`). */
-type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc'
+/** Anzeige-Reihenfolge (Einstellung `listSort`); `custom` + `customContainerOrder` für manuelles Sortieren im Bearbeitungsmodus. */
+type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | 'mem_asc' | 'custom'
 
 function parseListSort(v: unknown): ListSortMode {
-  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc') return v
+  if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc' || v === 'custom') return v
   return 'default'
+}
+
+function normalizeIdOrder(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim())
+}
+
+function applyCustomContainerOrder<T>(
+  items: T[],
+  customOrder: string[],
+  getId: (t: T) => string,
+  sortFallback: (a: T, b: T) => number,
+): T[] {
+  const map = new Map<string, T>()
+  for (const t of items) {
+    const id = getId(t)
+    if (id) map.set(id, t)
+  }
+  const used = new Set<string>()
+  const out: T[] = []
+  for (const oid of customOrder) {
+    let hit: T | undefined = map.get(oid)
+    if (!hit) {
+      for (const [kid, t] of map) {
+        if (used.has(kid)) continue
+        if (kid === oid || kid.startsWith(oid) || oid.startsWith(kid.slice(0, 12))) {
+          hit = t
+          break
+        }
+      }
+    }
+    if (hit) {
+      const id = getId(hit)
+      if (id && !used.has(id)) {
+        out.push(hit)
+        used.add(id)
+      }
+    }
+  }
+  const rest = items.filter((t) => {
+    const id = getId(t)
+    return id ? !used.has(id) : true
+  })
+  rest.sort(sortFallback)
+  return [...out, ...rest]
+}
+
+function buildOrderedDockerList(items: DockerContainer[], listSort: ListSortMode, customOrder: string[]): DockerContainer[] {
+  if (listSort === 'custom' && customOrder.length > 0) {
+    return applyCustomContainerOrder(items, customOrder, dockerContainerId, sortContainers)
+  }
+  if (listSort === 'custom') {
+    return applyDockerSort(items, 'default')
+  }
+  return applyDockerSort(items, listSort)
 }
 
 function dockerCpuPct(c: DockerContainer): number | null {
@@ -143,6 +199,10 @@ function dockerMemSortKey(c: DockerContainer): number | null {
 
 function applyDockerSort(arr: DockerContainer[], mode: ListSortMode): DockerContainer[] {
   const copy = arr.slice()
+  if (mode === 'custom') {
+    copy.sort(sortContainers)
+    return copy
+  }
   if (mode === 'default') {
     copy.sort(sortContainers)
     return copy
@@ -650,6 +710,9 @@ type HomarrDockerTableProps = {
   goSecondStep: () => void
   executeAction: () => Promise<void>
   cancelPending: () => void
+  /** Bearbeitungsmodus: Zeilen per Drag umsortieren (speichert `listSort: custom` + `customContainerOrder`). */
+  reorderEnabled?: boolean
+  onReorderRows?: (dragId: string, dropId: string) => void
 }
 
 function HomarrDockerTable({
@@ -673,6 +736,8 @@ function HomarrDockerTable({
   goSecondStep,
   executeAction,
   cancelPending,
+  reorderEnabled = false,
+  onReorderRows,
 }: HomarrDockerTableProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
@@ -793,8 +858,31 @@ function HomarrDockerTable({
               <ContainerAvatar image={c.Image ?? ''} name={name} labels={c.Labels} useDashboardIcons={useDashboardIcons} />
             )
 
+            const dragRowProps =
+              reorderEnabled && cid
+                ? {
+                    draggable: true,
+                    onDragStart: (e) => {
+                      e.stopPropagation()
+                      e.dataTransfer.setData('text/plain', cid)
+                      e.dataTransfer.effectAllowed = 'move'
+                    },
+                    onDragOver: (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.dataTransfer.dropEffect = 'move'
+                    },
+                    onDrop: (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const d = e.dataTransfer.getData('text/plain')
+                      if (d && d !== cid && onReorderRows) onReorderRows(d, cid)
+                    },
+                  }
+                : {}
+
             const mainRow = (
-              <tr key={cid ?? `${name}-${i}`} style={{ background: zebra }} title={tip}>
+              <tr key={cid ?? `${name}-${i}`} style={{ background: zebra }} title={tip} {...dragRowProps}>
                 <td style={{ ...tdRow, minWidth: 0 }}>
                   <div
                     style={{
@@ -805,6 +893,22 @@ function HomarrDockerTable({
                       justifyContent: showContainerNames ? undefined : 'center',
                     }}
                   >
+                    {reorderEnabled && cid ? (
+                      <span
+                        style={{
+                          cursor: 'grab',
+                          flexShrink: 0,
+                          color: 'var(--text-muted)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          lineHeight: 0,
+                          paddingRight: 2,
+                        }}
+                        title={de ? 'Zeile ziehen zum Umsortieren' : 'Drag row to reorder'}
+                      >
+                        <GripVertical size={14} strokeWidth={2.2} />
+                      </span>
+                    ) : null}
                     <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
                       {avatar}
                     </span>
@@ -1003,7 +1107,7 @@ function HomarrDockerTable({
   )
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const [list, setList] = useState<DockerContainer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1032,9 +1136,31 @@ function Widget({ config }: PluginWidgetProps) {
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
   const listSort = parseListSort(r.listSort)
-  const displayList = useMemo(() => applyDockerSort(list, listSort), [list, listSort])
+  const customOrder = useMemo(() => normalizeIdOrder(r.customContainerOrder), [r.customContainerOrder])
+  const customOrderKey = customOrder.join('|')
+  const displayList = useMemo(
+    () => buildOrderedDockerList(list, listSort, customOrder),
+    [list, listSort, customOrderKey],
+  )
   const locale = useDashboardStore((s) => s.locale) as Locale
+  const editMode = useDashboardStore((s) => s.editMode)
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
   const de = locale !== 'en'
+
+  const onReorderRows = useCallback(
+    (dragId: string, dropId: string) => {
+      if (!dragId || !dropId || dragId === dropId) return
+      const ids = displayList.map((c) => dockerContainerId(c)).filter(Boolean)
+      const from = ids.indexOf(dragId)
+      const to = ids.indexOf(dropId)
+      if (from < 0 || to < 0) return
+      const next = ids.slice()
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      updatePluginConfig(instanceId, { customContainerOrder: next, listSort: 'custom' })
+    },
+    [displayList, instanceId, updatePluginConfig],
+  )
 
   const fetch_ = useCallback(async () => {
     const id = ++latestFetch.current
@@ -1057,7 +1183,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (!Array.isArray(data)) throw new Error('Unerwartetes Antwortformat')
       if (latestFetch.current !== id) return
 
-      const sorted = applyDockerSort(data as DockerContainer[], listSort)
+      const sorted = buildOrderedDockerList(data as DockerContainer[], listSort, customOrder)
       trimmed = sorted.slice(0, maxRows)
       /** Phase-1 liefert keine sdStats — alte Werte kurz behalten, sonst flackern CPU/RAM bei jedem Poll */
       setList((prev) => {
@@ -1095,7 +1221,7 @@ function Widget({ config }: PluginWidgetProps) {
         return
       }
       if (!res.ok || !Array.isArray(data)) return
-      const sorted = applyDockerSort(data as DockerContainer[], listSort)
+      const sorted = buildOrderedDockerList(data as DockerContainer[], listSort, customOrder)
       setList(sorted.slice(0, maxRows))
       setLastFetchOk(Date.now())
     }
@@ -1138,7 +1264,7 @@ function Widget({ config }: PluginWidgetProps) {
       }
 
       setList((prev) =>
-        applyDockerSort(
+        buildOrderedDockerList(
           prev.map((c) => {
             const cid = dockerContainerId(c)
             if (!isDockerRunning(c) || !CONTAINER_ID_RE.test(cid)) {
@@ -1156,13 +1282,14 @@ function Widget({ config }: PluginWidgetProps) {
             return c
           }),
           listSort,
+          customOrder,
         ),
       )
       setLastFetchOk(Date.now())
     } catch {
       if (latestFetch.current === id) await mergeStatsFromGet()
     }
-  }, [showAll, maxRows, fetchStats, listSort])
+  }, [showAll, maxRows, fetchStats, listSort, customOrderKey])
 
   useEffect(() => {
     fetch_()
@@ -1384,6 +1511,8 @@ function Widget({ config }: PluginWidgetProps) {
             goSecondStep={goSecondStep}
             executeAction={executeAction}
             cancelPending={cancelPending}
+            reorderEnabled={editMode && displayList.length > 1}
+            onReorderRows={onReorderRows}
           />
         ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 0, width: '100%', minWidth: 0 }}>
@@ -1415,9 +1544,33 @@ function Widget({ config }: PluginWidgetProps) {
             const cpuBarTip = showStatCpu ? `CPU ${fmtCpuPct(s?.cpuPct ?? null)}` : ''
             const ramBarTip = showStatRam ? (statsLine(c, running, false, true) ?? 'RAM') : ''
 
+            const reorderRow = editMode && displayList.length > 1 && !!cid
+            const dragClassicProps = reorderRow
+              ? {
+                  draggable: true as const,
+                  onDragStart: (e) => {
+                    e.stopPropagation()
+                    e.dataTransfer.setData('text/plain', cid)
+                    e.dataTransfer.effectAllowed = 'move'
+                  },
+                  onDragOver: (e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = 'move'
+                  },
+                  onDrop: (e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const d = e.dataTransfer.getData('text/plain')
+                    if (d && d !== cid) onReorderRows(d, cid)
+                  },
+                }
+              : {}
+
             return (
               <li
                 key={cid ?? `${name}-${i}`}
+                {...dragClassicProps}
                 title={tip}
                 style={{
                   listStyle: 'none',
@@ -1439,6 +1592,21 @@ function Widget({ config }: PluginWidgetProps) {
                     flexWrap: 'nowrap',
                   }}
                 >
+                  {reorderRow ? (
+                    <span
+                      style={{
+                        cursor: 'grab',
+                        flexShrink: 0,
+                        color: 'var(--text-muted)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        lineHeight: 0,
+                      }}
+                      title={de ? 'Ziehen zum Umsortieren' : 'Drag to reorder'}
+                    >
+                      <GripVertical size={14} strokeWidth={2.2} />
+                    </span>
+                  ) : null}
                   <span
                     style={{ color: running ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0, width: '0.65em', textAlign: 'center', fontSize: '0.78em' }}
                     aria-hidden
@@ -1920,11 +2088,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value="cpu_asc">{de ? 'CPU (niedrigste zuerst)' : 'CPU (lowest first)'}</option>
           <option value="mem_desc">{de ? 'RAM (höchste zuerst)' : 'RAM (highest first)'}</option>
           <option value="mem_asc">{de ? 'RAM (niedrigste zuerst)' : 'RAM (lowest first)'}</option>
+          <option value="custom">
+            {de ? 'Manuell (im Bearbeitungsmodus Zeilen ziehen)' : 'Manual (drag rows in edit mode)'}
+          </option>
         </select>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
           {de
-            ? 'CPU/RAM nutzen die angezeigten Messwerte, wenn vorhanden; sonst wie „Standard“.'
-            : 'CPU/RAM use live values when available; otherwise tie-break like “Default”.'}
+            ? 'CPU/RAM nutzen die angezeigten Messwerte, wenn vorhanden; sonst wie „Standard“. Zum manuellen Sortieren Dashboard-Bearbeitung aktivieren, ⋮⋮-Griff ziehen — die Auswahl springt auf „Manuell“.'
+            : 'CPU/RAM use live values when available; otherwise tie-break like “Default”. For manual order, enable dashboard edit mode and drag the ⋮⋮ handle — the dropdown switches to “Manual”.'}
         </p>
       </div>
     </div>
