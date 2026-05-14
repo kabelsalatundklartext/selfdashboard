@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.0',
+  version: '1.4.1',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -163,6 +163,43 @@ function parseCalDavFeeds(raw: unknown): CalDavFeedConfig[] {
     const password = typeof o.password === 'string' ? o.password.slice(0, 2000) : ''
     out.push({
       url: url.slice(0, 2000),
+      ...(name ? { name: name.slice(0, 120) } : {}),
+      ...(username ? { username: username.slice(0, 800) } : {}),
+      password,
+    })
+    if (out.length >= 4) break
+  }
+  return out
+}
+
+/** Wie {@link parseIcsFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
+function parseIcsFeedsDraft(raw: unknown): IcsFeedConfig[] {
+  if (!Array.isArray(raw)) return []
+  const out: IcsFeedConfig[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const url = typeof o.url === 'string' ? o.url.trim().slice(0, 2000) : ''
+    const name = str(o.name)
+    out.push({ url, ...(name ? { name: name.slice(0, 120) } : {}) })
+    if (out.length >= 8) break
+  }
+  return out
+}
+
+/** Wie {@link parseCalDavFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
+function parseCalDavFeedsDraft(raw: unknown): CalDavFeedConfig[] {
+  if (!Array.isArray(raw)) return []
+  const out: CalDavFeedConfig[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const url = typeof o.url === 'string' ? o.url.trim().slice(0, 2000) : ''
+    const name = str(o.name)
+    const username = str(o.username)
+    const password = typeof o.password === 'string' ? o.password.slice(0, 2000) : ''
+    out.push({
+      url,
       ...(name ? { name: name.slice(0, 120) } : {}),
       ...(username ? { username: username.slice(0, 800) } : {}),
       password,
@@ -1279,21 +1316,21 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
         <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-          {de ? 'ICS-Abonnements (Internet-Kalender)' : 'ICS subscriptions (web calendars)'}
+          {de ? 'Internetkalender (ICS-Link)' : 'Web calendars (ICS link)'}
         </p>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
           {de ? (
             <>
-              Trage die <strong>geheime iCal-/ICS-Adresse</strong> ein (meist „öffentlicher Kalender“ oder „Abonnement-URL“).
-              Der Abruf läuft über den SelfDashboard-Server (CORS), damit Google, Microsoft, Apple iCloud,{' '}
-              <strong>Synology Calendar</strong>, Nextcloud &amp; Co. funktionieren — auch <strong>URLs im Heimnetz</strong>{' '}
-              (z.&nbsp;B. <code style={{ fontSize: '10px' }}>https://diskstation.me:5001/...</code>).
+              Hier trägst du die <strong>ICS- bzw. Webcal-URL</strong> ein (oft „öffentlicher Kalender“ oder
+              „Zum Abonnement“). SelfDashboard lädt die Termine <strong>vom Server aus</strong> – damit gibt es kein
+              CORS-Problem, und es funktioniert auch mit <strong>Adressen im Heimnetz</strong> (z. B. Synology auf{' '}
+              <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
             </>
           ) : (
             <>
-              Paste the <strong>secret iCal / ICS URL</strong> (often “public calendar” or “subscription link”). Fetches go
-              through the SelfDashboard server to avoid browser CORS issues — works with Google, Microsoft, Apple iCloud,{' '}
-              <strong>Synology Calendar</strong>, Nextcloud, etc., including <strong>LAN URLs</strong>.
+              Add one or more <strong>iCal / ICS (webcal) URLs</strong> (often “public calendar” or “subscribe”). The app
+              fetches them <strong>from the server</strong>, so there is no browser CORS issue — including{' '}
+              <strong>LAN URLs</strong> (e.g. Synology on <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
             </>
           )}
         </p>
@@ -1336,7 +1373,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </ul>
 
         {(() => {
-          const feeds = parseIcsFeeds((config as Record<string, unknown>).icsFeeds)
+          const feeds = parseIcsFeedsDraft((config as Record<string, unknown>).icsFeeds)
           const setFeeds = (next: IcsFeedConfig[]) => onChange('icsFeeds', next)
           return (
             <>
@@ -1391,21 +1428,25 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
         <div style={{ marginTop: '4px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-            {de ? 'CalDAV (Synology, Nextcloud, …)' : 'CalDAV (Synology, Nextcloud, …)'}
+            {de ? 'CalDAV (z. B. Nextcloud, Synology)' : 'CalDAV (e.g. Nextcloud, Synology)'}
           </p>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
             {de ? (
               <>
-                <strong>CalDAV-URL</strong> des Kalenders (Sammlung), z.&nbsp;B. Nextcloud{' '}
-                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/BENUTZER/KALENDER/</code> oder Synology Calendar.
-                Zugangsdaten werden im Dashboard gespeichert — nur in vertrauenswürdigen Umgebungen nutzen. Optional: Nutzer
-                und Passwort in der URL (<code style={{ fontSize: '10px' }}>https://user@host/…</code>), sonst unten eintragen.
+                Trage die <strong>CalDAV-Adresse der Kalender-Sammlung</strong> ein, z. B. bei Nextcloud etwas wie{' '}
+                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/BENUTZER/KALENDER/</code>. Benutzername und
+                Passwort landen in der <strong>gespeicherten Dashboard-Konfiguration</strong> – nur verwenden, wenn niemand
+                Unbefugtes darauf zugreifen kann. Optional: Zugang direkt in der URL (
+                <code style={{ fontSize: '10px' }}>https://nutzer@server/…</code>
+                ), dann können die Felder darunter leer bleiben.
               </>
             ) : (
               <>
-                Paste your calendar <strong>CalDAV collection URL</strong> (e.g. Nextcloud{' '}
-                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/USER/CAL/</code> or Synology Calendar). Credentials
-                are stored with the dashboard — use only in environments you trust. You may embed <code style={{ fontSize: '10px' }}>https://user@host/…</code> or fill username/password below.
+                Enter the <strong>CalDAV URL of the calendar collection</strong>, e.g. Nextcloud{' '}
+                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/USER/CAL/</code>. Username and password are
+                stored in the <strong>saved dashboard config</strong> — only use if you trust who can read that data. You
+                may put credentials in the URL (<code style={{ fontSize: '10px' }}>https://user@host/…</code>) and leave the
+                fields below empty.
               </>
             )}
           </p>
@@ -1433,7 +1474,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           </ul>
 
           {(() => {
-            const feeds = parseCalDavFeeds((config as Record<string, unknown>).caldavFeeds)
+            const feeds = parseCalDavFeedsDraft((config as Record<string, unknown>).caldavFeeds)
             const setFeeds = (next: CalDavFeedConfig[]) => onChange('caldavFeeds', next)
             return (
               <>

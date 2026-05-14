@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Settings } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
@@ -17,6 +17,10 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
   const { updatePluginConfig } = useDashboardStore()
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>({ ...instance.config })
   const registered = pluginRegistry.get(instance.pluginId)
+
+  useEffect(() => {
+    if (open) setLocalConfig({ ...instance.config })
+  }, [open, instance.instanceId])
 
   if (!open || !registered) return null
 
