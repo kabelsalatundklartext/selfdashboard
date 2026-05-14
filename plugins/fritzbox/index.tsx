@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.3',
+  version: '2.3.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -874,6 +874,13 @@ function Widget({ config }: PluginWidgetProps) {
 
   const muted = 'var(--text-muted)'
 
+  const liveForDisplay =
+    liveBps && Number.isFinite(liveBps.down) && Number.isFinite(liveBps.up)
+      ? liveBps
+      : bpsHistory.length > 0
+        ? bpsHistory[bpsHistory.length - 1]!
+        : null
+
   if (!baseUrl && !loading) {
     return (
       <div style={{ padding: '12px', color: muted, fontSize: '12px', textAlign: 'center' }}>
@@ -922,7 +929,7 @@ function Widget({ config }: PluginWidgetProps) {
         ) : bpsHistory.length >= 2 ? (
           <ThroughputHistoryChart
             history={bpsHistory}
-            current={liveBps}
+            current={liveForDisplay}
             de={de}
             chartHeightPx={chartHeightPx}
             yMaxMbps={chartYMaxMbps}
@@ -1088,12 +1095,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           {de ? (
             <>
               <strong>0</strong> = kein periodischer Vollabruf (nur beim Öffnen des Dashboards). Für laufende Messpunkte{' '}
-              <strong>Zähler-Takt</strong> nutzen. <strong>1–300</strong> = kompletter TR-064-Abruf alle N Sekunden.
+              <strong>Zähler-Takt</strong> nutzen. <strong>1–300</strong> = kompletter TR-064-Abruf alle N Sekunden. Sind{' '}
+              <strong>Aktualisieren</strong> und <strong>Zähler-Takt</strong> beide <strong>0</strong>, zeigen ↓/↑ den{' '}
+              <strong>letzten Kurvenpunkt</strong> (Cache/Verlauf), bis wieder gelesen wird.
             </>
           ) : (
             <>
               <strong>0</strong> = no periodic full refresh (only when the dashboard loads). Use <strong>Live counters</strong> for ongoing
-              samples. <strong>1–300</strong> = full TR-064 poll every N seconds.
+              samples. <strong>1–300</strong> = full TR-064 poll every N seconds. If <strong>both</strong> refresh and live counters are{' '}
+              <strong>0</strong>, ↓/↑ show the <strong>last chart sample</strong> (cache/history) until counters are read again.
             </>
           )}
         </p>
@@ -1118,12 +1128,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             <>
               <strong>0</strong> = Messpunkte nur beim Intervall <strong>„Aktualisieren“</strong> (weniger Last).{' '}
               <strong>3–15</strong> = zusätzliche Abfrage der Zähler in diesem Takt (flüssigere Kurve). Ohne Wert intern{' '}
-              <strong>5</strong> s.
+              <strong>5</strong> s. Sind <strong>Aktualisieren</strong> und <strong>Zähler-Takt</strong> beide <strong>0</strong>, gibt es
+              keine neuen Zählerstände — ↓/↑ nutzen dann den letzten Punkt der Kurve.
             </>
           ) : (
             <>
               <strong>0</strong> = samples only on the <strong>Refresh</strong> interval (less load). <strong>3–15</strong> = poll counters
-              every N seconds (smoother chart). If empty on old configs, the app uses <strong>5</strong>s internally.
+              every N seconds (smoother chart). If empty on old configs, the app uses <strong>5</strong>s internally. If <strong>both</strong>{' '}
+              refresh and live counters are <strong>0</strong>, counters are not re-read — ↓/↑ fall back to the last chart sample.
             </>
           )}
         </p>

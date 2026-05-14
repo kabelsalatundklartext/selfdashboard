@@ -54,6 +54,7 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 | 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
 | 🧱 Unraid Docker | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
 | 🛡️ AdGuard Home | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
+| 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
 
@@ -162,6 +163,25 @@ In **Edit Mode** (✏️ button), hover over any widget to see controls:
 
 ---
 
+## FRITZ!Box WAN throughput plugin
+
+| Topic | Details |
+|---|---|
+| **Purpose** | Live **download / upload** throughput chart for the WAN, using FRITZ!Box **TR-064** total byte counters (no extra daemon on the router). |
+| **API** | Browser → `POST /api/fritzbox` (SelfDashboard server calls your box). Optional `lite: true` for counter-only refresh between full polls. |
+| **Auth** | TR-064 username + password; optional **HTTPS with self-signed** allowed. |
+| **Refresh** | **0–300 s** full TR-064 poll: **`0`** = no interval (only when the dashboard loads). Use **Live counters** for lighter, frequent counter updates. |
+| **Live counters** | **0** = samples only on the full refresh interval; **3–15 s** = extra counter polls for a smoother curve. |
+| **History cache** | Last curve points are stored in **browser `localStorage`** (per **base URL + username**), up to **7 days**, so the widget is not empty after a reload while new samples arrive. |
+| **Layout** | **Vertical** (chart above stat tiles) or **horizontal** (chart beside tiles — works best in a **wide** tile). |
+| **Visibility** | Toggle title, legend, live values, chart, time-axis hint (“older / newer”), and each stat tile (averages & peaks) independently in plugin settings. |
+| **Plot height** | **`0`** = built-in default height (**168 px**). **`1–220`** = exact height in **1 px** steps. |
+| **Y-axis** | **`0` Mbit/s max** = scale from data; fixed max clips values at the top. |
+| **Samples** | **16–120** history points kept for the chart. |
+| **Language** | Display strings: **auto** (match dashboard), **German**, or **English**. |
+
+---
+
 ## Settings Overview
 
 **General** — Language (DE/EN), Dashboard title, Navbar display style, Dashboard tab visibility
@@ -180,7 +200,7 @@ Anyone can create plugins for SelfDashboard. See the full guide:
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -278,6 +298,7 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 | 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
 | 🧱 Unraid Docker | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
 | 🛡️ AdGuard Home | Network | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
+| 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
 
@@ -388,6 +409,25 @@ Im **Bearbeitungsmodus** (✏️ Button), über ein Widget hovern um Controls zu
 
 ---
 
+## Fritzbox-Plugin (Internet-Verlauf)
+
+| Thema | Details |
+|---|---|
+| **Zweck** | **Download- und Upload-Durchsatz** am WAN als Kurve aus den FRITZ!Box-**TR-064**-Gesamtbyte-Zählern (ohne Extra-Dienst auf der Box). |
+| **API** | Browser → `POST /api/fritzbox` (SelfDashboard-Server spricht die Box an). Optional `lite: true` für nur Zähler zwischen vollen Abrufen. |
+| **Anmeldung** | TR-064-Benutzer + Passwort; optional **HTTPS mit selbstsigniertem Zertifikat** erlauben. |
+| **Aktualisieren** | **0–300 s** voller TR-064-Abruf: **`0`** = kein Intervall (nur beim Laden des Dashboards). Für laufende Messpunkte **Zähler-Takt** nutzen. |
+| **Zähler-Takt** | **0** = Messpunkte nur beim Intervall „Aktualisieren“; **3–15 s** = zusätzliche Zähler-Abfragen für flüssigere Kurve. |
+| **Verlauf-Cache** | Letzte Kurvenpunkte im **Browser-`localStorage`** (pro **Basis-URL + Benutzername**), bis **7 Tage**, damit nach einem Reload nicht sofort „zu wenige Messpunkte“ erscheint. |
+| **Layout** | **Vertikal** (Grafik über Karten) oder **waagerecht** (Grafik neben Karten — bei **breitem** Widget am schönsten). |
+| **Sichtbarkeit** | In den Plugin-Einstellungen: Überschrift, Legende, Live-Werte, Kurve, Zeitachsen-Hinweis und jede Statistik-Karte einzeln ein/aus. |
+| **Plot-Höhe** | **`0`** = interne Standardhöhe (**168 px**). **`1–220`** = exakte Höhe in **1-Pixel-Schritten**. |
+| **Y-Achse** | **`0` Mbit/s Maximum** = Skala aus den Daten; fester Wert schneidet oben ab. |
+| **Messpunkte** | **16–120** Werte für den Verlauf. |
+| **Sprache** | Anzeige: **auto** (wie Dashboard), **Deutsch** oder **Englisch**. |
+
+---
+
 ## Einstellungen-Übersicht
 
 **Allgemein** — Sprache (DE/EN), Dashboard-Titel, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
@@ -406,7 +446,7 @@ Jeder kann Plugins für SelfDashboard erstellen:
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Docker, Emby, AdGuard Home, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Docker, Emby, AdGuard Home, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
