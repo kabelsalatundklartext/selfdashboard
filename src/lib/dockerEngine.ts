@@ -59,6 +59,40 @@ export function dockerGet(pathAndQuery: string): Promise<{ ok: boolean; status: 
 
 const STATS_ONE_SHOT_TIMEOUT_MS = 6000
 
+/** Nanoseconds — deltas shorter than this often produce misleading CPU % (noise / same-tick samples). */
+const MIN_SYSTEM_CPU_DELTA_NS = 10_000_000
+
+/**
+ * Same idea as Docker CLI `calculateMemUsageUnixNoCache` (cli/command/container/stats_helpers.go):
+ * subtract page cache so RAM matches `docker stats` / most UIs (cAdvisor-style), not raw cgroup `usage`.
+ */
+function memoryUsageBytesNoCache(mem: Record<string, unknown> | undefined): { usage: number; limit: number | null } | null {
+  if (!mem) return null
+  const usageRaw = mem.usage
+  const limitRaw = mem.limit
+  const usageTotal = typeof usageRaw === 'number' && Number.isFinite(usageRaw) && usageRaw >= 0 ? usageRaw : null
+  if (usageTotal == null) return null
+  const memLimitBytes = typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null
+
+  const statsRaw = mem.stats
+  let memUsageBytes = usageTotal
+  if (statsRaw && typeof statsRaw === 'object') {
+    const st = statsRaw as Record<string, unknown>
+    const num = (k: string): number | null => {
+      const v = st[k]
+      return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null
+    }
+    const tif = num('total_inactive_file')
+    if (tif != null && tif < usageTotal) memUsageBytes = usageTotal - tif
+    else {
+      const inactiveFile = num('inactive_file')
+      if (inactiveFile != null && inactiveFile < usageTotal) memUsageBytes = usageTotal - inactiveFile
+    }
+  }
+
+  return { usage: memUsageBytes, limit: memLimitBytes }
+}
+
 export function parseOneShotStats(body: string): SdContainerStats | null {
   let j: Record<string, unknown>
   try {
@@ -68,10 +102,9 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
   }
 
   const ms = j.memory_stats as Record<string, unknown> | undefined
-  const usageRaw = ms?.usage
-  const limitRaw = ms?.limit
-  const memUsageBytes = typeof usageRaw === 'number' && Number.isFinite(usageRaw) && usageRaw >= 0 ? usageRaw : null
-  const memLimitBytes = typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null
+  const memParsed = memoryUsageBytesNoCache(ms)
+  const memUsageBytes = memParsed ? memParsed.usage : null
+  const memLimitBytes = memParsed?.limit ?? null
   const memPct =
     memUsageBytes != null && memLimitBytes != null && memLimitBytes > 0
       ? Math.min(100, (memUsageBytes / memLimitBytes) * 100)
@@ -95,7 +128,7 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
     const cpuDelta = total(cpuUsage(cpu_stats)) - total(cpuUsage(precpu_stats))
     const sysDelta = (Number(cpu_stats.system_cpu_usage) || 0) - (Number(precpu_stats.system_cpu_usage) || 0)
     const ncpus = ncpusFrom(cpu_stats)
-    if (sysDelta > 0 && cpuDelta > 0 && ncpus > 0) {
+    if (sysDelta >= MIN_SYSTEM_CPU_DELTA_NS && cpuDelta > 0 && ncpus > 0) {
       const p = (cpuDelta / sysDelta) * ncpus * 100
       if (Number.isFinite(p)) cpuPct = Math.min(9999, Math.max(0, p))
     }
@@ -106,12 +139,12 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
 
 export async function fetchContainerStats(id: string): Promise<SdContainerStats | null> {
   try {
-    const r = await dockerRequest(
-      'GET',
-      `/containers/${encodeURIComponent(id)}/stats?stream=false`,
-      undefined,
-      STATS_ONE_SHOT_TIMEOUT_MS,
-    )
+    const pathPrimed = `/containers/${encodeURIComponent(id)}/stats?stream=false&one-shot=false`
+    const pathLegacy = `/containers/${encodeURIComponent(id)}/stats?stream=false`
+    let r = await dockerRequest('GET', pathPrimed, undefined, STATS_ONE_SHOT_TIMEOUT_MS)
+    if (!r.ok && r.status === 400) {
+      r = await dockerRequest('GET', pathLegacy, undefined, STATS_ONE_SHOT_TIMEOUT_MS)
+    }
     if (!r.ok) return null
     return parseOneShotStats(r.body)
   } catch {

@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.8',
+  version: '1.7.9',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
