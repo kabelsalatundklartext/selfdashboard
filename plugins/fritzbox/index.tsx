@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'FRITZ!Box',
   description:
     'FRITZ!Box WAN: Kacheln im Dashboard-Bearbeiten per Griff sortieren, Grafik-Höhe & Kachelgröße in den Einstellungen. Mbit/s.',
-  version: '1.3.1',
+  version: '1.3.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -286,50 +286,45 @@ function ThroughputHistoryChart({
   history: { down: number; up: number }[]
   current: { down: number; up: number } | null
   de: boolean
-  /** Sichtbare SVG-Höhe in px (Breite folgt Container). */
+  /** Sichtbare Plot-Höhe in px (Breite folgt Container). */
   chartHeightPx?: number
 }) {
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
   const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 152))
-  const scale = hPx / 128
   const last = history[history.length - 1]!
   const downCur = current?.down ?? last.down
   const upCur = current?.up ?? last.up
 
-  const VB_W = 132
-  const VB_H = Math.round(52 * scale)
-  const padL = 2
-  const padR = 26
-  const padT = 4
-  const padB = 10
-  const plotL = padL + 10
-  const plotR = VB_W - padR
-  const plotT = padT
-  const plotB = VB_H - padB
-  const plotW = plotR - plotL
-  const plotH = plotB - plotT
-
+  /** Nur Geometrie — Beschriftung liegt als HTML außerhalb (kein Stretch der Schrift). */
+  const UW = 1000
+  const UH = 100
   const maxY = Math.max(1_000_000, ...history.map((h) => Math.max(h.down, h.up)))
   const midY = maxY / 2
 
-  const xAt = (i: number) => plotL + (history.length === 1 ? plotW / 2 : (i / (history.length - 1)) * plotW)
-  const yAt = (bps: number) => plotB - (bps / maxY) * plotH
+  const xAt = (i: number) =>
+    history.length <= 1 ? UW / 2 : (i / (history.length - 1)) * UW
+  const yAt = (bps: number) => UH - (bps / maxY) * UH
 
   const downPts = history.map((p, i) => `${xAt(i)},${yAt(p.down)}`).join(' ')
   const upPts = history.map((p, i) => `${xAt(i)},${yAt(p.up)}`).join(' ')
+  const downArea = `0,${UH} ${downPts} ${UW},${UH}`
+  const upArea = `0,${UH} ${upPts} ${UW},${UH}`
 
-  const downArea = `${plotL},${plotB} ${downPts} ${plotR},${plotB}`
-  const upArea = `${plotL},${plotB} ${upPts} ${plotR},${plotB}`
-
-  const fmtAxis = (bps: number) => {
+  const fmtMbits = (bps: number) => {
     const mbps = bps / 1_000_000
     const s = mbps >= 10 ? String(Math.round(mbps)) : mbps.toFixed(1)
-    return de ? `${s.replace('.', ',')} ` : `${s} `
+    return de ? s.replace('.', ',') : s
   }
 
   const curDownStr = formatMbps(downCur, de)
   const curUpStr = formatMbps(upCur, de)
+  const labelMuted: CSSProperties = {
+    fontSize: '9px',
+    color: 'var(--text-muted)',
+    fontVariantNumeric: 'tabular-nums',
+    lineHeight: 1.2,
+  }
 
   return (
     <div
@@ -338,55 +333,91 @@ function ThroughputHistoryChart({
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: '8px 10px 6px',
+        padding: '6px 8px 6px',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '5px' }}>
         <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {de ? 'Durchsatz-Verlauf' : 'Throughput history'}
         </span>
-        <div style={{ textAlign: 'right', minWidth: 0 }}>
-          <span style={{ fontSize: '9px', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>↓ {curDownStr}</span>
-          <span style={{ fontSize: '8px', color: 'var(--text-muted)', margin: '0 3px' }}>·</span>
-          <span style={{ fontSize: '9px', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>↑ {curUpStr}</span>
+        <div style={{ textAlign: 'right', minWidth: 0, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px 8px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>↓ {curDownStr}</span>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>↑ {curUpStr}</span>
         </div>
       </div>
-      <svg
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: `${hPx}px`, display: 'block' }}
-        aria-hidden
-      >
-        <defs>
-          <linearGradient id={`fbDownFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#34d399" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
-          </linearGradient>
-          <linearGradient id={`fbUpFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
-          </linearGradient>
-        </defs>
-        <line x1={plotL} y1={yAt(midY)} x2={plotR} y2={yAt(midY)} stroke="var(--border)" strokeWidth="0.35" strokeDasharray="2 3" opacity={0.85} />
-        <line x1={plotL} y1={plotB} x2={plotR} y2={plotB} stroke="var(--border)" strokeWidth="0.5" opacity={0.9} />
-        <polygon points={downArea} fill={`url(#fbDownFill-${gid})`} stroke="none" />
-        <polygon points={upArea} fill={`url(#fbUpFill-${gid})`} stroke="none" />
-        <polyline fill="none" stroke="#34d399" strokeWidth={1.1 + scale * 0.35} strokeLinejoin="round" strokeLinecap="round" points={downPts} />
-        <polyline fill="none" stroke="#38bdf8" strokeWidth={1.1 + scale * 0.35} strokeLinejoin="round" strokeLinecap="round" points={upPts} />
-        <text x={plotR + 1} y={plotT + 3} fill="var(--text-muted)" fontSize="5.5" textAnchor="end" fontWeight="600">
-          {fmtAxis(maxY)}Mbit/s
-        </text>
-        <text x={plotR + 1} y={yAt(midY) + 2} fill="var(--text-muted)" fontSize="5.5" textAnchor="end" fontWeight="500" opacity={0.85}>
-          {fmtAxis(midY)}Mbit/s
-        </text>
-        <text x={plotL} y={plotB + 5} fill="var(--text-muted)" fontSize="5.5" textAnchor="start" fontWeight="600">
-          0
-        </text>
-        <text x={(plotL + plotR) / 2} y={VB_H - 0.5} fill="var(--text-muted)" fontSize="5" textAnchor="middle" opacity={0.75}>
-          {de ? 'älter ←  → neuer' : 'older ←  → newer'}
-        </text>
-      </svg>
+
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: '6px', minHeight: `${hPx}px` }}>
+        <div
+          style={{
+            flexShrink: 0,
+            width: '38px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            textAlign: 'right',
+            padding: '2px 0 1px',
+            userSelect: 'none',
+          }}
+          aria-hidden
+        >
+          <span style={labelMuted} title={formatMbps(maxY, de)}>
+            {fmtMbits(maxY)}
+          </span>
+          <span style={{ ...labelMuted, opacity: 0.9 }} title={formatMbps(midY, de)}>
+            {fmtMbits(midY)}
+          </span>
+          <span style={{ ...labelMuted, fontWeight: 600 }} title={de ? '0 Mbit/s' : '0 Mbit/s'}>
+            0
+          </span>
+        </div>
+        <div style={{ flex: 1, minWidth: 0, borderRadius: '6px', overflow: 'hidden', background: 'rgba(0,0,0,0.12)' }}>
+          <svg
+            viewBox={`0 0 ${UW} ${UH}`}
+            preserveAspectRatio="none"
+            width="100%"
+            height={hPx}
+            style={{ display: 'block' }}
+            aria-hidden
+          >
+            <defs>
+              <linearGradient id={`fbDownFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#34d399" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
+              </linearGradient>
+              <linearGradient id={`fbUpFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.16" />
+                <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            <line x1={0} y1={yAt(midY)} x2={UW} y2={yAt(midY)} stroke="var(--border)" strokeWidth="0.6" strokeDasharray="3 4" opacity={0.55} vectorEffect="non-scaling-stroke" />
+            <line x1={0} y1={UH} x2={UW} y2={UH} stroke="var(--border)" strokeWidth="0.8" opacity={0.45} vectorEffect="non-scaling-stroke" />
+            <polygon points={downArea} fill={`url(#fbDownFill-${gid})`} stroke="none" />
+            <polygon points={upArea} fill={`url(#fbUpFill-${gid})`} stroke="none" />
+            <polyline
+              fill="none"
+              stroke="#34d399"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={downPts}
+              vectorEffect="non-scaling-stroke"
+            />
+            <polyline
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={upPts}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+      </div>
+      <p style={{ margin: '4px 0 0', textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.85, letterSpacing: '0.02em' }}>
+        {de ? 'älter ←  → neuer' : 'older ←  → newer'}
+      </p>
     </div>
   )
 }
@@ -407,6 +438,7 @@ function Tile({
   icon: Icon,
   footer,
   density = 'default',
+  compact = false,
 }: {
   label: string
   value: string
@@ -414,18 +446,21 @@ function Tile({
   icon: LucideIcon
   footer?: ReactNode
   density?: 'default' | 'large'
+  /** Schlankere Kachel (z. B. Internet-Zeile oben). */
+  compact?: boolean
 }) {
   const c = TINT[tint]
   const large = density === 'large'
+  const tight = compact && !large
   return (
     <div
       style={{
         borderRadius: '12px',
-        padding: large ? '12px 12px 12px 14px' : '10px 10px 10px 12px',
+        padding: tight ? '8px 10px 8px 12px' : large ? '12px 12px 12px 14px' : '10px 10px 10px 12px',
         background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-        minHeight: large ? 'clamp(72px, 22cqmin, 104px)' : 'clamp(64px, 18cqmin, 88px)',
+        minHeight: tight ? 'clamp(48px, 12cqmin, 72px)' : large ? 'clamp(72px, 22cqmin, 104px)' : 'clamp(64px, 18cqmin, 88px)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -742,7 +777,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
         padding: 'clamp(6px, 1.5cqmin, 12px)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: '6px',
         containerType: 'size',
         overflow: 'auto',
       }}
@@ -784,8 +819,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: '8px',
-              flex: 1,
+              gap: '6px',
+              flex: '0 1 auto',
+              alignContent: 'start',
               minHeight: 0,
             }}
           >
@@ -806,6 +842,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
                             value={wanOk ? (de ? 'Verbunden' : 'Up') : de ? 'Prüfen' : 'Check'}
                             tint={wanOk ? 'emerald' : 'amber'}
                             icon={Wifi}
+                            compact
                             density={d}
                             footer={
                               internetSubline ? (
