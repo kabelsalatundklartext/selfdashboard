@@ -5,13 +5,13 @@ import {
   ArrowUpCircle,
   Gauge,
   Globe,
+  GripVertical,
   Router,
-  SlidersHorizontal,
   Users,
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { useDashboardStore } from '@/lib/store'
@@ -20,8 +20,8 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'FRITZ!Box WAN: eigener Name oben, alle Kacheln & Verlauf einzeln steuerbar (Einstellungen + Widget „Anzeige“). Mbit/s, /api/fritzbox.',
-  version: '1.2.0',
+    'FRITZ!Box WAN: Kacheln im Dashboard-Bearbeiten per Griff sortieren, Grafik-Höhe & Kachelgröße in den Einstellungen. Mbit/s.',
+  version: '1.3.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -51,6 +51,29 @@ export const meta: PluginMeta = {
       type: 'text',
       defaultValue: '',
       placeholder: 'Leer = von der Box (Hersteller + Modell)',
+    },
+    {
+      key: 'throughputChartHeightPx',
+      label: 'Verlauf: Grafik-Höhe (px)',
+      type: 'number',
+      defaultValue: 128,
+      placeholder: '80–220',
+    },
+    {
+      key: 'tileSize',
+      label: 'Kachelgröße',
+      type: 'select',
+      defaultValue: 'default',
+      options: [
+        { label: 'Standard', value: 'default' },
+        { label: 'Größer', value: 'large' },
+      ],
+    },
+    {
+      key: 'uiReorderTilesInEdit',
+      label: 'Kacheln sortieren (nur Dashboard-Bearbeiten)',
+      type: 'boolean',
+      defaultValue: true,
     },
     {
       key: 'chartHistoryPoints',
@@ -144,23 +167,132 @@ function showFirmwareLine(r: Record<string, unknown>): boolean {
   return cfgBool(r, 'uiShowHeader', true)
 }
 
+const FRITZ_TILE_IDS = [
+  'internet',
+  'publicIp',
+  'maxDown',
+  'maxUp',
+  'liveDown',
+  'liveUp',
+  'hosts',
+  'wan',
+] as const
+
+type FritzTileId = (typeof FRITZ_TILE_IDS)[number]
+
+function normalizeFritzTileOrder(r: Record<string, unknown>): FritzTileId[] {
+  const raw = r.fritzTileOrder
+  const base = [...FRITZ_TILE_IDS]
+  if (!Array.isArray(raw)) return base
+  const seen = new Set<string>()
+  const out: FritzTileId[] = []
+  for (const x of raw) {
+    if (typeof x === 'string' && FRITZ_TILE_IDS.includes(x as FritzTileId) && !seen.has(x)) {
+      out.push(x as FritzTileId)
+      seen.add(x)
+    }
+  }
+  for (const id of FRITZ_TILE_IDS) {
+    if (!seen.has(id)) out.push(id)
+  }
+  return out
+}
+
+function swapFritzTiles(order: FritzTileId[], a: FritzTileId, b: FritzTileId): FritzTileId[] {
+  if (a === b) return order
+  const o = [...order]
+  const i = o.indexOf(a)
+  const j = o.indexOf(b)
+  if (i < 0 || j < 0) return order
+  ;[o[i], o[j]] = [o[j]!, o[i]!]
+  return o
+}
+
+function FritzTileSlot({
+  id,
+  reorder,
+  de,
+  onSwap,
+  children,
+}: {
+  id: FritzTileId
+  reorder: boolean
+  de: boolean
+  onSwap: (from: FritzTileId, onto: FritzTileId) => void
+  children: ReactNode
+}) {
+  return (
+    <div
+      style={{ position: 'relative', minWidth: 0 }}
+      onDragOver={
+        reorder
+          ? (e) => {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+            }
+          : undefined
+      }
+      onDrop={
+        reorder
+          ? (e) => {
+              e.preventDefault()
+              const from = e.dataTransfer.getData('application/x-fritz-tile') as FritzTileId
+              if (FRITZ_TILE_IDS.includes(from)) onSwap(from, id)
+            }
+          : undefined
+      }
+    >
+      {reorder ? (
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation()
+            e.dataTransfer.setData('application/x-fritz-tile', id)
+            e.dataTransfer.effectAllowed = 'move'
+          }}
+          title={de ? 'Ziehen und auf andere Kachel legen zum Tauschen' : 'Drag onto another tile to swap'}
+          style={{
+            position: 'absolute',
+            left: '6px',
+            top: '10px',
+            zIndex: 2,
+            cursor: 'grab',
+            color: 'var(--text-muted)',
+            lineHeight: 0,
+            touchAction: 'none',
+          }}
+          role="presentation"
+        >
+          <GripVertical size={15} strokeWidth={2} />
+        </div>
+      ) : null}
+      <div style={{ paddingLeft: reorder ? '20px' : '0', minWidth: 0 }}>{children}</div>
+    </div>
+  )
+}
+
 function ThroughputHistoryChart({
   history,
   current,
   de,
+  chartHeightPx = 128,
 }: {
   history: { down: number; up: number }[]
   current: { down: number; up: number } | null
   de: boolean
+  /** Sichtbare SVG-Höhe in px (Breite folgt Container). */
+  chartHeightPx?: number
 }) {
   const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
+  const hPx = Math.min(220, Math.max(80, Math.round(chartHeightPx) || 128))
+  const scale = hPx / 128
   const last = history[history.length - 1]!
   const downCur = current?.down ?? last.down
   const upCur = current?.up ?? last.up
 
   const VB_W = 132
-  const VB_H = 52
+  const VB_H = Math.round(52 * scale)
   const padL = 2
   const padR = 26
   const padT = 4
@@ -217,7 +349,7 @@ function ThroughputHistoryChart({
       <svg
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
-        style={{ width: '100%', height: 'clamp(52px, 14cqmin, 76px)', display: 'block' }}
+        style={{ width: '100%', height: `${hPx}px`, display: 'block' }}
         aria-hidden
       >
         <defs>
@@ -234,8 +366,8 @@ function ThroughputHistoryChart({
         <line x1={plotL} y1={plotB} x2={plotR} y2={plotB} stroke="var(--border)" strokeWidth="0.5" opacity={0.9} />
         <polygon points={downArea} fill={`url(#fbDownFill-${gid})`} stroke="none" />
         <polygon points={upArea} fill={`url(#fbUpFill-${gid})`} stroke="none" />
-        <polyline fill="none" stroke="#34d399" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" points={downPts} />
-        <polyline fill="none" stroke="#38bdf8" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" points={upPts} />
+        <polyline fill="none" stroke="#34d399" strokeWidth={1.1 + scale * 0.35} strokeLinejoin="round" strokeLinecap="round" points={downPts} />
+        <polyline fill="none" stroke="#38bdf8" strokeWidth={1.1 + scale * 0.35} strokeLinejoin="round" strokeLinecap="round" points={upPts} />
         <text x={plotR + 1} y={plotT + 3} fill="var(--text-muted)" fontSize="5.5" textAnchor="end" fontWeight="600">
           {fmtAxis(maxY)}Mbit/s
         </text>
@@ -268,23 +400,26 @@ function Tile({
   tint,
   icon: Icon,
   footer,
+  density = 'default',
 }: {
   label: string
   value: string
   tint: TintKey
   icon: LucideIcon
   footer?: ReactNode
+  density?: 'default' | 'large'
 }) {
   const c = TINT[tint]
+  const large = density === 'large'
   return (
     <div
       style={{
         borderRadius: '12px',
-        padding: '10px 10px 10px 12px',
+        padding: large ? '12px 12px 12px 14px' : '10px 10px 10px 12px',
         background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-        minHeight: 'clamp(64px, 18cqmin, 88px)',
+        minHeight: large ? 'clamp(72px, 22cqmin, 104px)' : 'clamp(64px, 18cqmin, 88px)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -293,10 +428,10 @@ function Tile({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-        <Icon size={13} strokeWidth={2.25} style={{ color: c.solid, flexShrink: 0, opacity: 0.95 }} aria-hidden />
+        <Icon size={large ? 15 : 13} strokeWidth={2.25} style={{ color: c.solid, flexShrink: 0, opacity: 0.95 }} aria-hidden />
         <span
           style={{
-            fontSize: 'clamp(9px, 2cqmin, 10px)',
+            fontSize: large ? 'clamp(10px, 2.3cqmin, 11px)' : 'clamp(9px, 2cqmin, 10px)',
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
@@ -313,7 +448,7 @@ function Tile({
       <span
         className="tabular-nums"
         style={{
-          fontSize: 'clamp(0.95rem, 4.5cqmin, 1.35rem)',
+          fontSize: large ? 'clamp(1.05rem, 5cqmin, 1.5rem)' : 'clamp(0.95rem, 4.5cqmin, 1.35rem)',
           fontWeight: 800,
           color: c.solid,
           lineHeight: 1.12,
@@ -350,7 +485,7 @@ type Summary = {
   fetchedAt?: string
 }
 
-function Widget({ config, instanceId }: PluginWidgetProps) {
+function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const r = config as Record<string, unknown>
   const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
@@ -369,12 +504,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   })()
 
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
+  const chartHeightPx = Math.min(220, Math.max(80, Math.round(num(r.throughputChartHeightPx)) || 128))
+  const tileDensity = r.tileSize === 'large' ? 'large' : 'default'
+  const allowReorder = editMode === true && cfgBool(r, 'uiReorderTilesInEdit', true)
+  const tileOrder = useMemo(() => normalizeFritzTileOrder(r), [r.fritzTileOrder])
 
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [liveBps, setLiveBps] = useState<{ down: number; up: number } | null>(null)
-  const [displayPanel, setDisplayPanel] = useState(false)
   const [bpsHistory, setBpsHistory] = useState<{ down: number; up: number }[]>([])
   const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
   const dataRef = useRef<Summary | null>(null)
@@ -571,30 +709,13 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showFooter = cfgBool(r, 'uiShowFooter', true)
   const showThroughputChart = cfgBool(r, 'uiShowThroughputChart', true)
 
-  const flipUi = (key: string) => {
-    let current = cfgBool(r, key, true)
-    if (key === 'uiShowDeviceTitle') current = showDeviceTitleLine(r)
-    if (key === 'uiShowFirmwareLine') current = showFirmwareLine(r)
-    updatePluginConfig(instanceId, { [key]: !current })
-  }
-
-  const setAllTiles = (on: boolean) => {
-    updatePluginConfig(instanceId, {
-      uiShowHeader: on,
-      uiShowDeviceTitle: on,
-      uiShowFirmwareLine: on,
-      uiShowTileInternet: on,
-      uiShowTilePublicIp: on,
-      uiShowTileMaxDown: on,
-      uiShowTileMaxUp: on,
-      uiShowTileLiveDown: on,
-      uiShowTileLiveUp: on,
-      uiShowTileHosts: on,
-      uiShowTileWanDetails: on,
-      uiShowFooter: on,
-      uiShowThroughputChart: on,
-    })
-  }
+  const onSwapTiles = useCallback(
+    (from: FritzTileId, onto: FritzTileId) => {
+      if (from === onto) return
+      updatePluginConfig(instanceId, { fritzTileOrder: swapFritzTiles(tileOrder, from, onto) })
+    },
+    [instanceId, tileOrder, updatePluginConfig],
+  )
 
   if (!baseUrl && !loading) {
     return (
@@ -622,163 +743,28 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     >
       {baseUrl ? (
         <>
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-            {showDeviceTitle || showFw ? (
-              <div style={{ minWidth: 0, flex: 1 }}>
-                {showDeviceTitle ? (
-                  <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
-                    {titleText}
-                  </p>
-                ) : null}
-                {showFw ? (
-                  <p style={{ margin: showDeviceTitle ? '2px 0 0' : 0, fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
-                    {data?.softwareVersion
+          {showDeviceTitle || showFw ? (
+            <div style={{ flexShrink: 0, minWidth: 0 }}>
+              {showDeviceTitle ? (
+                <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
+                  {titleText}
+                </p>
+              ) : null}
+              {showFw ? (
+                <p style={{ margin: showDeviceTitle ? '2px 0 0' : 0, fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
+                  {data?.softwareVersion
+                    ? de
+                      ? `FRITZ!OS ${data.softwareVersion}`
+                      : `FRITZ!OS ${data.softwareVersion}`
+                    : loading
                       ? de
-                        ? `FRITZ!OS ${data.softwareVersion}`
-                        : `FRITZ!OS ${data.softwareVersion}`
-                      : loading
-                        ? de
-                          ? 'Lade…'
-                          : 'Loading…'
-                        : '—'}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <div style={{ flex: 1 }} />
-            )}
-            <button
-              type="button"
-              onClick={() => setDisplayPanel((o) => !o)}
-              style={{
-                flexShrink: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 8px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface-2)',
-                color: 'var(--text-muted)',
-                fontSize: '10px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <SlidersHorizontal size={13} strokeWidth={2.25} aria-hidden />
-              {de ? 'Anzeige' : 'Display'}
-            </button>
-          </div>
-          {displayPanel && (
-            <div
-              style={{
-                flexShrink: 0,
-                borderRadius: '10px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                padding: '10px 10px 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-              }}
-            >
-              <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                {de ? 'Sichtbarkeit' : 'Visibility'}
-              </p>
-              {(
-                [
-                  [de ? '1. Gerätename oben' : '1. Device title', 'uiShowDeviceTitle'] as const,
-                  [de ? '1b. FRITZ!OS-Zeile' : '1b. FRITZ!OS line', 'uiShowFirmwareLine'] as const,
-                  [de ? 'Internet-Status' : 'Internet', 'uiShowTileInternet'] as const,
-                  [de ? '2. Öffentliche IPv4' : '2. Public IPv4', 'uiShowTilePublicIp'] as const,
-                  [de ? '3. Download (max.)' : '3. Download (max)', 'uiShowTileMaxDown'] as const,
-                  [de ? '3b. Upload (max.)' : '3b. Upload (max)', 'uiShowTileMaxUp'] as const,
-                  [de ? '4. Download (live)' : '4. Download (live)', 'uiShowTileLiveDown'] as const,
-                  [de ? '4b. Upload (live)' : '4b. Upload (live)', 'uiShowTileLiveUp'] as const,
-                  [de ? '5. Heimnetz-Geräte' : '5. LAN devices', 'uiShowTileHosts'] as const,
-                  [de ? '6. WAN-Details' : '6. WAN details', 'uiShowTileWanDetails'] as const,
-                  [de ? 'Fußzeile' : 'Footer', 'uiShowFooter'] as const,
-                  [de ? '7. Verlaufsgrafik' : '7. Throughput chart', 'uiShowThroughputChart'] as const,
-                ] as const
-              ).map(([label, key]) => (
-                <label
-                  key={key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    fontSize: '11px',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ lineHeight: 1.3 }}>{label}</span>
-                  <input
-                    type="checkbox"
-                    checked={
-                      key === 'uiShowDeviceTitle'
-                        ? showDeviceTitleLine(r)
-                        : key === 'uiShowFirmwareLine'
-                          ? showFirmwareLine(r)
-                          : cfgBool(r, key, true)
-                    }
-                    onChange={() => flipUi(key)}
-                    style={{ width: '15px', height: '15px', accentColor: 'var(--accent)', flexShrink: 0 }}
-                  />
-                </label>
-              ))}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => setAllTiles(true)}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-2)',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {de ? 'Alle an' : 'Show all'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAllTiles(false)}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-2)',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {de ? 'Alle aus' : 'Hide all'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDisplayPanel(false)}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'transparent',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                  }}
-                >
-                  {de ? 'Schließen' : 'Close'}
-                </button>
-              </div>
+                        ? 'Lade…'
+                        : 'Loading…'
+                      : '—'}
+                </p>
+              ) : null}
             </div>
-          )}
+          ) : null}
         </>
       ) : null}
 
@@ -797,116 +783,162 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               minHeight: 0,
             }}
           >
-            {[
-              showTileInternet ? (
-                <Tile
-                  key="int"
-                  label={de ? 'Internet' : 'Internet'}
-                  value={wanOk ? (de ? 'Verbunden' : 'Up') : de ? 'Prüfen' : 'Check'}
-                  tint={wanOk ? 'emerald' : 'amber'}
-                  icon={Wifi}
-                  footer={
-                    internetSubline ? (
-                      <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{internetSubline}</span>
-                    ) : data?.connectionStatus && !wanOk ? (
-                      <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.connectionStatus}</span>
-                    ) : null
-                  }
-                />
-              ) : null,
-              showTilePublicIp ? (
-                <Tile key="ip" label={de ? 'Öffentliche IPv4' : 'Public IPv4'} value={data.externalIpv4 || '—'} tint="sky" icon={Globe} />
-              ) : null,
-              showTileMaxDown ? (
-                <Tile
-                  key="maxd"
-                  label={de ? 'Download (max.)' : 'Download (max)'}
-                  value={formatMbps(data.downstreamMaxBps, de)}
-                  tint="violet"
-                  icon={ArrowDownCircle}
-                />
-              ) : null,
-              showTileMaxUp ? (
-                <Tile
-                  key="maxu"
-                  label={de ? 'Upload (max.)' : 'Upload (max)'}
-                  value={formatMbps(data.upstreamMaxBps, de)}
-                  tint="violet"
-                  icon={ArrowUpCircle}
-                />
-              ) : null,
-              showTileLiveDown ? (
-                <Tile
-                  key="liveD"
-                  label={de ? 'Download (live)' : 'Download (live)'}
-                  value={liveDownStr}
-                  tint="emerald"
-                  icon={Gauge}
-                  footer={
-                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
-                  }
-                />
-              ) : null,
-              showTileLiveUp ? (
-                <Tile
-                  key="liveU"
-                  label={de ? 'Upload (live)' : 'Upload (live)'}
-                  value={liveUpStr}
-                  tint="emerald"
-                  icon={Gauge}
-                  footer={
-                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
-                  }
-                />
-              ) : null,
-              showTileHosts ? (
-                <Tile
-                  key="hosts"
-                  label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
-                  value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
-                  tint="amber"
-                  icon={Users}
-                  footer={
-                    <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>
-                      {de ? 'laut Hosts-Tabelle' : 'per host table'}
-                    </span>
-                  }
-                />
-              ) : null,
-              showTileWanDetails ? (
-                <Tile
-                  key="wan"
-                  label={de ? 'WAN-Details' : 'WAN details'}
-                  value={(() => {
-                    const name = data.wanConnectionName?.trim()
-                    if (name) return name.length > 32 ? `${name.slice(0, 30)}…` : name
-                    if (data.natEnabled != null)
-                      return de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`
-                    const t = humanizeWanTech(data.wanConnectionType, de)
-                    return t || '—'
-                  })()}
-                  tint="sky"
-                  icon={Router}
-                  footer={
-                    <>
-                      {data.natEnabled != null && data.wanConnectionName?.trim() ? (
-                        <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>
-                          {de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`}
-                        </span>
-                      ) : null}
-                      {data.wanDnsServers ? (
-                        <span
-                          style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-all' }}
-                          title={data.wanDnsServers}
-                        >
-                          DNS: {truncateMid(data.wanDnsServers.replace(/\s+/g, ' ').trim(), 44)}
-                        </span>
-                      ) : null}
-                    </>
-                  }
-                />
-              ) : null,
-            ].filter((n) => n != null)}
+            {tileOrder.flatMap((id) => {
+              const wrap = (node: ReactNode) => (
+                <FritzTileSlot key={id} id={id} reorder={allowReorder} de={de} onSwap={onSwapTiles}>
+                  {node}
+                </FritzTileSlot>
+              )
+              const d = tileDensity
+              switch (id) {
+                case 'internet':
+                  return showTileInternet
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Internet' : 'Internet'}
+                            value={wanOk ? (de ? 'Verbunden' : 'Up') : de ? 'Prüfen' : 'Check'}
+                            tint={wanOk ? 'emerald' : 'amber'}
+                            icon={Wifi}
+                            density={d}
+                            footer={
+                              internetSubline ? (
+                                <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{internetSubline}</span>
+                              ) : data?.connectionStatus && !wanOk ? (
+                                <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>{data.connectionStatus}</span>
+                              ) : null
+                            }
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'publicIp':
+                  return showTilePublicIp
+                    ? [wrap(<Tile label={de ? 'Öffentliche IPv4' : 'Public IPv4'} value={data.externalIpv4 || '—'} tint="sky" icon={Globe} density={d} />)]
+                    : []
+                case 'maxDown':
+                  return showTileMaxDown
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Download (max.)' : 'Download (max)'}
+                            value={formatMbps(data.downstreamMaxBps, de)}
+                            tint="violet"
+                            icon={ArrowDownCircle}
+                            density={d}
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'maxUp':
+                  return showTileMaxUp
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Upload (max.)' : 'Upload (max)'}
+                            value={formatMbps(data.upstreamMaxBps, de)}
+                            tint="violet"
+                            icon={ArrowUpCircle}
+                            density={d}
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'liveDown':
+                  return showTileLiveDown
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Download (live)' : 'Download (live)'}
+                            value={liveDownStr}
+                            tint="emerald"
+                            icon={Gauge}
+                            density={d}
+                            footer={
+                              <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+                            }
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'liveUp':
+                  return showTileLiveUp
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Upload (live)' : 'Upload (live)'}
+                            value={liveUpStr}
+                            tint="emerald"
+                            icon={Gauge}
+                            density={d}
+                            footer={
+                              <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>{liveFooter}</span>
+                            }
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'hosts':
+                  return showTileHosts
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'Heimnetz-Geräte' : 'LAN devices'}
+                            value={data.hostCount != null && data.hostCount >= 0 ? String(data.hostCount) : '—'}
+                            tint="amber"
+                            icon={Users}
+                            density={d}
+                            footer={
+                              <span style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25 }}>
+                                {de ? 'laut Hosts-Tabelle' : 'per host table'}
+                              </span>
+                            }
+                          />,
+                        ),
+                      ]
+                    : []
+                case 'wan':
+                  return showTileWanDetails
+                    ? [
+                        wrap(
+                          <Tile
+                            label={de ? 'WAN-Details' : 'WAN details'}
+                            value={(() => {
+                              const name = data.wanConnectionName?.trim()
+                              if (name) return name.length > 32 ? `${name.slice(0, 30)}…` : name
+                              if (data.natEnabled != null)
+                                return de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`
+                              const t = humanizeWanTech(data.wanConnectionType, de)
+                              return t || '—'
+                            })()}
+                            tint="sky"
+                            icon={Router}
+                            density={d}
+                            footer={
+                              <>
+                                {data.natEnabled != null && data.wanConnectionName?.trim() ? (
+                                  <span style={{ fontSize: '9px', color: muted, marginTop: '4px' }}>
+                                    {de ? `NAT ${data.natEnabled ? 'an' : 'aus'}` : `NAT ${data.natEnabled ? 'on' : 'off'}`}
+                                  </span>
+                                ) : null}
+                                {data.wanDnsServers ? (
+                                  <span
+                                    style={{ fontSize: '9px', color: muted, marginTop: '4px', lineHeight: 1.25, wordBreak: 'break-all' }}
+                                    title={data.wanDnsServers}
+                                  >
+                                    DNS: {truncateMid(data.wanDnsServers.replace(/\s+/g, ' ').trim(), 44)}
+                                  </span>
+                                ) : null}
+                              </>
+                            }
+                          />,
+                        ),
+                      ]
+                    : []
+                default:
+                  return []
+              }
+            })}
           </div>
           {!showTileInternet &&
           !showTilePublicIp &&
@@ -920,7 +952,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               {de ? 'Alle Kacheln ausgeblendet.' : 'All tiles hidden.'}
             </p>
           ) : null}
-          {showThroughputChart ? <ThroughputHistoryChart history={bpsHistory} current={liveBps} de={de} /> : null}
+          {showThroughputChart ? (
+            <ThroughputHistoryChart history={bpsHistory} current={liveBps} de={de} chartHeightPx={chartHeightPx} />
+          ) : null}
           {showFooter ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexShrink: 0 }}>
               <p style={{ margin: 0, fontSize: '9px', color: muted }}>
@@ -1095,8 +1129,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </p>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
           {de
-            ? 'Entspricht dem Button „Anzeige“ im Widget. Hier dauerhaft speichern (inkl. eigenem Namen oben).'
-            : 'Same as the “Display” button in the widget; saved permanently (including custom top title).'}
+            ? 'Sichtbarkeit der Kacheln und des Verlaufs. Kachel-Reihenfolge: Dashboard bearbeiten, dann Kacheln per Griff tauschen (wenn aktiviert).'
+            : 'Tile/chart visibility. Tile order: enable dashboard edit mode, then drag the grip to swap tiles (if enabled).'}
         </p>
 
         <div>

@@ -212,7 +212,7 @@ export function WidgetWrapper({ instance, editMode }: Props) {
                 flexDirection: 'column',
               }}
             >
-              <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} />
+              <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} editMode={editMode} />
             </div>
           </div>
         </div>

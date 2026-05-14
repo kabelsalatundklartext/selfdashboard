@@ -68,6 +68,8 @@ export interface PluginWidgetProps {
   instanceId: string
   config: Record<string, unknown>
   theme: ThemeId
+  /** true, wenn das Dashboard im Layout-Bearbeiten ist (z. B. Kacheln im Plugin sortieren). */
+  editMode?: boolean
 }
 
 export interface PluginSettingsProps {
