@@ -48,8 +48,8 @@ function iframeStrings(de: boolean) {
     viewportMobile: de ? 'Immer mobil (schmale Spalte)' : 'Always mobile (narrow column)',
     viewportDesktop: de ? 'Immer Desktop (breit, ggf. horizontal scrollen)' : 'Always desktop (wide; may scroll horizontally)',
     viewportHelp: de
-      ? '„Mobil“: schmale Layout-Breite. Breites Panel: gleichmäßige Vergrößerung, Inhalt oben ausgerichtet (Kopfzeile bleibt sichtbar; unten ggf. beschnitten).'
-      : '“Mobile”: narrow layout. Wide panel: uniform scale, content aligned to the top so the header stays visible; bottom may clip.',
+      ? '„Mobil“: schmale Layout-Breite. Breites Panel: gleichmäßig skaliert, sodass die volle Widget-Höhe genutzt wird (unten nicht abgeschnitten).'
+      : '“Mobile”: narrow layout. Wide panel: scaled so the full widget height is used (no cut-off at the bottom).',
     mobileWidthLabel: de ? 'Mobile Breite (px)' : 'Mobile width (px)',
   }
 }
@@ -59,7 +59,7 @@ export const meta: PluginMeta = {
   name: 'Iframe',
   description:
     'Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.',
-  version: '2.1.3',
+  version: '2.1.4',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🖼️',
@@ -269,18 +269,36 @@ function Widget({ config }: PluginWidgetProps) {
           position: 'relative',
         }
 
-  const wideMobileSlot = slotRect.w > mobileFrameWidth
-  /** Uniform scale keeps aspect ratio; origin top + align top so headers are not clipped when the panel is wide. */
-  const mobileUniformScale = wideMobileSlot && slotRect.w > 0 ? slotRect.w / mobileFrameWidth : 1
-  const mobileStage: CSSProperties = {
-    width: wideMobileSlot ? mobileFrameWidth : '100%',
-    height: '100%',
-    position: 'relative',
-    flexShrink: 0,
-    minHeight: 0,
-    transform: mobileUniformScale !== 1 ? `scale(${mobileUniformScale})` : undefined,
-    transformOrigin: 'top center',
+  const wideMobileSlot = slotRect.w > mobileFrameWidth && slotRect.h > 0
+  /**
+   * Uniform scale to fill slot width without vertical overflow:
+   * logical size (W0 × H0) with s = slotW/W0 gives visual (slotW × H0·s).
+   * Choose H0 = slotH·W0/slotW so visual height = slotH (no bottom clip).
+   */
+  const mobileScale = wideMobileSlot ? slotRect.w / mobileFrameWidth : 1
+  const mobileLogicalHeight = wideMobileSlot ? (slotRect.h * mobileFrameWidth) / slotRect.w : 0
+
+  const mobileSlotClip: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
   }
+
+  const mobileScaledStage: CSSProperties = wideMobileSlot
+    ? {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: mobileFrameWidth,
+        height: mobileLogicalHeight,
+        transform: `scale(${mobileScale})`,
+        transformOrigin: 'top left',
+      }
+    : {
+        position: 'absolute',
+        inset: 0,
+      }
+
   const mobileFlexFill: CSSProperties = {
     flex: 1,
     minWidth: 0,
@@ -288,14 +306,6 @@ function Widget({ config }: PluginWidgetProps) {
     width: '100%',
     height: '100%',
     position: 'relative',
-  }
-  const mobileClipTop: CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    overflow: 'hidden',
   }
 
   const frameBody = (
@@ -375,8 +385,8 @@ function Widget({ config }: PluginWidgetProps) {
       <div ref={iframeHostRef} style={hostOuter}>
         {viewportMode === 'mobile' ? (
           <div style={mobileFlexFill}>
-            <div style={mobileClipTop}>
-              <div style={mobileStage}>{frameBody}</div>
+            <div style={mobileSlotClip}>
+              <div style={mobileScaledStage}>{frameBody}</div>
             </div>
           </div>
         ) : (
