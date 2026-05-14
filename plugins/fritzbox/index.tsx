@@ -11,7 +11,7 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { useDashboardStore } from '@/lib/store'
@@ -20,8 +20,8 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'FRITZ!Box',
   description:
-    'FRITZ!Box WAN (UPnP IGD): Kacheln, Live-Rate, Verlaufsgrafik. „Anzeige“ im Widget blendet Bereiche ein/aus (wird gespeichert). /api/fritzbox.',
-  version: '1.1.1',
+    'FRITZ!Box WAN: eigener Name oben, alle Kacheln & Verlauf einzeln steuerbar (Einstellungen + Widget „Anzeige“). Mbit/s, /api/fritzbox.',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',
@@ -39,12 +39,19 @@ export const meta: PluginMeta = {
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
     {
       key: 'liveIntervalSeconds',
-      label: 'Live-Zähler (Sek., leer=5)',
+      label: 'Live-Zähler (Sek.)',
       type: 'number',
-      defaultValue: 5,
-      placeholder: '0=aus, 3–15=schneller Takt',
+      defaultValue: 0,
+      placeholder: '0 = aus, 3–15 = schneller',
     },
     { key: 'insecureTls', label: 'HTTPS: selbstsigniert erlauben', type: 'boolean', defaultValue: false },
+    {
+      key: 'headerCustomName',
+      label: 'Anzeigename oben (optional)',
+      type: 'text',
+      defaultValue: '',
+      placeholder: 'Leer = von der Box (Hersteller + Modell)',
+    },
     {
       key: 'chartHistoryPoints',
       label: 'Verlauf: max. Messpunkte',
@@ -125,48 +132,122 @@ function cfgBool(r: Record<string, unknown>, key: string, defaultValue = true): 
   return defaultValue
 }
 
+/** Sichtbarkeit Gerätename: neu `uiShowDeviceTitle`, sonst Alt `uiShowHeader`. */
+function showDeviceTitleLine(r: Record<string, unknown>): boolean {
+  if ('uiShowDeviceTitle' in r && r.uiShowDeviceTitle !== undefined) return cfgBool(r, 'uiShowDeviceTitle', true)
+  return cfgBool(r, 'uiShowHeader', true)
+}
+
+/** Sichtbarkeit FRITZ!OS-Zeile: neu `uiShowFirmwareLine`, sonst Alt `uiShowHeader`. */
+function showFirmwareLine(r: Record<string, unknown>): boolean {
+  if ('uiShowFirmwareLine' in r && r.uiShowFirmwareLine !== undefined) return cfgBool(r, 'uiShowFirmwareLine', true)
+  return cfgBool(r, 'uiShowHeader', true)
+}
+
 function ThroughputHistoryChart({
   history,
+  current,
   de,
 }: {
   history: { down: number; up: number }[]
+  current: { down: number; up: number } | null
   de: boolean
 }) {
+  const gid = useId().replace(/:/g, '')
   if (history.length < 2) return null
-  const W = 100
-  const H = 34
-  const pad = 2
-  const maxY = Math.max(1, ...history.map((h) => Math.max(h.down, h.up)))
-  const xAt = (i: number) => pad + (history.length === 1 ? W / 2 : (i / (history.length - 1)) * (W - pad * 2))
-  const yAt = (v: number) => H - pad - (v / maxY) * (H - pad * 2)
+  const last = history[history.length - 1]!
+  const downCur = current?.down ?? last.down
+  const upCur = current?.up ?? last.up
+
+  const VB_W = 132
+  const VB_H = 52
+  const padL = 2
+  const padR = 26
+  const padT = 4
+  const padB = 10
+  const plotL = padL + 10
+  const plotR = VB_W - padR
+  const plotT = padT
+  const plotB = VB_H - padB
+  const plotW = plotR - plotL
+  const plotH = plotB - plotT
+
+  const maxY = Math.max(1_000_000, ...history.map((h) => Math.max(h.down, h.up)))
+  const midY = maxY / 2
+
+  const xAt = (i: number) => plotL + (history.length === 1 ? plotW / 2 : (i / (history.length - 1)) * plotW)
+  const yAt = (bps: number) => plotB - (bps / maxY) * plotH
+
   const downPts = history.map((p, i) => `${xAt(i)},${yAt(p.down)}`).join(' ')
   const upPts = history.map((p, i) => `${xAt(i)},${yAt(p.up)}`).join(' ')
+
+  const downArea = `${plotL},${plotB} ${downPts} ${plotR},${plotB}`
+  const upArea = `${plotL},${plotB} ${upPts} ${plotR},${plotB}`
+
+  const fmtAxis = (bps: number) => {
+    const mbps = bps / 1_000_000
+    const s = mbps >= 10 ? String(Math.round(mbps)) : mbps.toFixed(1)
+    return de ? `${s.replace('.', ',')} ` : `${s} `
+  }
+
+  const curDownStr = formatMbps(downCur, de)
+  const curUpStr = formatMbps(upCur, de)
+
   return (
     <div
       style={{
-        borderRadius: '10px',
+        borderRadius: '12px',
         border: '1px solid var(--border)',
-        background: 'var(--surface-2)',
-        padding: '6px 8px 4px',
+        background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+        padding: '8px 10px 6px',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
+        <span style={{ fontSize: '9px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {de ? 'Durchsatz-Verlauf' : 'Throughput history'}
         </span>
-        <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>
-          {de ? '↓ grün · ↑ blau' : '↓ green · ↑ blue'}
-        </span>
+        <div style={{ textAlign: 'right', minWidth: 0 }}>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>↓ {curDownStr}</span>
+          <span style={{ fontSize: '8px', color: 'var(--text-muted)', margin: '0 3px' }}>·</span>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: '#38bdf8', fontVariantNumeric: 'tabular-nums' }}>↑ {curUpStr}</span>
+        </div>
       </div>
       <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: 'clamp(40px, 11cqmin, 64px)', display: 'block' }}
+        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        preserveAspectRatio="xMidYMid meet"
+        style={{ width: '100%', height: 'clamp(52px, 14cqmin, 76px)', display: 'block' }}
         aria-hidden
       >
-        <polyline fill="none" stroke="#34d399" strokeWidth="1.1" vectorEffect="non-scaling-stroke" points={downPts} />
-        <polyline fill="none" stroke="#38bdf8" strokeWidth="1.1" vectorEffect="non-scaling-stroke" points={upPts} />
+        <defs>
+          <linearGradient id={`fbDownFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34d399" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#34d399" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id={`fbUpFill-${gid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <line x1={plotL} y1={yAt(midY)} x2={plotR} y2={yAt(midY)} stroke="var(--border)" strokeWidth="0.35" strokeDasharray="2 3" opacity={0.85} />
+        <line x1={plotL} y1={plotB} x2={plotR} y2={plotB} stroke="var(--border)" strokeWidth="0.5" opacity={0.9} />
+        <polygon points={downArea} fill={`url(#fbDownFill-${gid})`} stroke="none" />
+        <polygon points={upArea} fill={`url(#fbUpFill-${gid})`} stroke="none" />
+        <polyline fill="none" stroke="#34d399" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" points={downPts} />
+        <polyline fill="none" stroke="#38bdf8" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" points={upPts} />
+        <text x={plotR + 1} y={plotT + 3} fill="var(--text-muted)" fontSize="5.5" textAnchor="end" fontWeight="600">
+          {fmtAxis(maxY)}Mbit/s
+        </text>
+        <text x={plotR + 1} y={yAt(midY) + 2} fill="var(--text-muted)" fontSize="5.5" textAnchor="end" fontWeight="500" opacity={0.85}>
+          {fmtAxis(midY)}Mbit/s
+        </text>
+        <text x={plotL} y={plotB + 5} fill="var(--text-muted)" fontSize="5.5" textAnchor="start" fontWeight="600">
+          0
+        </text>
+        <text x={(plotL + plotR) / 2} y={VB_H - 0.5} fill="var(--text-muted)" fontSize="5" textAnchor="middle" opacity={0.75}>
+          {de ? 'älter ←  → neuer' : 'older ←  → newer'}
+        </text>
       </svg>
     </div>
   )
@@ -470,7 +551,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         ? `Mittel über ${refreshSec} s (nur voller Abruf)`
         : `Avg over ${refreshSec}s (full poll only)`
 
-  const showHeader = cfgBool(r, 'uiShowHeader', true)
+  const showDeviceTitle = showDeviceTitleLine(r)
+  const showFw = showFirmwareLine(r)
+  const customTitle = str(r.headerCustomName)
+  const titleText =
+    customTitle ||
+    (data?.manufacturer && data?.modelName
+      ? `${data.manufacturer} ${data.modelName}`
+      : data?.modelName || 'FRITZ!Box')
+
   const showTileInternet = cfgBool(r, 'uiShowTileInternet', true)
   const showTilePublicIp = cfgBool(r, 'uiShowTilePublicIp', true)
   const showTileMaxDown = cfgBool(r, 'uiShowTileMaxDown', true)
@@ -483,12 +572,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showThroughputChart = cfgBool(r, 'uiShowThroughputChart', true)
 
   const flipUi = (key: string) => {
-    updatePluginConfig(instanceId, { [key]: !cfgBool(r, key, true) })
+    let current = cfgBool(r, key, true)
+    if (key === 'uiShowDeviceTitle') current = showDeviceTitleLine(r)
+    if (key === 'uiShowFirmwareLine') current = showFirmwareLine(r)
+    updatePluginConfig(instanceId, { [key]: !current })
   }
 
   const setAllTiles = (on: boolean) => {
     updatePluginConfig(instanceId, {
       uiShowHeader: on,
+      uiShowDeviceTitle: on,
+      uiShowFirmwareLine: on,
       uiShowTileInternet: on,
       uiShowTilePublicIp: on,
       uiShowTileMaxDown: on,
@@ -529,24 +623,26 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       {baseUrl ? (
         <>
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-            {showHeader ? (
+            {showDeviceTitle || showFw ? (
               <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
-                  {data?.manufacturer && data?.modelName
-                    ? `${data.manufacturer} ${data.modelName}`
-                    : data?.modelName || 'FRITZ!Box'}
-                </p>
-                <p style={{ margin: '2px 0 0', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
-                  {data?.softwareVersion
-                    ? de
-                      ? `FRITZ!OS ${data.softwareVersion}`
-                      : `FRITZ!OS ${data.softwareVersion}`
-                    : loading
+                {showDeviceTitle ? (
+                  <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 700, color: text, lineHeight: 1.25 }}>
+                    {titleText}
+                  </p>
+                ) : null}
+                {showFw ? (
+                  <p style={{ margin: showDeviceTitle ? '2px 0 0' : 0, fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted }}>
+                    {data?.softwareVersion
                       ? de
-                        ? 'Lade…'
-                        : 'Loading…'
-                      : '—'}
-                </p>
+                        ? `FRITZ!OS ${data.softwareVersion}`
+                        : `FRITZ!OS ${data.softwareVersion}`
+                      : loading
+                        ? de
+                          ? 'Lade…'
+                          : 'Loading…'
+                        : '—'}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div style={{ flex: 1 }} />
@@ -592,17 +688,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               </p>
               {(
                 [
-                  [de ? 'Kopfzeile (Modell)' : 'Header (model)', 'uiShowHeader'] as const,
-                  [de ? 'Internet' : 'Internet', 'uiShowTileInternet'] as const,
-                  [de ? 'Öffentliche IPv4' : 'Public IPv4', 'uiShowTilePublicIp'] as const,
-                  [de ? 'Download (max.)' : 'Download (max)', 'uiShowTileMaxDown'] as const,
-                  [de ? 'Upload (max.)' : 'Upload (max)', 'uiShowTileMaxUp'] as const,
-                  [de ? 'Download (live)' : 'Download (live)', 'uiShowTileLiveDown'] as const,
-                  [de ? 'Upload (live)' : 'Upload (live)', 'uiShowTileLiveUp'] as const,
-                  [de ? 'Heimnetz-Geräte' : 'LAN devices', 'uiShowTileHosts'] as const,
-                  [de ? 'WAN-Details' : 'WAN details', 'uiShowTileWanDetails'] as const,
+                  [de ? '1. Gerätename oben' : '1. Device title', 'uiShowDeviceTitle'] as const,
+                  [de ? '1b. FRITZ!OS-Zeile' : '1b. FRITZ!OS line', 'uiShowFirmwareLine'] as const,
+                  [de ? 'Internet-Status' : 'Internet', 'uiShowTileInternet'] as const,
+                  [de ? '2. Öffentliche IPv4' : '2. Public IPv4', 'uiShowTilePublicIp'] as const,
+                  [de ? '3. Download (max.)' : '3. Download (max)', 'uiShowTileMaxDown'] as const,
+                  [de ? '3b. Upload (max.)' : '3b. Upload (max)', 'uiShowTileMaxUp'] as const,
+                  [de ? '4. Download (live)' : '4. Download (live)', 'uiShowTileLiveDown'] as const,
+                  [de ? '4b. Upload (live)' : '4b. Upload (live)', 'uiShowTileLiveUp'] as const,
+                  [de ? '5. Heimnetz-Geräte' : '5. LAN devices', 'uiShowTileHosts'] as const,
+                  [de ? '6. WAN-Details' : '6. WAN details', 'uiShowTileWanDetails'] as const,
                   [de ? 'Fußzeile' : 'Footer', 'uiShowFooter'] as const,
-                  [de ? 'Verlaufsgrafik' : 'History chart', 'uiShowThroughputChart'] as const,
+                  [de ? '7. Verlaufsgrafik' : '7. Throughput chart', 'uiShowThroughputChart'] as const,
                 ] as const
               ).map(([label, key]) => (
                 <label
@@ -620,7 +717,13 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   <span style={{ lineHeight: 1.3 }}>{label}</span>
                   <input
                     type="checkbox"
-                    checked={cfgBool(r, key, true)}
+                    checked={
+                      key === 'uiShowDeviceTitle'
+                        ? showDeviceTitleLine(r)
+                        : key === 'uiShowFirmwareLine'
+                          ? showFirmwareLine(r)
+                          : cfgBool(r, key, true)
+                    }
                     onChange={() => flipUi(key)}
                     style={{ width: '15px', height: '15px', accentColor: 'var(--accent)', flexShrink: 0 }}
                   />
@@ -817,7 +920,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               {de ? 'Alle Kacheln ausgeblendet.' : 'All tiles hidden.'}
             </p>
           ) : null}
-          {showThroughputChart ? <ThroughputHistoryChart history={bpsHistory} de={de} /> : null}
+          {showThroughputChart ? <ThroughputHistoryChart history={bpsHistory} current={liveBps} de={de} /> : null}
           {showFooter ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexShrink: 0 }}>
               <p style={{ margin: 0, fontSize: '9px', color: muted }}>
@@ -938,6 +1041,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           value={refresh}
           onChange={(e) => onChange('refreshSeconds', Math.min(300, Math.max(15, Math.round(Number(e.target.value)) || 30)))}
         />
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+          {de
+            ? 'Minimum 15 s — 0 wäre Endlos-Abruf und würde Box und Server unnötig belasten.'
+            : 'Minimum 15s — 0 would hammer the router and server in a tight loop.'}
+        </p>
       </div>
 
       <div>
@@ -957,37 +1065,213 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
           {de ? (
             <>
-              <strong>0</strong> = nur „voller“ Abruf oben (weniger Last). <strong>3–15</strong> = zusätzlich nur
-              Byte-Zähler in diesem Takt → flüssigere Live-Rate. Leer / neu = <strong>5</strong>.
+              <strong>0</strong> = kein eigener Zähler-Takt: Live-Werte und Grafik folgen nur dem Intervall{' '}
+              <strong>„Aktualisieren“</strong> (weniger Last auf FRITZ!Box und Server, dafür größere Sprünge).{' '}
+              <strong>3–15</strong> = zusätzliche leichte Abfrage nur der Byte-Zähler in diesem Takt. Wenn das Feld bei{' '}
+              <em>alten</em> Einträgen leer fehlt, nutzt die App intern <strong>5</strong> s.
             </>
           ) : (
             <>
-              <strong>0</strong> = full refresh only. <strong>3–15</strong> = extra light counter poll for smoother
-              live rate. Empty / new = <strong>5</strong>.
+              <strong>0</strong> = no extra counter poll: live tiles + chart only update on the <strong>Refresh</strong> interval
+              (less load; choppier values). <strong>3–15</strong> = add a light counter poll every N seconds. If the value is
+              missing on <em>legacy</em> configs, the app falls back to <strong>5</strong>s internally.
             </>
           )}
         </p>
       </div>
 
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
-          {de ? 'Verlauf: Messpunkte' : 'History: sample cap'}
-        </label>
-        <input
-          style={inp}
-          type="number"
-          min={16}
-          max={120}
-          value={Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))}
-          onChange={(e) =>
-            onChange('chartHistoryPoints', Math.min(120, Math.max(16, Math.round(Number(e.target.value)) || 48)))
-          }
-        />
-        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
-          {de
-            ? 'Maximale Anzahl gespeicherter Live-Messungen für die Grafik (16–120).'
-            : 'Max stored live samples for the chart (16–120).'}
+      <div
+        style={{
+          borderTop: '1px solid var(--border)',
+          paddingTop: '12px',
+          marginTop: '4px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+        }}
+      >
+        <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+          {de ? 'Anzeige im Widget' : 'Widget display'}
         </p>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
+          {de
+            ? 'Entspricht dem Button „Anzeige“ im Widget. Hier dauerhaft speichern (inkl. eigenem Namen oben).'
+            : 'Same as the “Display” button in the widget; saved permanently (including custom top title).'}
+        </p>
+
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 6px' }}>
+            1. {de ? 'Name oben (Hersteller / Modell)' : 'Top title (vendor / model)'}
+          </p>
+          <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+            {de ? 'Eigener Anzeigename (optional)' : 'Custom title (optional)'}
+          </label>
+          <input
+            style={inp}
+            value={str(r.headerCustomName)}
+            onChange={(e) => onChange('headerCustomName', e.target.value)}
+            placeholder={de ? 'Leer = von der Box' : 'Empty = from device'}
+          />
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              cursor: 'pointer',
+              marginTop: '8px',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: 'var(--text)' }}>{de ? 'Gerätename-Zeile anzeigen' : 'Show device title line'}</span>
+            <input
+              type="checkbox"
+              checked={showDeviceTitleLine(r)}
+              onChange={() => onChange('uiShowDeviceTitle', !showDeviceTitleLine(r))}
+              style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              cursor: 'pointer',
+              marginTop: '6px',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: 'var(--text)' }}>{de ? 'FRITZ!OS-Zeile anzeigen' : 'Show FRITZ!OS line'}</span>
+            <input
+              type="checkbox"
+              checked={showFirmwareLine(r)}
+              onChange={() => onChange('uiShowFirmwareLine', !showFirmwareLine(r))}
+              style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+            />
+          </label>
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>{de ? 'Internet-Status-Kachel' : 'Internet status tile'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileInternet', true)}
+            onChange={() => onChange('uiShowTileInternet', !cfgBool(r, 'uiShowTileInternet', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>2. {de ? 'Öffentliche IPv4' : 'Public IPv4'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTilePublicIp', true)}
+            onChange={() => onChange('uiShowTilePublicIp', !cfgBool(r, 'uiShowTilePublicIp', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>3. {de ? 'Download (max.)' : 'Download (max)'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileMaxDown', true)}
+            onChange={() => onChange('uiShowTileMaxDown', !cfgBool(r, 'uiShowTileMaxDown', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>3b. {de ? 'Upload (max.)' : 'Upload (max)'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileMaxUp', true)}
+            onChange={() => onChange('uiShowTileMaxUp', !cfgBool(r, 'uiShowTileMaxUp', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>4. {de ? 'Download (live)' : 'Download (live)'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileLiveDown', true)}
+            onChange={() => onChange('uiShowTileLiveDown', !cfgBool(r, 'uiShowTileLiveDown', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>4b. {de ? 'Upload (live)' : 'Upload (live)'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileLiveUp', true)}
+            onChange={() => onChange('uiShowTileLiveUp', !cfgBool(r, 'uiShowTileLiveUp', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>5. {de ? 'Heimnetz-Geräte' : 'LAN devices'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileHosts', true)}
+            onChange={() => onChange('uiShowTileHosts', !cfgBool(r, 'uiShowTileHosts', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>6. {de ? 'WAN-Details' : 'WAN details'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowTileWanDetails', true)}
+            onChange={() => onChange('uiShowTileWanDetails', !cfgBool(r, 'uiShowTileWanDetails', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text)' }}>{de ? 'Fußzeile (Uptime / UPnP)' : 'Footer (uptime / UPnP)'}</span>
+          <input
+            type="checkbox"
+            checked={cfgBool(r, 'uiShowFooter', true)}
+            onChange={() => onChange('uiShowFooter', !cfgBool(r, 'uiShowFooter', true))}
+            style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+          />
+        </label>
+
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+            7. {de ? 'Durchsatz-Verlauf' : 'Throughput history'}
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', cursor: 'pointer', marginBottom: '10px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text)' }}>{de ? 'Grafik anzeigen' : 'Show chart'}</span>
+            <input
+              type="checkbox"
+              checked={cfgBool(r, 'uiShowThroughputChart', true)}
+              onChange={() => onChange('uiShowThroughputChart', !cfgBool(r, 'uiShowThroughputChart', true))}
+              style={{ width: '16px', height: '16px', accentColor: 'var(--accent)', flexShrink: 0 }}
+            />
+          </label>
+          <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+            {de ? 'Max. Messpunkte im Verlauf' : 'Max history samples'}
+          </label>
+          <input
+            style={inp}
+            type="number"
+            min={16}
+            max={120}
+            value={Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))}
+            onChange={(e) =>
+              onChange('chartHistoryPoints', Math.min(120, Math.max(16, Math.round(Number(e.target.value)) || 48)))
+            }
+          />
+          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+            {de
+              ? '16–120: wie viele Messungen für die Kurve gespeichert werden (mehr = längerer Verlauf, etwas mehr Speicher).'
+              : '16–120: how many samples are kept for the chart.'}
+          </p>
+        </div>
       </div>
     </div>
   )
