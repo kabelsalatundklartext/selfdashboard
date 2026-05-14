@@ -48,8 +48,8 @@ function iframeStrings(de: boolean) {
     viewportMobile: de ? 'Immer mobil (schmale Spalte)' : 'Always mobile (narrow column)',
     viewportDesktop: de ? 'Immer Desktop (breit, ggf. horizontal scrollen)' : 'Always desktop (wide; may scroll horizontally)',
     viewportHelp: de
-      ? '„Mobil“: schmale Layout-Breite. Ist das Panel breiter, wird gleichmäßig vergrößert (Seitenverhältnis bleibt) und der Rand beschnitten — ohne horizontales „Breitziehen“.'
-      : '“Mobile”: narrow layout width. If the panel is wider, the view is scaled uniformly (aspect ratio preserved) with edges clipped — not stretched on the X axis only.',
+      ? '„Mobil“: schmale Layout-Breite. Breites Panel: gleichmäßige Vergrößerung, Inhalt oben ausgerichtet (Kopfzeile bleibt sichtbar; unten ggf. beschnitten).'
+      : '“Mobile”: narrow layout. Wide panel: uniform scale, content aligned to the top so the header stays visible; bottom may clip.',
     mobileWidthLabel: de ? 'Mobile Breite (px)' : 'Mobile width (px)',
   }
 }
@@ -59,7 +59,7 @@ export const meta: PluginMeta = {
   name: 'Iframe',
   description:
     'Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.',
-  version: '2.1.2',
+  version: '2.1.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🖼️',
@@ -270,15 +270,16 @@ function Widget({ config }: PluginWidgetProps) {
         }
 
   const wideMobileSlot = slotRect.w > mobileFrameWidth
-  /** Uniform scale (not scaleX) so circles/text stay proportional; overflow clips top/bottom when widening. */
+  /** Uniform scale keeps aspect ratio; origin top + align top so headers are not clipped when the panel is wide. */
   const mobileUniformScale = wideMobileSlot && slotRect.w > 0 ? slotRect.w / mobileFrameWidth : 1
   const mobileStage: CSSProperties = {
     width: wideMobileSlot ? mobileFrameWidth : '100%',
     height: '100%',
     position: 'relative',
     flexShrink: 0,
+    minHeight: 0,
     transform: mobileUniformScale !== 1 ? `scale(${mobileUniformScale})` : undefined,
-    transformOrigin: 'center center',
+    transformOrigin: 'top center',
   }
   const mobileFlexFill: CSSProperties = {
     flex: 1,
@@ -288,11 +289,11 @@ function Widget({ config }: PluginWidgetProps) {
     height: '100%',
     position: 'relative',
   }
-  const mobileClipCenter: CSSProperties = {
+  const mobileClipTop: CSSProperties = {
     position: 'absolute',
     inset: 0,
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
     overflow: 'hidden',
   }
@@ -374,7 +375,7 @@ function Widget({ config }: PluginWidgetProps) {
       <div ref={iframeHostRef} style={hostOuter}>
         {viewportMode === 'mobile' ? (
           <div style={mobileFlexFill}>
-            <div style={mobileClipCenter}>
+            <div style={mobileClipTop}>
               <div style={mobileStage}>{frameBody}</div>
             </div>
           </div>
