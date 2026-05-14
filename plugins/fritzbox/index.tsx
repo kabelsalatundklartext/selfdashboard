@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'FRITZ!Box',
   description:
     'WAN per UPnP-IGD/TR-064: Status, öffentliche IPv4, max. Sync, aktuelle Download-/Upload-Rate (aus Byte-Zählern), Digest-Auth über /api/fritzbox. Für FRITZ!Box u. ä. IGD-Geräte.',
-  version: '1.0.3',
+  version: '1.0.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📡',

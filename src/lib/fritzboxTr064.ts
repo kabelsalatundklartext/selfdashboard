@@ -266,12 +266,49 @@ export async function fetchFritzBoxSummary(
   let wanAccessType: string | null = null
   let downstreamMaxBps: number | null = null
   let upstreamMaxBps: number | null = null
+  let wanTotalBytesReceived: string | null = null
+  let wanTotalBytesSent: string | null = null
   if (wanCommonSvc) {
     const ctl = absUrl(origin, wanCommonSvc.controlUrl)
     const xml = await soapAction(client, ctl, wanCommonSvc.type, 'GetCommonLinkProperties', signal, fetchOpts)
     wanAccessType = xmlFirst(xml, 'NewWANAccessType')
     downstreamMaxBps = parseIntSafe(xmlFirst(xml, 'NewLayer1DownstreamMaxBitRate'))
     upstreamMaxBps = parseIntSafe(xmlFirst(xml, 'NewLayer1UpstreamMaxBitRate'))
+    try {
+      const addon = await soapAction(client, ctl, wanCommonSvc.type, 'GetAddonInfos', signal, fetchOpts)
+      wanTotalBytesReceived = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesReceived64',
+        'NewX_AVM_DE_TotalBytesReceived64',
+        'NewTotalBytesReceived',
+        'TotalBytesReceived',
+      )
+      wanTotalBytesSent = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesSent64',
+        'NewX_AVM_DE_TotalBytesSent64',
+        'NewTotalBytesSent',
+        'TotalBytesSent',
+      )
+    } catch {
+      /* GetAddonInfos optional (ältere IGD ohne AVM-Erweiterung) */
+    }
+    if (!wanTotalBytesReceived) {
+      try {
+        const rxXml = await soapAction(client, ctl, wanCommonSvc.type, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
+      }
+    }
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, wanCommonSvc.type, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
+    }
   }
 
   const wanIpServices = services.filter((s) => {
@@ -325,26 +362,24 @@ export async function fetchFritzBoxSummary(
     }
   }
 
-  let wanTotalBytesReceived: string | null = null
-  let wanTotalBytesSent: string | null = null
   if (primaryWanIp) {
     const ctl = absUrl(origin, primaryWanIp.controlUrl)
     const t = primaryWanIp.type
-    try {
-      const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
-      wanTotalBytesReceived = parseDecimalUIntString(
-        rxXml,
-        'NewTotalBytesReceived',
-        'TotalBytesReceived',
-      )
-    } catch {
-      /* optional — nicht jede IGD-Implementierung unterstützt die Aktion */
+    if (!wanTotalBytesReceived) {
+      try {
+        const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
+      }
     }
-    try {
-      const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
-      wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
-    } catch {
-      /* optional */
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
     }
   }
 
