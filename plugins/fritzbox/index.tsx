@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.5',
+  version: '2.3.6',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -115,7 +115,7 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Mess-Ausreißer begrenzen: symmetrische Nutzer-Kappung (Mbit/s) oder TR-064 Layer1-Max (bit/s) je Richtung, je +12 % Puffer. */
+/** Mess-Ausreißer begrenzen: Nutzer-Kappung (Mbit/s) exakt in bit/s; sonst TR-064 Layer1-Max (bit/s) je Richtung +3 % Puffer. */
 function clampThroughputBps(
   down: number,
   up: number,
@@ -123,18 +123,18 @@ function clampThroughputBps(
   lineUpBps: number | null,
   userCapMbps: number,
 ): { down: number; up: number } {
-  const head = 1.12
+  const phyHead = 1.03
   let d = Number.isFinite(down) ? Math.max(0, down) : 0
   let u = Number.isFinite(up) ? Math.max(0, up) : 0
   if (userCapMbps > 0 && Number.isFinite(userCapMbps)) {
-    const cap = Math.max(1, userCapMbps) * 1_000_000 * head
+    const cap = Math.max(1, userCapMbps) * 1_000_000
     return { down: Math.min(d, cap), up: Math.min(u, cap) }
   }
   if (lineDownBps != null && lineDownBps > 0 && Number.isFinite(lineDownBps)) {
-    d = Math.min(d, lineDownBps * head)
+    d = Math.min(d, lineDownBps * phyHead)
   }
   if (lineUpBps != null && lineUpBps > 0 && Number.isFinite(lineUpBps)) {
-    u = Math.min(u, lineUpBps * head)
+    u = Math.min(u, lineUpBps * phyHead)
   }
   return { down: d, up: u }
 }
@@ -1386,14 +1386,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
             {de ? (
               <>
-                <strong>0</strong> = nur die TR-064-Werte <em>Layer1-MaxBitRate</em> der Box (falls vorhanden) + 12 % Puffer.{' '}
-                <strong>&gt; 0</strong> = zusätzlich harte Obergrenze für beide Richtungen (z. B. <strong>1000</strong> bei 1-Gbit-Vertrag),
-                damit Zähler-Sprünge keine unrealistischen Peaks erzeugen.
+                <strong>0</strong> = nur die TR-064-Werte <em>Layer1-MaxBitRate</em> der Box (falls vorhanden) + 3 % Puffer.{' '}
+                <strong>&gt; 0</strong> = harte Obergrenze in <strong>Mbit/s</strong> für beide Richtungen (z. B. <strong>1000</strong> bei
+                1-Gbit-Vertrag) — <strong>ohne</strong> zusätzlichen Aufschlag, damit Peaks nicht über deinen Wert rutschen.
               </>
             ) : (
               <>
-                <strong>0</strong> = only use TR-064 <em>Layer1 max bit rate</em> from the router (when available) + 12% headroom.{' '}
-                <strong>&gt; 0</strong> = also cap both directions (e.g. <strong>1000</strong> on a 1 Gbit/s line) so counter glitches do not create impossible peaks.
+                <strong>0</strong> = only use TR-064 <em>Layer1 max bit rate</em> from the router (when available) + 3% headroom.{' '}
+                <strong>&gt; 0</strong> = hard cap in <strong>Mbit/s</strong> for both directions (e.g. <strong>1000</strong> on a 1 Gbit/s line) —{' '}
+                <strong>no extra margin</strong>, so peaks cannot exceed the number you enter.
               </>
             )}
           </p>

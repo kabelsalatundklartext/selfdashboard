@@ -178,7 +178,7 @@ In **Edit Mode** (✏️ button), hover over any widget to see controls:
 | **Plot height** | **`0`** = built-in default height (**168 px**). **`1–220`** = exact height in **1 px** steps. |
 | **Y-axis** | **`0` Mbit/s max** = scale from data; fixed max clips values at the top. |
 | **Samples** | **16–120** history points kept for the chart. |
-| **Sanity cap** | Optional **max measured rate (Mbit/s)** in settings: caps both directions (e.g. **1000** on a 1 Gbit/s line). **0** = only TR-064 **Layer1** max bit rates from the box (when present) + 12% headroom. |
+| **Sanity cap** | Optional **max measured rate (Mbit/s)** in settings: **exact** ceiling for both directions when &gt; 0 (e.g. **1000** on a 1 Gbit/s line). **0** = only TR-064 **Layer1** max bit rates from the box (when present) + **3%** headroom. |
 | **Language** | Display strings: **auto** (match dashboard), **German**, or **English**. |
 
 ---
@@ -425,7 +425,7 @@ Im **Bearbeitungsmodus** (✏️ Button), über ein Widget hovern um Controls zu
 | **Plot-Höhe** | **`0`** = interne Standardhöhe (**168 px**). **`1–220`** = exakte Höhe in **1-Pixel-Schritten**. |
 | **Y-Achse** | **`0` Mbit/s Maximum** = Skala aus den Daten; fester Wert schneidet oben ab. |
 | **Messpunkte** | **16–120** Werte für den Verlauf. |
-| **Ausreißer** | Optional **Max. Messrate (Mbit/s)** in den Einstellungen: Kappung für beide Richtungen (z. B. **1000** bei 1 Gbit/s). **0** = nur TR-064 **Layer1**-Maximalwerte der Box (falls vorhanden) + 12 % Puffer. |
+| **Ausreißer** | Optional **Max. Messrate (Mbit/s)**: bei **&gt; 0** **exakte** Kappung für beide Richtungen (z. B. **1000**). **0** = nur TR-064 **Layer1**-Maximalwerte (falls vorhanden) + **3 %** Puffer. |
 | **Sprache** | Anzeige: **auto** (wie Dashboard), **Deutsch** oder **Englisch**. |
 
 ---
