@@ -10,8 +10,8 @@ export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.7',
+    'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
+  version: '1.7.8',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -288,7 +288,7 @@ function heatColorForPct(p: number | null | undefined): string {
   return HEAT_RED
 }
 
-function fmtMemoryHomarr(s: SdContainerStats | null | undefined, running: boolean): string {
+function fmtMemoryCompact(s: SdContainerStats | null | undefined, running: boolean): string {
   if (!running) return '—'
   if (s?.memUsageBytes == null || !Number.isFinite(s.memUsageBytes)) return '—'
   return fmtBytesShort(s.memUsageBytes)
@@ -357,7 +357,7 @@ function fmtUpdatedAgo(ts: number | null, locale: Locale): string {
   return de ? `Vor ${h} Std. aktualisiert` : `Updated ${h}h ago`
 }
 
-function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
+function fmtCpuCompact(p: number | null | undefined, running: boolean): string {
   if (!running) return '—'
   if (p == null || !Number.isFinite(p)) return '—'
   if (p < 10) return `${p.toFixed(2)}%`
@@ -519,7 +519,7 @@ function Heading({ text }: { text: string }) {
   )
 }
 
-/** PNGs from https://github.com/walkxcode/dashboard-icons (used by Homarr-style dashboards). */
+/** PNGs from https://github.com/walkxcode/dashboard-icons (common dashboard icon set). */
 const DASHBOARD_ICONS_PNG_BASE = 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png'
 
 /** Map image slug → CDN filename when repo name ≠ icon name. */
@@ -688,7 +688,7 @@ function ContainerAvatar({
   )
 }
 
-type HomarrDockerTableProps = {
+type DockerTableCompactProps = {
   list: DockerContainer[]
   locale: Locale
   busyId: string | null
@@ -715,7 +715,7 @@ type HomarrDockerTableProps = {
   onReorderRows?: (dragId: string, dropId: string) => void
 }
 
-function HomarrDockerTable({
+function DockerTableCompact({
   list,
   locale,
   busyId,
@@ -738,7 +738,7 @@ function HomarrDockerTable({
   cancelPending,
   reorderEnabled = false,
   onReorderRows,
-}: HomarrDockerTableProps) {
+}: DockerTableCompactProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
   useLayoutEffect(() => {
@@ -846,7 +846,7 @@ function HomarrDockerTable({
             const s = c.sdStats
             const cpuPct = s?.cpuPct ?? null
             const ramPct = ramPercentForBar(s)
-            const memStr = fmtMemoryHomarr(s, running)
+            const memStr = fmtMemoryCompact(s, running)
             const tipParts = [name, st, (c.Status ?? '').trim(), imgRef]
             const tip = tipParts.filter(Boolean).join('\n')
             const zebra =
@@ -951,7 +951,7 @@ function HomarrDockerTable({
                     paddingRight: tightMetrics ? 4 : undefined,
                   }}
                 >
-                  {showStatCpu ? fmtCpuHomarr(cpuPct, running) : '—'}
+                  {showStatCpu ? fmtCpuCompact(cpuPct, running) : '—'}
                 </td>
                 <td
                   style={{
@@ -1121,7 +1121,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
 
   const showAll = config.showStopped === true
   const r = config as Record<string, unknown>
-  const homarrTable = r.homarrTable !== false
+  const compactTableView = r.homarrTable !== false
   const useDashboardIcons = r.useDashboardIcons !== false
   const showContainerNames = r.showContainerNames !== false
   const actionsOn = r.allowActions !== false
@@ -1351,7 +1351,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     display: 'flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
-    padding: homarrTable ? 0 : '8px 12px 12px',
+    padding: compactTableView ? 0 : '8px 12px 12px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
@@ -1362,8 +1362,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    overflowX: homarrTable ? 'auto' : 'hidden',
-    padding: homarrTable ? '6px 10px 4px' : 0,
+    overflowX: compactTableView ? 'auto' : 'hidden',
+    padding: compactTableView ? '6px 10px 4px' : 0,
   }
 
   const btn: React.CSSProperties = {
@@ -1387,7 +1387,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   if (loading) {
     return (
       <div style={shell}>
-        <div style={{ ...scrollBody, padding: homarrTable ? '10px 12px' : undefined }}>
+        <div style={{ ...scrollBody, padding: compactTableView ? '10px 12px' : undefined }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {[70, 55, 80, 50].map((w, i) => (
               <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
@@ -1483,14 +1483,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <div style={scrollBody}>
-        {!homarrTable ? <Heading text={de ? `Docker · ${list.length}${showAll ? '' : ' laufend'}` : `Docker · ${list.length}${showAll ? '' : ' running'}`} /> : null}
+        {!compactTableView ? <Heading text={de ? `Docker · ${list.length}${showAll ? '' : ' laufend'}` : `Docker · ${list.length}${showAll ? '' : ' running'}`} /> : null}
         {actionError ? (
           <p style={{ fontSize: '10px', color: '#ef4444', margin: '0 0 8px', lineHeight: 1.4 }}>{actionError}</p>
         ) : null}
         {list.length === 0 ? (
           <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Keine Container in der Liste.' : 'No containers in the list.'}</p>
-        ) : homarrTable ? (
-          <HomarrDockerTable
+        ) : compactTableView ? (
+          <DockerTableCompact
             list={displayList}
             locale={locale}
             busyId={busyId}
@@ -1788,7 +1788,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </ul>
         )}
       </div>
-      {homarrTable ? (
+      {compactTableView ? (
         <div
           style={{
             flexShrink: 0,
@@ -1882,7 +1882,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const r = config as Record<string, unknown>
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
-  const homarrOn = r.homarrTable !== false
+  const compactTableOn = r.homarrTable !== false
   const dashboardIconsOn = r.useDashboardIcons !== false
   const btnStartOn = actionsOn && r.showBtnStart !== false
   const btnStopOn = actionsOn && r.showBtnStop !== false
@@ -1912,14 +1912,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       <ToggleRow
         label={
           de
-            ? 'Homarr-Tabellenansicht (Name · Status · CPU · Speicher · Aktionen)'
-            : 'Homarr table view (name · state · CPU · memory · actions)'
+            ? 'Kompakte Tabelle (Name · Status · CPU · Speicher · Aktionen)'
+            : 'Compact table (name · state · CPU · memory · actions)'
         }
-        on={homarrOn}
-        onToggle={() => onChange('homarrTable', !homarrOn)}
+        on={compactTableOn}
+        onToggle={() => onChange('homarrTable', !compactTableOn)}
       />
 
-      <div style={{ opacity: homarrOn ? 1 : 0.45, pointerEvents: homarrOn ? 'auto' : 'none' }}>
+      <div style={{ opacity: compactTableOn ? 1 : 0.45, pointerEvents: compactTableOn ? 'auto' : 'none' }}>
         <ToggleRow
           label={
             de

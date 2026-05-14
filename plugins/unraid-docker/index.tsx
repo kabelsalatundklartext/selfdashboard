@@ -12,8 +12,8 @@ export const meta: PluginMeta = {
   id: 'unraid-docker',
   name: 'Unraid Docker',
   description:
-    'Docker-Container über die Unraid GraphQL API (7.2+): Homarr-Tabelle oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.3',
+    'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
+  version: '0.4.4',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -75,7 +75,7 @@ interface LiveStat {
   memPercent: number
 }
 
-/** Gleiche Heat-Skala wie `plugins/docker` (Homarr-Tabelle). */
+/** Gleiche Heat-Skala wie `plugins/docker` (kompakte Tabelle). */
 const HEAT_GREEN = '#22c55e'
 const HEAT_AMBER = '#f59e0b'
 const HEAT_RED = '#ef4444'
@@ -230,7 +230,7 @@ function buildOrderedUnraidList(
   return applyUnraidSort(items, listSort, stats)
 }
 
-function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
+function fmtCpuCompact(p: number | null | undefined, running: boolean): string {
   if (!running) return '—'
   if (p == null || !Number.isFinite(p)) return '—'
   if (p < 10) return `${p.toFixed(2)}%`
@@ -238,7 +238,7 @@ function fmtCpuHomarr(p: number | null | undefined, running: boolean): string {
   return `${Math.round(p)}%`
 }
 
-/** Nur genutzter Speicher (vor „ / …“), eine Zeile wie beim Docker-Homarr. */
+/** Nur genutzter Speicher (vor „ / …“), eine Zeile wie in der kompakten Docker-Tabelle. */
 function fmtMemUsageCompact(raw: string | undefined): string {
   if (!raw?.trim()) return ''
   const t = raw.trim()
@@ -411,7 +411,7 @@ function statsLineUnraid(
   if (!running || (!showCpu && !showRam)) return null
   const parts: string[] = []
   if (showCpu) {
-    parts.push(`CPU ${fmtCpuHomarr(st?.cpuPercent ?? null, true)}`)
+    parts.push(`CPU ${fmtCpuCompact(st?.cpuPercent ?? null, true)}`)
   }
   if (showRam && st?.memUsage) {
     const raw = st.memUsage
@@ -793,7 +793,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const r = config as Record<string, unknown>
   const showStopped = r.showStopped === true
   const skipCache = r.skipCache === true
-  const homarrTable = r.homarrTable !== false
+  const compactTableView = r.homarrTable !== false
   const useDashboardIcons = r.useDashboardIcons !== false
   const showContainerNames = r.showContainerNames !== false
   const memoryShowLimit = r.memoryShowLimit === true
@@ -1006,14 +1006,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [homarrTable, actionsOn, list.length])
+  }, [compactTableView, actionsOn, list.length])
 
   const shell: React.CSSProperties = {
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
-    padding: homarrTable ? 0 : '8px 12px 12px',
+    padding: compactTableView ? 0 : '8px 12px 12px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
@@ -1024,8 +1024,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    overflowX: homarrTable ? 'auto' : 'hidden',
-    padding: homarrTable ? '6px 10px 4px' : 0,
+    overflowX: compactTableView ? 'auto' : 'hidden',
+    padding: compactTableView ? '6px 10px 4px' : 0,
   }
 
   const thStyle: React.CSSProperties = {
@@ -1101,7 +1101,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   if (loading && list.length === 0) {
     return (
       <div style={shell}>
-        <div style={{ ...scrollBody, padding: homarrTable ? '10px 12px' : undefined }}>
+        <div style={{ ...scrollBody, padding: compactTableView ? '10px 12px' : undefined }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {[70, 55, 80, 50].map((w, i) => (
               <div key={i} className="skeleton" style={{ height: '10px', width: `${w}%`, borderRadius: '3px' }} />
@@ -1190,7 +1190,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <div ref={layoutRef} style={scrollBody}>
-        {!homarrTable ? (
+        {!compactTableView ? (
           <Heading
             text={
               de
@@ -1204,7 +1204,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         ) : null}
         {list.length === 0 ? (
           <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Keine Container in der Liste.' : 'No containers in the list.'}</p>
-        ) : homarrTable ? (
+        ) : compactTableView ? (
           <div ref={tableWrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
           <table
             style={{
@@ -1397,7 +1397,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         paddingRight: tightMetrics ? 4 : undefined,
                       }}
                     >
-                      {showStatCpu ? (valuesLive ? fmtCpuHomarr(cpuPct, running) : '—') : '—'}
+                      {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
                     </td>
                     <td
                       style={{
@@ -1591,7 +1591,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               const cpuFill = running && showStatCpu && valuesLive ? barFillPct(st?.cpuPercent ?? null) : 0
               const ramFill = running && showStatRam && valuesLive ? barFillPct(st?.memPercent ?? null) : 0
               const textStatsInline = showStatsInRow && !showStatBars ? statsLineUnraid(running, st, showStatCpu, showStatRam, !memoryShowLimit) : null
-              const cpuBarTip = showStatCpu ? `CPU ${fmtCpuHomarr(st?.cpuPercent ?? null, true)}` : ''
+              const cpuBarTip = showStatCpu ? `CPU ${fmtCpuCompact(st?.cpuPercent ?? null, true)}` : ''
               const ramBarTip = showStatRam ? (statsLineUnraid(running, st, false, true, !memoryShowLimit) ?? 'RAM') : ''
 
               const reorderRow = editMode && displayList.length > 1 && !!cid
@@ -1844,7 +1844,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           </ul>
         )}
       </div>
-      {homarrTable ? (
+      {compactTableView ? (
       <div
         style={{
           flexShrink: 0,
@@ -1903,7 +1903,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
-  const homarrOn = r.homarrTable !== false
+  const compactTableOn = r.homarrTable !== false
   const dashboardIconsOn = r.useDashboardIcons !== false
   const liveOn = r.liveStats !== false
   const btnStartOn = actionsOn && r.showBtnStart !== false
@@ -1917,8 +1917,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
         {de
-          ? 'Gleiche Funktionsoptionen wie beim Docker-Plugin: Homarr-Tabelle oder klassische Zeile, Icons (CDN), zweistufige Aktions-Bestätigung, CPU/RAM-Steuerung. Daten kommen von Unraid GraphQL + optional WebSocket-Stats.'
-          : 'Same feature set as the Docker plugin: Homarr table or classic row, icons (CDN), two-step action confirmation, CPU/RAM toggles. Data from Unraid GraphQL plus optional WebSocket stats.'}
+          ? 'Gleiche Optionen wie beim Docker-Plugin: kompakte Tabelle oder klassische Zeile, Icons (CDN), zweistufige Aktions-Bestätigung, CPU/RAM-Steuerung. Daten von Unraid GraphQL + optional WebSocket-Stats.'
+          : 'Same options as the Docker plugin: compact table or classic row, icons (CDN), two-step action confirmation, CPU/RAM toggles. Data from Unraid GraphQL plus optional WebSocket stats.'}
       </p>
       <div>
         <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
@@ -1934,14 +1934,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       <ToggleRow
         label={
           de
-            ? 'Homarr-Tabellenansicht (Name · Status · CPU · Speicher · Aktionen)'
-            : 'Homarr table view (name · state · CPU · memory · actions)'
+            ? 'Kompakte Tabelle (Name · Status · CPU · Speicher · Aktionen)'
+            : 'Compact table (name · state · CPU · memory · actions)'
         }
-        on={homarrOn}
-        onToggle={() => onChange('homarrTable', !homarrOn)}
+        on={compactTableOn}
+        onToggle={() => onChange('homarrTable', !compactTableOn)}
       />
 
-      <div style={{ opacity: homarrOn ? 1 : 0.45, pointerEvents: homarrOn ? 'auto' : 'none' }}>
+      <div style={{ opacity: compactTableOn ? 1 : 0.45, pointerEvents: compactTableOn ? 'auto' : 'none' }}>
         <ToggleRow
           label={
             de
