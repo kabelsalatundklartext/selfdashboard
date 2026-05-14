@@ -60,7 +60,39 @@ export function dockerGet(pathAndQuery: string): Promise<{ ok: boolean; status: 
 const STATS_ONE_SHOT_TIMEOUT_MS = 6000
 
 /** Nanoseconds — deltas shorter than this often produce misleading CPU % (noise / same-tick samples). */
-const MIN_SYSTEM_CPU_DELTA_NS = 10_000_000
+const MIN_SYSTEM_CPU_DELTA_NS = 10_000_000n
+
+/**
+ * Docker stats JSON uses uint64 for `system_cpu_usage` and `cpu_usage.total_usage`.
+ * Values often exceed `Number.MAX_SAFE_INTEGER` on long-running hosts; `JSON.parse`
+ * rounds them and CPU deltas become garbage. Quote digits + revive as BigInt (same idea as json-bigint).
+ */
+function parseDockerStatsJson(body: string): Record<string, unknown> | null {
+  try {
+    const patched = body
+      .replace(/"system_cpu_usage"\s*:\s*(\d+)/g, '"system_cpu_usage":"$1"')
+      .replace(/"total_usage"\s*:\s*(\d+)/g, '"total_usage":"$1"')
+    return JSON.parse(patched, (key, val) => {
+      if (
+        (key === 'system_cpu_usage' || key === 'total_usage') &&
+        typeof val === 'string' &&
+        /^\d+$/.test(val)
+      ) {
+        return BigInt(val)
+      }
+      return val
+    }) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function toBigU(v: unknown): bigint {
+  if (typeof v === 'bigint') return v >= 0n ? v : 0n
+  if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return BigInt(Math.trunc(v))
+  if (typeof v === 'string' && /^\d+$/.test(v)) return BigInt(v)
+  return 0n
+}
 
 /**
  * Same idea as Docker CLI `calculateMemUsageUnixNoCache` (cli/command/container/stats_helpers.go):
@@ -94,12 +126,8 @@ function memoryUsageBytesNoCache(mem: Record<string, unknown> | undefined): { us
 }
 
 export function parseOneShotStats(body: string): SdContainerStats | null {
-  let j: Record<string, unknown>
-  try {
-    j = JSON.parse(body) as Record<string, unknown>
-  } catch {
-    return null
-  }
+  const j = parseDockerStatsJson(body)
+  if (!j) return null
 
   const ms = j.memory_stats as Record<string, unknown> | undefined
   const memParsed = memoryUsageBytesNoCache(ms)
@@ -114,8 +142,8 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
   const precpu_stats = j.precpu_stats as Record<string, unknown> | undefined
 
   const cpuUsage = (x: Record<string, unknown> | undefined) =>
-    (x?.cpu_usage as { total_usage?: number; percpu_usage?: unknown[] } | undefined) ?? undefined
-  const total = (u: ReturnType<typeof cpuUsage>) => (typeof u?.total_usage === 'number' ? u.total_usage : 0)
+    (x?.cpu_usage as { total_usage?: unknown; percpu_usage?: unknown[] } | undefined) ?? undefined
+  const totalUsage = (u: ReturnType<typeof cpuUsage>) => toBigU(u?.total_usage)
   const ncpusFrom = (cs: Record<string, unknown> | undefined): number => {
     const n = Number(cs?.online_cpus)
     if (Number.isFinite(n) && n > 0) return n
@@ -125,11 +153,12 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
 
   let cpuPct: number | null = null
   if (cpu_stats && precpu_stats && Object.keys(precpu_stats).length > 0) {
-    const cpuDelta = total(cpuUsage(cpu_stats)) - total(cpuUsage(precpu_stats))
-    const sysDelta = (Number(cpu_stats.system_cpu_usage) || 0) - (Number(precpu_stats.system_cpu_usage) || 0)
+    const cpuDelta = totalUsage(cpuUsage(cpu_stats)) - totalUsage(cpuUsage(precpu_stats))
+    const sysDelta = toBigU(cpu_stats.system_cpu_usage) - toBigU(precpu_stats.system_cpu_usage)
     const ncpus = ncpusFrom(cpu_stats)
-    if (sysDelta >= MIN_SYSTEM_CPU_DELTA_NS && cpuDelta > 0 && ncpus > 0) {
-      const p = (cpuDelta / sysDelta) * ncpus * 100
+    if (sysDelta >= MIN_SYSTEM_CPU_DELTA_NS && cpuDelta > 0n && ncpus > 0) {
+      const pRaw = (cpuDelta * BigInt(ncpus) * 100n) / sysDelta
+      const p = Number(pRaw)
       if (Number.isFinite(p)) cpuPct = Math.min(9999, Math.max(0, p))
     }
   }
