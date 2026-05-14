@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Maintainer>
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/ca-icon.svg</Icon>
+  <Profile>
+    Homelab-Enthusiast aus Deutschland. Ich baue Tools für Unraid und Self-Hosting,
+    die ich selbst täglich nutze — praktisch, quelloffen und ohne Schnickschnack.
+    SelfDashboard ist ein modulares Home-Dashboard mit Plugin-System: mehrere Dashboards,
+    Themes, Widgets für eigene Dienste, optional mit Docker-Integration über den Host-Socket.
+
+    English: SelfDashboard is a clean, modular, self-hosted home dashboard in a single
+    Docker container — multiple dashboards, themes, drag-and-drop widgets, and optional
+    Docker stats via a read-only socket mapping. See the GitHub README for environment
+    variables, volumes, and Unraid Community Apps notes.
+  </Profile>
+  <WebPage>https://github.com/kabelsalatundklartext/selfdashboard</WebPage>
+  <DonateText>EN: Like the project? Star us on GitHub! — DE: Gefällt dir das Projekt? Stern auf GitHub!</DonateText>
+  <DonateLink>https://github.com/kabelsalatundklartext/selfdashboard</DonateLink>
+</Maintainer>
