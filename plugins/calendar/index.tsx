@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.1',
+  version: '1.4.2',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -1316,23 +1316,26 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
         <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-          {de ? 'Internetkalender (ICS-Link)' : 'Web calendars (ICS link)'}
+          {de ? 'ICS / Webcal (nur lesen)' : 'ICS / Webcal (read-only)'}
         </p>
-        <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
           {de ? (
             <>
-              Hier trägst du die <strong>ICS- bzw. Webcal-URL</strong> ein (oft „öffentlicher Kalender“ oder
-              „Zum Abonnement“). SelfDashboard lädt die Termine <strong>vom Server aus</strong> – damit gibt es kein
-              CORS-Problem, und es funktioniert auch mit <strong>Adressen im Heimnetz</strong> (z. B. Synology auf{' '}
-              <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
+              Ein <strong>ICS- oder Webcal-Link</strong> reicht aus: der Anbieter stellt eine feste URL bereit (häufig
+              „öffentlicher Kalender“, „Zum Abonnement“ oder „Secret address“). SelfDashboard lädt die Termine{' '}
+              <strong>serverseitig</strong> – der Browser blockiert nichts (kein CORS), und <strong>lokale Adressen</strong>{' '}
+              (z. B. Synology mit <code style={{ fontSize: '10px' }}>https://…:5001/…</code>) funktionieren genauso.
             </>
           ) : (
             <>
-              Add one or more <strong>iCal / ICS (webcal) URLs</strong> (often “public calendar” or “subscribe”). The app
-              fetches them <strong>from the server</strong>, so there is no browser CORS issue — including{' '}
-              <strong>LAN URLs</strong> (e.g. Synology on <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
+              You only need an <strong>ICS / webcal URL</strong> (often “public calendar”, “subscribe”, or “secret
+              address”). SelfDashboard fetches events <strong>on the server</strong>, so the browser does not hit CORS
+              limits — <strong>LAN URLs</strong> work too (e.g. Synology at <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
             </>
           )}
+        </p>
+        <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          {de ? 'Hilfe: Link beim Anbieter finden' : 'Help: find the link in your provider UI'}
         </p>
         <ul style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 12px', paddingLeft: '18px', lineHeight: 1.5 }}>
           <li>
@@ -1362,12 +1365,16 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           </li>
           <li>
             <a
-              href="https://docs.nextcloud.com/server/latest/user_manual/en/groupware/calendar.html#subscribe-to-a-calendar"
+              href={
+                de
+                  ? 'https://docs.nextcloud.com/server/latest/user_manual/de/groupware/calendar.html#kalender-abonnieren'
+                  : 'https://docs.nextcloud.com/server/latest/user_manual/en/groupware/calendar.html#subscribe-to-a-calendar'
+              }
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: 'var(--accent)' }}
             >
-              Nextcloud
+              {de ? 'Nextcloud: Kalender abonnieren' : 'Nextcloud: subscribe to calendar'}
             </a>
           </li>
         </ul>
@@ -1428,47 +1435,71 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
         <div style={{ marginTop: '4px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-            {de ? 'CalDAV (z. B. Nextcloud, Synology)' : 'CalDAV (e.g. Nextcloud, Synology)'}
+            {de ? 'CalDAV (Server-Kalender)' : 'CalDAV (server calendar)'}
           </p>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
             {de ? (
               <>
-                Trage die <strong>CalDAV-Adresse der Kalender-Sammlung</strong> ein, z. B. bei Nextcloud etwas wie{' '}
-                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/BENUTZER/KALENDER/</code>. Benutzername und
-                Passwort landen in der <strong>gespeicherten Dashboard-Konfiguration</strong> – nur verwenden, wenn niemand
-                Unbefugtes darauf zugreifen kann. Optional: Zugang direkt in der URL (
-                <code style={{ fontSize: '10px' }}>https://nutzer@server/…</code>
-                ), dann können die Felder darunter leer bleiben.
+                Verbinde die <strong>URL der Kalender-Sammlung</strong> (eine „Kalender-Collection“), nicht nur die
+                Web-Oberfläche. Bei Nextcloud sieht das typischerweise so aus:{' '}
+                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/BENUTZER/KALENDERNAME/</code>
               </>
             ) : (
               <>
-                Enter the <strong>CalDAV URL of the calendar collection</strong>, e.g. Nextcloud{' '}
-                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/USER/CAL/</code>. Username and password are
-                stored in the <strong>saved dashboard config</strong> — only use if you trust who can read that data. You
-                may put credentials in the URL (<code style={{ fontSize: '10px' }}>https://user@host/…</code>) and leave the
-                fields below empty.
+                Use the <strong>calendar collection URL</strong> (the CalDAV collection), not the normal web UI. On
+                Nextcloud it usually looks like{' '}
+                <code style={{ fontSize: '10px' }}>…/remote.php/dav/calendars/USER/CALENDAR/</code>
               </>
             )}
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
+            {de ? (
+              <>
+                <strong>Anmeldung:</strong> Nutzername und Passwort werden in der <strong>Dashboard-Konfiguration</strong>{' '}
+                gespeichert. Wenn andere Zugriff auf Exporte oder Backups haben, lieber ein <strong>App-Passwort</strong>{' '}
+                statt dem Hauptpasswort verwenden. Oder Zugangsdaten in der URL (
+                <code style={{ fontSize: '10px' }}>https://nutzer@beispiel.de/…</code>
+                ) – dann bleiben die Felder unten leer.
+              </>
+            ) : (
+              <>
+                <strong>Sign-in:</strong> username and password are stored in the <strong>dashboard config</strong>. If
+                others can read exports or backups, prefer an <strong>app password</strong> instead of your main
+                password. Or put credentials in the URL (<code style={{ fontSize: '10px' }}>https://user@example.com/…</code>
+                ) and leave the fields below empty.
+              </>
+            )}
+          </p>
+          <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            {de ? 'Hilfe: CalDAV-URL ermitteln' : 'Help: find your CalDAV URL'}
           </p>
           <ul style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 12px', paddingLeft: '18px', lineHeight: 1.5 }}>
             <li>
               <a
-                href="https://docs.nextcloud.com/server/latest/user_manual/en/groupware/calendar.html#synchronizing-with-other-devices"
+                href={
+                  de
+                    ? 'https://docs.nextcloud.com/server/latest/user_manual/de/groupware/sync_android.html'
+                    : 'https://docs.nextcloud.com/server/latest/user_manual/en/groupware/sync_android.html'
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--accent)' }}
               >
-                Nextcloud (CalDAV-URL)
+                {de ? 'Nextcloud: Server-URL (Handbuch)' : 'Nextcloud: server URL (manual)'}
               </a>
             </li>
             <li>
               <a
-                href="https://kb.synology.com/en-global/DSM/help/Calendar/calendar_calDAV"
+                href={
+                  de
+                    ? 'https://kb.synology.com/de-de/DSM/help/Calendar/calendar_calDAV'
+                    : 'https://kb.synology.com/en-global/DSM/help/Calendar/calendar_calDAV'
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: 'var(--accent)' }}
               >
-                Synology Calendar (CalDAV)
+                {de ? 'Synology: CalDAV' : 'Synology: CalDAV'}
               </a>
             </li>
           </ul>
