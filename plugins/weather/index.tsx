@@ -23,8 +23,8 @@ export const meta: PluginMeta = {
   id: 'weather',
   name: 'Weather',
   description:
-    'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag). Kein API-Key.',
-  version: '1.1.1',
+    'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -54,6 +54,18 @@ export const meta: PluginMeta = {
       label: '7-Tage-Vorschau',
       type: 'boolean',
       defaultValue: false,
+    },
+    {
+      key: 'showPlaceLabel',
+      label: 'Ort / Stadtnamen anzeigen',
+      type: 'boolean',
+      defaultValue: true,
+    },
+    {
+      key: 'dailyForecastWidthPct',
+      label: '7-Tage: Kartenbreite (%)',
+      type: 'number',
+      defaultValue: 100,
     },
   ],
 }
@@ -110,6 +122,16 @@ function num(v: unknown, fallback: number): number {
 function clampRefresh(v: unknown): number {
   const n = Math.round(num(v, 15))
   return Math.min(120, Math.max(5, n))
+}
+
+/** 70–130 %: skaliert Mindestbreite und Typo der 7-Tage-Karten. */
+function clampDailyForecastWidthPct(v: unknown): number {
+  const n = Math.round(num(v, 100))
+  return Math.min(130, Math.max(70, n))
+}
+
+function dailyTypeClamp(scale: number, minPx: number, cq: number, maxPx: number): string {
+  return `clamp(${Math.max(5, Math.round(minPx * scale))}px, ${(cq * scale).toFixed(2)}cqmin, ${Math.max(6, Math.round(maxPx * scale))}px)`
 }
 
 function formatPlace(hit: GeoHit): string {
@@ -273,6 +295,8 @@ function Widget({ config }: PluginWidgetProps) {
   const countryCode = str(config.countryCode)
   const refreshMinutes = clampRefresh(config.refreshMinutes)
   const showDailyForecast = (config as Record<string, unknown>).showDailyForecast === true
+  const showPlaceLabel = (config as Record<string, unknown>).showPlaceLabel !== false
+  const dailyForecastScale = clampDailyForecastWidthPct((config as Record<string, unknown>).dailyForecastWidthPct) / 100
 
   const [placeLabel, setPlaceLabel] = useState<string | null>(null)
   const [current, setCurrent] = useState<CurrentJson | null>(null)
@@ -431,6 +455,11 @@ function Widget({ config }: PluginWidgetProps) {
   const hasDaily = showDailyForecast && daily.length > 0
   const splitView = splitLayout && hasDaily
 
+  const dayScale = dailyForecastScale
+  const dayScrollMinW = `${Math.min(72, Math.max(36, Math.round(48 * dayScale)))}px`
+  const dayGapFlex = `${Math.max(3, Math.round(6 * dayScale))}px`
+  const dayGapGrid = `${Math.max(2, Math.round(5 * dayScale))}px`
+
   return (
     <div
       ref={rootRef}
@@ -448,7 +477,7 @@ function Widget({ config }: PluginWidgetProps) {
         overflow: 'auto',
       }}
     >
-      {placeLabel && (
+      {placeLabel && showPlaceLabel && (
         <p
           style={{
             margin: 0,
@@ -609,7 +638,7 @@ function Widget({ config }: PluginWidgetProps) {
                   ? {
                       display: 'grid',
                       gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                      gap: 'clamp(3px, 0.9cqmin, 8px)',
+                      gap: dayGapGrid,
                       width: '100%',
                       minHeight: 0,
                       alignContent: 'center',
@@ -617,7 +646,7 @@ function Widget({ config }: PluginWidgetProps) {
                   : {
                       display: 'flex',
                       flexDirection: 'row',
-                      gap: 'clamp(4px, 1.2cqmin, 8px)',
+                      gap: dayGapFlex,
                       justifyContent: 'flex-start',
                       overflowX: 'auto',
                       overflowY: 'hidden',
@@ -634,20 +663,23 @@ function Widget({ config }: PluginWidgetProps) {
                 const DayIcon = wmoIconComponent(day.code, true)
                 const dayColor = wmoIconColor(day.code, true)
                 const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
+                const padSplit = `${Math.max(3, Math.round(5 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(4 * dayScale))}px`
+                const padScroll = `${Math.max(2, Math.round(4 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px`
+                const br = `${Math.max(6, Math.round(8 * dayScale))}px`
                 return (
                   <div
                     key={day.date}
                     title={tip}
                     style={{
-                      minWidth: splitView ? 0 : 'clamp(42px, 11cqmin, 56px)',
+                      minWidth: splitView ? 0 : dayScrollMinW,
                       width: splitView ? '100%' : undefined,
                       flex: splitView ? undefined : '0 0 auto',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '2px',
-                      padding: splitView ? '5px 2px 4px' : '4px 3px 3px',
-                      borderRadius: '8px',
+                      gap: `${Math.max(1, Math.round(2 * dayScale))}px`,
+                      padding: splitView ? padSplit : padScroll,
+                      borderRadius: br,
                       background: 'color-mix(in srgb, var(--surface) 92%, var(--background))',
                       border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',
                       boxSizing: 'border-box',
@@ -655,7 +687,9 @@ function Widget({ config }: PluginWidgetProps) {
                   >
                     <span
                       style={{
-                        fontSize: splitView ? 'clamp(7px, 1.6cqmin, 9px)' : 'clamp(8px, 1.8cqmin, 10px)',
+                        fontSize: splitView
+                          ? dailyTypeClamp(dayScale, 7, 1.6, 9)
+                          : dailyTypeClamp(dayScale, 8, 1.8, 10),
                         fontWeight: 700,
                         color: muted,
                         textTransform: 'capitalize',
@@ -667,7 +701,9 @@ function Widget({ config }: PluginWidgetProps) {
                     </span>
                     <span
                       style={{
-                        fontSize: splitView ? 'clamp(6px, 1.4cqmin, 8px)' : 'clamp(7px, 1.6cqmin, 9px)',
+                        fontSize: splitView
+                          ? dailyTypeClamp(dayScale, 6, 1.4, 8)
+                          : dailyTypeClamp(dayScale, 7, 1.6, 9),
                         color: muted,
                         lineHeight: 1,
                         textAlign: 'center',
@@ -679,8 +715,12 @@ function Widget({ config }: PluginWidgetProps) {
                       aria-hidden
                       strokeWidth={1.85}
                       style={{
-                        width: splitView ? 'clamp(14px, 3.8cqmin, 20px)' : 'clamp(16px, 4.5cqmin, 22px)',
-                        height: splitView ? 'clamp(14px, 3.8cqmin, 20px)' : 'clamp(16px, 4.5cqmin, 22px)',
+                        width: splitView
+                          ? dailyTypeClamp(dayScale, 14, 3.8, 20)
+                          : dailyTypeClamp(dayScale, 16, 4.5, 22),
+                        height: splitView
+                          ? dailyTypeClamp(dayScale, 14, 3.8, 20)
+                          : dailyTypeClamp(dayScale, 16, 4.5, 22),
                         color: dayColor,
                         filter: wmoIconGlowFilter(day.code, true),
                         flexShrink: 0,
@@ -689,7 +729,9 @@ function Widget({ config }: PluginWidgetProps) {
                     <span
                       className="tabular-nums"
                       style={{
-                        fontSize: splitView ? 'clamp(8px, 1.8cqmin, 10px)' : 'clamp(9px, 2cqmin, 11px)',
+                        fontSize: splitView
+                          ? dailyTypeClamp(dayScale, 8, 1.8, 10)
+                          : dailyTypeClamp(dayScale, 9, 2, 11),
                         fontWeight: 700,
                         color: 'var(--accent)',
                         fontVariantNumeric: 'tabular-nums',
@@ -701,7 +743,9 @@ function Widget({ config }: PluginWidgetProps) {
                     <span
                       className="tabular-nums"
                       style={{
-                        fontSize: splitView ? 'clamp(7px, 1.6cqmin, 9px)' : 'clamp(8px, 1.8cqmin, 10px)',
+                        fontSize: splitView
+                          ? dailyTypeClamp(dayScale, 7, 1.6, 9)
+                          : dailyTypeClamp(dayScale, 8, 1.8, 10),
                         fontWeight: 600,
                         color: muted,
                         fontVariantNumeric: 'tabular-nums',
@@ -731,6 +775,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const locale = useDashboardStore((s) => s.locale) as Locale
   const de = locale !== 'en'
   const dailyOn = (config as Record<string, unknown>).showDailyForecast === true
+  const placeOn = (config as Record<string, unknown>).showPlaceLabel !== false
+  const widthPct = clampDailyForecastWidthPct((config as Record<string, unknown>).dailyForecastWidthPct)
 
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
@@ -800,6 +846,67 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             </span>
           </span>
         </label>
+      </div>
+
+      <div>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            color: 'var(--text)',
+            lineHeight: 1.35,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={placeOn}
+            onChange={(e) => onChange('showPlaceLabel', e.target.checked)}
+            style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--accent)' }}
+          />
+          <span>
+            <strong>{de ? 'Ort / Stadtnamen' : 'Location line'}</strong>
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '4px' }}>
+              {de
+                ? 'Zeigt die aufgelöste Adresse oben im Widget (z. B. „Hamburg, …, DE“).'
+                : 'Shows the resolved place name at the top of the widget.'}
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <div style={{ opacity: dailyOn ? 1 : 0.55 }}>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+          {de ? '7-Tage: Kartenbreite (%)' : '7-day card width (%)'}
+        </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <input
+            type="range"
+            min={70}
+            max={130}
+            step={1}
+            value={widthPct}
+            disabled={!dailyOn}
+            onChange={(e) => onChange('dailyForecastWidthPct', clampDailyForecastWidthPct(Number(e.target.value)))}
+            style={{ flex: '1 1 140px', minWidth: '120px', accentColor: 'var(--accent)' }}
+          />
+          <input
+            style={{ ...inp, width: '72px', flexShrink: 0 }}
+            type="number"
+            min={70}
+            max={130}
+            disabled={!dailyOn}
+            value={widthPct}
+            onChange={(e) => onChange('dailyForecastWidthPct', clampDailyForecastWidthPct(e.target.value))}
+          />
+        </div>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4, marginBottom: 0 }}>
+          {de
+            ? 'Skaliert Mindestbreite, Abstände und Schrift der Tageskarten (nur wenn die 7-Tage-Vorschau aktiv ist). 100 % = Standard.'
+            : 'Scales minimum width, gaps, and type for day cards when the 7-day forecast is on. 100% is default.'}
+        </p>
       </div>
 
       <div>
