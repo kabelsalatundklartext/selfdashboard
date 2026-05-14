@@ -60,7 +60,7 @@ export function dockerGet(pathAndQuery: string): Promise<{ ok: boolean; status: 
 const STATS_ONE_SHOT_TIMEOUT_MS = 6000
 
 /** Nanoseconds — deltas shorter than this often produce misleading CPU % (noise / same-tick samples). */
-const MIN_SYSTEM_CPU_DELTA_NS = 10_000_000n
+const MIN_SYSTEM_CPU_DELTA_NS = BigInt(10_000_000)
 
 /**
  * Docker stats JSON uses uint64 for `system_cpu_usage` and `cpu_usage.total_usage`.
@@ -88,10 +88,11 @@ function parseDockerStatsJson(body: string): Record<string, unknown> | null {
 }
 
 function toBigU(v: unknown): bigint {
-  if (typeof v === 'bigint') return v >= 0n ? v : 0n
+  const zero = BigInt(0)
+  if (typeof v === 'bigint') return v >= zero ? v : zero
   if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return BigInt(Math.trunc(v))
   if (typeof v === 'string' && /^\d+$/.test(v)) return BigInt(v)
-  return 0n
+  return zero
 }
 
 /**
@@ -156,8 +157,8 @@ export function parseOneShotStats(body: string): SdContainerStats | null {
     const cpuDelta = totalUsage(cpuUsage(cpu_stats)) - totalUsage(cpuUsage(precpu_stats))
     const sysDelta = toBigU(cpu_stats.system_cpu_usage) - toBigU(precpu_stats.system_cpu_usage)
     const ncpus = ncpusFrom(cpu_stats)
-    if (sysDelta >= MIN_SYSTEM_CPU_DELTA_NS && cpuDelta > 0n && ncpus > 0) {
-      const pRaw = (cpuDelta * BigInt(ncpus) * 100n) / sysDelta
+    if (sysDelta >= MIN_SYSTEM_CPU_DELTA_NS && cpuDelta > BigInt(0) && ncpus > 0) {
+      const pRaw = (cpuDelta * BigInt(ncpus) * BigInt(100)) / sysDelta
       const p = Number(pRaw)
       if (Number.isFinite(p)) cpuPct = Math.min(9999, Math.max(0, p))
     }
