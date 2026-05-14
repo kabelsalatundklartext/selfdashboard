@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.4',
+  version: '2.3.5',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -88,6 +88,13 @@ export const meta: PluginMeta = {
       placeholder: '0 = automatisch aus Daten',
     },
     {
+      key: 'throughputClampMbps',
+      label: 'Max. Messrate (Mbit/s), 0 = nur TR-064',
+      type: 'number',
+      defaultValue: 0,
+      placeholder: 'z. B. 1000 bei 1-Gbit-Vertrag',
+    },
+    {
       key: 'chartHistoryPoints',
       label: 'Max. Messpunkte',
       type: 'number',
@@ -106,6 +113,30 @@ function num(v: unknown): number {
   if (typeof v === 'number' && Number.isFinite(v)) return v
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Mess-Ausreißer begrenzen: symmetrische Nutzer-Kappung (Mbit/s) oder TR-064 Layer1-Max (bit/s) je Richtung, je +12 % Puffer. */
+function clampThroughputBps(
+  down: number,
+  up: number,
+  lineDownBps: number | null,
+  lineUpBps: number | null,
+  userCapMbps: number,
+): { down: number; up: number } {
+  const head = 1.12
+  let d = Number.isFinite(down) ? Math.max(0, down) : 0
+  let u = Number.isFinite(up) ? Math.max(0, up) : 0
+  if (userCapMbps > 0 && Number.isFinite(userCapMbps)) {
+    const cap = Math.max(1, userCapMbps) * 1_000_000 * head
+    return { down: Math.min(d, cap), up: Math.min(u, cap) }
+  }
+  if (lineDownBps != null && lineDownBps > 0 && Number.isFinite(lineDownBps)) {
+    d = Math.min(d, lineDownBps * head)
+  }
+  if (lineUpBps != null && lineUpBps > 0 && Number.isFinite(lineUpBps)) {
+    u = Math.min(u, lineUpBps * head)
+  }
+  return { down: d, up: u }
 }
 
 const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v1'
@@ -666,6 +697,7 @@ function Widget({ config }: PluginWidgetProps) {
   const chartHeightPx =
     rawPlotH <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(1, rawPlotH || FB_PLOT_H_DEFAULT))
   const chartYMaxMbps = Math.min(2000, Math.max(0, Math.round(num(r.throughputChartYMaxMbps))))
+  const clampMbps = Math.min(200_000, Math.max(0, Math.round(num(r.throughputClampMbps))))
 
   let showTitle = r.throughputShowTitle !== false
   let showLegend = r.throughputShowLegend !== false
@@ -746,6 +778,18 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     dataRef.current = data
   }, [data])
+
+  useEffect(() => {
+    setBpsHistory((prev) => {
+      if (prev.length === 0) return prev
+      const ld = data?.downstreamMaxBps ?? null
+      const lu = data?.upstreamMaxBps ?? null
+      const next = prev.map((p) => clampThroughputBps(p.down, p.up, ld, lu, clampMbps))
+      const same =
+        next.length === prev.length && next.every((p, i) => p.down === prev[i]!.down && p.up === prev[i]!.up)
+      return same ? prev : next
+    })
+  }, [data, clampMbps])
 
   const load = useCallback(async () => {
     if (!baseUrl) {
@@ -847,7 +891,7 @@ function Widget({ config }: PluginWidgetProps) {
     const pr = prevBytesRef.current
     if (pr) {
       const dt = (now - pr.t) / 1000
-      if (dt >= 0.4 && dt < 600) {
+      if (dt >= 1 && dt < 600) {
         try {
           const drx = BigInt(rx) - BigInt(pr.rx)
           const dtx = BigInt(tx) - BigInt(pr.tx)
@@ -855,7 +899,11 @@ function Widget({ config }: PluginWidgetProps) {
           if (drx >= zero && dtx >= zero) {
             const down = Number(drx * BigInt(8)) / dt
             const up = Number(dtx * BigInt(8)) / dt
-            if (Number.isFinite(down) && Number.isFinite(up)) setLiveBps({ down, up })
+            if (Number.isFinite(down) && Number.isFinite(up)) {
+              setLiveBps(
+                clampThroughputBps(down, up, data.downstreamMaxBps, data.upstreamMaxBps, clampMbps),
+              )
+            }
           } else {
             setLiveBps(null)
           }
@@ -865,7 +913,7 @@ function Widget({ config }: PluginWidgetProps) {
       }
     }
     prevBytesRef.current = { rx, tx, t: now }
-  }, [data])
+  }, [data, clampMbps])
 
   useEffect(() => {
     if (!liveBps || !Number.isFinite(liveBps.down) || !Number.isFinite(liveBps.up)) return
@@ -874,12 +922,23 @@ function Widget({ config }: PluginWidgetProps) {
 
   const muted = 'var(--text-muted)'
 
-  const liveForDisplay =
+  const liveForDisplayRaw =
     liveBps && Number.isFinite(liveBps.down) && Number.isFinite(liveBps.up)
       ? liveBps
       : bpsHistory.length > 0
         ? bpsHistory[bpsHistory.length - 1]!
         : null
+
+  const liveForDisplay =
+    liveForDisplayRaw == null
+      ? null
+      : clampThroughputBps(
+          liveForDisplayRaw.down,
+          liveForDisplayRaw.up,
+          data?.downstreamMaxBps ?? null,
+          data?.upstreamMaxBps ?? null,
+          clampMbps,
+        )
 
   if (!baseUrl && !loading) {
     return (
@@ -1307,6 +1366,36 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             {de
               ? '0 = Skalenende automatisch aus den Daten. Sonst fester Maximalwert; höhere Messwerte werden oben abgeschnitten.'
               : '0 = scale top from data. Otherwise fixed top; higher samples are clipped at the top edge.'}
+          </p>
+        </div>
+        <div>
+          <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+            {de ? 'Max. Messrate (Mbit/s)' : 'Max measured rate (Mbit/s)'}
+          </label>
+          <input
+            style={inp}
+            type="number"
+            min={0}
+            max={200000}
+            step={1}
+            value={Math.min(200_000, Math.max(0, Math.round(num(r.throughputClampMbps))))}
+            onChange={(e) =>
+              onChange('throughputClampMbps', Math.min(200_000, Math.max(0, Math.round(Number(e.target.value)) || 0)))
+            }
+          />
+          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+            {de ? (
+              <>
+                <strong>0</strong> = nur die TR-064-Werte <em>Layer1-MaxBitRate</em> der Box (falls vorhanden) + 12 % Puffer.{' '}
+                <strong>&gt; 0</strong> = zusätzlich harte Obergrenze für beide Richtungen (z. B. <strong>1000</strong> bei 1-Gbit-Vertrag),
+                damit Zähler-Sprünge keine unrealistischen Peaks erzeugen.
+              </>
+            ) : (
+              <>
+                <strong>0</strong> = only use TR-064 <em>Layer1 max bit rate</em> from the router (when available) + 12% headroom.{' '}
+                <strong>&gt; 0</strong> = also cap both directions (e.g. <strong>1000</strong> on a 1 Gbit/s line) so counter glitches do not create impossible peaks.
+              </>
+            )}
           </p>
         </div>
         <div>
