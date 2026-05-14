@@ -1,5 +1,11 @@
 'use client'
 
+import {
+  ArrowDown,
+  ArrowUp,
+  TrendingUp,
+  type LucideIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -9,11 +15,11 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.1.0',
+  version: '2.2.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
-  defaultLayout: { w: 4, h: 5, minW: 2, minH: 3 },
+  defaultLayout: { w: 4, h: 7, minW: 3, minH: 5 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -103,7 +109,7 @@ function niceCeilMbpsFromBps(peakBps: number): number {
 }
 
 function mbpsTickList(maxMbps: number): number[] {
-  let step = maxMbps <= 40 ? 5 : maxMbps <= 100 ? 10 : 25
+  let step = maxMbps <= 40 ? 5 : maxMbps <= 120 ? 10 : 25
   const build = (s: number) => {
     const out: number[] = []
     for (let v = maxMbps; v > 0; v -= s) out.push(v)
@@ -111,7 +117,7 @@ function mbpsTickList(maxMbps: number): number[] {
     return out
   }
   let out = build(step)
-  if (out.length > 11) {
+  while (out.length > 12) {
     step *= 2
     out = build(step)
   }
@@ -121,13 +127,59 @@ function mbpsTickList(maxMbps: number): number[] {
 const FB_CHART_DL = '#3b82f6'
 const FB_CHART_UL = '#22c55e'
 
+function ThroughputStatPill({
+  icon: Icon,
+  label,
+  value,
+  color,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  color: string
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: '12px',
+        border: '1px solid var(--border)',
+        background: 'linear-gradient(165deg, rgba(255,255,255,0.03) 0%, var(--surface-2) 50%, var(--surface-2) 100%)',
+        padding: '10px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        minWidth: 0,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>
+        <Icon size={14} strokeWidth={2.2} style={{ color, flexShrink: 0, opacity: 0.95 }} />
+        <span style={{ fontWeight: 700, color, letterSpacing: '0.02em' }}>{label}</span>
+      </div>
+      <div
+        style={{
+          fontSize: 'clamp(15px, 2.2cqw, 20px)',
+          fontVariantNumeric: 'tabular-nums',
+          fontWeight: 700,
+          lineHeight: 1.2,
+          color: 'var(--text)',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function ThroughputHistoryChart({
   history,
+  current,
   de,
   chartHeightPx = 168,
   yMaxMbps = 0,
 }: {
   history: { down: number; up: number }[]
+  current: { down: number; up: number } | null
   de: boolean
   chartHeightPx?: number
   /** > 0: fester Skalen-Endwert in Mbit/s (Werte darüber werden am oberen Rand abgeschnitten). */
@@ -146,6 +198,14 @@ function ThroughputHistoryChart({
       : autoMaxMbps
   const scaleBps = maxMbps * 1_000_000
   const ticks = mbpsTickList(maxMbps)
+
+  const nHist = history.length
+  const avgDownBps = nHist > 0 ? history.reduce((s, p) => s + p.down, 0) / nHist : 0
+  const avgUpBps = nHist > 0 ? history.reduce((s, p) => s + p.up, 0) / nHist : 0
+  const peakSeries =
+    current && Number.isFinite(current.down) && Number.isFinite(current.up) ? [...history, current] : history
+  const peakDownBps = peakSeries.length ? Math.max(0, ...peakSeries.map((p) => p.down)) : 0
+  const peakUpBps = peakSeries.length ? Math.max(0, ...peakSeries.map((p) => p.up)) : 0
 
   const UW = 1000
   const UH = 100
@@ -175,6 +235,10 @@ function ThroughputHistoryChart({
     lineHeight: 1.15,
   }
 
+  const title = de ? 'DURCHSATZ-VERLAUF' : 'THROUGHPUT HISTORY'
+  const liveDown = formatMbps(current?.down ?? null, de)
+  const liveUp = formatMbps(current?.up ?? null, de)
+
   return (
     <div
       style={{
@@ -182,18 +246,73 @@ function ThroughputHistoryChart({
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: '6px 8px 8px',
-        flex: 1,
-        minHeight: 0,
+        padding: '8px 8px 10px',
+        flexShrink: 0,
+        width: '100%',
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
+        gap: '8px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', flex: 1, minHeight: `${hPx}px` }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: '1 1 140px' }}>
+          <div
+            style={{
+              fontSize: '9px',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', fontSize: '10px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_DL, fontWeight: 600 }}>
+              <span style={{ width: '14px', height: '2px', background: FB_CHART_DL, borderRadius: '1px', flexShrink: 0 }} />
+              Download
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: FB_CHART_UL, fontWeight: 600 }}>
+              <span
+                style={{
+                  width: '14px',
+                  height: 0,
+                  borderTop: `2px dashed ${FB_CHART_UL}`,
+                  flexShrink: 0,
+                }}
+              />
+              Upload
+            </span>
+          </div>
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '2px',
+            fontSize: '11px',
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ color: FB_CHART_DL, whiteSpace: 'nowrap' }}>
+            ↓ {liveDown}
+          </span>
+          <span style={{ color: FB_CHART_UL, whiteSpace: 'nowrap' }}>
+            ↑ {liveUp}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: `${hPx}px` }}>
         <div
           style={{
             flexShrink: 0,
-            width: '44px',
+            width: '52px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
@@ -268,8 +387,8 @@ function ThroughputHistoryChart({
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          marginTop: '6px',
-          paddingLeft: '52px',
+          marginTop: '2px',
+          paddingLeft: '60px',
         }}
       >
         <span style={{ flex: 1, textAlign: 'center', fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88 }}>
@@ -278,6 +397,40 @@ function ThroughputHistoryChart({
         <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
           {scaleCapStr}
         </span>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: '8px',
+          marginTop: '4px',
+        }}
+      >
+        <ThroughputStatPill
+          icon={ArrowDown}
+          label={de ? 'Download' : 'Download'}
+          value={formatMbps(avgDownBps, de)}
+          color={FB_CHART_DL}
+        />
+        <ThroughputStatPill
+          icon={ArrowUp}
+          label={de ? 'Upload' : 'Upload'}
+          value={formatMbps(avgUpBps, de)}
+          color={FB_CHART_UL}
+        />
+        <ThroughputStatPill
+          icon={TrendingUp}
+          label="Peak Down"
+          value={formatMbps(peakDownBps, de)}
+          color={FB_CHART_DL}
+        />
+        <ThroughputStatPill
+          icon={TrendingUp}
+          label="Peak Up"
+          value={formatMbps(peakUpBps, de)}
+          color={FB_CHART_UL}
+        />
       </div>
     </div>
   )
@@ -312,7 +465,13 @@ function Widget({ config }: PluginWidgetProps) {
   const username = str(r.username)
   const password = typeof r.password === 'string' ? String(r.password) : ''
   const insecureTls = r.insecureTls === true
-  const refreshSec = Math.min(300, Math.max(15, Math.round(num(r.refreshSeconds) || 30)))
+  const refreshSec = (() => {
+    const v = r.refreshSeconds
+    if (v === undefined || v === null || v === '') return 30
+    const n = Math.round(Number(v))
+    if (!Number.isFinite(n)) return 30
+    return Math.min(300, Math.max(0, n))
+  })()
   const liveInput = r.liveIntervalSeconds
   const liveEvery = (() => {
     if (liveInput === undefined || liveInput === null || liveInput === '') return 5
@@ -416,6 +575,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     void load()
+    if (refreshSec <= 0) return undefined
     const id = window.setInterval(() => void load(), refreshSec * 1000)
     return () => window.clearInterval(id)
   }, [load, refreshSec])
@@ -490,7 +650,7 @@ function Widget({ config }: PluginWidgetProps) {
         display: 'flex',
         flexDirection: 'column',
         containerType: 'size',
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
       {error ? (
@@ -516,7 +676,13 @@ function Widget({ config }: PluginWidgetProps) {
               : 'Byte counters are not exposed for this router/TR-064 session — chart unavailable.'}
           </div>
         ) : bpsHistory.length >= 2 ? (
-          <ThroughputHistoryChart history={bpsHistory} de={de} chartHeightPx={chartHeightPx} yMaxMbps={chartYMaxMbps} />
+          <ThroughputHistoryChart
+            history={bpsHistory}
+            current={liveBps}
+            de={de}
+            chartHeightPx={chartHeightPx}
+            yMaxMbps={chartYMaxMbps}
+          />
         ) : (
           <div
             style={{
@@ -566,7 +732,13 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     width: '100%',
     boxSizing: 'border-box',
   }
-  const refresh = Math.min(300, Math.max(15, Math.round(num(r.refreshSeconds) || 30)))
+  const refresh = (() => {
+    const v = r.refreshSeconds
+    if (v === undefined || v === null || v === '') return 30
+    const n = Math.round(Number(v))
+    if (!Number.isFinite(n)) return 30
+    return Math.min(300, Math.max(0, n))
+  })()
   const liveSettingsVal = (() => {
     const v = r.liveIntervalSeconds
     if (v === undefined || v === null || v === '') return 5
@@ -662,15 +834,23 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <input
           style={inp}
           type="number"
-          min={15}
+          min={0}
           max={300}
           value={refresh}
-          onChange={(e) => onChange('refreshSeconds', Math.min(300, Math.max(15, Math.round(Number(e.target.value)) || 30)))}
+          onChange={(e) => onChange('refreshSeconds', Math.min(300, Math.max(0, Math.round(Number(e.target.value)) || 0)))}
         />
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
-          {de
-            ? 'Minimum 15 s — 0 wäre Endlos-Abruf und würde Box und Server unnötig belasten.'
-            : 'Minimum 15s — 0 would hammer the router and server in a tight loop.'}
+          {de ? (
+            <>
+              <strong>0</strong> = kein periodischer Vollabruf (nur beim Öffnen des Dashboards). Für laufende Messpunkte{' '}
+              <strong>Zähler-Takt</strong> nutzen. <strong>1–300</strong> = kompletter TR-064-Abruf alle N Sekunden.
+            </>
+          ) : (
+            <>
+              <strong>0</strong> = no periodic full refresh (only when the dashboard loads). Use <strong>Live counters</strong> for ongoing
+              samples. <strong>1–300</strong> = full TR-064 poll every N seconds.
+            </>
+          )}
         </p>
       </div>
 
