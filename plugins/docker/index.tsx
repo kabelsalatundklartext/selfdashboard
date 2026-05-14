@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: Homarr-Tabelle oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.1',
+  version: '1.7.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -664,7 +664,7 @@ function HomarrDockerTable({
   const colWidths =
     !showContainerNames
       ? narrow
-        ? (['28px', '24%', '48px', '22%', '46px'] as const)
+        ? (['28px', '21%', '46px', '17%', '84px'] as const)
         : (['48px', '20%', '17%', '34%', '11%'] as const)
       : narrow
         ? (['20%', '16%', '13%', '34%', '17%'] as const)
@@ -678,7 +678,10 @@ function HomarrDockerTable({
 
   const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
 
-  const tableMinW = !showContainerNames ? 200 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 240 : narrow ? 300 : 0
+
+  const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
+  const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
 
   return (
     <div ref={wrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
@@ -808,13 +811,21 @@ function HomarrDockerTable({
                 >
                   {showStatRam ? memStr : '—'}
                 </td>
-                <td style={{ ...tdRow, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td
+                  style={{
+                    ...tdRow,
+                    textAlign: 'right',
+                    whiteSpace: 'nowrap',
+                    overflow: 'visible',
+                    minWidth: tightMetrics ? 80 : undefined,
+                  }}
+                >
                   {!rowPending && showControls && anyBtn ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: narrow ? 4 : 6 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: actionBtnGap }}>
                       {canStop ? (
                         <button
                           type="button"
-                          style={iconAct}
+                          style={iconActEff}
                           title={de ? 'Container stoppen' : 'Stop container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
@@ -828,7 +839,7 @@ function HomarrDockerTable({
                       {canStart ? (
                         <button
                           type="button"
-                          style={iconAct}
+                          style={iconActEff}
                           title={de ? 'Container starten' : 'Start container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
@@ -842,7 +853,7 @@ function HomarrDockerTable({
                       {canRestart ? (
                         <button
                           type="button"
-                          style={iconAct}
+                          style={iconActEff}
                           title={de ? 'Container neu starten' : 'Restart container'}
                           disabled={isBusy || pending != null}
                           onClick={() => {
@@ -1158,7 +1169,7 @@ function Widget({ config }: PluginWidgetProps) {
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    overflowX: 'hidden',
+    overflowX: homarrTable ? 'auto' : 'hidden',
     padding: homarrTable ? '6px 10px 4px' : 0,
   }
 

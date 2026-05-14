@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): gleiche URL und API-Key wie das Unraid-Widget. Tabellen-Ansicht wie das Docker-Plugin (Homarr), Live-CPU/RAM per WebSocket-Subscription (optional).',
-  version: '0.3.8',
+  version: '0.3.9',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -465,7 +465,7 @@ function Widget({ config }: PluginWidgetProps) {
     flex: 1,
     minHeight: 0,
     overflowY: 'auto',
-    overflowX: 'hidden',
+    overflowX: 'auto',
     padding: '6px 10px 4px',
   }
 
@@ -567,7 +567,7 @@ function Widget({ config }: PluginWidgetProps) {
   const colWidths: string[] = !showContainerNames
     ? col5
       ? narrow
-        ? ['28px', '24%', '48px', '22%', '46px']
+        ? ['28px', '21%', '46px', '17%', '84px']
         : ['48px', '20%', '17%', '34%', '11%']
       : narrow
         ? ['28px', '24%', '48px', '48%']
@@ -599,7 +599,10 @@ function Widget({ config }: PluginWidgetProps) {
 
   const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
 
-  const tableMinW = !showContainerNames ? 200 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 240 : narrow ? 300 : 0
+
+  const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
+  const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
 
   return (
     <div style={shell}>
@@ -776,26 +779,34 @@ function Widget({ config }: PluginWidgetProps) {
                       {memCell}
                     </td>
                     {col5 ? (
-                      <td style={{ ...tdRow, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <td
+                        style={{
+                          ...tdRow,
+                          textAlign: 'right',
+                          whiteSpace: 'nowrap',
+                          overflow: 'visible',
+                          minWidth: tightMetrics ? 80 : undefined,
+                        }}
+                      >
                         {cid ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: narrow ? 4 : 6 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: actionBtnGap }}>
                             {!running && !paused ? (
-                              <button type="button" style={iconAct} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
+                              <button type="button" style={iconActEff} title={de ? 'Start' : 'Start'} disabled={busy} onClick={() => void doAction(cid, 'start', name)}>
                                 <IconPlay disabled={busy} />
                               </button>
                             ) : null}
                             {paused ? (
-                              <button type="button" style={iconAct} title={de ? 'Fortsetzen' : 'Resume'} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
+                              <button type="button" style={iconActEff} title={de ? 'Fortsetzen' : 'Resume'} disabled={busy} onClick={() => void doAction(cid, 'unpause', name)}>
                                 <IconPlay disabled={busy} />
                               </button>
                             ) : null}
                             {running || paused ? (
                               <>
-                                <button type="button" style={iconAct} title={de ? 'Stopp' : 'Stop'} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
+                                <button type="button" style={iconActEff} title={de ? 'Stopp' : 'Stop'} disabled={busy} onClick={() => void doAction(cid, 'stop', name)}>
                                   <IconStop disabled={busy} />
                                 </button>
                                 {running ? (
-                                  <button type="button" style={iconAct} title={de ? 'Neustart' : 'Restart'} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
+                                  <button type="button" style={iconActEff} title={de ? 'Neustart' : 'Restart'} disabled={busy} onClick={() => void doAction(cid, 'restart', name)}>
                                     <IconRestart disabled={busy} />
                                   </button>
                                 ) : null}
