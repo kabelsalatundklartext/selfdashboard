@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.1',
+  version: '1.8.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -789,9 +789,12 @@ function DockerTableCompact({
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  /** `null` = Restbreite (Namenspalte). Status/CPU/Speicher fest → Metrik-Spalten bleiben zusammen. */
+  /**
+   * Namenszeile: `null` = Restbreite für Name.
+   * Icon-Zeile: Spalte 1 = Restbreite (Handle+Icon links); Status/CPU/Speicher/Aktionen fest → keine aufgeblähten Abstände.
+   */
   const colWidths: readonly (string | null)[] = iconRow
-    ? ['28px', '74px', '56px', '70px', '58px']
+    ? [null, '70px', '52px', '66px', '56px']
     : narrow
       ? [null, '56px', '50px', '64px', '52px']
       : [null, '78px', '62px', '74px', '64px']
@@ -805,7 +808,7 @@ function DockerTableCompact({
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 292 : narrow ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
@@ -822,7 +825,16 @@ function DockerTableCompact({
       >
         <colgroup>
           {colWidths.map((w, idx) => (
-            <col key={idx} style={w != null ? { width: w } : undefined} />
+            <col
+              key={idx}
+              style={
+                w != null
+                  ? { width: w }
+                  : iconRow && idx === 0
+                    ? { minWidth: '48px' }
+                    : undefined
+              }
+            />
           ))}
         </colgroup>
         <thead>
@@ -830,14 +842,14 @@ function DockerTableCompact({
             <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
               {headers[0] || '\u00a0'}
             </th>
-            <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
+            <th style={{ ...thDyn, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
             <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
             <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
             <th
               style={{
                 ...thDyn,
-                textAlign: tightMetrics ? 'left' : 'right',
-                ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
+                textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
+                ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
               }}
             >
               {headers[4]}
@@ -906,7 +918,7 @@ function DockerTableCompact({
                       alignItems: 'center',
                       gap: showContainerNames ? 8 : 4,
                       minWidth: 0,
-                      justifyContent: showContainerNames ? undefined : 'center',
+                      justifyContent: showContainerNames ? undefined : iconRow ? 'flex-start' : 'center',
                     }}
                   >
                     {reorderEnabled && cid ? (
@@ -949,7 +961,7 @@ function DockerTableCompact({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: 'center',
+                    textAlign: iconRow ? 'left' : 'center',
                     minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
                   }}
                 >
@@ -990,10 +1002,10 @@ function DockerTableCompact({
                 <td
                   style={{
                     ...tdRow,
-                    textAlign: tightMetrics ? 'left' : 'right',
+                    textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
-                    ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {!rowPending && showControls && anyBtn ? (
@@ -1001,7 +1013,7 @@ function DockerTableCompact({
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        justifyContent: tightMetrics ? 'flex-start' : 'flex-end',
+                        justifyContent: iconRow ? 'flex-start' : tightMetrics ? 'flex-start' : 'flex-end',
                         gap: actionBtnGap,
                       }}
                     >

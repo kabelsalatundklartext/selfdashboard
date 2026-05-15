@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.7',
+  version: '0.4.8',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -1162,9 +1162,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
     : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  /** `null` = Restbreite (nur Namensspalte). Status/CPU/Speicher fest → CPU+RAM bleiben zusammen; kein aufgeblasener Status. */
+  /**
+   * Gleiches Raster wie `DockerTableCompact` (5 Spalten).
+   * Namenszeile: `null` = Name; Icon-Zeile: `null` = Spalte 1 (Handle+Icon), Rest fest.
+   */
   const colWidths: readonly (string | null)[] = iconRow
-    ? ['28px', '74px', '56px', '70px', '58px']
+    ? [null, '70px', '52px', '66px', '56px']
     : narrow
       ? [null, '56px', '50px', '64px', '52px']
       : [null, '78px', '62px', '74px', '64px']
@@ -1172,7 +1175,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 292 : narrow ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
@@ -1210,7 +1213,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           >
             <colgroup>
               {colWidths.map((w, idx) => (
-                <col key={idx} style={w != null ? { width: w } : undefined} />
+                <col
+                  key={idx}
+                  style={
+                    w != null
+                      ? { width: w }
+                      : iconRow && idx === 0
+                        ? { minWidth: '48px' }
+                        : undefined
+                  }
+                />
               ))}
             </colgroup>
             <thead>
@@ -1218,14 +1230,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                 <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
                   {headers[0] || '\u00a0'}
                 </th>
-                <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
+                <th style={{ ...thDyn, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
                 <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
                 <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
                 <th
                   style={{
                     ...thDyn,
-                    textAlign: tightMetrics ? 'left' : 'right',
-                    ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
+                    textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
+                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {headers[4]}
@@ -1294,7 +1306,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                           alignItems: 'center',
                           gap: showContainerNames ? 8 : 4,
                           minWidth: 0,
-                          justifyContent: showContainerNames ? undefined : 'center',
+                          justifyContent: showContainerNames ? undefined : iconRow ? 'flex-start' : 'center',
                         }}
                       >
                         {editMode && displayList.length > 1 && cid ? (
@@ -1371,7 +1383,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     <td
                       style={{
                         ...tdRow,
-                        textAlign: 'center',
+                        textAlign: iconRow ? 'left' : 'center',
                         minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
                       }}
                     >
@@ -1414,11 +1426,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     <td
                       style={{
                         ...tdRow,
-                        textAlign: tightMetrics ? 'left' : 'right',
+                        textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
                         whiteSpace: 'nowrap',
                         overflow: 'visible',
                         ...(iconRow
-                          ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const }
+                          ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
                           : {}),
                       }}
                     >
@@ -1427,7 +1439,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              justifyContent: tightMetrics ? 'flex-start' : 'flex-end',
+                              justifyContent: iconRow ? 'flex-start' : tightMetrics ? 'flex-start' : 'flex-end',
                               gap: actionBtnGap,
                             }}
                           >
