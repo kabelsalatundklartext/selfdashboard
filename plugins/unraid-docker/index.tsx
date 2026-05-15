@@ -995,7 +995,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   }, [])
 
   useLayoutEffect(() => {
-    const el = layoutRef.current
+    if (!compactTableView) return
+    const el = tableWrapRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
     const apply = () => {
       const w = el.getBoundingClientRect().width
@@ -1006,7 +1007,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [compactTableView, actionsOn, list.length])
+  }, [compactTableView, actionsOn, list.length, showContainerNames])
 
   const shell: React.CSSProperties = {
     height: '100%',
@@ -1141,22 +1142,25 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  /** RAM column `null`: absorbs horizontal slack so the actions column stays narrow (see table-layout: fixed). */
-  const colWidths: (string | null)[] = !showContainerNames
-    ? col5
-      ? narrow
-        ? ['28px', '20%', '44px', null, '60px']
-        : ['48px', '20%', '17%', '34%', '11%']
-      : narrow
-        ? ['28px', '24%', '48px', '48%']
-        : ['52px', '22%', '20%', '46%']
-    : narrow
-      ? col5
-        ? ['20%', '16%', '13%', '34%', '17%']
-        : ['24%', '20%', '13%', '43%']
-      : col5
-        ? ['38%', '11%', '16%', '19%', '16%']
-        : ['44%', '12%', '18%', '26%']
+  /**
+   * Column widths aligned with the Docker plugin (`DockerTableCompact`).
+   * Icon-only + narrow: status column absorbs slack; CPU/RAM stay fixed and adjacent (tight gap).
+   */
+  const colWidths: (string | null)[] = (() => {
+    if (!showContainerNames) {
+      if (narrow) {
+        if (tightMetrics) {
+          return col5 ? ['28px', null, '40px', '50px', '56px'] : ['28px', null, '40px', '50px']
+        }
+        return col5 ? ['28px', '20%', '44px', null, '60px'] : ['28px', '20%', '44px', null]
+      }
+      return col5 ? ['48px', '20%', '17%', '34%', '11%'] : ['48px', '20%', '17%', '34%']
+    }
+    if (narrow) {
+      return col5 ? ['20%', '16%', '13%', '34%', '17%'] : ['24%', '20%', '13%', '43%']
+    }
+    return col5 ? ['38%', '11%', '16%', '19%', '16%'] : ['44%', '12%', '18%', '26%']
+  })()
 
   const headRow: string[] = (() => {
     if (!col5) {
@@ -1175,7 +1179,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
   })()
 
-  const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
+  /** Icon row: CPU/RAM right-aligned in fixed columns so values sit close together (Docker-style). */
+  const metricAlign: React.CSSProperties['textAlign'] = 'right'
   const memAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'right' : metricAlign
 
   const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
@@ -1232,7 +1237,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     style={{
                       ...thDyn,
                       textAlign: tightMetrics ? 'left' : 'right',
-                      ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+                      ...(tightMetrics
+                        ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
+                        : {}),
                     }}
                   >
                     {headRow[4]}
@@ -1393,8 +1400,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         fontWeight: 600,
                         color: showStatCpu && valuesLive && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        paddingLeft: tightMetrics ? 2 : undefined,
-                        paddingRight: tightMetrics ? 4 : undefined,
+                        paddingLeft: tightMetrics ? 0 : undefined,
+                        paddingRight: tightMetrics ? 1 : undefined,
                       }}
                     >
                       {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
@@ -1411,7 +1418,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         overflow: tightMetrics ? undefined : 'hidden',
                         textOverflow: tightMetrics ? undefined : 'ellipsis',
                         paddingLeft: tightMetrics ? 2 : undefined,
-                        paddingRight: tightMetrics ? (memAlign === 'right' ? 2 : 4) : undefined,
+                        paddingRight: tightMetrics ? 2 : undefined,
                       }}
                       title={memFull}
                     >
@@ -1424,7 +1431,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                           textAlign: tightMetrics ? 'left' : 'right',
                           whiteSpace: 'nowrap',
                           overflow: 'visible',
-                          ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+                          ...(tightMetrics
+                            ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
+                            : {}),
                         }}
                       >
                         {!rowPending && showControls && anyBtn ? (
