@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.7.9',
+  version: '1.8.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -128,6 +128,14 @@ type ListSortMode = 'default' | 'name' | 'cpu_desc' | 'cpu_asc' | 'mem_desc' | '
 function parseListSort(v: unknown): ListSortMode {
   if (v === 'name' || v === 'cpu_desc' || v === 'cpu_asc' || v === 'mem_desc' || v === 'mem_asc' || v === 'custom') return v
   return 'default'
+}
+
+/** Booleans aus Plugin-Config (Persist/Import kann `"true"` / `"1"` liefern). */
+function cfgBool(v: unknown, ifMissing: boolean): boolean {
+  if (v === undefined || v === null || v === '') return ifMissing
+  if (v === true || v === 'true' || v === 1 || v === '1') return true
+  if (v === false || v === 'false' || v === 0 || v === '0') return false
+  return ifMissing
 }
 
 function normalizeIdOrder(v: unknown): string[] {
@@ -763,7 +771,7 @@ function DockerTableCompact({
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [showContainerNames, showStatCpu, showStatRam, list.length])
 
   const de = locale !== 'en'
   /** Icon-only homarr row: CPU/RAM fixed & adjacent (not only when widget is narrow). */
@@ -1127,20 +1135,20 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
   const latestFetch = useRef(0)
 
-  const showAll = config.showStopped === true
+  const showAll = cfgBool(config.showStopped, false)
   const r = config as Record<string, unknown>
-  const compactTableView = r.homarrTable !== false
-  const useDashboardIcons = r.useDashboardIcons !== false
+  const compactTableView = cfgBool(r.homarrTable, true)
+  const useDashboardIcons = cfgBool(r.useDashboardIcons, true)
   /** Default off in homarr table: icon + ST./CPU/SP./AKT. (like Pi-hole/Unraid compact row). */
-  const showContainerNames = r.showContainerNames === true
-  const actionsOn = r.allowActions !== false
-  const statsOn = r.showStats !== false
-  const showBtnStart = actionsOn && r.showBtnStart !== false
-  const showBtnStop = actionsOn && r.showBtnStop !== false
-  const showBtnRestart = actionsOn && r.showBtnRestart !== false
-  const showStatCpu = statsOn && r.showStatCpu !== false
-  const showStatRam = statsOn && r.showStatRam !== false
-  const showStatBars = statsOn && r.showStatBars !== false
+  const showContainerNames = cfgBool(r.showContainerNames, false)
+  const actionsOn = cfgBool(r.allowActions, true)
+  const statsOn = cfgBool(r.showStats, true)
+  const showBtnStart = actionsOn && cfgBool(r.showBtnStart, true)
+  const showBtnStop = actionsOn && cfgBool(r.showBtnStop, true)
+  const showBtnRestart = actionsOn && cfgBool(r.showBtnRestart, true)
+  const showStatCpu = statsOn && cfgBool(r.showStatCpu, true)
+  const showStatRam = statsOn && cfgBool(r.showStatRam, true)
+  const showStatBars = statsOn && cfgBool(r.showStatBars, true)
   const fetchStats = showStatCpu || showStatRam
   const refresh = (Number(config.refreshInterval) || 15) * 1000
   const maxRows = Math.min(200, Math.max(5, Number(config.maxRows) || 80))
@@ -1882,23 +1890,19 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     boxSizing: 'border-box',
   }
 
-  const sub = (key: string, def = false) => {
-    const v = (config as Record<string, unknown>)[key]
-    if (v === undefined || v === null) return def
-    return v === true
-  }
+  const sub = (key: string, def = false) => cfgBool((config as Record<string, unknown>)[key], def)
 
   const r = config as Record<string, unknown>
-  const actionsOn = r.allowActions !== false
-  const statsOn = r.showStats !== false
-  const compactTableOn = r.homarrTable !== false
-  const dashboardIconsOn = r.useDashboardIcons !== false
-  const btnStartOn = actionsOn && r.showBtnStart !== false
-  const btnStopOn = actionsOn && r.showBtnStop !== false
-  const btnRestartOn = actionsOn && r.showBtnRestart !== false
-  const statCpuOn = statsOn && r.showStatCpu !== false
-  const statRamOn = statsOn && r.showStatRam !== false
-  const statBarsOn = statsOn && r.showStatBars !== false
+  const actionsOn = cfgBool(r.allowActions, true)
+  const statsOn = cfgBool(r.showStats, true)
+  const compactTableOn = cfgBool(r.homarrTable, true)
+  const dashboardIconsOn = cfgBool(r.useDashboardIcons, true)
+  const btnStartOn = actionsOn && cfgBool(r.showBtnStart, true)
+  const btnStopOn = actionsOn && cfgBool(r.showBtnStop, true)
+  const btnRestartOn = actionsOn && cfgBool(r.showBtnRestart, true)
+  const statCpuOn = statsOn && cfgBool(r.showStatCpu, true)
+  const statRamOn = statsOn && cfgBool(r.showStatRam, true)
+  const statBarsOn = statsOn && cfgBool(r.showStatBars, true)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

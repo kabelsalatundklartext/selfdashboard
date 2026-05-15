@@ -31,7 +31,11 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
   }
 
   const handleSave = () => {
-    updatePluginConfig(instance.instanceId, localConfig)
+    const { dashboards, activeDashboardId } = useDashboardStore.getState()
+    const dash = dashboards.find((d) => d.id === activeDashboardId)
+    const live = dash?.plugins.find((p) => p.instanceId === instance.instanceId)
+    const base = (live?.config ?? instance.config) as Record<string, unknown>
+    updatePluginConfig(instance.instanceId, { ...base, ...localConfig })
     onClose()
   }
 
