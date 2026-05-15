@@ -1,21 +1,50 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { useDashboardStore } from '@/lib/store'
 import { WidgetWrapper } from '@/components/plugins/WidgetWrapper'
 import { LayoutGrid } from 'lucide-react'
 import { t } from '@/lib/i18n'
+import type { PluginInstance } from '@/types'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 
 const COLS = 12
 const ROW_HEIGHT = 48
+/** Unterhalb dieser Rasterbreite (px): eine Spalte, Reihenfolge wie auf dem Desktop (y, dann x). */
+const STACK_BREAKPOINT_PX = 768
 
 function coerceZoom(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n) || n <= 0) return 1
   return Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10))
+}
+
+/** Mobile / schmale Kachel: volle Breite, untereinander – x/y/w vom Desktop bleiben im Store unverändert. */
+function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
+  const sorted = [...plugins].sort((a, b) => {
+    const ay = a.layout?.y ?? 0
+    const by = b.layout?.y ?? 0
+    if (ay !== by) return ay - by
+    return (a.layout?.x ?? 0) - (b.layout?.x ?? 0)
+  })
+  let y = 0
+  return sorted.map((p) => {
+    const h = Math.max(1, Math.round(p.layout?.h ?? 4))
+    const minH = Math.max(1, Math.round(p.layout?.minH ?? 1))
+    const item: Layout = {
+      i: p.instanceId,
+      x: 0,
+      y,
+      w: 1,
+      h,
+      minW: 1,
+      minH,
+    }
+    y += h
+    return item
+  })
 }
 
 export function DashboardGrid() {
@@ -76,13 +105,63 @@ export function DashboardGrid() {
     }
   }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode])
 
+  const isStacked = containerWidth < STACK_BREAKPOINT_PX
+  const gridCols = isStacked ? 1 : COLS
+
+  const desktopLayout: Layout[] = useMemo(
+    () =>
+      plugins.map((p) => {
+        const rawY = p.layout?.y
+        const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
+        return {
+          i: p.instanceId,
+          x: p.layout?.x ?? 0,
+          y,
+          w: p.layout?.w ?? 4,
+          h: p.layout?.h ?? 4,
+          minW: p.layout?.minW ?? 1,
+          minH: p.layout?.minH ?? 1,
+        }
+      }),
+    [plugins]
+  )
+
+  const stackedLayout = useMemo(() => buildStackedLayout(plugins), [plugins])
+
+  const gridLayout = isStacked ? stackedLayout : desktopLayout
+
   const handleLayoutChange = useCallback(
-    (layout: Layout[]) => {
-      layout.forEach((item) => {
-        updatePluginLayout(item.i, { x: item.x, y: item.y, w: item.w, h: item.h })
+    (next: Layout[]) => {
+      if (isStacked) {
+        next.forEach((item) => {
+          const p = plugins.find((pr) => pr.instanceId === item.i)
+          const prev = p?.layout
+          if (!prev) {
+            updatePluginLayout(item.i, { x: 0, y: 0, w: 4, h: item.h, minW: 1, minH: 1 })
+            return
+          }
+          updatePluginLayout(item.i, {
+            ...prev,
+            x: prev.x ?? 0,
+            y: prev.y ?? 0,
+            w: prev.w ?? 4,
+            h: item.h,
+          })
+        })
+        return
+      }
+      next.forEach((item) => {
+        const p = plugins.find((pr) => pr.instanceId === item.i)
+        updatePluginLayout(item.i, {
+          ...(p?.layout ?? { x: 0, y: 0, w: 4, h: 4, minW: 1, minH: 1 }),
+          x: item.x,
+          y: item.y,
+          w: item.w,
+          h: item.h,
+        })
       })
     },
-    [updatePluginLayout]
+    [isStacked, plugins, updatePluginLayout]
   )
 
   if (plugins.length === 0) {
@@ -99,20 +178,6 @@ export function DashboardGrid() {
       </div>
     )
   }
-
-  const layout: Layout[] = plugins.map((p) => {
-    const rawY = p.layout?.y
-    const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
-    return {
-      i: p.instanceId,
-      x: p.layout?.x ?? 0,
-      y,
-      w: p.layout?.w ?? 4,
-      h: p.layout?.h ?? 4,
-      minW: p.layout?.minW ?? 1,
-      minH: p.layout?.minH ?? 1,
-    }
-  })
 
   return (
     // Clip horizontal layout overflow from the widened pre-scale track (100/zoom %).
@@ -141,19 +206,20 @@ export function DashboardGrid() {
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
             <span>✏️</span>
-            <span>{t(locale, 'editModeHint')}</span>
+            <span>{isStacked ? t(locale, 'mobileStackHint') : t(locale, 'editModeHint')}</span>
           </div>
         )}
 
         <div ref={measureRef} style={{ width: '100%', minWidth: 0 }}>
         <GridLayout
+          key={isStacked ? 'stacked' : 'desktop'}
           className="layout"
-          layout={layout}
-          cols={COLS}
+          layout={gridLayout}
+          cols={gridCols}
           rowHeight={ROW_HEIGHT}
           width={containerWidth}
-          compactType="vertical"
-          isDraggable={editMode}
+          compactType={isStacked ? null : 'vertical'}
+          isDraggable={editMode && !isStacked}
           isResizable={editMode}
           onLayoutChange={handleLayoutChange}
           margin={[gridGap, gridGap]}

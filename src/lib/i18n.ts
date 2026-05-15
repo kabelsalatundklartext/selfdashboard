@@ -12,6 +12,7 @@ export const translations = {
     language: 'Language',
     editMode: 'Edit Mode',
     editModeHint: 'Drag & resize widgets',
+    mobileStackHint: 'Narrow screen: widgets stack in one column. Drag position on desktop; height can be resized here.',
     pluginStore: 'Plugin Store',
     pluginsAvailable: 'plugins available',
     searchPlugins: 'Search plugins...',
@@ -48,6 +49,8 @@ export const translations = {
     language: 'Sprache',
     editMode: 'Bearbeitungsmodus',
     editModeHint: 'Widgets verschieben & skalieren',
+    mobileStackHint:
+      'Schmale Ansicht: Widgets untereinander. Position am Desktop ziehen; hier nur die Höhe anpassbar.',
     pluginStore: 'Plugin-Store',
     pluginsAvailable: 'Plugins verfügbar',
     searchPlugins: 'Plugins suchen...',

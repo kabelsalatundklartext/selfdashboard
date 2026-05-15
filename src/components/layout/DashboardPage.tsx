@@ -33,6 +33,8 @@ export function DashboardPage({ id }: { id: string }) {
           background: 'var(--background)',
           display: 'block',
           paddingBottom: 0,
+          paddingLeft: 'env(safe-area-inset-left, 0)',
+          paddingRight: 'env(safe-area-inset-right, 0)',
         }}
       >
         <DashboardGrid />

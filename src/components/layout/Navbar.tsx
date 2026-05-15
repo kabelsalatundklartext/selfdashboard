@@ -43,7 +43,7 @@ export function Navbar() {
   return (
     <>
       <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 min-w-0">
+        className="sticky top-0 z-50 flex flex-wrap items-center gap-3 px-4 py-3 min-w-0">
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
         {/* Logo */}
