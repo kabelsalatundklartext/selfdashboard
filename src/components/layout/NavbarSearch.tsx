@@ -1,13 +1,39 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { GripVertical, Search } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
 import type { Locale } from '@/lib/i18n'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
 
-export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: boolean }) {
+/** Unter Desktop-Breite: keine Provider-Pills — spart Platz (Handy/Tablet); Suche nutzt weiter „zuletzt gewählt“. */
+const COMPACT_SEARCH_MQ = '(max-width: 1023px)'
+
+function subscribeCompactSearch(cb: () => void) {
+  const mq = window.matchMedia(COMPACT_SEARCH_MQ)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+
+function snapshotCompactSearch() {
+  return window.matchMedia(COMPACT_SEARCH_MQ).matches
+}
+
+function serverSnapshotCompactSearch() {
+  return false
+}
+
+export function NavbarSearch({
+  locale,
+  editMode,
+  fullBleed = false,
+}: {
+  locale: Locale
+  editMode: boolean
+  /** Volle Zeile (Navbar kompakt): keine feste Pixelbreite, Provider-Pills aus. */
+  fullBleed?: boolean
+}) {
   const {
     navbarSearchProviders,
     navbarSearchLastProvider,
@@ -15,6 +41,9 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
     navbarSearchWidthPx,
     setNavbarSearchWidthPx,
   } = useDashboardStore()
+
+  const compactBar = useSyncExternalStore(subscribeCompactSearch, snapshotCompactSearch, serverSnapshotCompactSearch)
+  const hideProviderPills = compactBar || fullBleed
 
   const [q, setQ] = useState('')
   const resizing = useRef(false)
@@ -100,6 +129,8 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
     )
   }
 
+  const activeDef = SEARCH_PROVIDER_LIST.find((p) => p.id === activeId)
+
   const bar = (
     <div
       style={{
@@ -108,7 +139,7 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
         gap: '6px',
         minWidth: 0,
         width: '100%',
-        padding: '3px 6px 3px 8px',
+        padding: fullBleed || compactBar ? '3px 6px' : '3px 6px 3px 8px',
         paddingRight: editMode ? '14px' : '6px',
         borderRadius: '10px',
         background: 'var(--surface-2)',
@@ -117,9 +148,11 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
       }}
     >
       <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, overflowX: 'auto' }}>
-        {enabledDefs.map((d) => pill(d.id))}
-      </div>
+      {!hideProviderPills && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, overflowX: 'auto' }}>
+          {enabledDefs.map((d) => pill(d.id))}
+        </div>
+      )}
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -130,10 +163,15 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
           }
         }}
         placeholder={locale === 'de' ? 'Suchen…' : 'Search…'}
+        title={
+          hideProviderPills && activeDef
+            ? `${locale === 'de' ? 'Anbieter' : 'Provider'}: ${activeDef.label[locale]} · ${locale === 'de' ? 'In den Einstellungen änderbar' : 'Change in settings'}`
+            : undefined
+        }
         aria-label={locale === 'de' ? 'Websuche' : 'Web search'}
         style={{
           flex: 1,
-          minWidth: '80px',
+          minWidth: hideProviderPills ? '48px' : '80px',
           border: 'none',
           background: 'transparent',
           color: 'var(--text)',
@@ -149,10 +187,10 @@ export function NavbarSearch({ locale, editMode }: { locale: Locale; editMode: b
     <div
       style={{
         position: 'relative',
-        flexShrink: 0,
-        width: `${navbarSearchWidthPx}px`,
+        flexShrink: fullBleed ? 1 : 0,
+        width: fullBleed ? '100%' : `${navbarSearchWidthPx}px`,
         maxWidth: '100%',
-        minWidth: 'min(100%, 200px)',
+        minWidth: fullBleed ? 0 : hideProviderPills ? '0' : 'min(100%, 200px)',
       }}
     >
       {bar}

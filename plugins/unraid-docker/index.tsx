@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.12',
+  version: '0.4.13',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -799,7 +799,7 @@ async function graphql<T>(
   return json.data
 }
 
-function Widget({ config, instanceId }: PluginWidgetProps) {
+function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const url = String((config as Record<string, unknown>).url ?? '')
     .trim()
@@ -811,6 +811,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const compactTableView = cfgBool(r.homarrTable, true)
   const useDashboardIcons = cfgBool(r.useDashboardIcons, true)
   const showContainerNames = cfgBool(r.showContainerNames, false)
+  /** Tablet-Raster: Namen in der kompakten Tabelle erzwingen (Handy: Weiter wie Einstellung). */
+  const showNamesEffective = showContainerNames || layoutMode === 'tablet'
   const memoryShowLimit = cfgBool(r.memoryShowLimit, false)
   const actionsOn = cfgBool(r.allowActions, true)
   const liveStats = cfgBool(r.liveStats, true)
@@ -1021,7 +1023,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [compactTableView, actionsOn, list.length, showContainerNames])
+  }, [compactTableView, actionsOn, list.length, showNamesEffective])
 
   const shell: React.CSSProperties = {
     height: '100%',
@@ -1142,7 +1144,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     )
   }
 
-  const iconRow = !showContainerNames
+  const iconRow = !showNamesEffective
   const tightMetrics = iconRow && narrow
 
   const tdRow: React.CSSProperties = tightMetrics
@@ -1178,17 +1180,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     : null
 
   const headers = narrow
-    ? showContainerNames
+    ? showNamesEffective
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-    : showContainerNames
+    : showNamesEffective
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = narrow && showContainerNames ? 300 : 0
+  const tableMinW = narrow && showNamesEffective ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 1 : iconRow ? 3 : narrow ? 4 : 6
@@ -1234,7 +1236,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             </colgroup>
             <thead>
               <tr>
-                <th style={thRow} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+                <th style={thRow} title={!showNamesEffective ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
                   {headers[0] || '\u00a0'}
                 </th>
                 <th style={{ ...thRow, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
@@ -1311,9 +1313,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: showContainerNames ? 8 : 4,
+                          gap: showNamesEffective ? 8 : 4,
                           minWidth: 0,
-                          justifyContent: showContainerNames ? undefined : 'center',
+                          justifyContent: showNamesEffective ? undefined : 'center',
                         }}
                       >
                         {editMode && displayList.length > 1 && cid ? (
@@ -1332,7 +1334,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                             <GripVertical size={14} strokeWidth={2.2} />
                           </span>
                         ) : null}
-                        <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
+                        <span title={!showNamesEffective ? name : undefined} style={{ flexShrink: 0 }}>
                           {iconSrc ? (
                             <span
                               aria-hidden
@@ -1369,7 +1371,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                             <ContainerAvatar image={c.image ?? ''} name={name} useDashboardIcons={useDashboardIcons} />
                           )}
                         </span>
-                        {showContainerNames ? (
+                        {showNamesEffective ? (
                           <span
                             style={{
                               fontWeight: 600,
@@ -1407,7 +1409,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         color: showStatCpu && valuesLive && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
                         paddingLeft: iconRow ? 0 : undefined,
-                        paddingRight: iconRow ? 0 : showContainerNames ? 4 : undefined,
+                        paddingRight: iconRow ? 0 : showNamesEffective ? 4 : undefined,
                       }}
                     >
                       {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
@@ -1423,7 +1425,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         whiteSpace: 'nowrap',
                         overflow: iconRow && narrow ? 'hidden' : iconRow ? undefined : 'hidden',
                         textOverflow: iconRow && narrow ? 'ellipsis' : iconRow ? undefined : 'ellipsis',
-                        paddingLeft: iconRow ? 0 : showContainerNames ? 2 : undefined,
+                        paddingLeft: iconRow ? 0 : showNamesEffective ? 2 : undefined,
                         paddingRight: iconRow ? 0 : undefined,
                       }}
                       title={memFull}

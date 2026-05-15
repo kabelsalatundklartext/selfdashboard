@@ -232,7 +232,13 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
                 flexDirection: 'column',
               }}
             >
-              <Widget instanceId={instance.instanceId} config={instance.config} theme={dash.theme} editMode={editMode} />
+              <Widget
+                instanceId={instance.instanceId}
+                config={instance.config}
+                theme={dash.theme}
+                editMode={editMode}
+                layoutMode={layoutMode}
+              />
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
@@ -9,6 +9,23 @@ import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
 import { t } from '@/lib/i18n'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
+
+/** Wie NavbarSearch: unter Desktop volle Suchzeile, damit nichts in der Ecke gequetscht wird. */
+const NAVBAR_STACK_SEARCH_MQ = '(max-width: 1023px)'
+
+function subscribeNavbarStackSearch(cb: () => void) {
+  const mq = window.matchMedia(NAVBAR_STACK_SEARCH_MQ)
+  mq.addEventListener('change', cb)
+  return () => mq.removeEventListener('change', cb)
+}
+
+function snapshotNavbarStackSearch() {
+  return window.matchMedia(NAVBAR_STACK_SEARCH_MQ).matches
+}
+
+function serverSnapshotNavbarStackSearch() {
+  return false
+}
 
 function DashboardIcon({ icon, size = 18 }: { icon: string; size?: number }) {
   if (icon?.startsWith('data:') || icon?.startsWith('http'))
@@ -40,11 +57,20 @@ export function Navbar() {
   const hasSearchProviders = SEARCH_PROVIDER_LIST.some((p) => navbarSearchProviders[p.id])
   const showNavbarSearch = navbarSearchEnabled && hasSearchProviders
 
+  const stackSearchBar = useSyncExternalStore(
+    subscribeNavbarStackSearch,
+    snapshotNavbarStackSearch,
+    serverSnapshotNavbarStackSearch,
+  )
+  const searchInTopRow = showNavbarSearch && !stackSearchBar
+  const searchFullWidthRow = showNavbarSearch && stackSearchBar
+
   return (
     <>
       <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className="sticky top-0 z-50 flex flex-wrap items-center gap-3 px-4 py-3 min-w-0">
+        className="sticky top-0 z-50 flex flex-col gap-2 px-4 py-3 min-w-0">
 
+        <div className="flex flex-wrap items-center gap-3 min-w-0 w-full">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
         {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -97,16 +123,16 @@ export function Navbar() {
           </div>
         )}
 
-        {showNavbarSearch && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} editMode={editMode} />}
+        {searchInTopRow && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {showNavbarSearch && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} editMode={editMode} />}
+          {searchInTopRow && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
 
         {/* Right: optional search, zoom, actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {showNavbarSearch && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
+          {searchInTopRow && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
             <button
               onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
@@ -141,6 +167,13 @@ export function Navbar() {
             </button>
           </div>
         </div>
+        </div>
+
+        {searchFullWidthRow ? (
+          <div className="w-full min-w-0" style={{ paddingBottom: 2 }}>
+            <NavbarSearch locale={locale} editMode={editMode} fullBleed />
+          </div>
+        ) : null}
       </nav>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

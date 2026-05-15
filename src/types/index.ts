@@ -86,6 +86,8 @@ export interface PluginWidgetProps {
   theme: ThemeId
   /** true, wenn das Dashboard im Layout-Bearbeiten ist (z. B. Kacheln im Plugin sortieren). */
   editMode?: boolean
+  /** Raster-Modus des Dashboards — optional für responsive Plugin-UI (Handy / Tablet / Desktop). */
+  layoutMode?: 'phone' | 'tablet' | 'desktop'
 }
 
 export interface PluginSettingsProps {

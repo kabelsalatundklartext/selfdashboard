@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.6',
+  version: '1.8.7',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -1148,7 +1148,7 @@ function DockerTableCompact({
   )
 }
 
-function Widget({ config, instanceId }: PluginWidgetProps) {
+function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const [list, setList] = useState<DockerContainer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1166,6 +1166,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const useDashboardIcons = cfgBool(r.useDashboardIcons, true)
   /** Default off in homarr table: icon + ST./CPU/SP./AKT. (like Pi-hole/Unraid compact row). */
   const showContainerNames = cfgBool(r.showContainerNames, false)
+  /** Tablet-Raster (768–1023px): Namen immer anzeigen, auch wenn die Option aus ist (Handy bleibt kompakt). */
+  const showNamesEffective = showContainerNames || layoutMode === 'tablet'
   const actionsOn = cfgBool(r.allowActions, true)
   const statsOn = cfgBool(r.showStats, true)
   const showBtnStart = actionsOn && cfgBool(r.showBtnStart, true)
@@ -1538,7 +1540,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             busyId={busyId}
             pending={pending}
             useDashboardIcons={useDashboardIcons}
-            showContainerNames={showContainerNames}
+            showContainerNames={showNamesEffective}
             showStatCpu={showStatCpu}
             showStatRam={showStatRam}
             showBtnStart={showBtnStart}
