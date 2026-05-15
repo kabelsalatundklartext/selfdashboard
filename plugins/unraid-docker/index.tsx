@@ -259,31 +259,37 @@ function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
-function stateBadgeStyle(state: string | undefined, compact?: boolean, micro?: boolean): React.CSSProperties {
+function stateBadgeStyle(
+  state: string | undefined,
+  compact?: boolean,
+  micro?: boolean,
+  textOnly?: boolean,
+): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-block',
     fontWeight: 600,
-    fontSize: micro ? '6px' : compact ? '7px' : '8px',
-    letterSpacing: micro || compact ? 0 : '0.02em',
-    padding: micro ? '0 2px' : compact ? '1px 4px' : '2px 6px',
-    borderRadius: micro ? '3px' : '4px',
+    fontSize: micro ? '6px' : compact ? '7px' : textOnly ? '9px' : '8px',
+    letterSpacing: micro || compact || textOnly ? 0 : '0.02em',
+    padding: textOnly ? 0 : micro ? '0 2px' : compact ? '1px 4px' : '2px 6px',
+    borderRadius: textOnly ? 0 : micro ? '3px' : '4px',
     whiteSpace: 'nowrap',
     lineHeight: micro ? 1.05 : 1.2,
     textTransform: 'none',
     maxWidth: micro ? '100%' : undefined,
     boxSizing: 'border-box',
+    background: textOnly ? 'transparent' : undefined,
   }
   const s = (state ?? '').toLowerCase()
   if (s === 'running') {
-    return { ...base, background: '#15803d', color: '#fff' }
+    return { ...base, background: textOnly ? 'transparent' : '#15803d', color: textOnly ? '#4ade80' : '#fff' }
   }
   if (s === 'exited' || s === 'dead') {
-    return { ...base, background: '#7f1d1d', color: '#fecaca' }
+    return { ...base, background: textOnly ? 'transparent' : '#7f1d1d', color: textOnly ? '#f87171' : '#fecaca' }
   }
   if (s === 'paused') {
-    return { ...base, background: '#854d0e', color: '#fef08a' }
+    return { ...base, background: textOnly ? 'transparent' : '#854d0e', color: textOnly ? '#fbbf24' : '#fef08a' }
   }
-  return { ...base, background: 'var(--border)', color: 'var(--text-muted)' }
+  return { ...base, background: textOnly ? 'transparent' : 'var(--border)', color: 'var(--text-muted)' }
 }
 
 const ACTION_ICON = '#b91c1c'
@@ -795,7 +801,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const skipCache = r.skipCache === true
   const compactTableView = r.homarrTable !== false
   const useDashboardIcons = r.useDashboardIcons !== false
-  const showContainerNames = r.showContainerNames !== false
+  const showContainerNames = r.showContainerNames === true
   const memoryShowLimit = r.memoryShowLimit === true
   const actionsOn = r.allowActions !== false
   const liveStats = r.liveStats !== false
@@ -1129,7 +1135,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   }
 
   const col5 = actionsOn
-  const tightMetrics = narrow && !showContainerNames
+  const iconRow = !showContainerNames
+  const tightMetrics = iconRow && narrow
 
   const tdRow: React.CSSProperties = tightMetrics
     ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
@@ -1142,25 +1149,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  /**
-   * Column widths aligned with the Docker plugin (`DockerTableCompact`).
-   * Icon-only + narrow: status column absorbs slack; CPU/RAM stay fixed and adjacent (tight gap).
-   */
-  const colWidths: (string | null)[] = (() => {
-    if (!showContainerNames) {
-      if (narrow) {
-        if (tightMetrics) {
-          return col5 ? ['28px', null, '40px', '50px', '56px'] : ['28px', null, '40px', '50px']
-        }
-        return col5 ? ['28px', '20%', '44px', null, '60px'] : ['28px', '20%', '44px', null]
-      }
-      return col5 ? ['48px', '20%', '17%', '34%', '11%'] : ['48px', '20%', '17%', '34%']
-    }
-    if (narrow) {
-      return col5 ? ['20%', '16%', '13%', '34%', '17%'] : ['24%', '20%', '13%', '43%']
-    }
-    return col5 ? ['38%', '11%', '16%', '19%', '16%'] : ['44%', '12%', '18%', '26%']
-  })()
+  const colWidths: (string | null)[] = iconRow
+    ? col5
+      ? ['28px', null, '42px', '48px', '56px']
+      : ['28px', null, '42px', '48px']
+    : narrow
+      ? col5
+        ? ['20%', '16%', '13%', '34%', '17%']
+        : ['24%', '20%', '13%', '43%']
+      : col5
+        ? ['38%', '11%', '16%', '19%', '16%']
+        : ['44%', '12%', '18%', '26%']
 
   const headRow: string[] = (() => {
     if (!col5) {
@@ -1179,9 +1178,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
   })()
 
-  /** Icon row: CPU/RAM right-aligned in fixed columns so values sit close together (Docker-style). */
-  const metricAlign: React.CSSProperties['textAlign'] = 'right'
-  const memAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'right' : metricAlign
+  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
+  const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
   const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
 
@@ -1237,7 +1235,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     style={{
                       ...thDyn,
                       textAlign: tightMetrics ? 'left' : 'right',
-                      ...(tightMetrics
+                      ...(iconRow
                         ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
                         : {}),
                     }}
@@ -1388,7 +1386,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
                       }}
                     >
-                      <span style={stateBadgeStyle(stLower, narrow, tightMetrics)} title={stateBadgeLabel(stLower, locale)}>
+                      <span style={stateBadgeStyle(stLower, narrow, tightMetrics, iconRow)} title={stateBadgeLabel(stLower, locale)}>
                         {stateBadgeLabel(stLower, locale)}
                       </span>
                     </td>
@@ -1400,8 +1398,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         fontWeight: 600,
                         color: showStatCpu && valuesLive && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        paddingLeft: tightMetrics ? 0 : undefined,
-                        paddingRight: tightMetrics ? 1 : undefined,
+                        paddingLeft: iconRow ? 0 : undefined,
+                        paddingRight: iconRow ? 2 : undefined,
                       }}
                     >
                       {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
@@ -1415,10 +1413,10 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         color:
                           showStatRam && valuesLive && running && memDisplay !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        overflow: tightMetrics ? undefined : 'hidden',
-                        textOverflow: tightMetrics ? undefined : 'ellipsis',
-                        paddingLeft: tightMetrics ? 2 : undefined,
-                        paddingRight: tightMetrics ? 2 : undefined,
+                        overflow: iconRow ? undefined : 'hidden',
+                        textOverflow: iconRow ? undefined : 'ellipsis',
+                        paddingLeft: iconRow ? 2 : undefined,
+                        paddingRight: iconRow ? 2 : undefined,
                       }}
                       title={memFull}
                     >
@@ -1431,7 +1429,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                           textAlign: tightMetrics ? 'left' : 'right',
                           whiteSpace: 'nowrap',
                           overflow: 'visible',
-                          ...(tightMetrics
+                          ...(iconRow
                             ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
                             : {}),
                         }}
@@ -1957,8 +1955,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               ? 'Namen in der Tabelle anzeigen (aus: nur Icon, Name im Tooltip)'
               : 'Show names in table (off: icon only, name in tooltip)'
           }
-          on={sub('showContainerNames', true)}
-          onToggle={() => onChange('showContainerNames', !sub('showContainerNames', true))}
+          on={sub('showContainerNames', false)}
+          onToggle={() => onChange('showContainerNames', !sub('showContainerNames', false))}
         />
         <ToggleRow
           label={

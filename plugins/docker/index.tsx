@@ -377,41 +377,51 @@ function stateBadgeLabel(state: string | undefined, locale: Locale): string {
   return raw.length <= 7 ? raw : `${raw.slice(0, 6)}…`
 }
 
-function stateBadgeStyle(state: string | undefined, compact?: boolean, micro?: boolean): React.CSSProperties {
+function stateBadgeStyle(
+  state: string | undefined,
+  compact?: boolean,
+  micro?: boolean,
+  textOnly?: boolean,
+): React.CSSProperties {
   const base: React.CSSProperties = {
     display: 'inline-block',
     fontWeight: 600,
-    fontSize: micro ? '6px' : compact ? '7px' : '8px',
-    letterSpacing: micro || compact ? 0 : '0.02em',
-    padding: micro ? '0 2px' : compact ? '1px 4px' : '2px 6px',
-    borderRadius: micro ? '3px' : '4px',
+    fontSize: micro ? '6px' : compact ? '7px' : textOnly ? '9px' : '8px',
+    letterSpacing: micro || compact || textOnly ? 0 : '0.02em',
+    padding: textOnly ? 0 : micro ? '0 2px' : compact ? '1px 4px' : '2px 6px',
+    borderRadius: textOnly ? 0 : micro ? '3px' : '4px',
     whiteSpace: 'nowrap',
     lineHeight: micro ? 1.05 : 1.2,
     textTransform: 'none',
     maxWidth: micro ? '100%' : undefined,
     boxSizing: 'border-box',
+    background: textOnly ? 'transparent' : undefined,
   }
   const s = (state ?? '').toLowerCase()
   if (s === 'running') {
     return {
       ...base,
-      background: '#15803d',
-      color: '#fff',
+      background: textOnly ? 'transparent' : '#15803d',
+      color: textOnly ? '#4ade80' : '#fff',
     }
   }
   if (s === 'exited' || s === 'dead') {
     return {
       ...base,
-      background: '#7f1d1d',
-      color: '#fecaca',
+      background: textOnly ? 'transparent' : '#7f1d1d',
+      color: textOnly ? '#f87171' : '#fecaca',
     }
   }
   if (s === 'paused') {
-    return { ...base, background: '#854d0e', color: '#fef08a' }
+    return {
+      ...base,
+      background: textOnly ? 'transparent' : '#854d0e',
+      color: textOnly ? '#fbbf24' : '#fef08a',
+    }
   }
   return {
     ...base,
-    background: 'var(--border)',
+    background: textOnly ? 'transparent' : 'var(--border)',
     color: 'var(--text-muted)',
   }
 }
@@ -756,7 +766,9 @@ function DockerTableCompact({
   }, [])
 
   const de = locale !== 'en'
-  const tightMetrics = narrow && !showContainerNames
+  /** Icon-only homarr row: CPU/RAM fixed & adjacent (not only when widget is narrow). */
+  const iconRow = !showContainerNames
+  const tightMetrics = iconRow && narrow
 
   const tdRow: React.CSSProperties = tightMetrics
     ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
@@ -769,15 +781,12 @@ function DockerTableCompact({
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  /** RAM column uses `null` width so extra table width goes here, not into the actions column (fixes ~128px AKT cells). */
-  const colWidths =
-    !showContainerNames
-      ? narrow
-        ? (['28px', '20%', '44px', null, '60px'] as const)
-        : (['48px', '20%', '17%', '34%', '11%'] as const)
-      : narrow
-        ? (['20%', '16%', '13%', '34%', '17%'] as const)
-        : (['38%', '11%', '16%', '19%', '16%'] as const)
+  /** Icon row: status absorbs slack; CPU/RAM fixed side-by-side; AKT stays narrow. */
+  const colWidths: readonly (string | null)[] = iconRow
+    ? ['28px', null, '42px', '48px', '56px']
+    : narrow
+      ? (['20%', '16%', '13%', '34%', '17%'] as const)
+      : (['38%', '11%', '16%', '19%', '16%'] as const)
 
   const headers = narrow
     ? showContainerNames
@@ -785,9 +794,8 @@ function DockerTableCompact({
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
     : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  const metricAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'left' : 'right'
-  /** Tight icon row: RAM hugs the action buttons (avoids a wide empty strip before the icons). */
-  const memAlign: React.CSSProperties['textAlign'] = tightMetrics ? 'right' : metricAlign
+  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
+  const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
   const tableMinW = !showContainerNames ? 228 : narrow ? 300 : 0
 
@@ -821,7 +829,7 @@ function DockerTableCompact({
               style={{
                 ...thDyn,
                 textAlign: tightMetrics ? 'left' : 'right',
-                ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+                ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
               }}
             >
               {headers[4]}
@@ -935,7 +943,7 @@ function DockerTableCompact({
                     minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
                   }}
                 >
-                  <span style={stateBadgeStyle(st, narrow, tightMetrics)} title={stateBadgeLabel(st, locale)}>
+                  <span style={stateBadgeStyle(st, narrow, tightMetrics, iconRow)} title={stateBadgeLabel(st, locale)}>
                     {stateBadgeLabel(st, locale)}
                   </span>
                 </td>
@@ -947,8 +955,8 @@ function DockerTableCompact({
                     fontWeight: 600,
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
-                    paddingLeft: tightMetrics ? 2 : undefined,
-                    paddingRight: tightMetrics ? 4 : undefined,
+                    paddingLeft: iconRow ? 0 : undefined,
+                    paddingRight: iconRow ? 2 : undefined,
                   }}
                 >
                   {showStatCpu ? fmtCpuCompact(cpuPct, running) : '—'}
@@ -961,10 +969,10 @@ function DockerTableCompact({
                     fontWeight: 600,
                     color: showStatRam ? heatColorForPct(running ? ramPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
-                    overflow: tightMetrics ? undefined : 'hidden',
-                    textOverflow: tightMetrics ? undefined : 'ellipsis',
-                    paddingLeft: tightMetrics ? 2 : undefined,
-                    paddingRight: tightMetrics ? (memAlign === 'right' ? 2 : 4) : undefined,
+                    overflow: iconRow ? undefined : 'hidden',
+                    textOverflow: iconRow ? undefined : 'ellipsis',
+                    paddingLeft: iconRow ? 2 : undefined,
+                    paddingRight: iconRow ? 2 : undefined,
                   }}
                 >
                   {showStatRam ? memStr : '—'}
@@ -975,7 +983,7 @@ function DockerTableCompact({
                     textAlign: tightMetrics ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
-                    ...(tightMetrics ? { width: '60px', maxWidth: '60px', minWidth: '60px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {!rowPending && showControls && anyBtn ? (
@@ -1123,7 +1131,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const r = config as Record<string, unknown>
   const compactTableView = r.homarrTable !== false
   const useDashboardIcons = r.useDashboardIcons !== false
-  const showContainerNames = r.showContainerNames !== false
+  /** Default off in homarr table: icon + ST./CPU/SP./AKT. (like Pi-hole/Unraid compact row). */
+  const showContainerNames = r.showContainerNames === true
   const actionsOn = r.allowActions !== false
   const statsOn = r.showStats !== false
   const showBtnStart = actionsOn && r.showBtnStart !== false
@@ -1926,8 +1935,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               ? 'Namen in der Tabelle anzeigen (aus: nur Icon, Name im Tooltip)'
               : 'Show names in table (off: icon only, name in tooltip)'
           }
-          on={sub('showContainerNames', true)}
-          onToggle={() => onChange('showContainerNames', !sub('showContainerNames', true))}
+          on={sub('showContainerNames', false)}
+          onToggle={() => onChange('showContainerNames', !sub('showContainerNames', false))}
         />
         <ToggleRow
           label={
