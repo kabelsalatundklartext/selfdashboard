@@ -19,7 +19,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.8',
+  version: '2.3.9',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -60,8 +60,8 @@ export const meta: PluginMeta = {
       type: 'select',
       defaultValue: 'vertical',
       options: [
-        { label: 'Vertikal (Grafik über Karten)', value: 'vertical' },
-        { label: 'Waagerecht (Grafik neben Karten)', value: 'horizontal' },
+        { label: 'Senkrecht: Grafik oben, Kacheln darunter', value: 'vertical' },
+        { label: 'Waagerecht: Grafik links, Kacheln rechts', value: 'horizontal' },
       ],
     },
     { key: 'throughputShowTitle', label: 'Überschrift „Durchsatz-Verlauf“', type: 'boolean', defaultValue: true },
@@ -404,8 +404,8 @@ function ThroughputHistoryChart({
   const headerEst = showHeaderRow ? (compact ? 44 : 52) : 0
   const chartFooterH = showChartFooter ? 14 : 0
 
-  const layout: 'horizontal' | 'vertical' =
-    layoutPref === 'horizontal' && panelSize.w >= 520 && panelSize.h >= 280 ? 'horizontal' : 'vertical'
+  /** Strikt nach Einstellung — vermeidet Vermischung von Zeilen-/Spaltenlayout. */
+  const layout: 'horizontal' | 'vertical' = layoutPref === 'horizontal' ? 'horizontal' : 'vertical'
 
   let hPx = baseHPx
   if (layout === 'horizontal') {
@@ -623,7 +623,27 @@ function ThroughputHistoryChart({
   ) : null
 
   const chartColumn = showChart ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 160px', minWidth: 0, width: '100%', minHeight: 0 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        minWidth: 0,
+        width: '100%',
+        minHeight: 0,
+        ...(layout === 'horizontal'
+          ? {
+              flex: '1 1 0',
+              /** Diagramm darf die Kachel nicht über die Messkarten hinauszeichnen. */
+              overflow: 'hidden',
+            }
+          : {
+              /** Vertikal: Höhe = Inhalt — verhindert Überlappung mit den Karten bei Flex-Schrumpfen. */
+              flex: '0 0 auto',
+              overflow: 'visible',
+            }),
+      }}
+    >
       {chartBody}
     </div>
   ) : null
@@ -639,6 +659,8 @@ function ThroughputHistoryChart({
           gap: '10px',
           width: '100%',
           minWidth: 0,
+          minHeight: 0,
+          flex: '1 1 auto',
           flexWrap: 'nowrap',
         }}
       >
@@ -646,13 +668,14 @@ function ThroughputHistoryChart({
         {anyStat ? (
           <div
             style={{
-              flex: showChart ? '0 1 clamp(140px, 38%, 260px)' : '1 1 100%',
-              minWidth: showChart ? 'min(132px, 42%)' : 0,
-              maxWidth: '100%',
+              flex: showChart ? '0 0 clamp(140px, 38%, 260px)' : '1 1 100%',
+              flexShrink: 0,
+              maxWidth: showChart ? 'min(260px, 46%)' : undefined,
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
               minHeight: 0,
+              minWidth: 0,
             }}
           >
             {statsSection}
@@ -660,10 +683,20 @@ function ThroughputHistoryChart({
         ) : null}
       </div>
     ) : (
-      <>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          gap: compact ? 6 : 8,
+          overflow: 'auto',
+        }}
+      >
         {chartColumn}
         {statsSection}
-      </>
+      </div>
     )
 
   return (
@@ -1270,13 +1303,17 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             value={str(r.throughputPanelLayout).toLowerCase() === 'horizontal' ? 'horizontal' : 'vertical'}
             onChange={(e) => onChange('throughputPanelLayout', e.target.value)}
           >
-            <option value="vertical">{de ? 'Vertikal (Grafik über Karten)' : 'Vertical (chart above tiles)'}</option>
-            <option value="horizontal">{de ? 'Waagerecht (Grafik neben Karten)' : 'Horizontal (chart beside tiles)'}</option>
+            <option value="vertical">
+              {de ? 'Senkrecht: Grafik oben, Mess-Kacheln darunter' : 'Vertical: chart on top, stat tiles below'}
+            </option>
+            <option value="horizontal">
+              {de ? 'Waagerecht: Grafik links, Mess-Kacheln rechts' : 'Horizontal: chart on the left, stat tiles on the right'}
+            </option>
           </select>
           <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
             {de
-              ? 'Waagerecht nutzt die Breite des Widgets: bei schmalen Kacheln ggf. breiter ziehen.'
-              : 'Horizontal uses widget width — drag the tile wider if it feels cramped.'}
+              ? 'Bei waagerechter Anordnung die Kachel lieber breit ziehen — sonst wird die Grafik enger (kein Überdecken der Karten).'
+              : 'For horizontal layout, use a wider tile — otherwise the chart area gets narrower (tiles stay beside it, not on top).'}
           </p>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
