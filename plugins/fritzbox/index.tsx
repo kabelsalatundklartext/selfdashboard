@@ -13,13 +13,15 @@ import { usePluginLocale } from '@/lib/pluginLocale'
 /** Plot-Höhe: 0 = Standardhöhe; 1–FB_PLOT_H_MAX = exakte Pixelhöhe. */
 const FB_PLOT_H_DEFAULT = 168
 const FB_PLOT_H_MAX = 220
+/** Maximale Plot-Höhe bei senkrechtem Layout (Grafik oben, Kacheln darunter) — mehr Platz wie im Wunsch-Layout. */
+const FB_PLOT_H_VERTICAL_CAP = 280
 
 export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.9',
+  version: '2.4.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -411,8 +413,14 @@ function ThroughputHistoryChart({
   if (layout === 'horizontal') {
     hPx = Math.min(baseHPx, Math.max(96, statsBlockH - chartFooterH))
   } else if (panelSize.h > 0) {
-    const avail = panelSize.h - headerEst - statsBlockH - 26
-    hPx = Math.min(baseHPx, Math.max(100, avail))
+    /** Senkrecht: verfügbare Höhe füllen (Vollbreite-Diagramm oben), begrenzt durch vertikales Cap. */
+    const slack = compact ? 28 : 36
+    const avail = Math.floor(panelSize.h - headerEst - statsBlockH - chartFooterH - slack)
+    if (avail >= baseHPx) {
+      hPx = Math.min(FB_PLOT_H_VERTICAL_CAP, Math.max(baseHPx, avail))
+    } else {
+      hPx = Math.max(96, avail)
+    }
   }
 
   const headerBlock = showHeaderRow ? (
@@ -577,7 +585,7 @@ function ThroughputHistoryChart({
         display: 'grid',
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: `${statsGridGap}px`,
-        marginTop: layout === 'vertical' && showChart ? '4px' : 0,
+        marginTop: layout === 'vertical' && showChart ? (compact ? 8 : 12) : 0,
         width: '100%',
         alignSelf: layout === 'horizontal' ? 'stretch' : undefined,
         minHeight: layout === 'horizontal' ? statsBlockH : undefined,
@@ -1312,8 +1320,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           </select>
           <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
             {de
-              ? 'Bei waagerechter Anordnung die Kachel lieber breit ziehen — sonst wird die Grafik enger (kein Überdecken der Karten).'
-              : 'For horizontal layout, use a wider tile — otherwise the chart area gets narrower (tiles stay beside it, not on top).'}
+              ? '„Senkrecht“ = große Grafik in voller Breite oben, die vier Karten darunter (wie im Wunschbild). „Waagerecht“ = Grafik links, Karten rechts — Kachel ggf. breit ziehen.'
+              : '“Vertical” = full-width chart on top and four stat tiles below (mockup style). “Horizontal” = chart left, tiles right — use a wider tile if needed.'}
           </p>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
