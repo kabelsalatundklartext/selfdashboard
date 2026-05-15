@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.8',
+  version: '0.4.10',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -1148,37 +1148,43 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
     : narrow
       ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' }
-      : tdCompact
+      : iconRow
+        ? { ...tdCompact, padding: '5px 4px' }
+        : tdCompact
   const thDyn: React.CSSProperties = tightMetrics
     ? { ...thStyle, fontSize: '8px', letterSpacing: '0.03em', padding: '4px 3px' }
     : narrow
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
+  const thRow: React.CSSProperties = iconRow && !narrow ? { ...thDyn, padding: '5px 4px' } : thDyn
 
   /** Gleiches Spaltenraster wie `plugins/docker` (`DockerTableCompact`): immer 5 Spalten, Aktionen-Spalte optional leer. */
+  const iconLeadColW = tightMetrics ? '54px' : '68px'
   const headers = narrow
     ? showContainerNames
-      ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+      ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-    : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+    : showContainerNames
+      ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+      : ['', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
   /**
-   * Gleiches Raster wie `DockerTableCompact` (5 Spalten).
-   * Namenszeile: `null` = Name; Icon-Zeile: `null` = Spalte 1 (Handle+Icon), Rest fest.
+   * Namenszeile: `null` = Name.
+   * Icon-Zeile: alle Spalten px + `width: max-content`.
    */
   const colWidths: readonly (string | null)[] = iconRow
-    ? [null, '70px', '52px', '66px', '56px']
+    ? [iconLeadColW, '56px', '46px', '56px', '48px']
     : narrow
       ? [null, '56px', '50px', '64px', '52px']
       : [null, '78px', '62px', '74px', '64px']
 
-  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
+  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = !showContainerNames ? 292 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 300 : narrow ? 300 : 0
 
-  const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
-  const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
+  const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
+  const actionBtnGap = tightMetrics ? 2 : iconRow ? 3 : narrow ? 4 : 6
 
   const fs = 'clamp(9px, 2.6cqmin, 11px)'
   const valuesLive = liveStats && (showStatCpu || showStatRam)
@@ -1205,7 +1211,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           <div ref={tableWrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
           <table
             style={{
-              width: '100%',
+              width: iconRow ? 'max-content' : '100%',
+              maxWidth: '100%',
               borderCollapse: 'collapse',
               tableLayout: 'fixed',
               minWidth: tableMinW || undefined,
@@ -1213,31 +1220,22 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           >
             <colgroup>
               {colWidths.map((w, idx) => (
-                <col
-                  key={idx}
-                  style={
-                    w != null
-                      ? { width: w }
-                      : iconRow && idx === 0
-                        ? { minWidth: '48px' }
-                        : undefined
-                  }
-                />
+                <col key={idx} style={w != null ? { width: w } : undefined} />
               ))}
             </colgroup>
             <thead>
               <tr>
-                <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+                <th style={thRow} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
                   {headers[0] || '\u00a0'}
                 </th>
-                <th style={{ ...thDyn, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
-                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
-                <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+                <th style={{ ...thRow, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
+                <th style={{ ...thRow, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
+                <th style={{ ...thRow, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
                 <th
                   style={{
-                    ...thDyn,
+                    ...thRow,
                     textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
-                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {headers[4]}
@@ -1306,7 +1304,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                           alignItems: 'center',
                           gap: showContainerNames ? 8 : 4,
                           minWidth: 0,
-                          justifyContent: showContainerNames ? undefined : iconRow ? 'flex-start' : 'center',
+                          justifyContent: showContainerNames ? undefined : 'center',
                         }}
                       >
                         {editMode && displayList.length > 1 && cid ? (
@@ -1384,7 +1382,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                       style={{
                         ...tdRow,
                         textAlign: iconRow ? 'left' : 'center',
-                        minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
+                        minWidth: iconRow ? 0 : tightMetrics ? 42 : narrow ? 52 : 44,
                       }}
                     >
                       <span style={stateBadgeStyle(stLower, narrow, tightMetrics, iconRow)} title={stateBadgeLabel(stLower, locale)}>
@@ -1400,7 +1398,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         color: showStatCpu && valuesLive && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
                         paddingLeft: iconRow ? 0 : undefined,
-                        paddingRight: iconRow ? 2 : showContainerNames ? 4 : undefined,
+                        paddingRight: iconRow ? 0 : showContainerNames ? 4 : undefined,
                       }}
                     >
                       {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
@@ -1416,8 +1414,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         whiteSpace: 'nowrap',
                         overflow: iconRow ? undefined : 'hidden',
                         textOverflow: iconRow ? undefined : 'ellipsis',
-                        paddingLeft: iconRow ? 2 : showContainerNames ? 2 : undefined,
-                        paddingRight: iconRow ? 2 : undefined,
+                        paddingLeft: iconRow ? 0 : showContainerNames ? 2 : undefined,
+                        paddingRight: iconRow ? 0 : undefined,
                       }}
                       title={memFull}
                     >
@@ -1430,7 +1428,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         whiteSpace: 'nowrap',
                         overflow: 'visible',
                         ...(iconRow
-                          ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
+                          ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const }
                           : {}),
                       }}
                     >

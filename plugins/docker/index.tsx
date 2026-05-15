@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.2',
+  version: '1.8.4',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -782,42 +782,51 @@ function DockerTableCompact({
     ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
     : narrow
       ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' }
-      : tdCompact
+      : iconRow
+        ? { ...tdCompact, padding: '5px 4px' }
+        : tdCompact
   const thDyn: React.CSSProperties = tightMetrics
     ? { ...thStyle, fontSize: '8px', letterSpacing: '0.03em', padding: '4px 3px' }
     : narrow
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
+  /** Breite Icon-Zeile auf großen Kacheln: weniger X-Padding in der Kopfzeile. */
+  const thRow: React.CSSProperties = iconRow && !narrow ? { ...thDyn, padding: '5px 4px' } : thDyn
 
+  /** Icon-Spalte: fest (kein `null`!), sonst frisst Spalte 1 die volle Restbreite visuell „Icon ………… Status“. */
+  const iconLeadColW = tightMetrics ? '54px' : '68px'
   /**
    * Namenszeile: `null` = Restbreite für Name.
-   * Icon-Zeile: Spalte 1 = Restbreite (Handle+Icon links); Status/CPU/Speicher/Aktionen fest → keine aufgeblähten Abstände.
+   * Icon-Zeile: alle Spalten px + `table width: max-content` → kein aufgestrecktes Raster.
    */
   const colWidths: readonly (string | null)[] = iconRow
-    ? [null, '70px', '52px', '66px', '56px']
+    ? [iconLeadColW, '56px', '46px', '56px', '48px']
     : narrow
       ? [null, '56px', '50px', '64px', '52px']
       : [null, '78px', '62px', '74px', '64px']
 
   const headers = narrow
     ? showContainerNames
-      ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+      ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-    : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+    : showContainerNames
+      ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
+      : ['', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
+  const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = !showContainerNames ? 292 : narrow ? 300 : 0
+  const tableMinW = !showContainerNames ? 300 : narrow ? 300 : 0
 
-  const iconActEff: React.CSSProperties = tightMetrics ? { ...iconAct, padding: '2px' } : iconAct
-  const actionBtnGap = tightMetrics ? 2 : narrow ? 4 : 6
+  const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
+  const actionBtnGap = tightMetrics ? 2 : iconRow ? 3 : narrow ? 4 : 6
 
   return (
     <div ref={wrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
       <table
         style={{
-          width: '100%',
+          width: iconRow ? 'max-content' : '100%',
+          maxWidth: '100%',
           borderCollapse: 'collapse',
           tableLayout: 'fixed',
           minWidth: tableMinW || undefined,
@@ -825,31 +834,22 @@ function DockerTableCompact({
       >
         <colgroup>
           {colWidths.map((w, idx) => (
-            <col
-              key={idx}
-              style={
-                w != null
-                  ? { width: w }
-                  : iconRow && idx === 0
-                    ? { minWidth: '48px' }
-                    : undefined
-              }
-            />
+            <col key={idx} style={w != null ? { width: w } : undefined} />
           ))}
         </colgroup>
         <thead>
           <tr>
-            <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+            <th style={thRow} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
               {headers[0] || '\u00a0'}
             </th>
-            <th style={{ ...thDyn, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
-            <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
-            <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+            <th style={{ ...thRow, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
+            <th style={{ ...thRow, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
+            <th style={{ ...thRow, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
             <th
               style={{
-                ...thDyn,
+                ...thRow,
                 textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
-                ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                ...(iconRow ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const } : {}),
               }}
             >
               {headers[4]}
@@ -918,7 +918,7 @@ function DockerTableCompact({
                       alignItems: 'center',
                       gap: showContainerNames ? 8 : 4,
                       minWidth: 0,
-                      justifyContent: showContainerNames ? undefined : iconRow ? 'flex-start' : 'center',
+                      justifyContent: showContainerNames ? undefined : 'center',
                     }}
                   >
                     {reorderEnabled && cid ? (
@@ -962,7 +962,7 @@ function DockerTableCompact({
                   style={{
                     ...tdRow,
                     textAlign: iconRow ? 'left' : 'center',
-                    minWidth: tightMetrics ? 42 : narrow ? 52 : 44,
+                    minWidth: iconRow ? 0 : tightMetrics ? 42 : narrow ? 52 : 44,
                   }}
                 >
                   <span style={stateBadgeStyle(st, narrow, tightMetrics, iconRow)} title={stateBadgeLabel(st, locale)}>
@@ -978,7 +978,7 @@ function DockerTableCompact({
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
                     paddingLeft: iconRow ? 0 : undefined,
-                    paddingRight: iconRow ? 2 : showContainerNames ? 4 : undefined,
+                    paddingRight: iconRow ? 0 : showContainerNames ? 4 : undefined,
                   }}
                 >
                   {showStatCpu ? fmtCpuCompact(cpuPct, running) : '—'}
@@ -993,8 +993,8 @@ function DockerTableCompact({
                     whiteSpace: 'nowrap',
                     overflow: iconRow ? undefined : 'hidden',
                     textOverflow: iconRow ? undefined : 'ellipsis',
-                    paddingLeft: iconRow ? 2 : showContainerNames ? 2 : undefined,
-                    paddingRight: iconRow ? 2 : undefined,
+                    paddingLeft: iconRow ? 0 : showContainerNames ? 2 : undefined,
+                    paddingRight: iconRow ? 0 : undefined,
                   }}
                 >
                   {showStatRam ? memStr : '—'}
@@ -1005,7 +1005,7 @@ function DockerTableCompact({
                     textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
-                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {!rowPending && showControls && anyBtn ? (
