@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.10',
+  version: '0.4.11',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -1145,21 +1145,37 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const tightMetrics = iconRow && narrow
 
   const tdRow: React.CSSProperties = tightMetrics
-    ? { ...tdCompact, padding: '2px 3px', fontSize: '10px' }
+    ? { ...tdCompact, padding: '1px 2px', fontSize: '10px' }
     : narrow
       ? { ...tdCompact, padding: '4px 5px', fontSize: '10px' }
       : iconRow
         ? { ...tdCompact, padding: '5px 4px' }
         : tdCompact
   const thDyn: React.CSSProperties = tightMetrics
-    ? { ...thStyle, fontSize: '8px', letterSpacing: '0.03em', padding: '4px 3px' }
+    ? { ...thStyle, fontSize: '8px', letterSpacing: '0.03em', padding: '3px 2px' }
     : narrow
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
   const thRow: React.CSSProperties = iconRow && !narrow ? { ...thDyn, padding: '5px 4px' } : thDyn
 
-  /** Gleiches Spaltenraster wie `plugins/docker` (`DockerTableCompact`): immer 5 Spalten, Aktionen-Spalte optional leer. */
-  const iconLeadColW = tightMetrics ? '54px' : '68px'
+  /** Gleiches Spaltenraster wie `DockerTableCompact`: 5 Spalten; Icon+schmal = eng + 100%-Breite. */
+  const colWidths: readonly (string | null)[] = iconRow
+    ? narrow
+      ? ['44px', '40px', '34px', '38px', '44px']
+      : ['64px', '52px', '42px', '50px', '46px']
+    : narrow
+      ? [null, '56px', '50px', '64px', '52px']
+      : [null, '78px', '62px', '74px', '64px']
+
+  const iconActBox: React.CSSProperties | null = iconRow
+    ? {
+        width: colWidths[4] as string,
+        maxWidth: colWidths[4] as string,
+        minWidth: colWidths[4] as string,
+        boxSizing: 'border-box',
+      }
+    : null
+
   const headers = narrow
     ? showContainerNames
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
@@ -1168,23 +1184,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  /**
-   * Namenszeile: `null` = Name.
-   * Icon-Zeile: alle Spalten px + `width: max-content`.
-   */
-  const colWidths: readonly (string | null)[] = iconRow
-    ? [iconLeadColW, '56px', '46px', '56px', '48px']
-    : narrow
-      ? [null, '56px', '50px', '64px', '52px']
-      : [null, '78px', '62px', '74px', '64px']
-
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
-  const tableMinW = !showContainerNames ? 300 : narrow ? 300 : 0
+  const tableMinW = narrow && showContainerNames ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
-  const actionBtnGap = tightMetrics ? 2 : iconRow ? 3 : narrow ? 4 : 6
+  const actionBtnGap = tightMetrics ? 1 : iconRow ? 3 : narrow ? 4 : 6
+
+  const tableLayoutWidth: React.CSSProperties['width'] = iconRow && narrow ? '100%' : iconRow ? 'max-content' : '100%'
 
   const fs = 'clamp(9px, 2.6cqmin, 11px)'
   const valuesLive = liveStats && (showStatCpu || showStatRam)
@@ -1208,14 +1216,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         {list.length === 0 ? (
           <p style={{ fontSize: fs, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Keine Container in der Liste.' : 'No containers in the list.'}</p>
         ) : compactTableView ? (
-          <div ref={tableWrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW ? 'auto' : undefined }}>
+          <div ref={tableWrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW > 0 ? 'auto' : undefined }}>
           <table
             style={{
-              width: iconRow ? 'max-content' : '100%',
+              width: tableLayoutWidth,
               maxWidth: '100%',
               borderCollapse: 'collapse',
               tableLayout: 'fixed',
-              minWidth: tableMinW || undefined,
+              minWidth: tableMinW > 0 ? tableMinW : undefined,
             }}
           >
             <colgroup>
@@ -1235,7 +1243,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   style={{
                     ...thRow,
                     textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
-                    ...(iconRow ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconActBox ?? {}),
                   }}
                 >
                   {headers[4]}
@@ -1412,8 +1420,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         color:
                           showStatRam && valuesLive && running && memDisplay !== '—' ? heatColorForPct(memPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
-                        overflow: iconRow ? undefined : 'hidden',
-                        textOverflow: iconRow ? undefined : 'ellipsis',
+                        overflow: iconRow && narrow ? 'hidden' : iconRow ? undefined : 'hidden',
+                        textOverflow: iconRow && narrow ? 'ellipsis' : iconRow ? undefined : 'ellipsis',
                         paddingLeft: iconRow ? 0 : showContainerNames ? 2 : undefined,
                         paddingRight: iconRow ? 0 : undefined,
                       }}
@@ -1427,9 +1435,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         textAlign: iconRow ? 'left' : tightMetrics ? 'left' : 'right',
                         whiteSpace: 'nowrap',
                         overflow: 'visible',
-                        ...(iconRow
-                          ? { width: '48px', maxWidth: '48px', minWidth: '48px', boxSizing: 'border-box' as const }
-                          : {}),
+                        ...(iconActBox ?? {}),
                       }}
                     >
                       {actionsOn && !rowPending && showControls && anyBtn ? (
