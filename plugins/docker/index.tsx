@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.0',
+  version: '1.8.1',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -789,12 +789,12 @@ function DockerTableCompact({
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  /** Icon row: status absorbs slack; CPU/RAM fixed side-by-side; AKT stays narrow. */
+  /** `null` = Restbreite (Namenspalte). Status/CPU/Speicher fest → Metrik-Spalten bleiben zusammen. */
   const colWidths: readonly (string | null)[] = iconRow
-    ? ['28px', null, '42px', '48px', '56px']
+    ? ['28px', '74px', '56px', '70px', '58px']
     : narrow
-      ? (['20%', '16%', '13%', '34%', '17%'] as const)
-      : (['38%', '11%', '16%', '19%', '16%'] as const)
+      ? [null, '56px', '50px', '64px', '52px']
+      : [null, '78px', '62px', '74px', '64px']
 
   const headers = narrow
     ? showContainerNames
@@ -837,7 +837,7 @@ function DockerTableCompact({
               style={{
                 ...thDyn,
                 textAlign: tightMetrics ? 'left' : 'right',
-                ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
               }}
             >
               {headers[4]}
@@ -933,10 +933,12 @@ function DockerTableCompact({
                         style={{
                           fontWeight: 600,
                           color: 'var(--text)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          flex: '1 1 auto',
                           minWidth: 0,
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          lineHeight: 1.25,
                         }}
                       >
                         {name}
@@ -964,7 +966,7 @@ function DockerTableCompact({
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
                     paddingLeft: iconRow ? 0 : undefined,
-                    paddingRight: iconRow ? 2 : undefined,
+                    paddingRight: iconRow ? 2 : showContainerNames ? 4 : undefined,
                   }}
                 >
                   {showStatCpu ? fmtCpuCompact(cpuPct, running) : '—'}
@@ -979,7 +981,7 @@ function DockerTableCompact({
                     whiteSpace: 'nowrap',
                     overflow: iconRow ? undefined : 'hidden',
                     textOverflow: iconRow ? undefined : 'ellipsis',
-                    paddingLeft: iconRow ? 2 : undefined,
+                    paddingLeft: iconRow ? 2 : showContainerNames ? 2 : undefined,
                     paddingRight: iconRow ? 2 : undefined,
                   }}
                 >
@@ -991,7 +993,7 @@ function DockerTableCompact({
                     textAlign: tightMetrics ? 'left' : 'right',
                     whiteSpace: 'nowrap',
                     overflow: 'visible',
-                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {!rowPending && showControls && anyBtn ? (

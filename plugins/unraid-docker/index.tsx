@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.6',
+  version: '0.4.7',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -1162,11 +1162,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
     : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
+  /** `null` = Restbreite (nur Namensspalte). Status/CPU/Speicher fest → CPU+RAM bleiben zusammen; kein aufgeblasener Status. */
   const colWidths: readonly (string | null)[] = iconRow
-    ? ['28px', null, '42px', '48px', '56px']
+    ? ['28px', '74px', '56px', '70px', '58px']
     : narrow
-      ? (['20%', '16%', '13%', '34%', '17%'] as const)
-      : (['38%', '11%', '16%', '19%', '16%'] as const)
+      ? [null, '56px', '50px', '64px', '52px']
+      : [null, '78px', '62px', '74px', '64px']
 
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
@@ -1224,7 +1225,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   style={{
                     ...thDyn,
                     textAlign: tightMetrics ? 'left' : 'right',
-                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                    ...(iconRow ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const } : {}),
                   }}
                 >
                   {headers[4]}
@@ -1354,10 +1355,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                             style={{
                               fontWeight: 600,
                               color: 'var(--text)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                              flex: '1 1 auto',
                               minWidth: 0,
+                              whiteSpace: 'normal',
+                              wordBreak: 'break-word',
+                              overflowWrap: 'anywhere',
+                              lineHeight: 1.25,
                             }}
                           >
                             {name}
@@ -1385,7 +1388,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         color: showStatCpu && valuesLive && running ? heatColorForPct(cpuPct) : 'var(--text-muted)',
                         whiteSpace: 'nowrap',
                         paddingLeft: iconRow ? 0 : undefined,
-                        paddingRight: iconRow ? 2 : undefined,
+                        paddingRight: iconRow ? 2 : showContainerNames ? 4 : undefined,
                       }}
                     >
                       {showStatCpu ? (valuesLive ? fmtCpuCompact(cpuPct, running) : '—') : '—'}
@@ -1401,7 +1404,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         whiteSpace: 'nowrap',
                         overflow: iconRow ? undefined : 'hidden',
                         textOverflow: iconRow ? undefined : 'ellipsis',
-                        paddingLeft: iconRow ? 2 : undefined,
+                        paddingLeft: iconRow ? 2 : showContainerNames ? 2 : undefined,
                         paddingRight: iconRow ? 2 : undefined,
                       }}
                       title={memFull}
@@ -1415,7 +1418,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                         whiteSpace: 'nowrap',
                         overflow: 'visible',
                         ...(iconRow
-                          ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
+                          ? { width: '58px', maxWidth: '58px', minWidth: '58px', boxSizing: 'border-box' as const }
                           : {}),
                       }}
                     >
