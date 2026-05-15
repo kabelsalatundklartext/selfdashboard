@@ -31,5 +31,8 @@ USER root
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV SELFDASHBOARD_DATA_DIR=/app/data
+
+RUN mkdir -p /app/data
 
 CMD ["node", "server.js"]

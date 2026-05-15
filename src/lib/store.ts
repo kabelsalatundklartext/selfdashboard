@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Dashboard, PluginInstance, ThemeId } from '@/types'
+import {
+  pickPersistedDashboardState,
+  type DashboardStatePersisted,
+} from '@/lib/dashboardStatePayload'
 import type { Locale } from './i18n'
 import type { SearchProviderId } from './searchProviders'
 import { defaultSearchProviders, normalizeSearchProviders, firstEnabledProviderId } from './searchProviders'
@@ -157,6 +161,7 @@ export const useDashboardStore = create<DashboardStore>()(
     }),
     {
       name: 'selfdashboard-v2',
+      partialize: (state) => pickPersistedDashboardState(state as unknown as DashboardStatePersisted),
       onRehydrateStorage: () => (state) => {
         if (state && state.dashboards.length === 0) {
           const m = migrateOldStore()
