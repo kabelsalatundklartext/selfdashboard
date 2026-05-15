@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link } from 'lucide-react'
+import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
 import { themes } from '@/lib/themes'
 import { t } from '@/lib/i18n'
@@ -144,13 +144,14 @@ export function SettingsModal({ open, onClose }: Props) {
             <button className="btn-ghost" style={{ padding: '6px' }} onClick={onClose}><X size={16} /></button>
           </div>
 
-          <div style={{ display: 'flex', gap: '4px', padding: '12px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', rowGap: '6px', padding: '12px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
             {TABS.map((tb) => (
               <button key={tb.id} onClick={() => setTab(tb.id)} style={{
                 padding: '6px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
                 background: tab === tb.id ? 'var(--accent)' : 'transparent',
                 color: tab === tb.id ? '#fff' : 'var(--text-muted)',
                 border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                flex: '1 1 auto', minWidth: 'min(100%, 100px)', textAlign: 'center',
               }}>{tb.label}</button>
             ))}
           </div>
@@ -341,7 +342,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px' }}>
                   {locale === 'de' ? 'Meine Dashboards' : 'My Dashboards'}
                 </label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input
                     ref={iconInputRef}
                     type="file"
@@ -385,53 +386,163 @@ export function SettingsModal({ open, onClose }: Props) {
                             </button>
                           </div>
                         ) : (
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px',
-                            background: d.id === activeDashboardId ? 'var(--accent)18' : 'var(--surface-2)',
-                            border: `1px solid ${d.id === activeDashboardId ? 'var(--accent)44' : 'var(--border)'}`,
-                          }}>
-                            {/* Icon */}
-                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                              <DashboardIcon icon={d.icon} size={22} />
-                            </div>
-                            {/* Name + URL */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>{d.name}</p>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                <Link size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, fontFamily: 'monospace' }}>/dashboard/{d.id}</p>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                              padding: '12px',
+                              borderRadius: '10px',
+                              background: d.id === activeDashboardId ? 'var(--accent)18' : 'var(--surface-2)',
+                              border: `1px solid ${d.id === activeDashboardId ? 'var(--accent)44' : 'var(--border)'}`,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', minWidth: 0 }}>
+                              <div
+                                style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '8px',
+                                  background: 'var(--surface)',
+                                  border: '1px solid var(--border)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  overflow: 'hidden',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <DashboardIcon icon={d.icon} size={22} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p
+                                  style={{
+                                    fontSize: '14px',
+                                    fontWeight: 600,
+                                    color: 'var(--text)',
+                                    margin: 0,
+                                    lineHeight: 1.3,
+                                    overflowWrap: 'anywhere',
+                                    wordBreak: 'break-word',
+                                  }}
+                                >
+                                  {d.name}
+                                </p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', minWidth: 0 }}>
+                                  <Link size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                                  <p
+                                    title={`/dashboard/${d.id}`}
+                                    style={{
+                                      fontSize: '11px',
+                                      color: 'var(--text-muted)',
+                                      margin: 0,
+                                      fontFamily: 'monospace',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    /dashboard/{d.id}
+                                  </p>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateDashboard(d.id, { hideTab: !d.hideTab })}
+                                  title={
+                                    d.hideTab
+                                      ? locale === 'de'
+                                        ? 'In Navbar einblenden'
+                                        : 'Show in navbar'
+                                      : locale === 'de'
+                                        ? 'In Navbar ausblenden'
+                                        : 'Hide from navbar'
+                                  }
+                                  style={{
+                                    background: 'var(--surface)',
+                                    border: `1px solid ${d.hideTab ? 'var(--border)' : 'var(--accent)44'}`,
+                                    borderRadius: '8px',
+                                    width: '36px',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: d.hideTab ? 'var(--text-muted)' : 'var(--accent)',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {d.hideTab ? <EyeOff size={17} /> : <Eye size={17} />}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingDash(d.id)}
+                                  title={locale === 'de' ? 'Bearbeiten' : 'Edit'}
+                                  style={{
+                                    background: 'var(--surface)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: '8px',
+                                    width: '36px',
+                                    height: '36px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: 'var(--text-muted)',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                {dashboards.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveDashboard(d.id)}
+                                    title={locale === 'de' ? 'Löschen' : 'Delete'}
+                                    style={{
+                                      background: 'var(--surface)',
+                                      border: '1px solid var(--border)',
+                                      borderRadius: '8px',
+                                      width: '36px',
+                                      height: '36px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      cursor: 'pointer',
+                                      color: 'var(--text-muted)',
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
                               </div>
                             </div>
-                            {/* Open */}
-                            <button onClick={() => { router.push(`/dashboard/${d.id}`); onClose() }}
-                              style={{ background: d.id === activeDashboardId ? 'var(--accent)' : 'var(--surface)', border: `1px solid ${d.id === activeDashboardId ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '7px', padding: '5px 10px', cursor: 'pointer', color: d.id === activeDashboardId ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, flexShrink: 0 }}>
-                              <ExternalLink size={12} /> {locale === 'de' ? 'Öffnen' : 'Open'}
-                            </button>
-                            {/* Tab visibility toggle */}
                             <button
-                              onClick={() => updateDashboard(d.id, { hideTab: !d.hideTab })}
-                              title={d.hideTab ? (locale === 'de' ? 'In Navbar einblenden' : 'Show in navbar') : (locale === 'de' ? 'In Navbar ausblenden' : 'Hide from navbar')}
+                              type="button"
+                              onClick={() => {
+                                router.push(`/dashboard/${d.id}`)
+                                onClose()
+                              }}
                               style={{
-                                background: d.hideTab ? 'var(--surface-2)' : 'var(--accent)18',
-                                border: `1px solid ${d.hideTab ? 'var(--border)' : 'var(--accent)44'}`,
-                                borderRadius: '7px', padding: '5px 8px', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                fontSize: '11px', color: d.hideTab ? 'var(--text-muted)' : 'var(--accent)',
-                                flexShrink: 0, transition: 'all 0.15s', fontWeight: 500,
-                              }}>
-                              <span style={{ fontSize: '13px', lineHeight: 1 }}>{d.hideTab ? '🙈' : '👁️'}</span>
-                              {d.hideTab ? (locale === 'de' ? 'Aus' : 'Off') : (locale === 'de' ? 'Ein' : 'On')}
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                border: `1px solid ${d.id === activeDashboardId ? 'var(--accent)' : 'var(--border)'}`,
+                                background: d.id === activeDashboardId ? 'var(--accent)' : 'var(--surface)',
+                                color: d.id === activeDashboardId ? '#fff' : 'var(--text)',
+                              }}
+                            >
+                              <ExternalLink size={15} /> {locale === 'de' ? 'Öffnen' : 'Open'}
                             </button>
-                            {/* Edit */}
-                            <button onClick={() => setEditingDash(d.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', flexShrink: 0 }}>✏️</button>
-                            {/* Delete */}
-                            {dashboards.length > 1 && (
-                              <button onClick={() => handleRemoveDashboard(d.id)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', flexShrink: 0 }}>
-                                <Trash2 size={14} />
-                              </button>
-                            )}
                           </div>
                         )}
                       </div>
@@ -445,16 +556,32 @@ export function SettingsModal({ open, onClose }: Props) {
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px' }}>
                   {locale === 'de' ? 'Neues Dashboard' : 'New Dashboard'}
                 </label>
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'center' }}>
-                  {/* Icon preview */}
-                  <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', cursor: 'pointer' }}
-                    onClick={() => newIconInputRef.current?.click()}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '10px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => newIconInputRef.current?.click()}
+                  >
                     <DashboardIcon icon={newIcon} size={30} />
                   </div>
-                  <input value={newName} onChange={(e) => setNewName(e.target.value)}
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddDashboard()}
                     placeholder={locale === 'de' ? 'z.B. Server' : 'e.g. Server'}
-                    style={{ ...inp, flex: 1 }} />
+                    style={{ ...inp, flex: '1 1 200px', minWidth: 0 }}
+                  />
                 </div>
                 {/* Emoji picker */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
