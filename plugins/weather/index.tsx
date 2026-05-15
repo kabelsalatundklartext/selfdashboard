@@ -24,7 +24,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.',
-  version: '1.2.1',
+  version: '1.2.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -458,9 +458,13 @@ function Widget({ config }: PluginWidgetProps) {
   const splitView = splitLayout && hasDaily
 
   const dayScale = dailyForecastScale
-  const dayScrollMinW = `${Math.min(72, Math.max(36, Math.round(48 * dayScale)))}px`
-  const dayGapFlex = `${Math.max(3, Math.round(6 * dayScale))}px`
   const dayGapGrid = `${Math.max(2, Math.round(5 * dayScale))}px`
+  /** Untereinander (schmal): festes 7-Spalten-Raster ohne Horizontal-Scroll. */
+  const dayGapStackTight = `${Math.max(1, Math.round(3 * dayScale))}px`
+  const padDayCell = (narrow: boolean) =>
+    narrow
+      ? `${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px`
+      : `${Math.max(3, Math.round(5 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(4 * dayScale))}px`
 
   return (
     <div
@@ -635,28 +639,15 @@ function Widget({ config }: PluginWidgetProps) {
               {t.nextDays}
             </p>
             <div
-              style={
-                splitView
-                  ? {
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                      gap: dayGapGrid,
-                      width: '100%',
-                      minHeight: 0,
-                      alignContent: 'center',
-                    }
-                  : {
-                      display: 'flex',
-                      flexDirection: 'row',
-                      gap: dayGapFlex,
-                      justifyContent: 'flex-start',
-                      overflowX: 'auto',
-                      overflowY: 'hidden',
-                      paddingBottom: '4px',
-                      WebkitOverflowScrolling: 'touch',
-                      scrollbarWidth: 'thin',
-                    }
-              }
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+                gap: splitView ? dayGapGrid : dayGapStackTight,
+                width: '100%',
+                minWidth: 0,
+                minHeight: 0,
+                alignContent: 'center',
+              }}
             >
               {daily.map((day) => {
                 const d = new Date(day.date + 'T12:00:00')
@@ -665,22 +656,21 @@ function Widget({ config }: PluginWidgetProps) {
                 const DayIcon = wmoIconComponent(day.code, true)
                 const dayColor = wmoIconColor(day.code, true)
                 const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
-                const padSplit = `${Math.max(3, Math.round(5 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(4 * dayScale))}px`
-                const padScroll = `${Math.max(2, Math.round(4 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px`
+                const narrowDaily = !splitView
+                const pad = padDayCell(narrowDaily)
                 const br = `${Math.max(6, Math.round(8 * dayScale))}px`
                 return (
                   <div
                     key={day.date}
                     title={tip}
                     style={{
-                      minWidth: splitView ? 0 : dayScrollMinW,
-                      width: splitView ? '100%' : undefined,
-                      flex: splitView ? undefined : '0 0 auto',
+                      minWidth: 0,
+                      width: '100%',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: `${Math.max(1, Math.round(2 * dayScale))}px`,
-                      padding: splitView ? padSplit : padScroll,
+                      padding: pad,
                       borderRadius: br,
                       background: 'color-mix(in srgb, var(--surface) 92%, var(--background))',
                       border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)',

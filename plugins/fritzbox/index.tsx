@@ -21,12 +21,11 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.2',
+  version: '2.4.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
   defaultLayout: { w: 4, h: 8, minW: 3, minH: 6 },
-  stackedExtraH: 2,
   configSchema: [
     {
       key: 'baseUrl',

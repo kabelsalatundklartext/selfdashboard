@@ -13,12 +13,13 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.11',
+  version: '0.4.12',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
   /** Halbe Rasterbreite (6/12) wie typisches Docker-Widget; minW verhindert zu schmale Spalte. */
   defaultLayout: { w: 6, h: 5, minW: 4 },
+  stackedExtraH: 2,
 }
 
 const LIST_QUERY = `query SelfDashboardUnraidDocker($skipCache: Boolean!) {

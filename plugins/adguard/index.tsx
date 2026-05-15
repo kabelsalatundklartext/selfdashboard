@@ -11,11 +11,10 @@ export const meta: PluginMeta = {
   name: 'AdGuard Home',
   description:
     'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
-  version: '1.1.4',
+  version: '1.1.5',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
-  stackedExtraH: 1,
 }
 
 function str(v: unknown): string {
