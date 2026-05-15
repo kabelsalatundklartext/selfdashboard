@@ -69,6 +69,40 @@ export function loadBuiltinPlugins() {
 
 ---
 
+## Checkliste: Was du implementierst — was automatisch kommt
+
+### Selbst umsetzen (Plugin-Code)
+
+| Thema | Kurzbeschreibung |
+|---|---|
+| **Datei** | `plugins/<id>/index.tsx` — `'use client'`, `export const meta`, `export const component` |
+| **Widget** | React-Komponente, die **`PluginWidgetProps`** nutzt; typisch **`height: '100%'`**, **`minWidth: 0`**, **`overflow`**, damit die Kachel sauber clippt |
+| **Theming** | Farben über **`var(--background)`**, **`var(--text)`**, **`var(--accent)`**, … (siehe Abschnitt CSS-Variablen) |
+| **Einstellungen** | Optional zweite Komponente **`Settings`** mit **`PluginSettingsProps`**; Felder schreiben per **`onChange('schlüssel', wert)`** in **`config`** |
+| **Daten / APIs** | **`fetch`** im Browser nur **same-origin** ohne CORS-Probleme; für externe URLs meist eine **Route unter `src/app/api/…`** im Hauptprojekt bauen und vom Widget `/api/…` aufrufen (wie bestehende Plugins) |
+| **Responsiv** | Optional Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'desktop'`) für unterschiedliche Darstellung — rein optional |
+| **Release** | **`src/lib/pluginLoader.ts`**: `import` + **`registerPlugin(meta, component)`**, dann **`npm run build`** bzw. Docker-Image neu bauen |
+
+### Automatisch vom Host (ohne Extra-Code im Plugin)
+
+| Thema | Kurzbeschreibung |
+|---|---|
+| **Store** | Nach erfolgreicher Registrierung erscheint das Plugin in der **Plugin-Auswahl** (`+` / Plugin-Store) |
+| **Kachel-UI** | **Verschieben**, **Größe ziehen**, **Bearbeiten-Rahmen**; **Zoom**, **Innenabstand**, **Höhe** pro Instanz; **⚙️** öffnet dein Settings-Modal (falls vorhanden); **Entfernen** |
+| **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** werden an **`Widget`** übergeben |
+| **Speichern** | Nutzer-**`config`** und Layout hängen am Dashboard und landen in **`dashboard.json`** (wenn `/app/data` gemountet) bzw. im lokalen Cache |
+| **Start-Layout** | **`meta.defaultLayout`** / **`stackedExtraH`** werden beim Hinzufügen mit Defaults gemischt |
+
+### Passiert nicht „von alleine“
+
+| Thema | Erklärung |
+|---|---|
+| **Custom-Pfad Unraid** | Dateien nur unter **`/app/plugins/custom`** legen **registriert** im **offiziellen Image** **kein** neues TypeScript-Plugin — der Code muss beim **Build** in `pluginLoader.ts` stecken |
+| **Eigene Server-API** | Es gibt keinen generischen Proxy; **serverseitige** Logik = **eigene** `src/app/api/...`-Route (oder bestehende wiederverwenden) |
+| **`configSchema` in `meta`** | Feld ist im Typ vorgesehen; die UI generiert daraus aktuell **kein** Formular automatisch — Einstellungen bleiben bei **`Settings`-Komponente** |
+
+---
+
 ## Builtin vs. Docker / Unraid (wichtig)
 
 - **`pluginLoader.ts`** liegt im **Quellcode** und wird beim **`next build`** / Docker-Image in die App **eingebunden**. Auf dem Server (Unraid, Docker) hängt man diese Datei **nicht** per Volume ein, um neue Plugins „nachzuladen“.
@@ -295,6 +329,37 @@ Immer CSS-Variablen verwenden damit das Plugin alle Themes unterstützt:
 
 ---
 
+## Typ-Referenz (`@/types`)
+
+### `PluginMeta` (wichtigste Felder)
+
+| Feld | Pflicht | Hinweis |
+|---|---|---|
+| `id`, `name`, `description`, `version`, `author`, `category` | ja | `id` stabil halten (gespeichert im Dashboard) |
+| `icon` | nein | Emoji oder Bild-URL |
+| `defaultLayout`, `minW`, … | nein | Startgröße beim Einfügen |
+| `stackedExtraH` | nein | Zusatzhöhe nur Anzeige im **gestapelten** Raster |
+| `configSchema` | nein | Reserviert; **keine** automatisch generierte Einstellungs-UI |
+
+### `PluginWidgetProps`
+
+| Prop | Typ | Beschreibung |
+|---|---|---|
+| `instanceId` | `string` | Eindeutige Instanz-ID |
+| `config` | `Record<string, unknown>` | Nutzer-Konfiguration |
+| `theme` | `ThemeId` | Aktives Farbschema |
+| `editMode` | `boolean?` | `true`, wenn Layout bearbeitet wird |
+| `layoutMode` | `'phone' \| 'tablet' \| 'desktop'?` | Raster-Modus des Dashboards (optional) |
+
+### `PluginSettingsProps`
+
+| Prop | Beschreibung |
+|---|---|
+| `config` | Aktuelle Werte |
+| `onChange` | `(key, value) => void` |
+
+---
+
 ## Plugin veröffentlichen
 
 1. GitHub Repo erstellen: `selfdashboard-plugin-meinname`
@@ -366,6 +431,40 @@ export function loadBuiltinPlugins() {
 
 ---
 
+## Checklist: what you build vs. what is automatic
+
+### You implement (plugin code)
+
+| Topic | Notes |
+|---|---|
+| **File** | `plugins/<id>/index.tsx` — `'use client'`, `export const meta`, `export const component` |
+| **Widget** | React component using **`PluginWidgetProps`**; usually **`height: '100%'`**, **`minWidth: 0`**, sensible **`overflow`** so the tile clips cleanly |
+| **Theming** | Prefer **`var(--background)`**, **`var(--text)`**, **`var(--accent)`**, … (see CSS variables below) |
+| **Settings** | Optional **`Settings`** component with **`PluginSettingsProps`**; write user fields via **`onChange('key', value)`** into **`config`** |
+| **Data / APIs** | Browser **`fetch`** is straightforward **same-origin**; for third-party URLs you typically add a **`src/app/api/...`** route in the main app and call **`/api/...`** from the widget (same pattern as built-in plugins) |
+| **Responsive** | Optional **`layoutMode`** (`'phone' \| 'tablet' \| 'desktop'`) — use if the widget should adapt to dashboard breakpoints |
+| **Shipping** | **`src/lib/pluginLoader.ts`**: `import` + **`registerPlugin(meta, component)`**, then **`npm run build`** / rebuild your Docker image |
+
+### Provided by the host app (no extra plugin code)
+
+| Topic | Notes |
+|---|---|
+| **Store** | After registration the plugin shows up in the **plugin picker** / store |
+| **Tile chrome** | **Drag**, **resize**, edit outline; per-instance **zoom**, **padding**, **height**; **⚙️** opens your `Settings` when exported; **remove** |
+| **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** are passed to **`Widget`** |
+| **Persistence** | User **`config`** and layout are tied to the dashboard and saved to **`dashboard.json`** (when `/app/data` is mounted) plus local cache |
+| **Initial layout** | **`meta.defaultLayout`** / **`stackedExtraH`** are merged with defaults when the user adds a widget |
+
+### Not automatic
+
+| Topic | Explanation |
+|---|---|
+| **Unraid custom path** | Dropping TS sources into **`/app/plugins/custom`** **does not** register a new plugin in the **stock** image — code must be linked in **`pluginLoader.ts`** at **build** time |
+| **Server API** | There is no generic proxy; **server-side** work means your own **`src/app/api/...`** route (or reuse an existing one) |
+| **`configSchema` on `meta`** | The field exists on the type; the UI **does not** auto-generate a form from it today — use a **`Settings`** component |
+
+---
+
 ## Builtin vs. Docker / Unraid (important)
 
 - **`pluginLoader.ts`** is **source code** bundled at **`next build`** / Docker image build time. You **do not** bind-mount it on Unraid or Docker to “inject” new plugins at runtime.
@@ -385,6 +484,9 @@ export function loadBuiltinPlugins() {
 | `author` | string | ✅ | Your name |
 | `category` | string | ✅ | See categories table |
 | `icon` | string | — | Emoji or image URL |
+| `defaultLayout` | object | — | Merged with defaults when adding a widget (`w`, `h`, `minW`, …) |
+| `stackedExtraH` | number | — | Extra display rows in stacked (phone) grid only |
+| `configSchema` | array | — | Reserved; **no** auto-generated settings UI yet |
 
 ---
 
@@ -394,7 +496,9 @@ export function loadBuiltinPlugins() {
 |---|---|---|
 | `instanceId` | string | Unique instance ID |
 | `config` | object | User-configured settings |
-| `theme` | string | Current theme ID |
+| `theme` | `ThemeId` | Current theme id |
+| `editMode` | `boolean?` | `true` while the dashboard layout is being edited |
+| `layoutMode` | `'phone' \| 'tablet' \| 'desktop'?` | Dashboard grid mode (optional for responsive widgets) |
 
 ---
 
