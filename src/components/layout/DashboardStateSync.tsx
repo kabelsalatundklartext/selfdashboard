@@ -34,23 +34,24 @@ function normalizeServerPayload(parsed: DashboardStatePersisted): DashboardState
 }
 
 /**
- * After localStorage rehydration: load shared config from server (`/api/dashboard-state` → `data/dashboard.json` or `/app/data`).
- * Then debounce-save any store changes back to the server so all browsers stay in sync.
+ * After localStorage rehydration: load shared config from server (`/api/dashboard-state` → `dashboard.json` under `/app/data`).
+ * Then debounce-save store changes to the server. Uses a per-effect `disposed` flag so React Strict Mode cleanups
+ * do not permanently skip registering the save subscription (a bug that looked like “never saved”).
  */
 export function DashboardStateSync() {
-  const cancelled = useRef(false)
   const saveUnsubRef = useRef<(() => void) | undefined>(undefined)
 
   useEffect(() => {
-    cancelled.current = false
+    let disposed = false
 
     const startSaveSubscription = () => {
-      if (saveUnsubRef.current) saveUnsubRef.current()
+      saveUnsubRef.current?.()
       let timer: ReturnType<typeof setTimeout> | undefined
-      saveUnsubRef.current = useDashboardStore.subscribe((state) => {
+      saveUnsubRef.current = useDashboardStore.subscribe(() => {
         clearTimeout(timer)
         timer = setTimeout(() => {
-          if (cancelled.current) return
+          if (disposed) return
+          const state = useDashboardStore.getState()
           const body = JSON.stringify(
             pickPersistedDashboardState(state as unknown as DashboardStatePersisted),
           )
@@ -63,10 +64,10 @@ export function DashboardStateSync() {
       })
     }
 
-    const loadFromServer = async () => {
+    const bootstrap = async () => {
       try {
         const r = await fetch('/api/dashboard-state', { cache: 'no-store' })
-        if (cancelled.current) return
+        if (disposed) return
         if (r.ok) {
           const raw: unknown = await r.json()
           if (validateDashboardStatePersisted(raw)) {
@@ -77,20 +78,20 @@ export function DashboardStateSync() {
       } catch {
         /* offline or first install */
       }
-      if (!cancelled.current) startSaveSubscription()
+      if (!disposed) startSaveSubscription()
     }
 
     let unsubHydration: (() => void) | undefined
     if (useDashboardStore.persist.hasHydrated()) {
-      void loadFromServer()
+      void bootstrap()
     } else {
       unsubHydration = useDashboardStore.persist.onFinishHydration(() => {
-        void loadFromServer()
+        void bootstrap()
       })
     }
 
     return () => {
-      cancelled.current = true
+      disposed = true
       saveUnsubRef.current?.()
       saveUnsubRef.current = undefined
       unsubHydration?.()
