@@ -10,6 +10,7 @@ import * as iframe from '../../plugins/iframe'
 import * as docker from '../../plugins/docker'
 import * as emby from '../../plugins/emby'
 import * as adguard from '../../plugins/adguard'
+import * as pihole from '../../plugins/pihole'
 import * as scratchpad from '../../plugins/scratchpad'
 import * as unraid from '../../plugins/unraid'
 import * as unraidDocker from '../../plugins/unraid-docker'
@@ -24,6 +25,7 @@ export function loadBuiltinPlugins() {
   registerPlugin(docker.meta, docker.component)
   registerPlugin(emby.meta, emby.component)
   registerPlugin(adguard.meta, adguard.component)
+  registerPlugin(pihole.meta, pihole.component)
   registerPlugin(fritzbox.meta, fritzbox.component)
   registerPlugin(scratchpad.meta, scratchpad.component)
   registerPlugin(unraid.meta, unraid.component)
