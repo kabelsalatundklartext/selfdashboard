@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.0',
+  version: '2.4.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -193,11 +193,16 @@ function pluginDe(r: Record<string, unknown>, dashboardDe: boolean): boolean {
   return dashboardDe
 }
 
-function formatMbps(bps: number | null, de: boolean): string {
-  if (bps == null || !Number.isFinite(bps) || bps <= 0) return '—'
+function formatMbpsParts(bps: number | null, de: boolean): { num: string; unit: string } {
+  if (bps == null || !Number.isFinite(bps) || bps <= 0) return { num: '—', unit: '' }
   const mbps = bps / 1_000_000
   const s = mbps >= 100 ? String(Math.round(mbps)) : mbps.toFixed(1)
-  return de ? `${s.replace('.', ',')} Mbit/s` : `${s} Mbit/s`
+  return { num: de ? s.replace('.', ',') : s, unit: 'Mbit/s' }
+}
+
+function formatMbps(bps: number | null, de: boolean): string {
+  const { num, unit } = formatMbpsParts(bps, de)
+  return unit ? `${num} ${unit}` : num
 }
 
 /** Obere Y-Achse in Mbit/s auf „schöne“ Stufe runden (5er/10er). */
@@ -246,43 +251,97 @@ function ThroughputStatPill({
   value,
   color,
   compact,
+  tight,
 }: {
   icon: LucideIcon
   label: string
   value: string
   color: string
   compact?: boolean
+  /** Schmale Karten (waagerecht): zweizeilig Zahl + Einheit, keine Überläufe. */
+  tight?: boolean
 }) {
+  const split =
+    tight && value !== '—' && /\s+Mbit\/s$/i.test(value)
+      ? { num: value.replace(/\s+Mbit\/s$/i, ''), unit: 'Mbit/s' as const }
+      : null
+
   return (
     <div
       style={{
-        borderRadius: compact ? '10px' : '12px',
+        borderRadius: tight ? '9px' : compact ? '10px' : '12px',
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.03) 0%, var(--surface-2) 50%, var(--surface-2) 100%)',
-        padding: compact ? '7px 9px' : '10px 12px',
+        padding: tight ? '6px 7px' : compact ? '7px 9px' : '10px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: compact ? 2 : 4,
+        gap: tight ? 2 : compact ? 2 : 4,
         minWidth: 0,
         minHeight: 0,
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: compact ? '9px' : '10px', color: 'var(--text-muted)' }}>
-        <Icon size={compact ? 12 : 14} strokeWidth={2.2} style={{ color, flexShrink: 0, opacity: 0.95 }} />
-        <span style={{ fontWeight: 700, color, letterSpacing: '0.02em' }}>{label}</span>
-      </div>
       <div
         style={{
-          fontSize: compact ? 'clamp(13px, 2cqw, 17px)' : 'clamp(15px, 2.2cqw, 20px)',
-          fontVariantNumeric: 'tabular-nums',
-          fontWeight: 700,
-          lineHeight: 1.15,
-          color: 'var(--text)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: tight ? '4px' : '6px',
+          fontSize: tight ? '8px' : compact ? '9px' : '10px',
+          color: 'var(--text-muted)',
+          minWidth: 0,
         }}
       >
-        {value}
+        <Icon
+          size={tight ? 11 : compact ? 12 : 14}
+          strokeWidth={2.2}
+          style={{ color, flexShrink: 0, opacity: 0.95 }}
+        />
+        <span
+          style={{
+            fontWeight: 700,
+            color,
+            letterSpacing: tight ? '0.01em' : '0.02em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+          }}
+        >
+          {label}
+        </span>
       </div>
+      {split ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: tight ? '12px' : compact ? 'clamp(12px, 2cqw, 16px)' : 'clamp(14px, 2.2cqw, 19px)',
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 700,
+              lineHeight: 1.08,
+              color: 'var(--text)',
+              wordBreak: 'break-all',
+            }}
+          >
+            {split.num}
+          </div>
+          <div style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', lineHeight: 1.1 }}>{split.unit}</div>
+        </div>
+      ) : (
+        <div
+          style={{
+            fontSize: tight ? '11px' : compact ? 'clamp(13px, 2cqw, 17px)' : 'clamp(15px, 2.2cqw, 20px)',
+            fontVariantNumeric: 'tabular-nums',
+            fontWeight: 700,
+            lineHeight: 1.15,
+            color: 'var(--text)',
+            wordBreak: 'break-word',
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {value}
+        </div>
+      )}
     </div>
   )
 }
@@ -400,22 +459,39 @@ function ThroughputHistoryChart({
   const statCount = [showStatAvgDown, showStatAvgUp, showStatPeakDown, showStatPeakUp].filter(Boolean).length
   const statRows = Math.max(1, Math.ceil(statCount / 2))
   const compact = panelSize.h > 0 && panelSize.h < 400
-  const statRowH = compact ? 48 : 54
-  const statsGridGap = compact ? 6 : 8
-  const statsBlockH = statRows * statRowH + (statRows - 1) * statsGridGap
-  const headerEst = showHeaderRow ? (compact ? 44 : 52) : 0
-  const chartFooterH = showChartFooter ? 14 : 0
-
   /** Strikt nach Einstellung — vermeidet Vermischung von Zeilen-/Spaltenlayout. */
   const layout: 'horizontal' | 'vertical' = layoutPref === 'horizontal' ? 'horizontal' : 'vertical'
+  const pillTight = layout === 'horizontal'
+  /** Reserve für Karten-Höhe (verhindert Abschneiden / Scrollen). Waagerecht etwas niedriger durch tight-Pills. */
+  const statRowH = pillTight ? (compact ? 50 : 54) : compact ? 56 : 64
+  const statsGridGap = compact ? 6 : 8
+  const statsBlockH = statRows * statRowH + (statRows - 1) * statsGridGap
+  const headerEst = showHeaderRow ? (compact ? 48 : 58) : 0
+  const chartFooterH = showChartFooter ? 14 : 0
+  /** Horizontales Inset nur für Kopfzeile & Karten — Grafik bleibt bündig links/rechts. */
+  const padX = compact ? 8 : 10
+  const yAxisColW = pillTight ? 48 : 52
+  const chartRowGap = 4
 
   let hPx = baseHPx
   if (layout === 'horizontal') {
     hPx = Math.min(baseHPx, Math.max(96, statsBlockH - chartFooterH))
   } else if (panelSize.h > 0) {
-    /** Senkrecht: verfügbare Höhe füllen (Vollbreite-Diagramm oben), begrenzt durch vertikales Cap. */
-    const slack = compact ? 28 : 36
-    const avail = Math.floor(panelSize.h - headerEst - statsBlockH - chartFooterH - slack)
+    /** Senkrecht: konservativ rechnen — untere Karten bleiben sichtbar (u. a. 3×H-Kacheln). */
+    const panelPadY = compact ? 16 : 22
+    const stackGap = compact ? 6 : 8
+    const afterChart = showChart ? (compact ? 8 : 12) : 0
+    const statsSafety = 24
+    const avail = Math.floor(
+      panelSize.h -
+        headerEst -
+        statsBlockH -
+        chartFooterH -
+        panelPadY -
+        stackGap -
+        afterChart -
+        statsSafety,
+    )
     if (avail >= baseHPx) {
       hPx = Math.min(FB_PLOT_H_VERTICAL_CAP, Math.max(baseHPx, avail))
     } else {
@@ -424,7 +500,18 @@ function ThroughputHistoryChart({
   }
 
   const headerBlock = showHeaderRow ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', minWidth: 0, overflow: 'visible' }}>
+    <div
+      style={{
+        paddingLeft: padX,
+        paddingRight: padX,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        width: '100%',
+        minWidth: 0,
+        overflow: 'visible',
+      }}
+    >
       {showTitle || showLegend ? (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px 14px', minWidth: 0 }}>
           {showTitle ? (
@@ -487,16 +574,16 @@ function ThroughputHistoryChart({
 
   const chartBody = showChart ? (
     <>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: '8px', minHeight: `${hPx}px` }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: `${chartRowGap}px`, minHeight: `${hPx}px` }}>
         <div
           style={{
             flexShrink: 0,
-            width: '58px',
+            width: `${yAxisColW}px`,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             textAlign: 'right',
-            padding: '2px 0 1px',
+            padding: '2px 2px 1px 0',
             userSelect: 'none',
           }}
           aria-hidden
@@ -507,7 +594,15 @@ function ThroughputHistoryChart({
             </span>
           ))}
         </div>
-        <div style={{ flex: 1, minWidth: 0, borderRadius: '8px', overflow: 'hidden', background: 'rgba(0,0,0,0.2)' }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            borderRadius: layout === 'vertical' ? 0 : '8px',
+            overflow: 'hidden',
+            background: 'rgba(0,0,0,0.2)',
+          }}
+        >
           <svg
             viewBox={`0 0 ${UW} ${UH}`}
             preserveAspectRatio="none"
@@ -568,7 +663,10 @@ function ThroughputHistoryChart({
             justifyContent: 'center',
             gap: '8px',
             marginTop: '2px',
-            paddingLeft: '66px',
+            width: '100%',
+            paddingLeft: 0,
+            paddingRight: 0,
+            boxSizing: 'border-box',
           }}
         >
           <span style={{ fontSize: '9px', color: 'var(--text-muted)', opacity: 0.88, textAlign: 'center' }}>
@@ -587,6 +685,10 @@ function ThroughputHistoryChart({
         gap: `${statsGridGap}px`,
         marginTop: layout === 'vertical' && showChart ? (compact ? 8 : 12) : 0,
         width: '100%',
+        boxSizing: 'border-box',
+        paddingLeft: layout === 'vertical' ? padX : 0,
+        paddingRight: layout === 'vertical' ? padX : 0,
+        flexShrink: layout === 'vertical' ? 0 : undefined,
         alignSelf: layout === 'horizontal' ? 'stretch' : undefined,
         minHeight: layout === 'horizontal' ? statsBlockH : undefined,
       }}
@@ -598,6 +700,7 @@ function ThroughputHistoryChart({
           value={formatMbps(avgDownBps, de)}
           color={FB_CHART_DL}
           compact={compact}
+          tight={pillTight}
         />
       ) : null}
       {showStatAvgUp ? (
@@ -607,6 +710,7 @@ function ThroughputHistoryChart({
           value={formatMbps(avgUpBps, de)}
           color={FB_CHART_UL}
           compact={compact}
+          tight={pillTight}
         />
       ) : null}
       {showStatPeakDown ? (
@@ -616,6 +720,7 @@ function ThroughputHistoryChart({
           value={formatMbps(peakDownBps, de)}
           color={FB_CHART_DL}
           compact={compact}
+          tight={pillTight}
         />
       ) : null}
       {showStatPeakUp ? (
@@ -625,6 +730,7 @@ function ThroughputHistoryChart({
           value={formatMbps(peakUpBps, de)}
           color={FB_CHART_UL}
           compact={compact}
+          tight={pillTight}
         />
       ) : null}
     </div>
@@ -684,6 +790,8 @@ function ThroughputHistoryChart({
               justifyContent: 'center',
               minHeight: 0,
               minWidth: 0,
+              paddingRight: padX,
+              boxSizing: 'border-box',
             }}
           >
             {statsSection}
@@ -699,7 +807,7 @@ function ThroughputHistoryChart({
           minHeight: 0,
           width: '100%',
           gap: compact ? 6 : 8,
-          overflow: 'auto',
+          overflow: 'hidden',
         }}
       >
         {chartColumn}
@@ -716,7 +824,8 @@ function ThroughputHistoryChart({
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: compact ? '6px 8px 8px' : '8px 8px 10px',
+        padding: compact ? '6px 0 7px' : '8px 0 10px',
+        boxSizing: 'border-box',
         flex: '1 1 auto',
         width: '100%',
         minWidth: 0,
