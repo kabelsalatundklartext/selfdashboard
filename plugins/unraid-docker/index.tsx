@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.4',
+  version: '0.4.5',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -831,7 +831,6 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [lastFetchOk, setLastFetchOk] = useState<number | null>(null)
   const latest = useRef(0)
-  const layoutRef = useRef<HTMLDivElement>(null)
   const tableWrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
 
@@ -1134,7 +1133,6 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     )
   }
 
-  const col5 = actionsOn
   const iconRow = !showContainerNames
   const tightMetrics = iconRow && narrow
 
@@ -1149,34 +1147,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       ? { ...thStyle, fontSize: '8px', letterSpacing: '0.04em', padding: '5px 5px' }
       : thStyle
 
-  const colWidths: (string | null)[] = iconRow
-    ? col5
-      ? ['28px', null, '42px', '48px', '56px']
-      : ['28px', null, '42px', '48px']
-    : narrow
-      ? col5
-        ? ['20%', '16%', '13%', '34%', '17%']
-        : ['24%', '20%', '13%', '43%']
-      : col5
-        ? ['38%', '11%', '16%', '19%', '16%']
-        : ['44%', '12%', '18%', '26%']
+  /** Gleiches Spaltenraster wie `plugins/docker` (`DockerTableCompact`): immer 5 Spalten, Aktionen-Spalte optional leer. */
+  const headers = narrow
+    ? showContainerNames
+      ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+      : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
+    : [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
-  const headRow: string[] = (() => {
-    if (!col5) {
-      if (narrow) {
-        return showContainerNames
-          ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.']
-          : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.']
-      }
-      return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory']
-    }
-    if (narrow) {
-      return showContainerNames
-        ? [de ? 'Name' : 'Name', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-        : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-    }
-    return [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
-  })()
+  const colWidths: readonly (string | null)[] = iconRow
+    ? ['28px', null, '42px', '48px', '56px']
+    : narrow
+      ? (['20%', '16%', '13%', '34%', '17%'] as const)
+      : (['38%', '11%', '16%', '19%', '16%'] as const)
 
   const metricAlign: React.CSSProperties['textAlign'] = iconRow ? 'right' : 'right'
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
@@ -1192,7 +1174,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
 
   return (
     <div style={shell}>
-      <div ref={layoutRef} style={scrollBody}>
+      <div style={scrollBody}>
         {!compactTableView ? (
           <Heading
             text={
@@ -1225,24 +1207,20 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             <thead>
               <tr>
                 <th style={thDyn} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
-                  {headRow[0] || '\u00a0'}
+                  {headers[0] || '\u00a0'}
                 </th>
-                <th style={{ ...thDyn, textAlign: 'center' }}>{headRow[1]}</th>
-                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[2]}</th>
-                <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headRow[3]}</th>
-                {col5 ? (
-                  <th
-                    style={{
-                      ...thDyn,
-                      textAlign: tightMetrics ? 'left' : 'right',
-                      ...(iconRow
-                        ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
-                        : {}),
-                    }}
-                  >
-                    {headRow[4]}
-                  </th>
-                ) : null}
+                <th style={{ ...thDyn, textAlign: 'center' }}>{headers[1]}</th>
+                <th style={{ ...thDyn, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
+                <th style={{ ...thDyn, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
+                <th
+                  style={{
+                    ...thDyn,
+                    textAlign: tightMetrics ? 'left' : 'right',
+                    ...(iconRow ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const } : {}),
+                  }}
+                >
+                  {headers[4]}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1422,19 +1400,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     >
                       {memDisplay}
                     </td>
-                    {col5 ? (
-                      <td
-                        style={{
-                          ...tdRow,
-                          textAlign: tightMetrics ? 'left' : 'right',
-                          whiteSpace: 'nowrap',
-                          overflow: 'visible',
-                          ...(iconRow
-                            ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
-                            : {}),
-                        }}
-                      >
-                        {!rowPending && showControls && anyBtn ? (
+                    <td
+                      style={{
+                        ...tdRow,
+                        textAlign: tightMetrics ? 'left' : 'right',
+                        whiteSpace: 'nowrap',
+                        overflow: 'visible',
+                        ...(iconRow
+                          ? { width: '56px', maxWidth: '56px', minWidth: '56px', boxSizing: 'border-box' as const }
+                          : {}),
+                      }}
+                    >
+                      {actionsOn && !rowPending && showControls && anyBtn ? (
                           <span
                             style={{
                               display: 'inline-flex',
@@ -1494,17 +1471,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                             {busy ? <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>…</span> : null}
                           </span>
                         ) : null}
-                      </td>
-                    ) : null}
+                    </td>
                   </tr>
                 )
 
                 if (showControls && rowPending) {
-                  const spanCols = col5 ? 5 : 4
                   const confirmRow = (
                     <tr key={`${cid || name}-confirm`} style={{ background: zebra }}>
                       <td
-                        colSpan={spanCols}
+                        colSpan={5}
                         style={{
                           padding: '0 8px 10px',
                           borderBottom: '1px solid color-mix(in srgb, var(--border) 85%, transparent)',
@@ -1868,15 +1843,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       >
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span aria-hidden style={{ fontSize: '15px', lineHeight: 1 }}>
-            🧱
+            🐳
           </span>
           <span>
             {de ? 'Gesamt' : 'Total'} {list.length}{' '}
             {list.length === 1 ? (de ? 'Container' : 'container') : de ? 'Container' : 'containers'}
           </span>
         </span>
-        <span style={{ whiteSpace: 'nowrap', flexShrink: 0, textAlign: 'right' }}>
-          {wsEnabled ? statsErr || fmtUpdatedAgo(lastFetchOk, locale) : de ? 'Live-Stats aus' : 'Live stats off'}
+        <span style={{ whiteSpace: 'nowrap', flexShrink: 0, color: statsErr ? '#f87171' : undefined }} title={!wsEnabled ? (de ? 'Live CPU/RAM aus' : 'Live CPU/RAM off') : undefined}>
+          {statsErr || fmtUpdatedAgo(lastFetchOk, locale)}
         </span>
       </div>
       ) : null}
