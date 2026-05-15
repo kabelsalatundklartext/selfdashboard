@@ -55,12 +55,32 @@ function validateWidgetLayout(x: unknown): boolean {
   return true
 }
 
+const LAYOUT_NUM_KEYS = ['x', 'y', 'w', 'h', 'minW', 'minH', 'maxW', 'maxH'] as const
+
+/** optionale Bruchstücke von WidgetLayout (API / Persistenz) */
+function validatePartialWidgetLayout(x: unknown): boolean {
+  if (x === undefined) return true
+  if (!isRecord(x)) return false
+  for (const k of LAYOUT_NUM_KEYS) {
+    if (!(k in x)) continue
+    const n = Number(x[k])
+    if (!Number.isFinite(n)) return false
+    if ((k === 'w' || k === 'h' || k === 'minW' || k === 'minH') && n <= 0) return false
+  }
+  for (const key of Object.keys(x)) {
+    if (!LAYOUT_NUM_KEYS.includes(key as (typeof LAYOUT_NUM_KEYS)[number])) return false
+  }
+  return true
+}
+
 function validatePluginInstance(x: unknown): boolean {
   if (!isRecord(x)) return false
   if (typeof x.instanceId !== 'string' || x.instanceId.length > 120) return false
   if (typeof x.pluginId !== 'string' || x.pluginId.length > 80) return false
   if (typeof x.config !== 'object' || x.config === null || Array.isArray(x.config)) return false
   if (!validateWidgetLayout(x.layout)) return false
+  if (x.layoutPhone !== undefined && !validatePartialWidgetLayout(x.layoutPhone)) return false
+  if (x.layoutTablet !== undefined && !validatePartialWidgetLayout(x.layoutTablet)) return false
   return true
 }
 

@@ -13,8 +13,10 @@ import 'react-resizable/css/styles.css'
 
 const COLS = 12
 const ROW_HEIGHT = 48
-/** Unterhalb dieser Rasterbreite (px): eine Spalte, Reihenfolge wie auf dem Desktop (y, dann x). */
-const STACK_BREAKPOINT_PX = 768
+/** Schmal (unter 768px Rasterbreite): Handy, gestapelt. */
+const PHONE_BREAKPOINT_PX = 768
+/** Ab dieser Rasterbreite: Desktop (12 Spalten). Zwischen PHONE und diesem Wert: Tablet. */
+const DESKTOP_BREAKPOINT_PX = 1024
 
 function coerceZoom(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
@@ -29,7 +31,7 @@ function stackedRowBoost(pluginId: string): number {
   return Math.min(24, Math.round(n))
 }
 
-/** Mobile / schmale Kachel: volle Breite, untereinander – x/y/w vom Desktop bleiben im Store unverändert. */
+/** Handy: eine Spalte — h/minH aus layoutPhone falls gesetzt, sonst Desktop-layout. */
 function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   const sorted = [...plugins].sort((a, b) => {
     const ay = a.layout?.y ?? 0
@@ -40,9 +42,11 @@ function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   let y = 0
   return sorted.map((p) => {
     const boost = stackedRowBoost(p.pluginId)
-    const baseH = Math.max(1, Math.round(p.layout?.h ?? 4))
+    const base = p.layout
+    const ph = p.layoutPhone ?? {}
+    const baseH = Math.max(1, Math.round(ph.h !== undefined ? ph.h : base?.h ?? 4))
     const h = baseH + boost
-    const minBase = Math.max(1, Math.round(p.layout?.minH ?? 1))
+    const minBase = Math.max(1, Math.round(ph.minH !== undefined ? ph.minH : base?.minH ?? 1))
     const minH = minBase + boost
     const item: Layout = {
       i: p.instanceId,
@@ -58,8 +62,37 @@ function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   })
 }
 
+/** Tablet: 12 Spalten, Merge aus layout + layoutTablet. */
+function buildTabletLayout(plugins: PluginInstance[]): Layout[] {
+  return plugins.map((p) => {
+    const base = p.layout
+    const o = p.layoutTablet ?? {}
+    const rawY = o.y !== undefined ? o.y : base.y
+    const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
+    return {
+      i: p.instanceId,
+      x: o.x !== undefined ? o.x : base.x ?? 0,
+      y,
+      w: Math.max(1, Math.round(o.w !== undefined ? o.w : base.w ?? 4)),
+      h: Math.max(1, Math.round(o.h !== undefined ? o.h : base.h ?? 4)),
+      minW: o.minW ?? base.minW ?? 1,
+      minH: o.minH ?? base.minH ?? 1,
+    }
+  })
+}
+
 export function DashboardGrid() {
-  const { activeDashboard, editMode, locale, updatePluginLayout, dashboardZoom, gridGap, gridPadding } = useDashboardStore()
+  const {
+    activeDashboard,
+    editMode,
+    locale,
+    updatePluginLayout,
+    updatePluginLayoutPhone,
+    updatePluginLayoutTablet,
+    dashboardZoom,
+    gridGap,
+    gridPadding,
+  } = useDashboardStore()
   const zoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins
@@ -116,8 +149,10 @@ export function DashboardGrid() {
     }
   }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode])
 
-  const isStacked = containerWidth < STACK_BREAKPOINT_PX
-  const gridCols = isStacked ? 1 : COLS
+  const isPhone = containerWidth < PHONE_BREAKPOINT_PX
+  const isTablet = !isPhone && containerWidth < DESKTOP_BREAKPOINT_PX
+  const layoutMode = isPhone ? 'phone' : isTablet ? 'tablet' : 'desktop'
+  const gridCols = isPhone ? 1 : COLS
 
   const desktopLayout: Layout[] = useMemo(
     () =>
@@ -138,29 +173,38 @@ export function DashboardGrid() {
   )
 
   const stackedLayout = useMemo(() => buildStackedLayout(plugins), [plugins])
+  const tabletLayout = useMemo(() => buildTabletLayout(plugins), [plugins])
 
-  const gridLayout = isStacked ? stackedLayout : desktopLayout
+  const gridLayout = isPhone ? stackedLayout : isTablet ? tabletLayout : desktopLayout
 
   const handleLayoutChange = useCallback(
     (next: Layout[]) => {
-      if (isStacked) {
+      if (layoutMode === 'phone') {
         next.forEach((item) => {
           const p = plugins.find((pr) => pr.instanceId === item.i)
           const boost = p ? stackedRowBoost(p.pluginId) : 0
           const prev = p?.layout
+          if (!p) return
+          const minStoreH = Math.max(1, p.layoutPhone?.minH ?? prev?.minH ?? 1)
           if (!prev) {
             const savedH = Math.max(1, item.h - boost)
-            updatePluginLayout(item.i, { x: 0, y: 0, w: 4, h: savedH, minW: 1, minH: 1 })
+            updatePluginLayoutPhone(item.i, { h: Math.max(minStoreH, savedH) })
             return
           }
-          const minStoreH = Math.max(1, prev.minH ?? 1)
           const savedH = Math.max(minStoreH, item.h - boost)
-          updatePluginLayout(item.i, {
-            ...prev,
-            x: prev.x ?? 0,
-            y: prev.y ?? 0,
-            w: prev.w ?? 4,
-            h: savedH,
+          updatePluginLayoutPhone(item.i, { h: savedH })
+        })
+        return
+      }
+      if (layoutMode === 'tablet') {
+        next.forEach((item) => {
+          const p = plugins.find((pr) => pr.instanceId === item.i)
+          if (!p) return
+          updatePluginLayoutTablet(item.i, {
+            x: item.x,
+            y: item.y,
+            w: item.w,
+            h: item.h,
           })
         })
         return
@@ -176,7 +220,7 @@ export function DashboardGrid() {
         })
       })
     },
-    [isStacked, plugins, updatePluginLayout]
+    [layoutMode, plugins, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
   )
 
   if (plugins.length === 0) {
@@ -221,20 +265,22 @@ export function DashboardGrid() {
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
             <span>✏️</span>
-            <span>{isStacked ? t(locale, 'mobileStackHint') : t(locale, 'editModeHint')}</span>
+            <span>
+              {layoutMode === 'phone' ? t(locale, 'mobileStackHint') : layoutMode === 'tablet' ? t(locale, 'tabletLayoutHint') : t(locale, 'editModeHint')}
+            </span>
           </div>
         )}
 
         <div ref={measureRef} style={{ width: '100%', minWidth: 0 }}>
         <GridLayout
-          key={isStacked ? 'stacked' : 'desktop'}
+          key={layoutMode}
           className="layout"
           layout={gridLayout}
           cols={gridCols}
           rowHeight={ROW_HEIGHT}
           width={containerWidth}
-          compactType={isStacked ? null : 'vertical'}
-          isDraggable={editMode && !isStacked}
+          compactType={isPhone ? null : 'vertical'}
+          isDraggable={editMode && !isPhone}
           isResizable={editMode}
           onLayoutChange={handleLayoutChange}
           margin={[gridGap, gridGap]}
@@ -244,7 +290,7 @@ export function DashboardGrid() {
         >
           {plugins.map((instance) => (
             <div key={instance.instanceId} style={{ height: '100%', width: '100%', minHeight: 0, minWidth: 0 }}>
-              <WidgetWrapper instance={instance} editMode={editMode} />
+              <WidgetWrapper instance={instance} editMode={editMode} layoutMode={layoutMode} />
             </div>
           ))}
         </GridLayout>

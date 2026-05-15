@@ -7,9 +7,12 @@ import { useDashboardStore } from '@/lib/store'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
 import type { PluginInstance } from '@/types'
 
+export type WidgetLayoutMode = 'phone' | 'tablet' | 'desktop'
+
 interface Props {
   instance: PluginInstance
   editMode?: boolean
+  layoutMode?: WidgetLayoutMode
 }
 
 function coercePluginZoom(v: unknown): number {
@@ -24,10 +27,11 @@ function coercePadding(v: unknown): number {
   return Math.max(0, Math.min(48, Math.round(n)))
 }
 
-export function WidgetWrapper({ instance, editMode }: Props) {
+export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Props) {
   const [hovering, setHovering] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
-  const { activeDashboard, removePlugin, updatePluginConfig, updatePluginLayout } = useDashboardStore()
+  const { activeDashboard, removePlugin, updatePluginConfig, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet } =
+    useDashboardStore()
   const dash = activeDashboard()
   const registered = pluginRegistry.get(instance.pluginId)
 
@@ -40,9 +44,25 @@ export function WidgetWrapper({ instance, editMode }: Props) {
     updatePluginConfig(instance.instanceId, { __zoom: coercePluginZoom(zoom) })
   const setPluginPadding = (p: number) =>
     updatePluginConfig(instance.instanceId, { __padding: coercePadding(p) })
+  const base = instance.layout
+  const toolbarH =
+    layoutMode === 'phone'
+      ? (instance.layoutPhone?.h ?? base.h ?? 4)
+      : layoutMode === 'tablet'
+        ? (instance.layoutTablet?.h ?? base.h ?? 4)
+        : (base.h ?? 4)
+  const minToolbarH =
+    layoutMode === 'phone'
+      ? Math.max(1, instance.layoutPhone?.minH ?? base.minH ?? 1)
+      : layoutMode === 'tablet'
+        ? Math.max(1, instance.layoutTablet?.minH ?? base.minH ?? 1)
+        : Math.max(1, base.minH ?? 1)
+
   const changeHeight = (delta: number) => {
-    const h = Math.max(1, (instance.layout?.h ?? 4) + delta)
-    updatePluginLayout(instance.instanceId, { ...instance.layout, h })
+    const h = Math.max(minToolbarH, toolbarH + delta)
+    if (layoutMode === 'phone') updatePluginLayoutPhone(instance.instanceId, { h })
+    else if (layoutMode === 'tablet') updatePluginLayoutTablet(instance.instanceId, { h })
+    else updatePluginLayout(instance.instanceId, { ...instance.layout, h })
   }
 
   if (!registered) {
@@ -145,9 +165,9 @@ export function WidgetWrapper({ instance, editMode }: Props) {
 
             {/* Height */}
             <div style={ctrlBox}>
-              <button style={ctrlBtn((instance.layout?.h ?? 4) > 1)} onClick={() => changeHeight(-1)}>−</button>
+              <button style={ctrlBtn(toolbarH > minToolbarH)} onClick={() => changeHeight(-1)}>−</button>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1 }}>↕</span>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{instance.layout?.h ?? 4}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{toolbarH}</span>
               <button style={ctrlBtn()} onClick={() => changeHeight(1)}>+</button>
             </div>
 

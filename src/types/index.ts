@@ -50,7 +50,18 @@ export interface PluginInstance {
   instanceId: string
   pluginId: string
   config: Record<string, unknown>
+  /** Desktop / große Ansicht (12 Spalten, ab 1024px Rasterbreite). */
   layout: WidgetLayout
+  /**
+   * Schmale Ansicht (Handy, unter 768px Rasterbreite): gestapelt 1 Spalte — überschreibt nur gesetzte Felder (typisch `h`, `minH`).
+   * Unbesetzt = gleiche Werte wie `layout`.
+   */
+  layoutPhone?: Partial<WidgetLayout>
+  /**
+   * Tablet (768–1023px Rasterbreite): 12-Spalten-Raster wie Desktop — überschreibt nur gesetzte Felder (`w`, `h`, `x`, `y`, …).
+   * Unbesetzt = gleiche Werte wie `layout`.
+   */
+  layoutTablet?: Partial<WidgetLayout>
 }
 
 export interface WidgetLayout {

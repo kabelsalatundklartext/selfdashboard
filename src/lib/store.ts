@@ -78,6 +78,18 @@ interface DashboardStore {
   removePlugin: (instanceId: string) => void
   updatePluginConfig: (instanceId: string, config: Record<string, unknown>) => void
   updatePluginLayout: (instanceId: string, layout: PluginInstance['layout']) => void
+  /** Handy-Override zusammenführen (gestapeltes Layout). */
+  updatePluginLayoutPhone: (instanceId: string, patch: Partial<PluginInstance['layout']>) => void
+  /** Tablet-Override zusammenführen (12 Spalten). */
+  updatePluginLayoutTablet: (instanceId: string, patch: Partial<PluginInstance['layout']>) => void
+  /** Responsive Overrides ersetzen oder löschen (`null` = Override entfernen). */
+  setPluginResponsiveLayouts: (
+    instanceId: string,
+    layouts: Partial<{
+      layoutPhone: Partial<PluginInstance['layout']> | null
+      layoutTablet: Partial<PluginInstance['layout']> | null
+    }>,
+  ) => void
   setNavbarSearchEnabled: (enabled: boolean) => void
   setNavbarSearchPosition: (position: 'left' | 'center' | 'right') => void
   setNavbarSearchProviderEnabled: (id: SearchProviderId, enabled: boolean) => void
@@ -143,6 +155,74 @@ export const useDashboardStore = create<DashboardStore>()(
       removePlugin: (instanceId) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.filter((p) => p.instanceId !== instanceId) } : d) })) },
       updatePluginConfig: (instanceId, config) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, config: { ...p.config, ...config } } : p) } : d) })) },
       updatePluginLayout: (instanceId, layout) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, layout } : p) } : d) })) },
+      updatePluginLayoutPhone: (instanceId, patch) => {
+        const id = get().activeDashboardId
+        set((s) => ({
+          dashboards: s.dashboards.map((d) => {
+            if (d.id !== id) return d
+            return {
+              ...d,
+              plugins: d.plugins.map((p) => {
+                if (p.instanceId !== instanceId) return p
+                const merged = { ...(p.layoutPhone ?? {}), ...patch }
+                const cleaned = Object.fromEntries(
+                  Object.entries(merged).filter(([, v]) => v !== undefined),
+                ) as Partial<PluginInstance['layout']>
+                return Object.keys(cleaned).length > 0 ? { ...p, layoutPhone: cleaned } : { ...p, layoutPhone: undefined }
+              }),
+            }
+          }),
+        }))
+      },
+      updatePluginLayoutTablet: (instanceId, patch) => {
+        const id = get().activeDashboardId
+        set((s) => ({
+          dashboards: s.dashboards.map((d) => {
+            if (d.id !== id) return d
+            return {
+              ...d,
+              plugins: d.plugins.map((p) => {
+                if (p.instanceId !== instanceId) return p
+                const merged = { ...(p.layoutTablet ?? {}), ...patch }
+                const cleaned = Object.fromEntries(
+                  Object.entries(merged).filter(([, v]) => v !== undefined),
+                ) as Partial<PluginInstance['layout']>
+                return Object.keys(cleaned).length > 0 ? { ...p, layoutTablet: cleaned } : { ...p, layoutTablet: undefined }
+              }),
+            }
+          }),
+        }))
+      },
+      setPluginResponsiveLayouts: (instanceId, layouts) => {
+        const id = get().activeDashboardId
+        set((s) => ({
+          dashboards: s.dashboards.map((d) => {
+            if (d.id !== id) return d
+            return {
+              ...d,
+              plugins: d.plugins.map((p) => {
+                if (p.instanceId !== instanceId) return p
+                let next: PluginInstance = { ...p }
+                if ('layoutPhone' in layouts) {
+                  if (layouts.layoutPhone === null) next = { ...next, layoutPhone: undefined }
+                  else if (layouts.layoutPhone !== undefined) {
+                    const lp = layouts.layoutPhone
+                    next = Object.keys(lp).length > 0 ? { ...next, layoutPhone: lp } : { ...next, layoutPhone: undefined }
+                  }
+                }
+                if ('layoutTablet' in layouts) {
+                  if (layouts.layoutTablet === null) next = { ...next, layoutTablet: undefined }
+                  else if (layouts.layoutTablet !== undefined) {
+                    const lt = layouts.layoutTablet
+                    next = Object.keys(lt).length > 0 ? { ...next, layoutTablet: lt } : { ...next, layoutTablet: undefined }
+                  }
+                }
+                return next
+              }),
+            }
+          }),
+        }))
+      },
       setNavbarSearchEnabled: (navbarSearchEnabled) => set({ navbarSearchEnabled }),
       setNavbarSearchPosition: (navbarSearchPosition) => set({ navbarSearchPosition }),
       setNavbarSearchProviderEnabled: (id, enabled) => set((s) => {

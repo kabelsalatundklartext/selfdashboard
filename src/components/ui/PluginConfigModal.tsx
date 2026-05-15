@@ -5,7 +5,8 @@ import { X, Settings } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { Portal } from '@/components/ui/Portal'
-import type { PluginInstance } from '@/types'
+import { t } from '@/lib/i18n'
+import type { PluginInstance, WidgetLayout } from '@/types'
 
 interface Props {
   instance: PluginInstance
@@ -13,14 +14,60 @@ interface Props {
   onClose: () => void
 }
 
+function parseOptPositiveInt(s: string): number | undefined {
+  const x = s.trim()
+  if (!x) return undefined
+  const n = Math.round(Number(x))
+  if (!Number.isFinite(n) || n < 1) return undefined
+  return n
+}
+
+function parseOptNonNegInt(s: string): number | undefined {
+  const x = s.trim()
+  if (!x) return undefined
+  const n = Math.round(Number(x))
+  if (!Number.isFinite(n) || n < 0) return undefined
+  return n
+}
+
+const fieldInput: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  borderRadius: '8px',
+  border: '1px solid var(--border)',
+  background: 'var(--surface-2)',
+  color: 'var(--text)',
+  fontSize: '13px',
+  boxSizing: 'border-box',
+}
+
 export function PluginConfigModal({ instance, open, onClose }: Props) {
-  const { updatePluginConfig } = useDashboardStore()
+  const { updatePluginConfig, setPluginResponsiveLayouts, locale } = useDashboardStore()
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>({ ...instance.config })
+  const [phoneH, setPhoneH] = useState('')
+  const [phoneMinH, setPhoneMinH] = useState('')
+  const [tabW, setTabW] = useState('')
+  const [tabH, setTabH] = useState('')
+  const [tabX, setTabX] = useState('')
+  const [tabY, setTabY] = useState('')
+  const [tabMinH, setTabMinH] = useState('')
   const registered = pluginRegistry.get(instance.pluginId)
 
   useEffect(() => {
-    if (open) setLocalConfig({ ...instance.config })
-  }, [open, instance.instanceId])
+    if (!open) return
+    const live = useDashboardStore.getState().activeDashboard().plugins.find((p) => p.instanceId === instance.instanceId)
+    const inst = live ?? instance
+    setLocalConfig({ ...inst.config })
+    const ph = inst.layoutPhone ?? {}
+    setPhoneH(ph.h != null ? String(ph.h) : '')
+    setPhoneMinH(ph.minH != null ? String(ph.minH) : '')
+    const tt = inst.layoutTablet ?? {}
+    setTabW(tt.w != null ? String(tt.w) : '')
+    setTabH(tt.h != null ? String(tt.h) : '')
+    setTabX(tt.x != null ? String(tt.x) : '')
+    setTabY(tt.y != null ? String(tt.y) : '')
+    setTabMinH(tt.minH != null ? String(tt.minH) : '')
+  }, [open, instance.instanceId, instance])
 
   if (!open || !registered) return null
 
@@ -34,8 +81,44 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
     const { dashboards, activeDashboardId } = useDashboardStore.getState()
     const dash = dashboards.find((d) => d.id === activeDashboardId)
     const live = dash?.plugins.find((p) => p.instanceId === instance.instanceId)
-    const base = (live?.config ?? instance.config) as Record<string, unknown>
+    const inst = live ?? instance
+    const base = (inst.config ?? {}) as Record<string, unknown>
     updatePluginConfig(instance.instanceId, { ...base, ...localConfig })
+
+    const phonePart: Partial<WidgetLayout> = {}
+    const pH = parseOptPositiveInt(phoneH)
+    const pMin = parseOptPositiveInt(phoneMinH)
+    if (pH !== undefined) phonePart.h = pH
+    if (pMin !== undefined) phonePart.minH = pMin
+    const hadPhone = !!(inst.layoutPhone && Object.keys(inst.layoutPhone).length)
+
+    const tabPart: Partial<WidgetLayout> = {}
+    const tW = parseOptPositiveInt(tabW)
+    const tH = parseOptPositiveInt(tabH)
+    const tX = parseOptNonNegInt(tabX)
+    const tY = parseOptNonNegInt(tabY)
+    const tMin = parseOptPositiveInt(tabMinH)
+    if (tW !== undefined) tabPart.w = tW
+    if (tH !== undefined) tabPart.h = tH
+    if (tX !== undefined) tabPart.x = tX
+    if (tY !== undefined) tabPart.y = tY
+    if (tMin !== undefined) tabPart.minH = tMin
+    const hadTablet = !!(inst.layoutTablet && Object.keys(inst.layoutTablet).length)
+
+    const responsivePatch: {
+      layoutPhone?: Partial<WidgetLayout> | null
+      layoutTablet?: Partial<WidgetLayout> | null
+    } = {}
+
+    if (Object.keys(phonePart).length > 0) responsivePatch.layoutPhone = phonePart
+    else if (hadPhone) responsivePatch.layoutPhone = null
+
+    if (Object.keys(tabPart).length > 0) responsivePatch.layoutTablet = tabPart
+    else if (hadTablet) responsivePatch.layoutTablet = null
+
+    if (Object.keys(responsivePatch).length > 0) {
+      setPluginResponsiveLayouts(instance.instanceId, responsivePatch)
+    }
     onClose()
   }
 
@@ -52,7 +135,6 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
           padding: '1rem',
         }}
       >
-        {/* Backdrop */}
         <div
           style={{
             position: 'absolute',
@@ -63,7 +145,6 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
           onClick={onClose}
         />
 
-        {/* Modal */}
         <div
           className="animate-fade-in"
           style={{
@@ -79,7 +160,6 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
           }}
         >
-          {/* Header */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '12px',
             padding: '20px', paddingBottom: '16px',
@@ -106,7 +186,6 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             </button>
           </div>
 
-          {/* Content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
             {SettingsComponent ? (
               <SettingsComponent config={localConfig} onChange={handleChange} />
@@ -116,9 +195,60 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
                 <p style={{ fontSize: '14px' }}>Dieses Plugin hat keine Einstellungen.</p>
               </div>
             )}
+
+            <div style={{ marginTop: '22px', paddingTop: '18px', borderTop: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', margin: '0 0 6px' }}>
+                {t(locale, 'responsiveLayoutTitle')}
+              </p>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px', lineHeight: 1.45 }}>
+                {t(locale, 'responsiveLayoutIntro')}
+              </p>
+
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {t(locale, 'responsivePhoneSection')}
+              </p>
+              <div style={{ display: 'grid', gap: '10px', marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsiveHeight')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={phoneH} onChange={(e) => setPhoneH(e.target.value)} inputMode="numeric" />
+                </label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsiveMinHeight')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={phoneMinH} onChange={(e) => setPhoneMinH(e.target.value)} inputMode="numeric" />
+                </label>
+              </div>
+
+              <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                {t(locale, 'responsiveTabletSection')}
+              </p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+                {t(locale, 'responsiveTabletSaveHint')}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsiveWidth')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={tabW} onChange={(e) => setTabW(e.target.value)} inputMode="numeric" />
+                </label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsiveHeight')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={tabH} onChange={(e) => setTabH(e.target.value)} inputMode="numeric" />
+                </label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsivePosX')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={tabX} onChange={(e) => setTabX(e.target.value)} inputMode="numeric" />
+                </label>
+                <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsivePosY')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={tabY} onChange={(e) => setTabY(e.target.value)} inputMode="numeric" />
+                </label>
+                <label style={{ gridColumn: '1 / -1', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {t(locale, 'responsiveMinHeight')}
+                  <input style={{ ...fieldInput, marginTop: '4px' }} value={tabMinH} onChange={(e) => setTabMinH(e.target.value)} inputMode="numeric" />
+                </label>
+              </div>
+            </div>
           </div>
 
-          {/* Footer */}
           <div style={{
             display: 'flex', gap: '12px', padding: '16px 20px',
             borderTop: '1px solid var(--border)', flexShrink: 0,
