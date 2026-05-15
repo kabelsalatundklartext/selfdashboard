@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Unraid Docker',
   description:
     'Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).',
-  version: '0.4.13',
+  version: '0.4.15',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
@@ -21,6 +21,11 @@ export const meta: PluginMeta = {
   defaultLayout: { w: 6, h: 5, minW: 4 },
   stackedExtraH: 2,
 }
+
+/** Messbare Tabellen-/Kachelbreite (px): engeres Padding, wenn darunter. */
+const COMPACT_TABLE_NARROW_PX = 440
+/** Ab dieser Breite in der kompakten Tabelle Namen automatisch, wenn die Einstellung aus ist. */
+const COMPACT_TABLE_AUTO_NAMES_MIN_PX = 520
 
 const LIST_QUERY = `query SelfDashboardUnraidDocker($skipCache: Boolean!) {
   docker {
@@ -799,7 +804,7 @@ async function graphql<T>(
   return json.data
 }
 
-function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const url = String((config as Record<string, unknown>).url ?? '')
     .trim()
@@ -811,8 +816,6 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const compactTableView = cfgBool(r.homarrTable, true)
   const useDashboardIcons = cfgBool(r.useDashboardIcons, true)
   const showContainerNames = cfgBool(r.showContainerNames, false)
-  /** Tablet-Raster: Namen in der kompakten Tabelle erzwingen (Handy: Weiter wie Einstellung). */
-  const showNamesEffective = showContainerNames || layoutMode === 'tablet'
   const memoryShowLimit = cfgBool(r.memoryShowLimit, false)
   const actionsOn = cfgBool(r.allowActions, true)
   const liveStats = cfgBool(r.liveStats, true)
@@ -844,6 +847,7 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const latest = useRef(0)
   const tableWrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
+  const [autoNamesByWidth, setAutoNamesByWidth] = useState(false)
 
   const editMode = useDashboardStore((s) => s.editMode)
   const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
@@ -1016,14 +1020,16 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
     if (!el || typeof ResizeObserver === 'undefined') return
     const apply = () => {
       const w = el.getBoundingClientRect().width
-      const next = w > 0 && w < 440
-      setNarrow((prev) => (prev === next ? prev : next))
+      const nextNarrow = w > 0 && w < COMPACT_TABLE_NARROW_PX
+      const nextAuto = w >= COMPACT_TABLE_AUTO_NAMES_MIN_PX
+      setNarrow((prev) => (prev === nextNarrow ? prev : nextNarrow))
+      setAutoNamesByWidth((prev) => (prev === nextAuto ? prev : nextAuto))
     }
     apply()
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [compactTableView, actionsOn, list.length, showNamesEffective])
+  }, [compactTableView, actionsOn, list.length, showContainerNames])
 
   const shell: React.CSSProperties = {
     height: '100%',
@@ -1144,6 +1150,7 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
     )
   }
 
+  const showNamesEffective = showContainerNames || autoNamesByWidth
   const iconRow = !showNamesEffective
   const tightMetrics = iconRow && narrow
 
@@ -1195,7 +1202,7 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 1 : iconRow ? 3 : narrow ? 4 : 6
 
-  const tableLayoutWidth: React.CSSProperties['width'] = iconRow && narrow ? '100%' : iconRow ? 'max-content' : '100%'
+  const tableLayoutWidth: React.CSSProperties['width'] = '100%'
 
   const fs = 'clamp(9px, 2.6cqmin, 11px)'
   const valuesLive = liveStats && (showStatCpu || showStatRam)
@@ -1953,8 +1960,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <ToggleRow
           label={
             de
-              ? 'Namen in der Tabelle anzeigen (aus: nur Icon, Name im Tooltip)'
-              : 'Show names in table (off: icon only, name in tooltip)'
+              ? 'Namen in der Tabelle anzeigen (aus: nur Icon — ab ca. 520 px Kachelbreite trotzdem automatisch)'
+              : 'Show names in table (off: icon only — auto when the tile is ~520px+ wide)'
           }
           on={sub('showContainerNames', false)}
           onToggle={() => onChange('showContainerNames', !sub('showContainerNames', false))}

@@ -11,13 +11,21 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.7',
+  version: '1.8.9',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
   defaultLayout: { w: 6, h: 5, minW: 4 },
   stackedExtraH: 2,
 }
+
+/** Messbare Tabellen-/Kachelbreite (px): engeres Padding, wenn darunter. */
+const COMPACT_TABLE_NARROW_PX = 440
+/**
+ * Ab dieser messbaren Breite in der kompakten Tabelle Container-Namen automatisch zeigen,
+ * wenn die Einstellung aus ist (z. B. Handy-Raster, aber breite Kachel — vermeidet „leere“ rechte Fläche).
+ */
+const COMPACT_TABLE_AUTO_NAMES_MIN_PX = 520
 
 interface SdContainerStats {
   cpuPct: number | null
@@ -713,7 +721,7 @@ type DockerTableCompactProps = {
   busyId: string | null
   pending: PendingConfirm | null
   useDashboardIcons: boolean
-  /** false: nur Icon in der ersten Spalte (Name im Tooltip). Spart Breite in schmalen Widgets. */
+  /** false: nur Icon in der ersten Spalte (Name im Tooltip). Ab ca. 520 px messbarer Tabellenbreite werden Namen trotzdem eingeblendet. */
   showContainerNames: boolean
   showStatCpu: boolean
   showStatRam: boolean
@@ -760,13 +768,16 @@ function DockerTableCompact({
 }: DockerTableCompactProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [narrow, setNarrow] = useState(false)
+  const [autoNamesByWidth, setAutoNamesByWidth] = useState(false)
   useLayoutEffect(() => {
     const el = wrapRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
     const apply = () => {
       const w = el.getBoundingClientRect().width
-      const next = w > 0 && w < 440
-      setNarrow((prev) => (prev === next ? prev : next))
+      const nextNarrow = w > 0 && w < COMPACT_TABLE_NARROW_PX
+      const nextAuto = w >= COMPACT_TABLE_AUTO_NAMES_MIN_PX
+      setNarrow((prev) => (prev === nextNarrow ? prev : nextNarrow))
+      setAutoNamesByWidth((prev) => (prev === nextAuto ? prev : nextAuto))
     }
     apply()
     const ro = new ResizeObserver(() => apply())
@@ -775,8 +786,9 @@ function DockerTableCompact({
   }, [showContainerNames, showStatCpu, showStatRam, list.length])
 
   const de = locale !== 'en'
+  const showNamesEffective = showContainerNames || autoNamesByWidth
   /** Icon-only homarr row: CPU/RAM fixed & adjacent (not only when widget is narrow). */
-  const iconRow = !showContainerNames
+  const iconRow = !showNamesEffective
   const tightMetrics = iconRow && narrow
 
   const tdRow: React.CSSProperties = tightMetrics
@@ -813,10 +825,10 @@ function DockerTableCompact({
     : null
 
   const headers = narrow
-    ? showContainerNames
+    ? showNamesEffective
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'St.' : 'St.', 'CPU', de ? 'Sp.' : 'Mem.', de ? 'Akt.' : 'Act.']
-    : showContainerNames
+    : showNamesEffective
       ? [de ? 'Name' : 'Name', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
       : ['', de ? 'Status' : 'State', 'CPU', de ? 'Speicher' : 'Memory', de ? 'Aktionen' : 'Actions']
 
@@ -824,12 +836,13 @@ function DockerTableCompact({
   const memAlign: React.CSSProperties['textAlign'] = iconRow ? 'left' : metricAlign
 
   /** Kein MinWidth bei Icon-Zeile: erzwang 300px, zerlegte Spalten + Scroll → Akt. unsichtbar. */
-  const tableMinW = narrow && showContainerNames ? 300 : 0
+  const tableMinW = narrow && showNamesEffective ? 300 : 0
 
   const iconActEff: React.CSSProperties = tightMetrics || iconRow ? { ...iconAct, padding: '2px' } : iconAct
   const actionBtnGap = tightMetrics ? 1 : iconRow ? 3 : narrow ? 4 : 6
 
-  const tableLayoutWidth: React.CSSProperties['width'] = iconRow && narrow ? '100%' : iconRow ? 'max-content' : '100%'
+  /** Immer volle Kachelbreite — `max-content` ließ die Tabelle bei breiter Kachel links „kleben“. */
+  const tableLayoutWidth: React.CSSProperties['width'] = '100%'
 
   return (
     <div ref={wrapRef} style={{ width: '100%', minWidth: 0, overflowX: tableMinW > 0 ? 'auto' : undefined }}>
@@ -849,7 +862,7 @@ function DockerTableCompact({
         </colgroup>
         <thead>
           <tr>
-            <th style={thRow} title={!showContainerNames ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+            <th style={thRow} title={!showNamesEffective ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
               {headers[0] || '\u00a0'}
             </th>
             <th style={{ ...thRow, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
@@ -926,9 +939,9 @@ function DockerTableCompact({
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: showContainerNames ? 8 : 4,
+                      gap: showNamesEffective ? 8 : 4,
                       minWidth: 0,
-                      justifyContent: showContainerNames ? undefined : 'center',
+                      justifyContent: showNamesEffective ? undefined : 'center',
                     }}
                   >
                     {reorderEnabled && cid ? (
@@ -947,10 +960,10 @@ function DockerTableCompact({
                         <GripVertical size={14} strokeWidth={2.2} />
                       </span>
                     ) : null}
-                    <span title={!showContainerNames ? name : undefined} style={{ flexShrink: 0 }}>
+                    <span title={!showNamesEffective ? name : undefined} style={{ flexShrink: 0 }}>
                       {avatar}
                     </span>
-                    {showContainerNames ? (
+                    {showNamesEffective ? (
                       <span
                         style={{
                           fontWeight: 600,
@@ -988,7 +1001,7 @@ function DockerTableCompact({
                     color: showStatCpu ? heatColorForPct(running ? cpuPct : null) : 'var(--text-muted)',
                     whiteSpace: 'nowrap',
                     paddingLeft: iconRow ? 0 : undefined,
-                    paddingRight: iconRow ? 0 : showContainerNames ? 4 : undefined,
+                    paddingRight: iconRow ? 0 : showNamesEffective ? 4 : undefined,
                   }}
                 >
                   {showStatCpu ? fmtCpuCompact(cpuPct, running) : '—'}
@@ -1004,7 +1017,7 @@ function DockerTableCompact({
                     whiteSpace: 'nowrap',
                     overflow: iconRow && narrow ? 'hidden' : iconRow ? undefined : 'hidden',
                     textOverflow: iconRow && narrow ? 'ellipsis' : iconRow ? undefined : 'ellipsis',
-                    paddingLeft: iconRow ? 0 : showContainerNames ? 2 : undefined,
+                    paddingLeft: iconRow ? 0 : showNamesEffective ? 2 : undefined,
                     paddingRight: iconRow ? 0 : undefined,
                   }}
                 >
@@ -1148,7 +1161,7 @@ function DockerTableCompact({
   )
 }
 
-function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const [list, setList] = useState<DockerContainer[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1166,8 +1179,6 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
   const useDashboardIcons = cfgBool(r.useDashboardIcons, true)
   /** Default off in homarr table: icon + ST./CPU/SP./AKT. (like Pi-hole/Unraid compact row). */
   const showContainerNames = cfgBool(r.showContainerNames, false)
-  /** Tablet-Raster (768–1023px): Namen immer anzeigen, auch wenn die Option aus ist (Handy bleibt kompakt). */
-  const showNamesEffective = showContainerNames || layoutMode === 'tablet'
   const actionsOn = cfgBool(r.allowActions, true)
   const statsOn = cfgBool(r.showStats, true)
   const showBtnStart = actionsOn && cfgBool(r.showBtnStart, true)
@@ -1540,7 +1551,7 @@ function Widget({ config, instanceId, layoutMode }: PluginWidgetProps) {
             busyId={busyId}
             pending={pending}
             useDashboardIcons={useDashboardIcons}
-            showContainerNames={showNamesEffective}
+            showContainerNames={showContainerNames}
             showStatCpu={showStatCpu}
             showStatRam={showStatRam}
             showBtnStart={showBtnStart}
@@ -1963,8 +1974,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <ToggleRow
           label={
             de
-              ? 'Namen in der Tabelle anzeigen (aus: nur Icon, Name im Tooltip)'
-              : 'Show names in table (off: icon only, name in tooltip)'
+              ? 'Namen in der Tabelle anzeigen (aus: nur Icon — ab ca. 520 px Kachelbreite trotzdem automatisch)'
+              : 'Show names in table (off: icon only — auto when the tile is ~520px+ wide)'
           }
           on={sub('showContainerNames', false)}
           onToggle={() => onChange('showContainerNames', !sub('showContainerNames', false))}
