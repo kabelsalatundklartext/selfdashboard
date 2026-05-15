@@ -14,6 +14,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
+  iconUrl: '/plugin-logos/unraid.svg',
 }
 
 const QUERY = `query SelfDashboardUnraid {

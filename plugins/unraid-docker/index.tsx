@@ -17,6 +17,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'system',
   icon: '🧱',
+  iconUrl: '/plugin-logos/unraid-docker.png',
   /** Halbe Rasterbreite (6/12) wie typisches Docker-Widget; minW verhindert zu schmale Spalte. */
   defaultLayout: { w: 6, h: 5, minW: 4 },
   stackedExtraH: 2,

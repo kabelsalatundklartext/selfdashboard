@@ -5,6 +5,7 @@ import { X, Settings } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { Portal } from '@/components/ui/Portal'
+import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 import { t } from '@/lib/i18n'
 import type { PluginInstance, WidgetLayout } from '@/types'
 
@@ -165,14 +166,7 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             padding: '20px', paddingBottom: '16px',
             borderBottom: '1px solid var(--border)', flexShrink: 0,
           }}>
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              background: 'var(--surface-2)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center',
-              fontSize: '20px', flexShrink: 0,
-            }}>
-              {registered.meta.icon ?? '🧩'}
-            </div>
+            <PluginMetaIcon meta={registered.meta} size={40} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                 {registered.meta.name}

@@ -13,6 +13,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎬',
+  iconUrl: '/plugin-logos/emby.png',
 }
 
 interface NowPlayingItem {

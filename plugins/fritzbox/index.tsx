@@ -25,6 +25,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
+  iconUrl: '/plugin-logos/fritzbox.svg',
   defaultLayout: { w: 4, h: 8, minW: 3, minH: 6 },
   configSchema: [
     {

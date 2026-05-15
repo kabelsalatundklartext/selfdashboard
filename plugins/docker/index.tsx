@@ -15,6 +15,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
+  iconUrl: '/plugin-logos/docker.png',
   defaultLayout: { w: 6, h: 5, minW: 4 },
   stackedExtraH: 2,
 }

@@ -8,6 +8,7 @@ import { t } from '@/lib/i18n'
 import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
+import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -116,12 +117,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                   className="flex items-center gap-4 rounded-xl p-4"
                   style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
                 >
-                  <div
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-xl"
-                    style={{ background: 'var(--surface)' }}
-                  >
-                    {meta.icon ?? '🧩'}
-                  </div>
+                  <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>

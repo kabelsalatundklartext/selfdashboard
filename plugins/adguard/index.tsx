@@ -15,6 +15,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
+  iconUrl: '/plugin-logos/adguard.png',
 }
 
 function str(v: unknown): string {

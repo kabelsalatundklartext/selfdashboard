@@ -24,6 +24,8 @@ export interface PluginMeta {
   author: string
   category: PluginCategory
   icon?: string
+  /** Statisches Logo unter `public/` (z. B. `/plugin-logos/emby.png`). Wird im Store und in Plugin-Einstellungen angezeigt; sonst `icon`. */
+  iconUrl?: string
   minAppVersion?: string
   homepage?: string
   configSchema?: PluginConfigField[]
