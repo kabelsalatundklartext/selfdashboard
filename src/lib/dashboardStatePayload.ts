@@ -1,7 +1,6 @@
 import type { Dashboard, ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
-import type { SearchProviderId } from '@/lib/searchProviders'
-
+import type { NavbarCustomSearchProvider, SearchProviderId } from '@/lib/searchProviders'
 const SEARCH_IDS: SearchProviderId[] = [
   'google',
   'duckduckgo',
@@ -26,8 +25,10 @@ export type DashboardStatePersisted = {
   navbarSearchEnabled: boolean
   navbarSearchPosition: 'left' | 'center' | 'right'
   navbarSearchProviders: Record<string, boolean>
-  navbarSearchLastProvider: SearchProviderId
+  navbarSearchLastProvider: string
   navbarSearchWidthPx: number
+  /** User-defined search providers (name + URL with `{q}` or `%s`). */
+  navbarSearchCustomProviders: NavbarCustomSearchProvider[]
 }
 
 const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
@@ -84,6 +85,17 @@ function validatePluginInstance(x: unknown): boolean {
   return true
 }
 
+function validateCustomSearchProvider(x: unknown): boolean {
+  if (!isRecord(x)) return false
+  if (typeof x.id !== 'string' || x.id.length < 9 || x.id.length > 80) return false
+  if (!/^custom_[a-z0-9]+$/i.test(x.id)) return false
+  if (typeof x.name !== 'string' || x.name.length < 1 || x.name.length > 80) return false
+  if (typeof x.urlTemplate !== 'string' || x.urlTemplate.length < 8 || x.urlTemplate.length > 2000) return false
+  if (!/\{q\}|%s/i.test(x.urlTemplate)) return false
+  if (typeof x.enabled !== 'boolean') return false
+  return true
+}
+
 function validateDashboard(x: unknown): boolean {
   if (!isRecord(x)) return false
   if (typeof x.id !== 'string' || x.id.length < 1 || x.id.length > 120) return false
@@ -130,11 +142,14 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
   for (const [k, v] of Object.entries(data.navbarSearchProviders)) {
     if (k.length > 40 || typeof v !== 'boolean') return false
   }
-  if (
-    typeof data.navbarSearchLastProvider !== 'string' ||
-    data.navbarSearchLastProvider.length > 40 ||
-    !SEARCH_IDS.includes(data.navbarSearchLastProvider as SearchProviderId)
-  ) {
+  const customs = data.navbarSearchCustomProviders
+  if (customs !== undefined) {
+    if (!Array.isArray(customs) || customs.length > 20) return false
+    for (const c of customs) {
+      if (!validateCustomSearchProvider(c)) return false
+    }
+  }
+  if (typeof data.navbarSearchLastProvider !== 'string' || data.navbarSearchLastProvider.length < 1 || data.navbarSearchLastProvider.length > 80) {
     return false
   }
   if (typeof data.navbarSearchWidthPx !== 'number' || !Number.isFinite(data.navbarSearchWidthPx)) return false
@@ -157,5 +172,6 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
     navbarSearchProviders: s.navbarSearchProviders,
     navbarSearchLastProvider: s.navbarSearchLastProvider,
     navbarSearchWidthPx: s.navbarSearchWidthPx,
+    navbarSearchCustomProviders: s.navbarSearchCustomProviders ?? [],
   }
 }

@@ -7,8 +7,12 @@ import {
   validateDashboardStatePersisted,
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
-import { firstEnabledProviderId, normalizeSearchProviders } from '@/lib/searchProviders'
-import type { SearchProviderId } from '@/lib/searchProviders'
+import {
+  firstEnabledSearchTargetId,
+  isSearchTargetEnabled,
+  normalizeCustomSearchProviders,
+  normalizeSearchProviders,
+} from '@/lib/searchProviders'
 import type { Dashboard } from '@/types'
 
 function migrateLegacyPlugins(dashboards: Dashboard[]): Dashboard[] {
@@ -21,14 +25,16 @@ function migrateLegacyPlugins(dashboards: Dashboard[]): Dashboard[] {
 
 function normalizeServerPayload(parsed: DashboardStatePersisted): DashboardStatePersisted {
   const navbarSearchProviders = normalizeSearchProviders(parsed.navbarSearchProviders)
-  let navbarSearchLastProvider = parsed.navbarSearchLastProvider as SearchProviderId
-  if (!navbarSearchProviders[navbarSearchLastProvider]) {
-    navbarSearchLastProvider = firstEnabledProviderId(navbarSearchProviders)
+  const navbarSearchCustomProviders = normalizeCustomSearchProviders(parsed.navbarSearchCustomProviders)
+  let navbarSearchLastProvider = String(parsed.navbarSearchLastProvider ?? '')
+  if (!isSearchTargetEnabled(navbarSearchLastProvider, navbarSearchProviders, navbarSearchCustomProviders)) {
+    navbarSearchLastProvider = firstEnabledSearchTargetId(navbarSearchProviders, navbarSearchCustomProviders)
   }
   return {
     ...parsed,
     dashboards: migrateLegacyPlugins(parsed.dashboards),
     navbarSearchProviders,
+    navbarSearchCustomProviders,
     navbarSearchLastProvider,
   }
 }

@@ -7,7 +7,16 @@ import {
 } from '@/lib/dashboardStatePayload'
 import type { Locale } from './i18n'
 import type { SearchProviderId } from './searchProviders'
-import { defaultSearchProviders, normalizeSearchProviders, firstEnabledProviderId } from './searchProviders'
+import {
+  defaultSearchProviders,
+  normalizeSearchProviders,
+  firstEnabledSearchTargetId,
+  isSearchTargetEnabled,
+  normalizeCustomSearchProviders,
+  newCustomSearchProviderId,
+  buildCustomSearchUrl,
+  type NavbarCustomSearchProvider,
+} from './searchProviders'
 
 const DEFAULT_DASHBOARD: Dashboard = {
   id: 'home',
@@ -53,9 +62,11 @@ interface DashboardStore {
   navbarSearchEnabled: boolean
   navbarSearchPosition: 'left' | 'center' | 'right'
   navbarSearchProviders: Record<SearchProviderId, boolean>
-  navbarSearchLastProvider: SearchProviderId
+  navbarSearchLastProvider: string
   /** Pixel width of navbar search bar (clamped); resize in edit mode */
   navbarSearchWidthPx: number
+  /** User-defined search engines (name + URL template). */
+  navbarSearchCustomProviders: NavbarCustomSearchProvider[]
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -93,8 +104,11 @@ interface DashboardStore {
   setNavbarSearchEnabled: (enabled: boolean) => void
   setNavbarSearchPosition: (position: 'left' | 'center' | 'right') => void
   setNavbarSearchProviderEnabled: (id: SearchProviderId, enabled: boolean) => void
-  setNavbarSearchLastProvider: (id: SearchProviderId) => void
+  setNavbarSearchCustomProviderEnabled: (id: string, enabled: boolean) => void
+  setNavbarSearchLastProvider: (id: string) => void
   setNavbarSearchWidthPx: (widthPx: number) => void
+  addNavbarSearchCustomProvider: (name: string, urlTemplate: string) => boolean
+  removeNavbarSearchCustomProvider: (id: string) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -116,6 +130,7 @@ export const useDashboardStore = create<DashboardStore>()(
       navbarSearchProviders: defaultSearchProviders(),
       navbarSearchLastProvider: 'duckduckgo',
       navbarSearchWidthPx: 320,
+      navbarSearchCustomProviders: [],
 
       activeDashboard: () => {
         const s = get()
@@ -228,9 +243,17 @@ export const useDashboardStore = create<DashboardStore>()(
       setNavbarSearchProviderEnabled: (id, enabled) => set((s) => {
         const next = { ...s.navbarSearchProviders, [id]: enabled }
         const last = s.navbarSearchLastProvider
-        const stillOk = next[last]
-        const nextLast = stillOk ? last : firstEnabledProviderId(next)
+        const customs = s.navbarSearchCustomProviders
+        const stillOk = isSearchTargetEnabled(last, next, customs)
+        const nextLast = stillOk ? last : firstEnabledSearchTargetId(next, customs)
         return { navbarSearchProviders: next, navbarSearchLastProvider: nextLast }
+      }),
+      setNavbarSearchCustomProviderEnabled: (id, enabled) => set((s) => {
+        const customs = s.navbarSearchCustomProviders.map((c) => (c.id === id ? { ...c, enabled } : c))
+        const last = s.navbarSearchLastProvider
+        const stillOk = isSearchTargetEnabled(last, s.navbarSearchProviders, customs)
+        const nextLast = stillOk ? last : firstEnabledSearchTargetId(s.navbarSearchProviders, customs)
+        return { navbarSearchCustomProviders: customs, navbarSearchLastProvider: nextLast }
       }),
       setNavbarSearchLastProvider: (navbarSearchLastProvider) => set({ navbarSearchLastProvider }),
       setNavbarSearchWidthPx: (raw) => {
@@ -238,6 +261,27 @@ export const useDashboardStore = create<DashboardStore>()(
         const w = Number.isFinite(n) ? Math.round(n) : 320
         set({ navbarSearchWidthPx: Math.min(920, Math.max(200, w)) })
       },
+      addNavbarSearchCustomProvider: (name, urlTemplate) => {
+        const n = name.trim().slice(0, 80)
+        const u = urlTemplate.trim()
+        if (!n || !u) return false
+        if (!/\{q\}|%s/i.test(u)) return false
+        if (buildCustomSearchUrl(u, 'test') == null) return false
+        if (get().navbarSearchCustomProviders.length >= 20) return false
+        const id = newCustomSearchProviderId()
+        set((s) => ({
+          navbarSearchCustomProviders: [...s.navbarSearchCustomProviders, { id, name: n, urlTemplate: u, enabled: true }],
+          navbarSearchLastProvider: id,
+        }))
+        return true
+      },
+      removeNavbarSearchCustomProvider: (id) => set((s) => {
+        const customs = s.navbarSearchCustomProviders.filter((c) => c.id !== id)
+        const last = s.navbarSearchLastProvider
+        const stillOk = isSearchTargetEnabled(last, s.navbarSearchProviders, customs)
+        const nextLast = stillOk ? last : firstEnabledSearchTargetId(s.navbarSearchProviders, customs)
+        return { navbarSearchCustomProviders: customs, navbarSearchLastProvider: nextLast }
+      }),
     }),
     {
       name: 'selfdashboard-v2',
@@ -258,11 +302,13 @@ export const useDashboardStore = create<DashboardStore>()(
             state.navbarSearchPosition = 'center'
           }
           state.navbarSearchProviders = normalizeSearchProviders(state.navbarSearchProviders)
-          const ids: SearchProviderId[] = ['google', 'duckduckgo', 'bing', 'brave', 'ecosia', 'wikipedia-de', 'wikipedia-en']
-          if (!state.navbarSearchLastProvider || !ids.includes(state.navbarSearchLastProvider as SearchProviderId)) {
-            state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
-          } else if (!state.navbarSearchProviders[state.navbarSearchLastProvider as SearchProviderId]) {
-            state.navbarSearchLastProvider = firstEnabledProviderId(state.navbarSearchProviders)
+          state.navbarSearchCustomProviders = normalizeCustomSearchProviders(
+            (state as { navbarSearchCustomProviders?: unknown }).navbarSearchCustomProviders,
+          )
+          const customs = state.navbarSearchCustomProviders
+          const last = String(state.navbarSearchLastProvider ?? '')
+          if (!last || !isSearchTargetEnabled(last, state.navbarSearchProviders, customs)) {
+            state.navbarSearchLastProvider = firstEnabledSearchTargetId(state.navbarSearchProviders, customs)
           }
           const w = state.navbarSearchWidthPx
           if (typeof w !== 'number' || !Number.isFinite(w)) {

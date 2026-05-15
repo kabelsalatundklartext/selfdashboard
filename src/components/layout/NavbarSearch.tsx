@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { GripVertical, Search } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
 import type { Locale } from '@/lib/i18n'
-import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
-import type { SearchProviderId } from '@/lib/searchProviders'
+import {
+  SEARCH_PROVIDER_LIST,
+  buildSearchUrlForQuery,
+  firstEnabledSearchTargetId,
+  isSearchTargetEnabled,
+} from '@/lib/searchProviders'
 
 /** Unter Desktop-Breite: keine Provider-Pills — spart Platz (Handy/Tablet); Suche nutzt weiter „zuletzt gewählt“. */
 const COMPACT_SEARCH_MQ = '(max-width: 1023px)'
@@ -24,6 +28,8 @@ function serverSnapshotCompactSearch() {
   return false
 }
 
+type SearchPill = { id: string; label: string }
+
 export function NavbarSearch({
   locale,
   editMode,
@@ -36,6 +42,7 @@ export function NavbarSearch({
 }) {
   const {
     navbarSearchProviders,
+    navbarSearchCustomProviders,
     navbarSearchLastProvider,
     setNavbarSearchLastProvider,
     navbarSearchWidthPx,
@@ -48,23 +55,29 @@ export function NavbarSearch({
   const [q, setQ] = useState('')
   const resizing = useRef(false)
 
-  const enabledDefs = useMemo(
-    () => SEARCH_PROVIDER_LIST.filter((p) => navbarSearchProviders[p.id]),
-    [navbarSearchProviders],
-  )
+  const enabledPills: SearchPill[] = useMemo(() => {
+    const builtins = SEARCH_PROVIDER_LIST.filter((p) => navbarSearchProviders[p.id]).map((p) => ({
+      id: p.id,
+      label: p.label[locale],
+    }))
+    const customs = navbarSearchCustomProviders.filter((c) => c.enabled).map((c) => ({ id: c.id, label: c.name }))
+    return [...builtins, ...customs]
+  }, [navbarSearchProviders, navbarSearchCustomProviders, locale])
 
-  const activeId: SearchProviderId = useMemo(() => {
-    if (navbarSearchProviders[navbarSearchLastProvider]) return navbarSearchLastProvider
-    return enabledDefs[0]?.id ?? 'duckduckgo'
-  }, [navbarSearchLastProvider, navbarSearchProviders, enabledDefs])
+  const activeId = useMemo(() => {
+    if (isSearchTargetEnabled(navbarSearchLastProvider, navbarSearchProviders, navbarSearchCustomProviders)) {
+      return navbarSearchLastProvider
+    }
+    return firstEnabledSearchTargetId(navbarSearchProviders, navbarSearchCustomProviders)
+  }, [navbarSearchLastProvider, navbarSearchProviders, navbarSearchCustomProviders])
 
   const runSearch = useCallback(() => {
     const term = q.trim()
     if (!term) return
-    const def = SEARCH_PROVIDER_LIST.find((p) => p.id === activeId)
-    if (!def || !navbarSearchProviders[def.id]) return
-    window.open(def.buildUrl(term), '_blank', 'noopener,noreferrer')
-  }, [q, activeId, navbarSearchProviders])
+    const url = buildSearchUrlForQuery(activeId, term, navbarSearchCustomProviders)
+    if (!url) return
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [q, activeId, navbarSearchCustomProviders])
 
   const onResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -99,17 +112,17 @@ export function NavbarSearch({
     }
   }, [])
 
-  if (enabledDefs.length === 0) return null
+  if (enabledPills.length === 0) return null
 
-  const pill = (id: SearchProviderId) => {
-    const def = SEARCH_PROVIDER_LIST.find((p) => p.id === id)
-    if (!def) return null
-    const on = activeId === id
+  const activeLabel = enabledPills.find((p) => p.id === activeId)?.label
+
+  const pill = (pillItem: SearchPill) => {
+    const on = activeId === pillItem.id
     return (
       <button
-        key={id}
+        key={pillItem.id}
         type="button"
-        onClick={() => setNavbarSearchLastProvider(id)}
+        onClick={() => setNavbarSearchLastProvider(pillItem.id)}
         style={{
           padding: '3px 8px',
           borderRadius: '6px',
@@ -124,12 +137,10 @@ export function NavbarSearch({
           transition: 'background 0.15s, color 0.15s',
         }}
       >
-        {def.label[locale]}
+        {pillItem.label}
       </button>
     )
   }
-
-  const activeDef = SEARCH_PROVIDER_LIST.find((p) => p.id === activeId)
 
   const bar = (
     <div
@@ -150,7 +161,7 @@ export function NavbarSearch({
       <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       {!hideProviderPills && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, overflowX: 'auto' }}>
-          {enabledDefs.map((d) => pill(d.id))}
+          {enabledPills.map((p) => pill(p))}
         </div>
       )}
       <input
@@ -164,8 +175,8 @@ export function NavbarSearch({
         }}
         placeholder={locale === 'de' ? 'Suchen…' : 'Search…'}
         title={
-          hideProviderPills && activeDef
-            ? `${locale === 'de' ? 'Anbieter' : 'Provider'}: ${activeDef.label[locale]} · ${locale === 'de' ? 'In den Einstellungen änderbar' : 'Change in settings'}`
+          hideProviderPills && activeLabel
+            ? `${locale === 'de' ? 'Anbieter' : 'Provider'}: ${activeLabel} · ${locale === 'de' ? 'In den Einstellungen änderbar' : 'Change in settings'}`
             : undefined
         }
         aria-label={locale === 'de' ? 'Websuche' : 'Web search'}

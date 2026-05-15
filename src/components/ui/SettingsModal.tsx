@@ -65,12 +65,17 @@ export function SettingsModal({ open, onClose }: Props) {
     navbarSearchEnabled, setNavbarSearchEnabled,
     navbarSearchPosition, setNavbarSearchPosition,
     navbarSearchProviders, setNavbarSearchProviderEnabled,
+    navbarSearchCustomProviders, setNavbarSearchCustomProviderEnabled,
+    addNavbarSearchCustomProvider, removeNavbarSearchCustomProvider,
   } = store
   const dash = store.activeDashboard()
 
   const [tab, setTab] = useState<TabId>('general')
   const [newName, setNewName] = useState('')
   const [newIcon, setNewIcon] = useState('🏠')
+  const [customSearchName, setCustomSearchName] = useState('')
+  const [customSearchUrl, setCustomSearchUrl] = useState('')
+  const [customSearchErr, setCustomSearchErr] = useState<string | null>(null)
   const [editingDash, setEditingDash] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
@@ -223,10 +228,88 @@ export function SettingsModal({ open, onClose }: Props) {
                     </div>
                   ))}
                 </div>
+                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '14px 0 8px' }}>
+                  {locale === 'de' ? 'Eigene Suchanbieter' : 'Custom search providers'}
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
+                  {locale === 'de'
+                    ? 'Name und URL mit Platzhalter {q} oder %s für den Suchbegriff (nur http/https). Beispiel: https://startpage.com/sp/search?query={q}'
+                    : 'Name and URL with placeholder {q} or %s for the query (http/https only). Example: https://startpage.com/sp/search?query={q}'}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                  <input
+                    style={inp}
+                    value={customSearchName}
+                    onChange={(e) => { setCustomSearchName(e.target.value); setCustomSearchErr(null) }}
+                    placeholder={locale === 'de' ? 'Anzeigename' : 'Display name'}
+                  />
+                  <input
+                    style={inp}
+                    value={customSearchUrl}
+                    onChange={(e) => { setCustomSearchUrl(e.target.value); setCustomSearchErr(null) }}
+                    placeholder="https://…?q={q}"
+                  />
+                  <button
+                    type="button"
+                    className="btn-accent"
+                    style={{ padding: '8px 12px', fontSize: '13px', fontWeight: 600 }}
+                    onClick={() => {
+                      setCustomSearchErr(null)
+                      const ok = addNavbarSearchCustomProvider(customSearchName, customSearchUrl)
+                      if (!ok) {
+                        setCustomSearchErr(
+                          locale === 'de'
+                            ? 'Name und gültige URL (mit {q} oder %s, nur http/https) nötig.'
+                            : 'Enter a name and a valid URL with {q} or %s (http/https only).',
+                        )
+                        return
+                      }
+                      setCustomSearchName('')
+                      setCustomSearchUrl('')
+                    }}
+                  >
+                    {locale === 'de' ? 'Anbieter hinzufügen' : 'Add provider'}
+                  </button>
+                  {customSearchErr ? (
+                    <p style={{ fontSize: '11px', color: '#ef4444', margin: 0 }}>{customSearchErr}</p>
+                  ) : null}
+                </div>
+                {navbarSearchCustomProviders.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                    {navbarSearchCustomProviders.map((c) => (
+                      <div
+                        key={c.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          background: 'var(--surface-2)',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        <span style={{ fontSize: '13px', color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`${c.name} · ${c.urlTemplate}`}>
+                          {c.name}
+                        </span>
+                        <Toggle value={c.enabled} onChange={(v) => setNavbarSearchCustomProviderEnabled(c.id, v)} />
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          style={{ padding: '6px', flexShrink: 0 }}
+                          title={locale === 'de' ? 'Entfernen' : 'Remove'}
+                          onClick={() => removeNavbarSearchCustomProvider(c.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '10px 0 0' }}>
                   {locale === 'de'
-                    ? 'Wenn alle Anbieter aus sind, wird keine Leiste angezeigt.'
-                    : 'If all providers are off, the search bar is hidden.'}
+                    ? 'Wenn alle eingebauten und eigenen Anbieter aus sind, wird keine Suchleiste angezeigt.'
+                    : 'If all built-in and custom providers are off, the search bar is hidden.'}
                 </p>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
                   {locale === 'de'

@@ -8,7 +8,7 @@ import { SettingsModal } from '@/components/ui/SettingsModal'
 import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
 import { t } from '@/lib/i18n'
-import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
+import { anySearchProviderEnabled } from '@/lib/searchProviders'
 
 /** Wie NavbarSearch: unter Desktop volle Suchzeile, damit nichts in der Ecke gequetscht wird. */
 const NAVBAR_STACK_SEARCH_MQ = '(max-width: 1023px)'
@@ -39,7 +39,7 @@ export function Navbar() {
     dashboards, activeDashboardId, editMode, setEditMode, locale,
     activeDashboard, setTheme, showDashboardTabs, navbarStyle,
     dashboardZoom, setDashboardZoom,
-    navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders,
+    navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders, navbarSearchCustomProviders,
   } = useDashboardStore()
   const dash = activeDashboard()
   const isLight = dash.theme === 'light'
@@ -54,7 +54,7 @@ export function Navbar() {
   const canZoomIn = z < 1.5
   const canZoomOut = z > 0.6
 
-  const hasSearchProviders = SEARCH_PROVIDER_LIST.some((p) => navbarSearchProviders[p.id])
+  const hasSearchProviders = anySearchProviderEnabled(navbarSearchProviders, navbarSearchCustomProviders)
   const showNavbarSearch = navbarSearchEnabled && hasSearchProviders
 
   const stackSearchBar = useSyncExternalStore(

@@ -38,6 +38,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🔍 **Dashboard Zoom** | Scale the entire dashboard (70%–150%) |
 | 📏 **Grid Spacing** | Adjust widget gap and outer padding |
 | 🔗 **Navbar Options** | Show icon only, text only, or both — toggle dashboard tabs |
+| 📱 **Responsive layout** | **Phone / tablet / desktop** grid based on dashboard width; optional per-widget overrides in **⚙️ → Layout: phone & tablet**; compact **navbar search** (full-width row) on narrow viewports |
 | 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
@@ -56,6 +57,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
 | 🧱 Unraid Docker | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
 | 🛡️ AdGuard Home | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
+| 🕳️ Pi-hole | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | ✅ Included |
 | 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
@@ -137,6 +139,24 @@ In **Edit Mode** (✏️ button), hover over any widget to see controls:
 | ⚙️ | Plugin settings |
 | ✕ | Remove widget |
 | Resize grip (corner/edge) | Resize width and height freely |
+
+---
+
+## Responsive layout (phone, tablet & desktop)
+
+The dashboard uses **three layout bands** based on the **dashboard grid width** (the track that holds the widgets — not only the outer browser window):
+
+| Band | Approx. width | Behaviour |
+|---|---|---|
+| **Phone** | **&lt; 768 px** | Single **stacked column**; each widget uses **`layoutPhone`** height overrides when set, otherwise the desktop **`layout`** height. |
+| **Tablet** | **768 – 1023 px** | **12-column** grid like desktop; optional **`layoutTablet`** overrides (`w`, `h`, `x`, `y`, `minH`) merge with **`layout`**. |
+| **Desktop** | **≥ 1024 px** | Full **desktop** layout — what you usually edit when resizing widgets on a large screen. |
+
+**How to tune it:** enter **Edit mode** (✏️), open a widget’s **⚙️** settings. Below the plugin-specific options, **“Layout: phone & tablet”** lets you set optional **phone** row height / min height and **tablet** position & size. **Leave fields empty** to keep using the desktop layout values for that band.
+
+On **narrow viewports (about ≤ 1024 px)** the **navbar web search** moves to a **second row** at **full width** so it is not squeezed into the corner next to zoom and actions.
+
+Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| 'desktop'`) for their own responsive UI — see **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 
 ---
 
@@ -297,6 +317,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (70%–150%) |
 | 📏 **Grid-Abstände** | Widget-Abstand und Außenrand einstellbar |
 | 🔗 **Navbar-Optionen** | Nur Icon, nur Text oder beides — Dashboard-Tabs ein/ausblendbar |
+| 📱 **Responsives Layout** | **Handy / Tablet / Desktop**-Raster je nach Dashboard-Breite; optionale Widget-Overrides unter **⚙️ → Layout: Handy & Tablet**; **Navbar-Suche** auf schmalen Viewports in **eigener voller Zeile** |
 | 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
@@ -314,7 +335,8 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
 | 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
 | 🧱 Unraid Docker | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
-| 🛡️ AdGuard Home | Network | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
+| 🛡️ AdGuard Home | Netzwerk | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
+| 🕳️ Pi-hole | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | ✅ Enthalten |
 | 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
@@ -398,6 +420,24 @@ Im **Bearbeitungsmodus** (✏️ Button), über ein Widget hovern um Controls zu
 | ⚙️ | Plugin-Einstellungen |
 | ✕ | Widget entfernen |
 | Resize-Griff (Ecke/Rand) | Breite und Höhe frei skalieren |
+
+---
+
+## Responsives Layout (Handy, Tablet & Desktop)
+
+Das Dashboard schaltet anhand der **Raster-Breite** des Dashboards (der Bereich mit den Widgets — nicht nur die Browserfensterbreite) zwischen **drei Modi**:
+
+| Modus | Ca. Breite | Verhalten |
+|---|---|---|
+| **Handy** | **&lt; 768 px** | **Eine Spalte**, Widgets untereinander; optional **`layoutPhone`** (`h`, `minH`) — sonst gilt das **Desktop-`layout`**. |
+| **Tablet** | **768 – 1023 px** | **12-Spalten-Raster** wie Desktop; optional **`layoutTablet`** (`w`, `h`, `x`, `y`, `minH`) wird mit **`layout`** gemischt. |
+| **Desktop** | **≥ 1024 px** | Normales **Desktop-Layout** — typischerweise das, was du am großen Bildschirm per Ziehen skalierst. |
+
+**Anpassen:** **Bearbeiten** (✏️) aktivieren, beim Widget **⚙️** öffnen. Unten **„Layout: Handy & Tablet“**: optional **Höhe / Mindesthöhe** für die **gestapelte Handy-Ansicht** sowie **Tablet**-Position und -Größe. **Felder leer lassen** = für diesen Modus die Werte vom **Desktop-Layout** übernehmen.
+
+Bei **schmalen Viewports (ca. ≤ 1024 px)** liegt die **Navbar-Websuche** in einer **zweiten Zeile in voller Breite**, damit sie nicht mit Zoom und Buttons um Platz kämpft.
+
+Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'desktop'`) nutzen — siehe **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 
 ---
 
