@@ -11,11 +11,12 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.2',
+  version: '1.4.3',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
   defaultLayout: { w: 5, h: 5, minW: 3, minH: 4 },
+  stackedExtraH: 2,
   configSchema: [
     {
       key: 'viewMode',

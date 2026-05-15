@@ -24,10 +24,12 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.',
-  version: '1.2.0',
+  version: '1.2.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
+  /** Gestapelte Ansicht: +2 Zeilen, damit Vorschau/„Nächste Tage“ nicht abgeschnitten wirkt. */
+  stackedExtraH: 2,
   configSchema: [
     {
       key: 'locationQuery',

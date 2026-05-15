@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { useDashboardStore } from '@/lib/store'
+import { pluginRegistry } from '@/lib/pluginRegistry'
 import { WidgetWrapper } from '@/components/plugins/WidgetWrapper'
 import { LayoutGrid } from 'lucide-react'
 import { t } from '@/lib/i18n'
@@ -21,6 +22,13 @@ function coerceZoom(v: unknown): number {
   return Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10))
 }
 
+function stackedRowBoost(pluginId: string): number {
+  const raw = pluginRegistry.get(pluginId)?.meta.stackedExtraH
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return 0
+  return Math.min(24, Math.round(n))
+}
+
 /** Mobile / schmale Kachel: volle Breite, untereinander – x/y/w vom Desktop bleiben im Store unverändert. */
 function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   const sorted = [...plugins].sort((a, b) => {
@@ -31,8 +39,11 @@ function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   })
   let y = 0
   return sorted.map((p) => {
-    const h = Math.max(1, Math.round(p.layout?.h ?? 4))
-    const minH = Math.max(1, Math.round(p.layout?.minH ?? 1))
+    const boost = stackedRowBoost(p.pluginId)
+    const baseH = Math.max(1, Math.round(p.layout?.h ?? 4))
+    const h = baseH + boost
+    const minBase = Math.max(1, Math.round(p.layout?.minH ?? 1))
+    const minH = minBase + boost
     const item: Layout = {
       i: p.instanceId,
       x: 0,
@@ -135,17 +146,21 @@ export function DashboardGrid() {
       if (isStacked) {
         next.forEach((item) => {
           const p = plugins.find((pr) => pr.instanceId === item.i)
+          const boost = p ? stackedRowBoost(p.pluginId) : 0
           const prev = p?.layout
           if (!prev) {
-            updatePluginLayout(item.i, { x: 0, y: 0, w: 4, h: item.h, minW: 1, minH: 1 })
+            const savedH = Math.max(1, item.h - boost)
+            updatePluginLayout(item.i, { x: 0, y: 0, w: 4, h: savedH, minW: 1, minH: 1 })
             return
           }
+          const minStoreH = Math.max(1, prev.minH ?? 1)
+          const savedH = Math.max(minStoreH, item.h - boost)
           updatePluginLayout(item.i, {
             ...prev,
             x: prev.x ?? 0,
             y: prev.y ?? 0,
             w: prev.w ?? 4,
-            h: item.h,
+            h: savedH,
           })
         })
         return

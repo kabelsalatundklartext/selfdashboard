@@ -29,6 +29,11 @@ export interface PluginMeta {
   configSchema?: PluginConfigField[]
   /** Merged with `{ x: 0, y: Infinity, w: 4, h: 4 }` when adding a widget from the plugin store. */
   defaultLayout?: Partial<WidgetLayout>
+  /**
+   * Nur wenn das Dashboard **gestapelt** ist (schmale Kachel): zusätzliche Rasterzeilen zur **Anzeige**-Höhe.
+   * Die im Store gespeicherte `h` bleibt die Desktop-Höhe; beim Resizen im Stapelmodus wird der Wert wieder abgezogen.
+   */
+  stackedExtraH?: number
 }
 
 export interface PluginConfigField {

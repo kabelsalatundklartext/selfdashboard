@@ -11,10 +11,11 @@ export const meta: PluginMeta = {
   name: 'Pi-hole',
   description:
     'Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/pihole.',
-  version: '1.1.0',
+  version: '1.1.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🕳️',
+  stackedExtraH: 1,
 }
 
 function str(v: unknown): string {

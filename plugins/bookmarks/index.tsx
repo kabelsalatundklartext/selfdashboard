@@ -10,10 +10,11 @@ export const meta: PluginMeta = {
   id: 'bookmarks',
   name: 'App Bookmarks',
   description: 'Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.',
-  version: '1.6.0',
+  version: '1.6.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🔖',
+  stackedExtraH: 1,
 }
 
 interface AppLink { id: string; name: string; url: string; icon: string; newTab: boolean; group: string }
