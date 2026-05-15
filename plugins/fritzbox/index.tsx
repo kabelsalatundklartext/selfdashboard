@@ -6,7 +6,7 @@ import {
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
@@ -19,11 +19,11 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.3.7',
+  version: '2.3.8',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
-  defaultLayout: { w: 4, h: 7, minW: 3, minH: 5 },
+  defaultLayout: { w: 4, h: 8, minW: 3, minH: 6 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -243,36 +243,39 @@ function ThroughputStatPill({
   label,
   value,
   color,
+  compact,
 }: {
   icon: LucideIcon
   label: string
   value: string
   color: string
+  compact?: boolean
 }) {
   return (
     <div
       style={{
-        borderRadius: '12px',
+        borderRadius: compact ? '10px' : '12px',
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.03) 0%, var(--surface-2) 50%, var(--surface-2) 100%)',
-        padding: '10px 12px',
+        padding: compact ? '7px 9px' : '10px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: compact ? 2 : 4,
         minWidth: 0,
+        minHeight: 0,
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', color: 'var(--text-muted)' }}>
-        <Icon size={14} strokeWidth={2.2} style={{ color, flexShrink: 0, opacity: 0.95 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: compact ? '9px' : '10px', color: 'var(--text-muted)' }}>
+        <Icon size={compact ? 12 : 14} strokeWidth={2.2} style={{ color, flexShrink: 0, opacity: 0.95 }} />
         <span style={{ fontWeight: 700, color, letterSpacing: '0.02em' }}>{label}</span>
       </div>
       <div
         style={{
-          fontSize: 'clamp(15px, 2.2cqw, 20px)',
+          fontSize: compact ? 'clamp(13px, 2cqw, 17px)' : 'clamp(15px, 2.2cqw, 20px)',
           fontVariantNumeric: 'tabular-nums',
           fontWeight: 700,
-          lineHeight: 1.2,
+          lineHeight: 1.15,
           color: 'var(--text)',
         }}
       >
@@ -299,12 +302,30 @@ function ThroughputHistoryChart({
   display: ThroughputPanelDisplay
 }) {
   const gid = useId().replace(/:/g, '')
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [panelSize, setPanelSize] = useState({ w: 0, h: 0 })
+
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const apply = () => {
+      const r = el.getBoundingClientRect()
+      const w = Math.round(r.width)
+      const h = Math.round(r.height)
+      setPanelSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+    }
+    apply()
+    const ro = new ResizeObserver(() => apply())
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   if (history.length < 2) return null
   const hRaw = Math.round(num(chartHeightPx))
-  const hPx = hRaw <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(1, hRaw || FB_PLOT_H_DEFAULT))
+  const baseHPx = hRaw <= 0 ? FB_PLOT_H_DEFAULT : Math.min(FB_PLOT_H_MAX, Math.max(1, hRaw || FB_PLOT_H_DEFAULT))
 
   const {
-    layout,
+    layout: layoutPref,
     showTitle,
     showLegend,
     showLive,
@@ -373,6 +394,26 @@ function ThroughputHistoryChart({
 
   const showHeaderRow = showTitle || showLegend || showLive
   const anyStat = showStatAvgDown || showStatAvgUp || showStatPeakDown || showStatPeakUp
+
+  const statCount = [showStatAvgDown, showStatAvgUp, showStatPeakDown, showStatPeakUp].filter(Boolean).length
+  const statRows = Math.max(1, Math.ceil(statCount / 2))
+  const compact = panelSize.h > 0 && panelSize.h < 400
+  const statRowH = compact ? 48 : 54
+  const statsGridGap = compact ? 6 : 8
+  const statsBlockH = statRows * statRowH + (statRows - 1) * statsGridGap
+  const headerEst = showHeaderRow ? (compact ? 44 : 52) : 0
+  const chartFooterH = showChartFooter ? 14 : 0
+
+  const layout: 'horizontal' | 'vertical' =
+    layoutPref === 'horizontal' && panelSize.w >= 520 && panelSize.h >= 280 ? 'horizontal' : 'vertical'
+
+  let hPx = baseHPx
+  if (layout === 'horizontal') {
+    hPx = Math.min(baseHPx, Math.max(96, statsBlockH - chartFooterH))
+  } else if (panelSize.h > 0) {
+    const avail = panelSize.h - headerEst - statsBlockH - 26
+    hPx = Math.min(baseHPx, Math.max(100, avail))
+  }
 
   const headerBlock = showHeaderRow ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', minWidth: 0, overflow: 'visible' }}>
@@ -535,9 +576,11 @@ function ThroughputHistoryChart({
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-        gap: '8px',
+        gap: `${statsGridGap}px`,
         marginTop: layout === 'vertical' && showChart ? '4px' : 0,
         width: '100%',
+        alignSelf: layout === 'horizontal' ? 'stretch' : undefined,
+        minHeight: layout === 'horizontal' ? statsBlockH : undefined,
       }}
     >
       {showStatAvgDown ? (
@@ -546,6 +589,7 @@ function ThroughputHistoryChart({
           label={de ? 'Download' : 'Download'}
           value={formatMbps(avgDownBps, de)}
           color={FB_CHART_DL}
+          compact={compact}
         />
       ) : null}
       {showStatAvgUp ? (
@@ -554,6 +598,7 @@ function ThroughputHistoryChart({
           label={de ? 'Upload' : 'Upload'}
           value={formatMbps(avgUpBps, de)}
           color={FB_CHART_UL}
+          compact={compact}
         />
       ) : null}
       {showStatPeakDown ? (
@@ -562,6 +607,7 @@ function ThroughputHistoryChart({
           label="Peak Down"
           value={formatMbps(peakDownBps, de)}
           color={FB_CHART_DL}
+          compact={compact}
         />
       ) : null}
       {showStatPeakUp ? (
@@ -570,13 +616,14 @@ function ThroughputHistoryChart({
           label="Peak Up"
           value={formatMbps(peakUpBps, de)}
           color={FB_CHART_UL}
+          compact={compact}
         />
       ) : null}
     </div>
   ) : null
 
   const chartColumn = showChart ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 160px', minWidth: 0, width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 160px', minWidth: 0, width: '100%', minHeight: 0 }}>
       {chartBody}
     </div>
   ) : null
@@ -584,22 +631,28 @@ function ThroughputHistoryChart({
   const mainBody =
     layout === 'horizontal' ? (
       <div
+        className="sd-fb-throughput-row"
         style={{
           display: 'flex',
           flexDirection: 'row',
-          alignItems: 'flex-start',
+          alignItems: 'stretch',
           gap: '10px',
           width: '100%',
-          flexWrap: 'wrap',
+          minWidth: 0,
+          flexWrap: 'nowrap',
         }}
       >
         {chartColumn}
         {anyStat ? (
           <div
             style={{
-              flex: showChart ? '0 1 clamp(152px, 36%, 280px)' : '1 1 100%',
-              minWidth: showChart ? 'min(152px, 100%)' : 0,
+              flex: showChart ? '0 1 clamp(140px, 38%, 260px)' : '1 1 100%',
+              minWidth: showChart ? 'min(132px, 42%)' : 0,
               maxWidth: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minHeight: 0,
             }}
           >
             {statsSection}
@@ -615,18 +668,22 @@ function ThroughputHistoryChart({
 
   return (
     <div
+      ref={panelRef}
+      className="sd-fb-throughput-panel"
       style={{
         borderRadius: '12px',
         border: '1px solid var(--border)',
         background: 'linear-gradient(165deg, rgba(255,255,255,0.04) 0%, var(--surface-2) 40%, var(--surface-2) 100%)',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
-        padding: '8px 8px 10px',
-        flexShrink: 0,
+        padding: compact ? '6px 8px 8px' : '8px 8px 10px',
+        flex: '1 1 auto',
         width: '100%',
         minWidth: 0,
+        minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: compact ? 6 : 8,
+        containerType: 'size',
       }}
     >
       {headerBlock}
