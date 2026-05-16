@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FeedItem } from '@/lib/crowdsecMetrics'
 import { FLAG, COUNTRY_NAME } from './constants'
+import { IpLookupMenu } from './IpLookupMenu'
 
 type FeedCardProps = {
   item: FeedItem
@@ -14,10 +15,6 @@ type FeedCardProps = {
   onLookupIp: (ip: string) => void
   onShowOnMap: (item: FeedItem) => void
   onUnbanDone: () => void
-}
-
-function abuseIpdbUrl(ip: string): string {
-  return `https://www.abuseipdb.com/check/${encodeURIComponent(ip)}`
 }
 
 export function FeedCard({
@@ -33,6 +30,8 @@ export function FeedCard({
 }: FeedCardProps) {
   const [deleting, setDeleting] = useState(false)
   const [deleteErr, setDeleteErr] = useState<string | null>(null)
+  const [lookupOpen, setLookupOpen] = useState(false)
+  const lookupBtnRef = useRef<HTMLButtonElement>(null)
 
   const cc = item.country?.toUpperCase() || '??'
   const countryLabel = COUNTRY_NAME[cc] || cc
@@ -119,16 +118,18 @@ export function FeedCard({
             {deleting ? '…' : item.active_ban ? '🗑️' : '📋'}
           </button>
 
-          {/* 3 — IP im Feed filtern + AbuseIPDB */}
+          {/* 3 — IP-Lookup-Menü (wie threat-map-docker) */}
           <button
+            ref={lookupBtnRef}
             type="button"
-            className="cs-feed-action cs-feed-action--search"
-            title={de ? 'IP im Feed suchen & AbuseIPDB' : 'Filter feed & AbuseIPDB'}
+            className={`cs-feed-action cs-feed-action--search ${lookupOpen ? 'on' : ''}`}
+            title={de ? 'IP nachschlagen (CrowdSec CTI, Shodan, …)' : 'Look up IP (CrowdSec CTI, Shodan, …)'}
             onClick={() => {
               onLookupIp(item.ip)
-              window.open(abuseIpdbUrl(item.ip), '_blank', 'noopener,noreferrer')
+              setLookupOpen((v) => !v)
             }}
             aria-label={de ? 'IP nachschlagen' : 'Look up IP'}
+            aria-expanded={lookupOpen}
           >
             🔍
           </button>
@@ -170,6 +171,15 @@ export function FeedCard({
       <div className="cs-feed-card-line cs-feed-card-time">
         <span aria-hidden>🕐</span> {item.time_de || item.time_iso}
       </div>
+
+      {lookupOpen ? (
+        <IpLookupMenu
+          item={item}
+          de={de}
+          anchorEl={lookupBtnRef.current}
+          onClose={() => setLookupOpen(false)}
+        />
+      ) : null}
     </article>
   )
 }

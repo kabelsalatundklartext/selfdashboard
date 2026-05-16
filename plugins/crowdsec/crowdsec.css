@@ -570,6 +570,78 @@
   flex-shrink: 0;
 }
 
+/* IP lookup popup (threat-map-docker ctx-menu) */
+.cs-ip-lookup-menu {
+  position: fixed;
+  z-index: 10050;
+  min-width: 165px;
+  max-width: min(280px, 92vw);
+  background: rgba(0, 12, 30, 0.99);
+  border: 1px solid var(--cs-accent);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 28px rgba(0, 255, 200, 0.15), 0 8px 32px rgba(0, 0, 0, 0.9);
+}
+
+.cs-ip-lookup-title {
+  padding: 7px 12px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--cs-accent);
+  border-bottom: 1px solid var(--cs-dim);
+  font-family: Orbitron, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-ip-lookup-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--cs-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cs-ip-lookup-item:hover {
+  background: rgba(0, 255, 200, 0.07);
+  color: var(--cs-accent);
+}
+
+.cs-ip-lookup-icon {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.cs-ip-lookup-close {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 9px;
+  color: rgba(160, 255, 216, 0.35);
+  cursor: pointer;
+  border: none;
+  border-top: 1px solid var(--cs-dim);
+  background: transparent;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 1px;
+}
+
+.cs-ip-lookup-close:hover {
+  background: rgba(255, 34, 68, 0.07);
+  color: var(--cs-danger);
+}
+
+.cs-feed-action--search.on {
+  background: rgba(0, 255, 200, 0.15);
+  border-color: var(--cs-accent);
+  box-shadow: 0 0 8px rgba(0, 255, 200, 0.3);
+}
+
 .cs-threat-loading,
 .cs-threat-error {
   position: absolute;

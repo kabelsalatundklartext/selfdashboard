@@ -424,7 +424,16 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
                         }}
                         onShowOnMap={(item) => {
                           if (!showMap) return
-                          setMapHighlight({ ip: item.ip, lat: item.lat, lon: item.lon })
+                          let lat = item.lat
+                          let lon = item.lon
+                          if ((!lat && !lon) || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+                            const pt = attackData.find((a) => a.ip === item.ip)
+                            if (pt) {
+                              lat = pt.lat
+                              lon = pt.lon
+                            }
+                          }
+                          setMapHighlight({ ip: item.ip, lat, lon })
                         }}
                         onUnbanDone={() => void fetchMetrics()}
                       />

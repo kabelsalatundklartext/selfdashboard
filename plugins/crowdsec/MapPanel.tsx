@@ -39,6 +39,8 @@ interface Props {
 
 export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn, animOn, visible, highlight }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
+  const highlightRef = useRef(highlight)
+  highlightRef.current = highlight
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const stateRef = useRef({
@@ -59,6 +61,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     arcOffset: 0,
     lastFrame: 0,
     initialized: false,
+    userHasZoomed: false,
   })
 
   const drawStaticArcs = useCallback(() => {
@@ -145,6 +148,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
         s.dotG!
           .append('circle')
           .attr('class', 'srv-ring')
+          .attr('data-r', String(r))
           .attr('cx', sx)
           .attr('cy', sy)
           .attr('r', r * ik)
@@ -163,14 +167,15 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5 * ik)
     if (serverName) {
-    s.dotG!
-      .append('text')
-      .attr('x', sx + 12 * ik)
-      .attr('y', sy + 4 * ik)
-      .attr('fill', '#00aaff')
-      .attr('font-size', `${7 * ik}px`)
-      .attr('font-family', 'Share Tech Mono, monospace')
-      .text(serverName)
+      s.dotG!
+        .append('text')
+        .attr('class', 'srv-label')
+        .attr('x', sx + 12 * ik)
+        .attr('y', sy + 4 * ik)
+        .attr('fill', '#00aaff')
+        .attr('font-size', `${7 * ik}px`)
+        .attr('font-family', 'Share Tech Mono, monospace')
+        .text(serverName)
     }
     if (highlight && Number.isFinite(highlight.lat) && Number.isFinite(highlight.lon)) {
       const hpt = s.proj!([highlight.lon, highlight.lat])
@@ -179,6 +184,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
         s.dotG!
           .append('circle')
           .attr('class', 'adot-highlight-ring')
+          .attr('data-sr', '14')
           .attr('cx', hx)
           .attr('cy', hy)
           .attr('r', 14 * ik)
@@ -189,6 +195,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
         s.dotG!
           .append('circle')
           .attr('class', 'adot-highlight')
+          .attr('data-sr', '5')
           .attr('cx', hx)
           .attr('cy', hy)
           .attr('r', 5 * ik)
@@ -202,45 +209,48 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
   const fitMapToPoints = useCallback(() => {
     const s = stateRef.current
     const svg = svgRef.current
-    if (!s.proj || !svg || !attackData.length) return
+    if (!s.proj || !svg || !attackData.length || s.userHasZoomed) return
     const pts = attackData.map((d) => s.proj!([d.lon, d.lat])).filter(Boolean) as [number, number][]
     const srv = s.proj([serverLon, serverLat])
     if (srv) pts.push(srv)
     if (!pts.length) return
     const xs = pts.map((p) => p[0])
     const ys = pts.map((p) => p[1])
-    const pad = 40
-    const k = Math.max(
-      0.1,
-      Math.min((s.W - pad * 2) / (Math.max(...xs) - Math.min(...xs) || 1), (s.H - pad * 2) / (Math.max(...ys) - Math.min(...ys) || 1), 6),
-    )
+    const pad = s.W < 620 ? 32 : s.W < 800 ? 44 : 80
+    const rangeX = Math.max(...xs) - Math.min(...xs) || 1
+    const rangeY = Math.max(...ys) - Math.min(...ys) || 1
+    let k = Math.max(0.1, Math.min((s.W - pad * 2) / rangeX, (s.H - pad * 2) / rangeY, 6))
+    if (s.W < 760) {
+      const minFill = Math.max(s.W / 430, s.H / 360, 0.82)
+      k = Math.max(k, Math.min(minFill, 5.2))
+    }
     const cx = (Math.min(...xs) + Math.max(...xs)) / 2
     const cy = (Math.min(...ys) + Math.max(...ys)) / 2
     s.fitTransform = d3.zoomIdentity.translate(s.W / 2 - cx * k, s.H / 2 - cy * k).scale(k)
-    if (s.zoomBeh) d3.select(svg).transition().duration(600).call(s.zoomBeh.transform, s.fitTransform)
+    if (s.zoomBeh) d3.select(svg).transition().duration(800).ease(d3.easeCubicInOut).call(s.zoomBeh.transform, s.fitTransform)
   }, [attackData, serverLat, serverLon])
 
-  const focusOnPoint = useCallback(
-    (lat: number, lon: number) => {
-      const s = stateRef.current
-      const svg = svgRef.current
-      if (!s.proj || !svg || !s.zoomBeh) return
-      const pt = s.proj([lon, lat])
-      if (!pt) return
-      const [px, py] = pt
-      const k = Math.min(s.currentScale, 4) * 1.4 || 2.5
-      const t = d3.zoomIdentity.translate(s.W / 2 - px * k, s.H / 2 - py * k).scale(k)
-      d3.select(svg).transition().duration(500).call(s.zoomBeh.transform, t)
-    },
-    [],
-  )
+  const focusOnPoint = useCallback((lat: number, lon: number) => {
+    const s = stateRef.current
+    const svg = svgRef.current
+    if (!s.proj || !svg || !s.zoomBeh) return
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return
+    const pt = s.proj([lon, lat])
+    if (!pt) return
+    const [px, py] = pt
+    const k = Math.max(7, Math.min(14, s.currentScale > 4 ? s.currentScale : 9))
+    const t = d3.zoomIdentity.translate(s.W / 2 - px * k, s.H / 2 - py * k).scale(k)
+    s.userHasZoomed = true
+    d3.select(svg).transition().duration(650).ease(d3.easeCubicInOut).call(s.zoomBeh.transform, t)
+  }, [])
 
   useEffect(() => {
     if (!highlight || !visible || !stateRef.current.initialized) return
-    if (Number.isFinite(highlight.lat) && Number.isFinite(highlight.lon)) {
-      focusOnPoint(highlight.lat, highlight.lon)
-    }
-  }, [highlight, visible, focusOnPoint])
+    const { lat, lon } = highlight
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return
+    focusOnPoint(lat, lon)
+    renderDots()
+  }, [highlight, visible, focusOnPoint, renderDots])
 
   const setupProj = useCallback(() => {
     const wrap = wrapRef.current
@@ -288,6 +298,26 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     s.dotG = sel.append('g').attr('id', 'dot-g')
   }, [])
 
+  const updateServerScale = useCallback(() => {
+    const s = stateRef.current
+    if (!s.dotG || !s.proj) return
+    const ik = 1 / s.currentScale
+    s.dotG.selectAll('.srv-ring').each(function () {
+      const r = Number((this as SVGCircleElement).getAttribute('data-r') || 30)
+      d3.select(this).attr('r', r * ik).attr('stroke-width', ik)
+    })
+    s.dotG.selectAll('.srv-dot').attr('r', 7 * ik).attr('stroke-width', 1.5 * ik)
+    const ptSrv = s.proj([serverLon, serverLat])
+    if (ptSrv) {
+      const [sx, sy] = ptSrv
+      s.dotG
+        .selectAll('.srv-label')
+        .attr('font-size', `${7 * ik}px`)
+        .attr('x', sx + 12 * ik)
+        .attr('y', sy + 4 * ik)
+    }
+  }, [serverLat, serverLon])
+
   const onZoom = useCallback(
     (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
       const s = stateRef.current
@@ -295,15 +325,20 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
       s.currentScale = t.k
       s.currentTx = t.x
       s.currentTy = t.y
+      if (event.sourceEvent) s.userHasZoomed = true
       s.mapG?.attr('transform', t.toString())
       s.dotG?.attr('transform', t.toString())
+      const ik = 1 / t.k
       s.dotG?.selectAll('.adot').attr('r', function () {
         const sr = Number((this as SVGCircleElement).getAttribute('data-sr') || 4)
-        return sr * (1 / t.k)
+        return sr * ik
       })
+      s.dotG?.selectAll('.adot-highlight').attr('r', 5 * ik)
+      s.dotG?.selectAll('.adot-highlight-ring').attr('r', 14 * ik).attr('stroke-width', 2 * ik)
+      updateServerScale()
       if (!animOn) drawStaticArcs()
     },
-    [animOn, drawStaticArcs],
+    [animOn, drawStaticArcs, updateServerScale],
   )
 
   useEffect(() => {
@@ -337,9 +372,9 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     drawBaseMap()
     buildArcPaths()
     renderDots()
-    fitMapToPoints()
+    if (!highlightRef.current && !stateRef.current.userHasZoomed) fitMapToPoints()
     if (!animOn) drawStaticArcs()
-  }, [visible, attackData, serverLat, serverLon, serverName, linesOn, highlight, setupProj, drawBaseMap, buildArcPaths, renderDots, fitMapToPoints, animOn, drawStaticArcs])
+  }, [visible, attackData, serverLat, serverLon, serverName, linesOn, setupProj, drawBaseMap, buildArcPaths, renderDots, fitMapToPoints, animOn, drawStaticArcs])
 
   useEffect(() => {
     const s = stateRef.current
