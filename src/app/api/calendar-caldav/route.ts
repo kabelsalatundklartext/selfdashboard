@@ -91,7 +91,14 @@ export async function POST(req: Request) {
   const to = setTimeout(() => ac.abort(), CALENDAR_FETCH_TIMEOUT_MS)
 
   try {
-    const result = await fetchCalDavOccurrences(href, username, password, range.start, range.end, ac.signal)
+    const result = await fetchCalDavOccurrences(
+      calendarUrlInput || rawCalendarUrl,
+      username,
+      password,
+      range.start,
+      range.end,
+      ac.signal,
+    )
 
     if (!result.ok) {
       const status =
