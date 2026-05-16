@@ -70,6 +70,18 @@
     Required="false"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
+  <!-- CrowdSec SQLite (optional — CrowdSec plugin reads crowdsec.db) -->
+  <Config
+    Name="CrowdSec Data"
+    Target="/crowdsec-data"
+    Default="/mnt/user/appdata/crowdsec/data"
+    Mode="ro"
+    Description="Host folder with crowdsec.db (read-only). Mount CrowdSec’s data directory, e.g. /mnt/user/appdata/crowdsec/data → /crowdsec-data. Default DB path in plugin settings: /crowdsec-data/crowdsec.db."
+    Type="Path"
+    Display="always"
+    Required="false"
+    Mask="false">/mnt/user/appdata/crowdsec/data</Config>
+
   <!-- Docker Engine socket (optional — Docker widget, same host only) -->
   <Config
     Name="Docker Socket"
