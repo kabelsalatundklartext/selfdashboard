@@ -3,8 +3,10 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as d3 from 'd3'
 import { feature, mesh } from 'topojson-client'
-import type { Topology } from 'topojson-client'
 import type { AttackPoint } from '@/lib/crowdsecMetrics'
+
+/** world-atlas TopoJSON — Typ aus topojson-client `feature()`, kein extra npm-Paket. */
+type WorldTopology = Parameters<typeof feature>[0]
 import { countColor } from '@/lib/crowdsecMetrics'
 
 interface ArcPath {
@@ -40,7 +42,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     zoomBeh: null as d3.ZoomBehavior<SVGSVGElement, unknown> | null,
     mapG: null as d3.Selection<SVGGElement, unknown, null, undefined> | null,
     dotG: null as d3.Selection<SVGGElement, unknown, null, undefined> | null,
-    worldData: null as Topology | null,
+    worldData: null as WorldTopology | null,
     arcPaths: [] as ArcPath[],
     currentScale: 1,
     currentTx: 0,
@@ -259,7 +261,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
       setupProj()
       try {
         const r = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
-        stateRef.current.worldData = (await r.json()) as Topology
+        stateRef.current.worldData = (await r.json()) as WorldTopology
         if (cancelled) return
         drawBaseMap()
         const s = stateRef.current
