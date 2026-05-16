@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.4',
+  version: '1.4.6',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -1470,6 +1470,46 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
             {de ? (
               <>
+                <strong>Synology:</strong> CalDAV heißt <code style={{ fontSize: '10px' }}>/caldav/</code> — nicht{' '}
+                <code style={{ fontSize: '10px' }}>/carddav/</code> (Kontakte). Beispiel:{' '}
+                <code style={{ fontSize: '10px' }}>http://192.168.1.15:5000/caldav/svensende/personal/</code> — Kalendername
+                („personal“ o. Ä.) in der Synology-Kalender-App unter CalDAV. HTTPS oft Port <strong>5001</strong>.
+              </>
+            ) : (
+              <>
+                <strong>Synology:</strong> use <code style={{ fontSize: '10px' }}>/caldav/</code>, not{' '}
+                <code style={{ fontSize: '10px' }}>/carddav/</code> (contacts). Example:{' '}
+                <code style={{ fontSize: '10px' }}>http://192.168.1.15:5000/caldav/svensende/personal/</code> — calendar
+                name from Synology Calendar CalDAV settings. HTTPS is usually port <strong>5001</strong>.
+              </>
+            )}
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
+            {de ? (
+              <>
+                <strong>WEB.DE:</strong>{' '}
+                <code style={{ fontSize: '10px' }}>https://caldav.web.de/begenda/dav/Ihre-Adresse@web.de/calendar</code>
+                — bei 2FA ein{' '}
+                <a href="https://hilfe.web.de/sicherheit/2fa/anwendungsspezifisches-passwort.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                  anwendungsspezifisches Passwort
+                </a>
+                , nicht das normale Login-Passwort.
+              </>
+            ) : (
+              <>
+                <strong>WEB.DE:</strong>{' '}
+                <code style={{ fontSize: '10px' }}>https://caldav.web.de/begenda/dav/you@web.de/calendar</code>
+                — with 2FA use an{' '}
+                <a href="https://hilfe.web.de/sicherheit/2fa/anwendungsspezifisches-passwort.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                  app-specific password
+                </a>
+                , not your normal password.
+              </>
+            )}
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
+            {de ? (
+              <>
                 <strong>Anmeldung:</strong> Nutzername und Passwort werden in der <strong>Dashboard-Konfiguration</strong>{' '}
                 gespeichert. Wenn andere Zugriff auf Exporte oder Backups haben, lieber ein <strong>App-Passwort</strong>{' '}
                 statt dem Hauptpasswort verwenden. Oder Zugangsdaten in der URL (
@@ -1544,7 +1584,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                     <input
                       style={{ ...inp, marginBottom: '8px' }}
                       value={feed.url}
-                      placeholder="https://cloud.example/remote.php/dav/calendars/you/personal/"
+                      placeholder="http://192.168.1.15:5000/caldav/svensende/personal/"
                       onChange={(e) => {
                         const v = e.target.value
                         setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, url: v } : f)))
