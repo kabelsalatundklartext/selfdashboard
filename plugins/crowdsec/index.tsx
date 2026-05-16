@@ -14,10 +14,11 @@ export const meta: PluginMeta = {
   name: 'CrowdSec',
   description:
     'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',
+  iconUrl: '/plugin-logos/crowdsec.svg',
   defaultLayout: { w: 5, h: 6, minW: 4, minH: 4 },
   stackedExtraH: 2,
 }
@@ -131,9 +132,9 @@ function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
   )
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, layoutMode }: PluginWidgetProps) {
   const locale = useDashboardStore((s) => s.locale)
-  return <CrowdsecWidget config={config} locale={locale} />
+  return <CrowdsecWidget config={config} locale={locale} layoutMode={layoutMode} />
 }
 
 export const component: PluginComponent = {

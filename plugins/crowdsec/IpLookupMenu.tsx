@@ -3,7 +3,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { CrowdsecFeedItem } from '@/lib/crowdsecMetrics'
-import { FLAG } from './constants'
+import { CountryFlag } from './CountryFlag'
+import { COUNTRY_NAME } from './constants'
+import { normalizeCountryCode } from './flags'
 import type { LookupService } from './ipLookup'
 
 type Props = {
@@ -50,7 +52,7 @@ export function IpLookupMenu({ item, de, anchorEl, services, onClose }: Props) {
     }
   }, [anchorEl, onClose])
 
-  const cc = item.country?.toUpperCase() || '??'
+  const cc = normalizeCountryCode(item.country)
 
   const menu = (
     <div
@@ -60,10 +62,13 @@ export function IpLookupMenu({ item, de, anchorEl, services, onClose }: Props) {
       style={{ left: pos.left, top: pos.top }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="cs-wl-menu-title">
-        {FLAG[cc] || '🌐'} {cc} · {item.ip}
-        {item.city ? ` · ${item.city}` : ''}
-      </div>
+      <header className="cs-wl-menu-title">
+        <CountryFlag code={cc || item.country} size={16} />
+        <span>
+          {COUNTRY_NAME[cc] || cc || '?'} · {item.ip}
+          {item.city ? ` · ${item.city}` : ''}
+        </span>
+      </header>
       {services.map((s) => (
         <a
           key={s.id}
