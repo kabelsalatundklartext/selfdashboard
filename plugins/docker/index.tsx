@@ -807,11 +807,17 @@ function DockerTableCompact({
   /** Breite Icon-Zeile auf großen Kacheln: weniger X-Padding in der Kopfzeile. */
   const thRow: React.CSSProperties = iconRow && !narrow ? { ...thDyn, padding: '5px 4px' } : thDyn
 
-  /** Icon-Zeile schmal: extraenge Spalten + `width:100%` — sonst Scrollbalken und Akt.-Spalte rechts weg. */
+  /** Icon-only: erste Spalte flex (`null`), Rest fest — verhindert versetzte Kopfzeile bei voller Kachelbreite. */
   const colWidths: readonly (string | null)[] = iconRow
     ? narrow
-      ? ['44px', '40px', '34px', '38px', '44px']
-      : ['64px', '52px', '42px', '50px', '46px']
+      ? [
+          reorderEnabled ? '56px' : '44px',
+          '40px',
+          '34px',
+          '38px',
+          reorderEnabled ? '52px' : '44px',
+        ]
+      : [null, '76px', '60px', '72px', reorderEnabled ? '96px' : '88px']
     : narrow
       ? [null, '56px', '50px', '64px', '52px']
       : [null, '78px', '62px', '74px', '64px']
@@ -863,10 +869,17 @@ function DockerTableCompact({
         </colgroup>
         <thead>
           <tr>
-            <th style={thRow} title={!showNamesEffective ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}>
+            <th
+              style={{
+                ...thRow,
+                textAlign: iconRow ? 'center' : 'left',
+                ...(iconRow ? { width: colWidths[0] ?? undefined } : {}),
+              }}
+              title={!showNamesEffective ? (de ? 'Name (ausgeblendet)' : 'Name (hidden)') : undefined}
+            >
               {headers[0] || '\u00a0'}
             </th>
-            <th style={{ ...thRow, textAlign: iconRow ? 'left' : 'center' }}>{headers[1]}</th>
+            <th style={{ ...thRow, textAlign: iconRow ? 'center' : 'center' }}>{headers[1]}</th>
             <th style={{ ...thRow, textAlign: metricAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[2]}</th>
             <th style={{ ...thRow, textAlign: memAlign, fontVariantNumeric: 'tabular-nums' }}>{headers[3]}</th>
             <th

@@ -287,20 +287,23 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
 
   useEffect(() => {
     const s = stateRef.current
-    if (s.animRAF) cancelAnimationFrame(s.animRAF)
+    if (s.animRAF) {
+      cancelAnimationFrame(s.animRAF)
+      s.animRAF = 0
+    }
     if (!visible || !animOn || !linesOn) {
       drawStaticArcs()
       return
     }
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
     const interval = 100
     function frame(ts: number) {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
       s.animRAF = requestAnimationFrame(frame)
       if (!linesOn) {
-        ctx!.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
         return
       }
       if (ts - s.lastFrame < interval) return
@@ -328,7 +331,10 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     }
     s.animRAF = requestAnimationFrame(frame)
     return () => {
-      if (s.animRAF) cancelAnimationFrame(s.animRAF)
+      if (s.animRAF) {
+        cancelAnimationFrame(s.animRAF)
+        s.animRAF = 0
+      }
     }
   }, [visible, animOn, linesOn, drawStaticArcs])
 

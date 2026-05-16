@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { PluginWidgetProps, PluginSettingsProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import {
@@ -72,7 +72,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   const localUnbanned = useRef(new Set<string>())
   const sparkRef = useRef<HTMLCanvasElement>(null)
 
-  const themeStyle = useMemo(() => THEME_VARS[theme] as React.CSSProperties, [theme])
+  const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
 
   const fetchMetrics = useCallback(async () => {
     if (!baseUrl) {
@@ -443,7 +443,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
 export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
   const { locale } = useDashboardStore()
   const de = locale === 'de'
-  const inp: React.CSSProperties = {
+  const inp: CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
     color: 'var(--text)',
