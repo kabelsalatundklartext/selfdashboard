@@ -8,6 +8,7 @@ RUN npm install --frozen-lockfile 2>/dev/null || npm install
 # ── Stage 2: builder ─────────────────────────────────────────
 FROM node:20-alpine AS builder
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1

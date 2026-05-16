@@ -52,7 +52,7 @@ export const COUNTRY_CENTROID: Record<string, [number, number]> = {
   AR: [-38.4161, -63.6167],
   CL: [-35.6751, -71.543],
   CO: [4.5709, -74.2973],
-  ?? : [0, 0],
+  '??': [0, 0],
 }
 
 export function geoForCountry(country: string): [number, number] {
