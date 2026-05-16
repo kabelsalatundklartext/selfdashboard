@@ -4,7 +4,6 @@
 import { registerPlugin } from '@/lib/pluginRegistry'
 
 import * as bookmarks from '../../plugins/bookmarks'
-import * as calendar from '../../plugins/calendar'
 import * as clock from '../../plugins/clock'
 import * as iframe from '../../plugins/iframe'
 import * as docker from '../../plugins/docker'
@@ -21,7 +20,6 @@ import * as selfstream from '../../plugins/selfstream'
 
 export function loadBuiltinPlugins() {
   registerPlugin(bookmarks.meta, bookmarks.component)
-  registerPlugin(calendar.meta, calendar.component)
   registerPlugin(clock.meta, clock.component)
   registerPlugin(iframe.meta, iframe.component)
   registerPlugin(docker.meta, docker.component)

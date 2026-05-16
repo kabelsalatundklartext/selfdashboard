@@ -49,7 +49,6 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | Plugin | Category | Description | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | ✅ Included |
-| 📅 Calendar | Productivity | Month/week view, local events, ICS feeds & CalDAV (server-side) | ✅ Included |
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | ✅ Included |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
@@ -209,19 +208,6 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 
 ---
 
-## Calendar Plugin
-
-| Feature | Description |
-|---|---|
-| Views | **Month** (six-week grid) or **week** (single row) |
-| Local events | Tap a day to add or edit events (stored with the dashboard) |
-| **ICS / Webcal** | Subscribe to secret calendar URLs; fetched **on the server** via `POST /api/calendar-ics` (no browser CORS; works with LAN URLs) |
-| **CalDAV** | Nextcloud, Synology, etc.: collection URL + Basic auth; `POST /api/calendar-caldav` tries **GET** (ICS export) then **REPORT calendar-query** |
-| Refresh | Shared interval for ICS + CalDAV (minutes, in widget settings) |
-| Security note | CalDAV credentials live in **dashboard config** — stored in **`dashboard.json`** under the **`/app/data`** volume when mounted, and mirrored in **localStorage** in each browser. Prefer app passwords and restrict access to the appdata share. |
-
----
-
 ## FRITZ!Box WAN throughput plugin
 
 | Topic | Details |
@@ -262,14 +248,14 @@ Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and t
 |---|---|
 | Folder `plugins/<id>/index.tsx` exporting **`meta`** and **`component`** (`Widget`, optional **`Settings`**) | **Plugin Store** listing; user can add/remove instances on dashboards |
 | One-time **import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, then **`next build` / new Docker image** | **Widget chrome** in edit mode: drag handle, per-widget zoom / padding / height, ⚙️ opens your `Settings` when exported, remove button |
-| Optional **`src/app/api/...`** route if the browser must call a service **without CORS** (same pattern as Calendar, Docker, …) | **`Widget` props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — persist user settings via existing store / `dashboard.json` |
+| Optional **`src/app/api/...`** route if the browser must call a service **without CORS** (same pattern as Docker, FRITZ!Box, …) | **`Widget` props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — persist user settings via existing store / `dashboard.json` |
 | Responsive UI yourself (CSS variables, `minWidth: 0`, optional `layoutMode`) | Initial tile size from **`meta.defaultLayout`** and phone stack hint **`stackedExtraH`** |
 
 **Not automatic:** copying TypeScript into Unraid **Custom Plugins** (`/app/plugins/custom`) **does not** register plugins in the **stock** image — the loader is compiled at build time. Use a **custom image** or fork with `pluginLoader.ts` updated, then rebuild.
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -370,7 +356,6 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | ✅ Enthalten |
-| 📅 Kalender | Productivity | Monat/Woche, lokale Termine, ICS-Feeds & CalDAV (serverseitig) | ✅ Enthalten |
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
 | 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | ✅ Enthalten |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
@@ -532,19 +517,6 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
-## Kalender-Plugin
-
-| Feature | Beschreibung |
-|---|---|
-| Ansichten | **Monat** (6 Wochenzeilen) oder **Woche** (eine Zeile) |
-| Lokale Termine | Tag antippen zum Anlegen/Bearbeiten (werden mit dem Dashboard gespeichert) |
-| **ICS / Webcal** | Geheime Kalender-URL; Abruf **serverseitig** über `POST /api/calendar-ics` (kein CORS im Browser, auch LAN-URLs) |
-| **CalDAV** | z. B. Nextcloud/Synology: Sammlungs-URL + Basic-Auth; `POST /api/calendar-caldav` nutzt zuerst **GET** (ICS-Export), sonst **REPORT calendar-query** |
-| Aktualisierung | Gemeinsames Intervall für ICS + CalDAV (Minuten, in den Widget-Einstellungen) |
-| Hinweis Sicherheit | CalDAV-Zugangsdaten stehen in der **Dashboard-Konfiguration** — in **`dashboard.json`** unter dem **`/app/data`-Volume**, sobald gemappt, und zusätzlich im **localStorage** jedes Browsers. Nach Möglichkeit **App-Passwörter** nutzen und Zugriff auf die Appdata-Freigabe einschränken. |
-
----
-
 ## Fritzbox-Plugin (Internet-Verlauf)
 
 | Thema | Details |
@@ -585,14 +557,14 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 |---|---|
 | Ordner `plugins/<id>/index.tsx` mit Export **`meta`** und **`component`** (`Widget`, optional **`Settings`**) | **Plugin-Store**-Eintrag; Nutzer kann Instanzen auf Dashboards legen/entfernen |
 | **Import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, danach **`next build` / neues Docker-Image** | **Widget-Chrome** im Bearbeiten-Modus: Griff, Zoom / Innenabstand / Höhe, ⚙️ öffnet dein `Settings` (falls exportiert), Entfernen |
-| Optional **`src/app/api/...`**, wenn der Browser einen Dienst **ohne CORS** ansprechen soll (wie Kalender, Docker, …) | **`Widget`-Props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — Konfiguration läuft über Store / `dashboard.json` |
+| Optional **`src/app/api/...`**, wenn der Browser einen Dienst **ohne CORS** ansprechen soll (wie Docker, Fritzbox, …) | **`Widget`-Props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — Konfiguration läuft über Store / `dashboard.json` |
 | Responsives Layout selbst (CSS-Variablen, `minWidth: 0`, optional `layoutMode`) | Start-Layout aus **`meta.defaultLayout`** und Stapel-Hinweis **`stackedExtraH`** |
 
 **Nicht automatisch:** TypeScript-Dateien nur nach **`/app/plugins/custom`** legen **registriert** im **Standard-Image** **keine** neuen Plugins — der Loader wird beim **Build** eingebunden. Dafür **eigenes Image** / Fork mit angepasstem `pluginLoader.ts` bauen.
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
