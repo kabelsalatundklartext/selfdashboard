@@ -3,6 +3,7 @@ import {
   createDAVClient,
   DAVNamespaceShort,
   getBasicAuthHeaders,
+  propfind,
   type DAVCalendar,
   type DAVCalendarObject,
 } from 'tsdav'
@@ -380,15 +381,31 @@ function resolveObjectHref(href: string, calendarUrl: string): string {
   return new URL(href, base).href
 }
 
+function isBegendaCalendarUrl(url: string): boolean {
+  return /\/begenda\/dav\//i.test(url)
+}
+
+function isDavCalendarCollection(props: unknown): boolean {
+  if (!props || typeof props !== 'object') return false
+  const rt = (props as Record<string, unknown>).resourcetype
+  if (!rt || typeof rt !== 'object') return false
+  return Object.keys(rt as object).some((k) => {
+    const n = k.toLowerCase()
+    return n === 'calendar' || n.endsWith(':calendar')
+  })
+}
+
 function extractCalendarDataFromProps(props: unknown): string {
   if (!props || typeof props !== 'object') return ''
   const p = props as Record<string, unknown>
-  const raw = p.calendarData ?? p['cal:calendar-data']
-  if (typeof raw === 'string' && /BEGIN:(VEVENT|VCALENDAR)/i.test(raw)) return raw
-  if (raw && typeof raw === 'object') {
-    const o = raw as Record<string, unknown>
-    if (typeof o._cdata === 'string') return o._cdata
-    if (typeof o.value === 'string') return o.value
+  const candidates = [p.calendarData, p.calendardata, p['cal:calendar-data'], p['calendar-data']]
+  for (const raw of candidates) {
+    if (typeof raw === 'string' && /BEGIN:(VEVENT|VCALENDAR)/i.test(raw)) return raw
+    if (raw && typeof raw === 'object') {
+      const o = raw as Record<string, unknown>
+      if (typeof o._cdata === 'string' && /BEGIN:(VEVENT|VCALENDAR)/i.test(o._cdata)) return o._cdata
+      if (typeof o.value === 'string' && /BEGIN:(VEVENT|VCALENDAR)/i.test(o.value)) return o.value
+    }
   }
   return ''
 }
@@ -453,6 +470,64 @@ const VEVENT_ONLY_FILTERS = [
     },
   },
 ]
+
+/** WEB.DE/Begenda: Termine oft nur per PROPFIND+GET, nicht per calendar-query/multiget. */
+async function fetchObjectsViaPropfindGet(
+  calendar: DAVCalendar,
+  username: string,
+  password: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  signal: AbortSignal,
+): Promise<{ occurrences: IcsOccurrence[]; rawObjectCount: number }> {
+  const collectionUrl = calendar.url.endsWith('/') ? calendar.url : `${calendar.url}/`
+  const authHeaders = getBasicAuthHeaders({ username, password })
+  const fetchFn = (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, { ...init, signal, cache: 'no-store', redirect: 'follow' })
+
+  const objects: DAVCalendarObject[] = []
+  const seenUrl = new Set<string>()
+  const calSelf = collectionUrl.replace(/\/$/, '').toLowerCase()
+
+  for (const depth of ['1', 'infinity'] as const) {
+    let responses: Awaited<ReturnType<typeof propfind>> = []
+    try {
+      responses =
+        (await propfind({
+          url: collectionUrl,
+          props: {
+            [`${DAVNamespaceShort.DAV}:getetag`]: {},
+            [`${DAVNamespaceShort.DAV}:resourcetype`]: {},
+            [`${DAVNamespaceShort.CALDAV}:calendar-data`]: {},
+          },
+          depth,
+          headers: authHeaders,
+          fetch: fetchFn,
+        })) ?? []
+    } catch {
+      continue
+    }
+    if (!Array.isArray(responses)) continue
+
+    for (const res of responses) {
+      const href = resolveObjectHref(res.href ?? '', collectionUrl)
+      if (!href) continue
+      const key = href.replace(/\/$/, '').toLowerCase()
+      if (key === calSelf || seenUrl.has(key)) continue
+      if (isDavCalendarCollection(res.props)) continue
+      if (!caldavObjectUrlFilter(href)) continue
+      seenUrl.add(key)
+
+      let data = extractCalendarDataFromProps(res.props)
+      if (!data) data = await fetchIcsBodyDirect(href, username, password, signal)
+      if (data) objects.push({ url: href, data })
+    }
+    if (objects.length > 0) break
+  }
+
+  const occurrences = parseCalendarObjects(objects, rangeStart, rangeEnd)
+  return { occurrences, rawObjectCount: objects.length }
+}
 
 async function fetchObjectsViaListAndGet(
   calendar: DAVCalendar,
@@ -521,6 +596,20 @@ async function fetchObjectsForCalendar(
   password: string,
   signal: AbortSignal,
 ): Promise<{ occurrences: IcsOccurrence[]; rawObjectCount: number }> {
+  if (isBegendaCalendarUrl(calendar.url)) {
+    const viaProp = await fetchObjectsViaPropfindGet(
+      calendar,
+      username,
+      password,
+      rangeStart,
+      rangeEnd,
+      signal,
+    )
+    if (viaProp.occurrences.length > 0 || viaProp.rawObjectCount > 0) {
+      return viaProp
+    }
+  }
+
   const timeRange = { start: rangeStart.toISOString(), end: rangeEnd.toISOString() }
   const urlFilter = caldavObjectUrlFilter
   const attempts: {
@@ -573,6 +662,9 @@ async function fetchObjectsForCalendar(
     )
     if (viaList.length > 0) {
       return { occurrences: viaList, rawObjectCount: viaList.length }
+    }
+    if (isBegendaCalendarUrl(calendar.url)) {
+      return fetchObjectsViaPropfindGet(calendar, username, password, rangeStart, rangeEnd, signal)
     }
   }
 
@@ -693,7 +785,20 @@ export async function fetchCalDavOccurrencesTsdav(
     } catch {
       /* WEB.DE: Kalenderliste optional — konfigurierte Collection reicht */
     }
-    const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
+    const configuredCal = {
+      url: conn.collectionHref,
+      displayName: 'configured',
+    } as DAVCalendar
+    const discovered = calendarsForFetch(allCals, conn.collectionHref, calendar)
+    const targets: DAVCalendar[] = []
+    const pushTarget = (cal: DAVCalendar) => {
+      const key = cal.url.replace(/\/$/, '').toLowerCase()
+      if (targets.some((t) => t.url.replace(/\/$/, '').toLowerCase() === key)) return
+      targets.push(cal)
+    }
+    pushTarget(configuredCal)
+    for (const cal of discovered) pushTarget(cal)
+
     const seenCal = new Set<string>()
     for (const cal of targets) {
       const key = cal.url.replace(/\/$/, '').toLowerCase()

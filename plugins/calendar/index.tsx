@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.3.1',
+  version: '2.3.2',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -535,6 +535,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [syncPruneHint, setSyncPruneHint] = useState<string | null>(null)
+  const [fetchDiag, setFetchDiag] = useState<{ raw: number; parsed: number } | null>(null)
 
   useEffect(() => {
     if (calDavFeeds.length === 0) {
@@ -556,6 +557,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setRemoteLoading(true)
       const errs: Record<string, string> = {}
       const merged: RemoteCalEvent[] = []
+      let totalRaw = 0
+      let totalParsed = 0
       const serverUidsByFeed = new Map<number, Set<string>>()
       const linkedUids = new Set(
         events.map((e) => e.caldavUid).filter((u): u is string => Boolean(u)),
@@ -581,6 +584,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             detail?: string
             suggestedUrl?: string
             events?: { id: string; uid?: string; title: string; date: string; timeLabel?: string | null }[]
+            rawObjectCount?: number
           }
           if (!j?.ok) {
             let msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
@@ -614,11 +618,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             })
           }
           serverUidsByFeed.set(i, feedUids)
+          totalRaw += typeof j.rawObjectCount === 'number' ? j.rawObjectCount : 0
+          totalParsed += (j.events ?? []).length
         } catch (e) {
           errs[`dav:${i}`] = e instanceof Error ? e.message : String(e)
         }
       }
       if (!cancelled) {
+        setFetchDiag({ raw: totalRaw, parsed: totalParsed })
         const pruned = pruneLocalEventsAbsentOnCalDav(events, serverUidsByFeed, errs)
         if (pruned.length < events.length) {
           const removed = events.length - pruned.length
@@ -1157,10 +1164,22 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   })()
                 : de
                   ? `${remoteEvents.length} externe · Zwei-Wege-Sync · alle ${caldavRefreshMinutes} min${
-                      remoteEvents.length === 0 ? ' · WEB.DE-Termine fehlen? „Jetzt aktualisieren“' : ''
+                      fetchDiag && fetchDiag.raw > 0 && remoteEvents.length === 0
+                        ? ` · ${fetchDiag.raw} ICS gelesen, 0 im Fenster`
+                        : fetchDiag && fetchDiag.raw === 0 && remoteEvents.length === 0
+                          ? ' · 0 ICS auf Server — URL/App-Passwort?'
+                          : remoteEvents.length === 0
+                            ? ' · „Jetzt aktualisieren“'
+                            : ''
                     }`
                   : `${remoteEvents.length} external · two-way sync · every ${caldavRefreshMinutes} min${
-                      remoteEvents.length === 0 ? ' · missing WEB.DE events? tap Refresh now' : ''
+                      fetchDiag && fetchDiag.raw > 0 && remoteEvents.length === 0
+                        ? ` · ${fetchDiag.raw} ICS read, 0 in window`
+                        : fetchDiag && fetchDiag.raw === 0 && remoteEvents.length === 0
+                          ? ' · 0 ICS on server — check URL/password'
+                          : remoteEvents.length === 0
+                            ? ' · tap Refresh now'
+                            : ''
                     }`}
           </p>
           {syncPruneHint ? (

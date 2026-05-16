@@ -27,6 +27,29 @@ function localHm(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
+/** Lokales Kalenderdatum inklusive — für ganztägige Termine (DTEND oft exklusiv). */
+function eventDaysOverlapRange(
+  jsStart: Date,
+  jsEnd: Date,
+  allDay: boolean,
+  rangeStart: Date,
+  rangeEnd: Date,
+): boolean {
+  if (!allDay) {
+    return !(jsEnd < rangeStart || jsStart > rangeEnd)
+  }
+  const rs = toLocalYmd(rangeStart)
+  const re = toLocalYmd(rangeEnd)
+  const es = toLocalYmd(jsStart)
+  let lastDay = toLocalYmd(jsEnd)
+  if (jsEnd.getTime() > jsStart.getTime()) {
+    const endExclusive = new Date(jsEnd)
+    endExclusive.setMilliseconds(endExclusive.getMilliseconds() - 1)
+    lastDay = toLocalYmd(endExclusive)
+  }
+  return lastDay >= rs && es <= re
+}
+
 function registerTimezonesFromCalendar(root: InstanceType<typeof ICAL.Component>): void {
   for (const tzComp of root.getAllSubcomponents('vtimezone')) {
     try {
@@ -90,8 +113,8 @@ export function expandIcsString(
           const start = ev.startDate
           const jsStart = start.toJSDate()
           const jsEnd = ev.endDate ? ev.endDate.toJSDate() : jsStart
-          if (jsEnd < rangeStart || jsStart > rangeEnd) continue
           const allDay = start.isDate
+          if (!eventDaysOverlapRange(jsStart, jsEnd, allDay, rangeStart, rangeEnd)) continue
           const date = toLocalYmd(jsStart)
           out.push({
             stableId: `${uid}::${date}::${allDay ? 'd' : jsStart.getTime()}`,
