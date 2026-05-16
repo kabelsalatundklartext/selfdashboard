@@ -82,6 +82,18 @@
     Required="false"
     Mask="false">/mnt/user/appdata/crowdsec/data</Config>
 
+  <!-- CrowdSec postoverflows (optional — dynamic whitelist, read-write) -->
+  <Config
+    Name="CrowdSec Postoverflows"
+    Target="/crowdsec-postoverflows"
+    Default="/mnt/user/appdata/crowdsec/postoverflows"
+    Mode="rw"
+    Description="Optional. For CrowdSec plugin dynamic whitelist: mount postoverflows read-write at /crowdsec-postoverflows. Default whitelist path: /crowdsec-postoverflows/s01-whitelist/my-whitelist.yaml. Also requires Docker socket. Clear if unused."
+    Type="Path"
+    Display="always"
+    Required="false"
+    Mask="false">/mnt/user/appdata/crowdsec/postoverflows</Config>
+
   <!-- Docker Engine socket (optional — Docker widget, same host only) -->
   <Config
     Name="Docker Socket"

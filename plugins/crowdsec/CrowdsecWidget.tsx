@@ -67,6 +67,11 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const serverNameCfg = str(config.serverName)
   const crowdsecContainer = str(config.crowdsecContainer) || 'crowdsec'
   const dockerUnban = bool(config.dockerUnban, false)
+  const whitelistEnabled = bool(config.whitelistEnabled, false)
+  const whitelistPath =
+    str(config.whitelistPath) || '/crowdsec-postoverflows/s01-whitelist/my-whitelist.yaml'
+  const whitelistInterval = Math.min(86_400, Math.max(60, Math.round(num(config.whitelistInterval, 900))))
+  const whitelistRestartWait = Math.min(120, Math.max(5, Math.round(num(config.whitelistRestartWait, 15))))
 
   const [theme, setTheme] = useState<ThreatTheme>(
     ['cyan', 'alarm', 'matrix', 'amber'].includes(configTheme) ? configTheme : 'cyan',
@@ -88,7 +93,19 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const [lastUpdate, setLastUpdate] = useState('')
   const [logItem, setLogItem] = useState<FeedItem | null>(null)
   const [mapHighlight, setMapHighlight] = useState<MapHighlight | null>(null)
+  const [wlIp, setWlIp] = useState('')
+  const [wlStatus, setWlStatus] = useState('unbekannt')
+  const [wlLastCheck, setWlLastCheck] = useState('')
+  const [wlLastChange, setWlLastChange] = useState('')
   const sparkRef = useRef<HTMLCanvasElement>(null)
+
+  const wlDotColor = useMemo(() => {
+    if (!whitelistEnabled) return 'rgba(160, 255, 216, 0.35)'
+    if (wlStatus === 'ok') return 'var(--cs-ok)'
+    if (wlStatus === 'aktualisiert') return 'var(--cs-accent)'
+    if (wlStatus === 'fehler') return '#ff4466'
+    return 'rgba(160, 255, 216, 0.5)'
+  }, [whitelistEnabled, wlStatus])
 
   const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
 
@@ -138,12 +155,50 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
     }
   }, [dbPath, daysBack, de, applyParsed, serverLatCfg, serverLonCfg, serverNameCfg])
 
+  const fetchWhitelist = useCallback(async () => {
+    if (!whitelistEnabled) {
+      setWlStatus('deaktiviert')
+      setWlIp('')
+      return
+    }
+    try {
+      const q = new URLSearchParams({
+        whitelistEnabled: '1',
+        whitelistPath,
+        whitelistInterval: String(whitelistInterval),
+        whitelistRestartWait: String(whitelistRestartWait),
+        crowdsecContainer,
+      })
+      const res = await fetch(`/api/crowdsec/whitelist?${q}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const j = (await res.json()) as {
+        ip?: string
+        status?: string
+        lastCheck?: string
+        lastChange?: string
+      }
+      if (j.ip) setWlIp(j.ip)
+      if (j.status) setWlStatus(j.status)
+      if (j.lastCheck) setWlLastCheck(j.lastCheck)
+      if (j.lastChange) setWlLastChange(j.lastChange)
+    } catch {
+      /* status optional */
+    }
+  }, [whitelistEnabled, whitelistPath, whitelistInterval, whitelistRestartWait, crowdsecContainer])
+
   useEffect(() => {
     setLoading(true)
     fetchMetrics()
     const id = setInterval(fetchMetrics, refreshSec * 1000)
     return () => clearInterval(id)
   }, [fetchMetrics, refreshSec])
+
+  useEffect(() => {
+    void fetchWhitelist()
+    if (!whitelistEnabled) return
+    const id = setInterval(fetchWhitelist, 60_000)
+    return () => clearInterval(id)
+  }, [fetchWhitelist, whitelistEnabled])
 
   const filteredFeed = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -428,10 +483,24 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
             </div>
 
             <div className="cs-threat-wl">
-              <span className="cs-threat-wl-dot" style={{ background: 'var(--cs-ok)' }} />
+              <span className="cs-threat-wl-dot" style={{ background: wlDotColor }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                crowdsec.db
-                {lastUpdate ? ` · ${de ? 'Aktualisiert' : 'Updated'} ${lastUpdate}` : ''}
+                {whitelistEnabled ? (
+                  <>
+                    Whitelist
+                    {wlIp ? `: ${wlIp}` : ''}
+                    {wlStatus === 'aktualisiert' && wlLastChange
+                      ? ` · ${de ? 'geändert' : 'changed'} ${wlLastChange}`
+                      : wlLastCheck
+                        ? ` · ${wlLastCheck}`
+                        : ''}
+                  </>
+                ) : (
+                  <>
+                    crowdsec.db
+                    {lastUpdate ? ` · ${de ? 'Aktualisiert' : 'Updated'} ${lastUpdate}` : ''}
+                  </>
+                )}
               </span>
             </div>
           </aside>
@@ -577,6 +646,50 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
 
       <div>
         <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+          {de ? 'Dynamische Whitelist (optional)' : 'Dynamic whitelist (optional)'}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={bool(config.whitelistEnabled, false)}
+            onChange={(e) => onChange('whitelistEnabled', e.target.checked)}
+          />
+          {de
+            ? 'Öffentliche IP in my-whitelist.yaml (threat-map-docker-Stil)'
+            : 'Write public IP to my-whitelist.yaml (threat-map-docker style)'}
+        </label>
+        {bool(config.whitelistEnabled, false) ? (
+          <>
+            <input
+              style={inp}
+              value={str(config.whitelistPath) || '/crowdsec-postoverflows/s01-whitelist/my-whitelist.yaml'}
+              onChange={(e) => onChange('whitelistPath', e.target.value)}
+              placeholder="/crowdsec-postoverflows/s01-whitelist/my-whitelist.yaml"
+            />
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginTop: 8, marginBottom: 4 }}>
+              {de ? 'Intervall (Sekunden)' : 'Interval (seconds)'}
+            </label>
+            <input
+              style={inp}
+              type="number"
+              min={60}
+              max={86400}
+              value={Math.min(86400, Math.max(60, Math.round(num(config.whitelistInterval, 900))))}
+              onChange={(e) =>
+                onChange('whitelistInterval', Math.min(86400, Math.max(60, Math.round(Number(e.target.value)) || 900)))
+              }
+            />
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.45 }}>
+              {de
+                ? 'Volume …/crowdsec/postoverflows → /crowdsec-postoverflows (read-write) + Docker-Socket. Container-Name unten bei „Sperre löschen“.'
+                : 'Volume …/crowdsec/postoverflows → /crowdsec-postoverflows (read-write) + Docker socket. Container name under “Remove bans”.'}
+            </p>
+          </>
+        ) : null}
+      </div>
+
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
           {de ? 'Sperre löschen (optional)' : 'Remove bans (optional)'}
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
@@ -593,8 +706,8 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
               {de
-                ? 'Wie threat-map-docker: Docker-Socket an SelfDashboard mounten (Unraid-Template). Feed-Button 🗑️ = cscli decisions delete.'
-                : 'Like threat-map-docker: mount Docker socket on SelfDashboard. Feed button 🗑️ runs cscli decisions delete.'}
+                ? 'Docker-Socket an SelfDashboard. Feed 🗑️ = cscli decisions + alerts delete.'
+                : 'Mount Docker socket on SelfDashboard. Feed 🗑️ runs cscli decisions + alerts delete.'}
             </p>
           </>
         ) : null}

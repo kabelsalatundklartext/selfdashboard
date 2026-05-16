@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { crowdsecDeleteDecisionIp } from '@/lib/crowdsecDocker'
+import { crowdsecUnbanIp } from '@/lib/crowdsecDocker'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!ip) return NextResponse.json({ error: 'missing_ip' }, { status: 400 })
 
   try {
-    await crowdsecDeleteDecisionIp(container, ip)
+    await crowdsecUnbanIp(container, ip)
     return NextResponse.json({ ok: true })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'delete_failed'
