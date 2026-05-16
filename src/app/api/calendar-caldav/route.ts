@@ -150,6 +150,7 @@ export async function POST(req: Request) {
       window: { start: toLocalYmd(range.start), end: toLocalYmd(range.end) },
       rawObjectCount: result.rawObjectCount,
       calendarsTried: result.calendarsTried,
+      probe: result.probe,
     })
   } catch (e) {
     const name = e instanceof Error ? e.name : ''

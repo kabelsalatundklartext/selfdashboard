@@ -19,7 +19,7 @@ export type DayEventModalRemoteEvent = {
   title: string
   timeLabel?: string | null
   feedName?: string
-  sourceKind: 'caldav'
+  sourceKind: 'caldav' | 'ics'
 }
 
 export type EventEditDraft = {

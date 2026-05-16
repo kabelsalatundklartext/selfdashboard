@@ -4,6 +4,15 @@
  */
 import { expandIcsString, type IcsOccurrence } from '@/lib/calendarIcs'
 
+export type CaldavProbeStep = {
+  step: string
+  status: number
+  hrefs?: number
+  icsBlocks?: number
+  eventsInWindow?: number
+  hint?: string
+}
+
 export type RawCaldavFetchResult =
   | {
       ok: true
@@ -11,8 +20,9 @@ export type RawCaldavFetchResult =
       icsBlocks: number
       hrefsListed: number
       method: 'report' | 'propfind-get'
+      probe?: CaldavProbeStep[]
     }
-  | { ok: false; error: string; status?: number }
+  | { ok: false; error: string; status?: number; probe?: CaldavProbeStep[] }
 
 function basicAuthHeader(username: string, password: string): string {
   return `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`
@@ -113,6 +123,18 @@ function propfindMembersBody(): string {
 </d:propfind>`
 }
 
+function looksLikeLoginHtml(text: string): boolean {
+  return (
+    !/multistatus/i.test(text) &&
+    (/<html[\s>]/i.test(text) || /<!DOCTYPE\s+html/i.test(text) || /name=["']password/i.test(text))
+  )
+}
+
+function snippet(text: string, max = 120): string {
+  const s = text.replace(/\s+/g, ' ').trim()
+  return s.length <= max ? s : `${s.slice(0, max)}…`
+}
+
 async function davXmlRequest(
   url: string,
   method: string,
@@ -125,9 +147,13 @@ async function davXmlRequest(
   const headers: Record<string, string> = {
     Authorization: basicAuthHeader(username, password),
     Accept: 'application/xml, text/xml, */*',
+    'User-Agent': 'SelfDashboard-CalDAV/2.4',
   }
   if (body) headers['Content-Type'] = 'application/xml; charset=utf-8'
   if (depth) headers.Depth = depth
+  if (method === 'REPORT' || method === 'PROPFIND') {
+    headers.Prefer = 'return-minimal'
+  }
 
   const res = await fetch(url, {
     method,
@@ -139,6 +165,80 @@ async function davXmlRequest(
   })
   const text = await res.text()
   return { status: res.status, text }
+}
+
+/** Detaillierte Schritte für „Verbindung testen“ / Diagnose bei 0 Terminen. */
+export async function probeCalDavRead(
+  calendarUrl: string,
+  username: string,
+  password: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  signal: AbortSignal,
+): Promise<{ collectionUrl: string; steps: CaldavProbeStep[]; unauthorized: boolean }> {
+  const collectionUrl = calendarUrl.endsWith('/') ? calendarUrl : `${calendarUrl}/`
+  const user = username.trim()
+  const pass = password.trim()
+  const steps: CaldavProbeStep[] = []
+  if (!user || !pass) {
+    steps.push({ step: 'auth', status: 0, hint: 'Benutzername oder Passwort fehlt' })
+    return { collectionUrl, steps, unauthorized: true }
+  }
+
+  const urlsToTry = [collectionUrl, collectionUrl.replace(/\/$/, '')]
+  const seen = new Set<string>()
+
+  for (const url of urlsToTry) {
+    if (seen.has(url)) continue
+    seen.add(url)
+
+    const report = await davXmlRequest(url, 'REPORT', user, pass, sabreCalendarQueryBody(), '1', signal)
+    if (looksLikeLoginHtml(report.text)) {
+      steps.push({
+        step: 'REPORT',
+        status: report.status,
+        hint: 'Login-Seite statt Kalender — App-Passwort + volle E-Mail',
+      })
+      return { collectionUrl: url, steps, unauthorized: true }
+    }
+    const bodies = extractIcsBodiesFromMultistatus(report.text)
+    let eventsInWindow = 0
+    for (const ics of bodies) eventsInWindow += expandIcsString(ics, rangeStart, rangeEnd).length
+    steps.push({
+      step: `REPORT ${url.endsWith('/') ? 'mit /' : 'ohne /'}`,
+      status: report.status,
+      icsBlocks: bodies.length,
+      eventsInWindow,
+      hint:
+        bodies.length === 0
+          ? report.status === 207
+            ? '207 aber keine calendar-data'
+            : snippet(report.text)
+          : undefined,
+    })
+
+    const pf = await davXmlRequest(url, 'PROPFIND', user, pass, propfindMembersBody(), '1', signal)
+    if (looksLikeLoginHtml(pf.text)) {
+      steps.push({ step: 'PROPFIND', status: pf.status, hint: 'Login-Seite — App-Passwort prüfen' })
+      return { collectionUrl: url, steps, unauthorized: true }
+    }
+    const hrefs = extractMemberHrefs(pf.text, url)
+    let got = 0
+    for (const href of hrefs.slice(0, 40)) {
+      if (isCollectionHref(pf.text, href)) continue
+      const ics = await getIcsResource(href, user, pass, signal)
+      if (ics) got++
+    }
+    steps.push({
+      step: 'PROPFIND+GET',
+      status: pf.status,
+      hrefs: hrefs.length,
+      icsBlocks: got,
+      hint: hrefs.length === 0 ? snippet(pf.text) : undefined,
+    })
+  }
+
+  return { collectionUrl, steps, unauthorized: false }
 }
 
 async function getIcsResource(
@@ -180,91 +280,100 @@ export async function fetchOccurrencesRawCaldav(
   rangeEnd: Date,
   signal: AbortSignal,
 ): Promise<RawCaldavFetchResult> {
-  const collectionUrl = calendarUrl.endsWith('/') ? calendarUrl : `${calendarUrl}/`
   const user = username.trim()
   const pass = password.trim()
   if (!user || !pass) return { ok: false, error: 'unauthorized', status: 401 }
 
-  const occurrences: IcsOccurrence[] = []
-
-  // 1) REPORT calendar-query (Thunderbird / sabre.io recipe)
-  try {
-    const report = await davXmlRequest(
-      collectionUrl,
-      'REPORT',
-      user,
-      pass,
-      sabreCalendarQueryBody(),
-      '1',
-      signal,
-    )
-    if (report.status === 401 || report.status === 403) {
-      return { ok: false, error: 'unauthorized', status: report.status }
+  const probe = await probeCalDavRead(calendarUrl, user, pass, rangeStart, rangeEnd, signal)
+  if (probe.unauthorized) {
+    return {
+      ok: false,
+      error: 'unauthorized',
+      status: 401,
+      probe: probe.steps,
     }
-    if (report.status === 207 || (report.text && /multistatus/i.test(report.text))) {
-      const bodies = extractIcsBodiesFromMultistatus(report.text)
-      for (const ics of bodies) {
-        mergeOccurrences(occurrences, expandIcsString(ics, rangeStart, rangeEnd))
-      }
-      if (bodies.length > 0) {
-        return {
-          ok: true,
-          occurrences,
-          icsBlocks: bodies.length,
-          hrefsListed: bodies.length,
-          method: 'report',
-        }
-      }
-    }
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') throw e
   }
 
-  // 2) PROPFIND Depth 1 + GET each member (Begenda opaque URLs)
-  try {
-    const pf = await davXmlRequest(
-      collectionUrl,
-      'PROPFIND',
-      user,
-      pass,
-      propfindMembersBody(),
-      '1',
-      signal,
-    )
-    if (pf.status === 401 || pf.status === 403) {
-      return { ok: false, error: 'unauthorized', status: pf.status }
+  const occurrences: IcsOccurrence[] = []
+  const collectionUrl = probe.collectionUrl
+  let bestIcs = 0
+  let bestHrefs = 0
+  let method: 'report' | 'propfind-get' = 'report'
+
+  const report = await davXmlRequest(
+    collectionUrl,
+    'REPORT',
+    user,
+    pass,
+    sabreCalendarQueryBody(),
+    '1',
+    signal,
+  )
+  if (looksLikeLoginHtml(report.text)) {
+    return { ok: false, error: 'unauthorized', status: 401, probe: probe.steps }
+  }
+  if (report.status === 401 || report.status === 403) {
+    return { ok: false, error: 'unauthorized', status: report.status, probe: probe.steps }
+  }
+  if (report.status === 207 || /multistatus/i.test(report.text)) {
+    const bodies = extractIcsBodiesFromMultistatus(report.text)
+    for (const ics of bodies) {
+      mergeOccurrences(occurrences, expandIcsString(ics, rangeStart, rangeEnd))
     }
-    if (pf.status === 207 || /multistatus/i.test(pf.text)) {
-      let bodies = extractIcsBodiesFromMultistatus(pf.text)
-      const hrefs = extractMemberHrefs(pf.text, collectionUrl)
-      for (const href of hrefs) {
-        if (isCollectionHref(pf.text, href)) continue
-        const ics = await getIcsResource(href, user, pass, signal)
-        if (ics) bodies.push(ics)
-      }
-      bodies = [...new Set(bodies)]
-      for (const ics of bodies) {
-        mergeOccurrences(occurrences, expandIcsString(ics, rangeStart, rangeEnd))
-      }
-      if (bodies.length > 0 || hrefs.length > 0) {
-        return {
-          ok: true,
-          occurrences,
-          icsBlocks: bodies.length,
-          hrefsListed: hrefs.length,
-          method: 'propfind-get',
-        }
+    if (bodies.length > 0) {
+      return {
+        ok: true,
+        occurrences,
+        icsBlocks: bodies.length,
+        hrefsListed: bodies.length,
+        method: 'report',
+        probe: probe.steps,
       }
     }
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') throw e
+    bestIcs = Math.max(bestIcs, bodies.length)
+  }
+
+  const pf = await davXmlRequest(
+    collectionUrl,
+    'PROPFIND',
+    user,
+    pass,
+    propfindMembersBody(),
+    '1',
+    signal,
+  )
+  if (!looksLikeLoginHtml(pf.text) && (pf.status === 207 || /multistatus/i.test(pf.text))) {
+    let bodies = extractIcsBodiesFromMultistatus(pf.text)
+    const hrefs = extractMemberHrefs(pf.text, collectionUrl)
+    for (const href of hrefs) {
+      if (isCollectionHref(pf.text, href)) continue
+      const ics = await getIcsResource(href, user, pass, signal)
+      if (ics) bodies.push(ics)
+    }
+    bodies = [...new Set(bodies)]
+    for (const ics of bodies) {
+      mergeOccurrences(occurrences, expandIcsString(ics, rangeStart, rangeEnd))
+    }
+    bestHrefs = hrefs.length
+    bestIcs = Math.max(bestIcs, bodies.length)
+    if (bodies.length > 0) {
+      return {
+        ok: true,
+        occurrences,
+        icsBlocks: bodies.length,
+        hrefsListed: hrefs.length,
+        method: 'propfind-get',
+        probe: probe.steps,
+      }
+    }
   }
 
   return {
     ok: true,
     occurrences,
-    icsBlocks: 0,
-    hrefsListed: 0,
-    method: 'report',
+    icsBlocks: bestIcs,
+    hrefsListed: bestHrefs,
+    method,
+    probe: probe.steps,
   }
 }

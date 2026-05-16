@@ -14,6 +14,7 @@ import {
   CALENDAR_FETCH_TIMEOUT_MS,
   fixCommonCalDavUrlMistakes,
   isCardDavContactsHost,
+  normalizeBegendaCalendarHref,
   normalizeCalDavHref,
   normalizeCaldavUsername,
   normalizeCalendarHttpUrl,
@@ -40,8 +41,15 @@ export type CaldavFetchResult =
       /** Roh-Objekte mit ICS-Text vor Expand (Diagnose). */
       rawObjectCount?: number
       calendarsTried?: number
+      probe?: import('@/lib/caldavRaw').CaldavProbeStep[]
     }
-  | { ok: false; error: CaldavFetchErrorCode; status?: number; detail?: string }
+  | {
+      ok: false
+      error: CaldavFetchErrorCode
+      status?: number
+      detail?: string
+      probe?: import('@/lib/caldavRaw').CaldavProbeStep[]
+    }
 
 export type CaldavDiscoverResult =
   | { ok: true; calendars: CaldavDiscoverCalendar[]; serverUrl: string }
@@ -98,7 +106,7 @@ function displayNameOf(cal: DAVCalendar): string {
   }
 }
 
-function resolveCalendarUrlInput(rawUrl: string, username: string): string {
+export function resolveCalendarCollectionHref(rawUrl: string, username: string): string {
   const urlFix = fixCommonCalDavUrlMistakes(rawUrl)
   let input = urlFix.url || rawUrl
   if (
@@ -114,7 +122,7 @@ function resolveCalendarUrlInput(rawUrl: string, username: string): string {
     const clean = new URL(u.toString())
     clean.username = ''
     clean.password = ''
-    return { href: normalizeCalDavHref(clean.toString()) }
+    return { href: normalizeCalDavHref(normalizeBegendaCalendarHref(clean.toString())) }
   })()
   return href
 }
@@ -153,7 +161,7 @@ async function connectCalDav(
 
   let collectionHref: string
   try {
-    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
+    collectionHref = resolveCalendarCollectionHref(rawCalendarUrl, user)
     if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
       return {
         ok: false,
@@ -708,7 +716,7 @@ export async function discoverCalDavCalendars(
 
   let collectionHref: string
   try {
-    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
+    collectionHref = resolveCalendarCollectionHref(rawCalendarUrl, user)
     if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
       return { ok: false, error: 'wrong_dav_service', detail: 'carddav is for contacts' }
     }
@@ -771,7 +779,7 @@ export async function fetchCalDavOccurrencesTsdav(
 
   let collectionHref: string
   try {
-    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
+    collectionHref = resolveCalendarCollectionHref(rawCalendarUrl, user)
     if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
       return { ok: false, error: 'wrong_dav_service', detail: 'carddav is for contacts' }
     }
@@ -811,6 +819,16 @@ export async function fetchCalDavOccurrencesTsdav(
           calendarUrl: collectionHref,
           rawObjectCount: raw.icsBlocks,
           calendarsTried: 1,
+          probe: raw.probe,
+        }
+      }
+      if (!raw.ok && (raw.status === 401 || raw.status === 403)) {
+        return {
+          ok: false,
+          error: 'unauthorized',
+          status: 401,
+          detail: 'App-Passwort und volle E-Mail prüfen (WEB.DE/GMX)',
+          probe: raw.probe,
         }
       }
     } catch (e) {

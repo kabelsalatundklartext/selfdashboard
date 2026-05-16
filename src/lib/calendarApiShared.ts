@@ -107,7 +107,24 @@ export function buildBegendaCalendarUrl(
   if (!u) return `https://${host}/`
   const domain = host.includes('gmx') ? 'gmx.net' : 'web.de'
   const addr = u.includes('@') ? u : `${u}@${domain}`
-  return `https://${host}/begenda/dav/${addr}/calendar`
+  return `https://${host}/begenda/dav/${encodeURIComponent(addr)}/calendar`
+}
+
+/** E-Mail-Segment in WEB.DE/GMX-CalDAV-Pfad korrekt encoden (@ → %40). */
+export function normalizeBegendaCalendarHref(href: string): string {
+  try {
+    const u = new URL(href)
+    const m = u.pathname.match(/^(\/begenda\/dav\/)([^/]+)(\/calendar\/?)$/i)
+    if (!m?.[2]) return href
+    const email = decodeURIComponent(m[2].trim())
+    const tail = m[3].endsWith('/') ? '/calendar/' : '/calendar'
+    u.pathname = `${m[1]}${encodeURIComponent(email)}${tail}`
+    u.username = ''
+    u.password = ''
+    return u.toString()
+  } catch {
+    return href
+  }
 }
 
 /** E-Mail aus WEB.DE/GMX-CalDAV-Pfad, z. B. …/dav/nutzer@web.de/calendar */
