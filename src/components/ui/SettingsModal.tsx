@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil } from 'lucide-react'
+import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil, Download, RefreshCw } from 'lucide-react'
+import type { LogEntry, LogRetentionDays } from '@/lib/errorLogTypes'
 import { useDashboardStore } from '@/lib/store'
 import { themes } from '@/lib/themes'
 import { t } from '@/lib/i18n'
@@ -31,7 +32,13 @@ const COLOR_FIELDS = [
 
 const EMOJIS = ['🏠', '🖥️', '🎬', '📊', '🌐', '🔒', '☁️', '🎮', '📱', '🔧', '⚡', '🌙', '📷', '🗂️', '🎵', '🏥']
 
-type TabId = 'general' | 'dashboards' | 'design'
+type TabId = 'general' | 'dashboards' | 'design' | 'logs'
+
+const RETENTION_OPTIONS: { days: LogRetentionDays; label: { de: string; en: string } }[] = [
+  { days: 3, label: { de: '3 Tage', en: '3 days' } },
+  { days: 7, label: { de: '7 Tage', en: '7 days' } },
+  { days: 30, label: { de: '30 Tage', en: '30 days' } },
+]
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -77,9 +84,73 @@ export function SettingsModal({ open, onClose }: Props) {
   const [customSearchUrl, setCustomSearchUrl] = useState('')
   const [customSearchErr, setCustomSearchErr] = useState<string | null>(null)
   const [editingDash, setEditingDash] = useState<string | null>(null)
+  const [logRetention, setLogRetention] = useState<LogRetentionDays>(7)
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logsBusy, setLogsBusy] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
   const newIconInputRef = useRef<HTMLInputElement>(null)
+
+  const refreshLogs = useCallback(async () => {
+    setLogsLoading(true)
+    try {
+      const [settingsRes, logsRes] = await Promise.all([
+        fetch('/api/logs/settings', { cache: 'no-store' }),
+        fetch('/api/logs?limit=120', { cache: 'no-store' }),
+      ])
+      if (settingsRes.ok) {
+        const s = (await settingsRes.json()) as { retentionDays?: LogRetentionDays }
+        if (s.retentionDays === 3 || s.retentionDays === 7 || s.retentionDays === 30) {
+          setLogRetention(s.retentionDays)
+        }
+      }
+      if (logsRes.ok) {
+        const j = (await logsRes.json()) as { entries?: LogEntry[] }
+        setLogEntries(Array.isArray(j.entries) ? j.entries : [])
+      }
+    } catch {
+      /* offline */
+    } finally {
+      setLogsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (open && tab === 'logs') void refreshLogs()
+  }, [open, tab, refreshLogs])
+
+  const setRetention = async (days: LogRetentionDays) => {
+    setLogsBusy(true)
+    try {
+      const r = await fetch('/api/logs/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retentionDays: days }),
+      })
+      if (r.ok) {
+        setLogRetention(days)
+        await refreshLogs()
+      }
+    } finally {
+      setLogsBusy(false)
+    }
+  }
+
+  const downloadLogs = (format: 'txt' | 'jsonl') => {
+    window.location.href = `/api/logs/download?format=${format}`
+  }
+
+  const clearAllLogs = async () => {
+    if (!window.confirm(locale === 'de' ? 'Alle Protokolleinträge löschen?' : 'Delete all log entries?')) return
+    setLogsBusy(true)
+    try {
+      await fetch('/api/logs', { method: 'DELETE' })
+      setLogEntries([])
+    } finally {
+      setLogsBusy(false)
+    }
+  }
 
   if (!open) return null
 
@@ -128,6 +199,7 @@ export function SettingsModal({ open, onClose }: Props) {
     { id: 'general', label: locale === 'de' ? 'Allgemein' : 'General' },
     { id: 'dashboards', label: 'Dashboards' },
     { id: 'design', label: 'Design' },
+    { id: 'logs', label: locale === 'de' ? 'Protokoll' : 'Logs' },
   ]
 
   return (
@@ -135,7 +207,7 @@ export function SettingsModal({ open, onClose }: Props) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} onClick={onClose} />
         <div className="animate-fade-in" style={{
-          position: 'relative', width: '100%', maxWidth: '520px', background: 'var(--surface)',
+          position: 'relative', width: '100%', maxWidth: tab === 'logs' ? '560px' : '520px', background: 'var(--surface)',
           border: '1px solid var(--border)', borderRadius: '18px', display: 'flex',
           flexDirection: 'column', maxHeight: '88vh', boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
@@ -742,6 +814,142 @@ export function SettingsModal({ open, onClose }: Props) {
                           style={{ width: '32px', height: '32px', borderRadius: '8px', border: '1px solid var(--border)', background: 'none', padding: '1px', cursor: 'pointer' }} />
                         <span style={{ fontSize: '13px', flex: 1, color: 'var(--text)' }}>{label[locale]}</span>
                         <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>{current}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </>)}
+
+            {tab === 'logs' && (<>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {locale === 'de' ? 'Aufbewahrung' : 'Retention'}
+                </label>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
+                  {locale === 'de'
+                    ? 'Fehler von SelfDashboard, API-Proxys und Plugins werden auf dem Server gespeichert (Passwörter werden nicht mitgeloggt).'
+                    : 'Errors from SelfDashboard, API proxies, and plugins are stored on the server (passwords are never logged).'}
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {RETENTION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.days}
+                      type="button"
+                      disabled={logsBusy}
+                      onClick={() => void setRetention(opt.days)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 6px',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        cursor: logsBusy ? 'wait' : 'pointer',
+                        background: logRetention === opt.days ? 'var(--accent)' : 'var(--surface-2)',
+                        color: logRetention === opt.days ? '#fff' : 'var(--text-muted)',
+                        border: `1px solid ${logRetention === opt.days ? 'var(--accent)' : 'var(--border)'}`,
+                      }}
+                    >
+                      {opt.label[locale]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  disabled={logsLoading || logsBusy}
+                  onClick={() => void refreshLogs()}
+                >
+                  <RefreshCw size={14} /> {locale === 'de' ? 'Aktualisieren' : 'Refresh'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => downloadLogs('txt')}
+                >
+                  <Download size={14} /> {locale === 'de' ? 'Download (.txt)' : 'Download (.txt)'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => downloadLogs('jsonl')}
+                >
+                  <Download size={14} /> JSONL
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', color: '#ef4444' }}
+                  disabled={logsBusy}
+                  onClick={() => void clearAllLogs()}
+                >
+                  <Trash2 size={14} /> {locale === 'de' ? 'Alles löschen' : 'Clear all'}
+                </button>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {locale === 'de' ? 'Letzte Einträge' : 'Recent entries'}
+                  {logsLoading ? ' …' : ` (${logEntries.length})`}
+                </label>
+                <div style={{
+                  maxHeight: '280px',
+                  overflowY: 'auto',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
+                  padding: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                }}>
+                  {logEntries.length === 0 && !logsLoading ? (
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '12px 8px', textAlign: 'center' }}>
+                      {locale === 'de' ? 'Noch keine Einträge.' : 'No entries yet.'}
+                    </p>
+                  ) : null}
+                  {logEntries.map((e) => {
+                    const levelColor =
+                      e.level === 'error' ? '#ef4444' : e.level === 'warn' ? '#f59e0b' : 'var(--text-muted)'
+                    return (
+                      <div
+                        key={e.id}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          fontSize: '11px',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '4px' }}>
+                          <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '10px' }}>
+                            {new Date(e.ts).toLocaleString(locale === 'de' ? 'de-DE' : 'en-GB')}
+                          </span>
+                          <span style={{ fontWeight: 700, color: levelColor, textTransform: 'uppercase', fontSize: '10px' }}>
+                            {e.level}
+                          </span>
+                          <span style={{ color: 'var(--text-muted)' }}>{e.source}</span>
+                          {e.category ? (
+                            <span style={{ color: 'var(--accent)', fontFamily: 'monospace', fontSize: '10px' }}>{e.category}</span>
+                          ) : null}
+                          {e.pluginId ? (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>· {e.pluginId}</span>
+                          ) : null}
+                        </div>
+                        <p style={{ margin: 0, color: 'var(--text)', wordBreak: 'break-word' }}>{e.message}</p>
+                        {e.detail ? (
+                          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '10px', wordBreak: 'break-word' }}>
+                            {e.detail}
+                          </p>
+                        ) : null}
                       </div>
                     )
                   })}

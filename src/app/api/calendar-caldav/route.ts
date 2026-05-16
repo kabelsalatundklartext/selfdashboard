@@ -7,6 +7,7 @@ import {
   splitUrlBasicAuth,
 } from '@/lib/calendarApiShared'
 import { fetchCalDavOccurrences } from '@/lib/calendarCaldav'
+import { logApiFailure } from '@/lib/errorLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,11 @@ export async function POST(req: Request) {
               : result.error === 'upstream_network'
                 ? 504
                 : 502
+      void logApiFailure('calendar-caldav', result.error, {
+        upstreamStatus: result.status,
+        detail: result.detail,
+        host: href.hostname,
+      })
       return NextResponse.json(
         {
           ok: false,
@@ -99,8 +105,13 @@ export async function POST(req: Request) {
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
     if (name === 'AbortError') {
+      void logApiFailure('calendar-caldav', 'fetch_timeout', { host: href.hostname })
       return NextResponse.json({ ok: false, error: 'fetch_timeout' }, { status: 504 })
     }
+    void logApiFailure('calendar-caldav', 'fetch_failed', {
+      host: href.hostname,
+      message: e instanceof Error ? e.message : String(e),
+    })
     return NextResponse.json({ ok: false, error: 'fetch_failed', message: String(e) }, { status: 502 })
   } finally {
     clearTimeout(to)

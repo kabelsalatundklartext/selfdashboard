@@ -6,6 +6,7 @@ import {
   normalizeCalendarHttpUrl,
   parseCalendarWindow,
 } from '@/lib/calendarApiShared'
+import { logApiFailure } from '@/lib/errorLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,10 @@ export async function POST(req: Request) {
     })
 
     if (!res.ok) {
+      void logApiFailure('calendar-ics', 'upstream_http', {
+        upstreamStatus: res.status,
+        host: url.hostname,
+      })
       return NextResponse.json(
         { ok: false, error: 'upstream_http', status: res.status },
         { status: 502 },
@@ -92,8 +97,13 @@ export async function POST(req: Request) {
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
     if (name === 'AbortError') {
+      void logApiFailure('calendar-ics', 'fetch_timeout', { host: url.hostname })
       return NextResponse.json({ ok: false, error: 'fetch_timeout' }, { status: 504 })
     }
+    void logApiFailure('calendar-ics', 'fetch_failed', {
+      host: url.hostname,
+      message: e instanceof Error ? e.message : String(e),
+    })
     return NextResponse.json({ ok: false, error: 'fetch_failed', message: String(e) }, { status: 502 })
   } finally {
     clearTimeout(to)

@@ -1,17 +1,12 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { NextResponse } from 'next/server'
+import { dataDir } from '@/lib/dataDir'
 import { validateDashboardStatePersisted } from '@/lib/dashboardStatePayload'
 
 export const dynamic = 'force-dynamic'
 
 const MAX_BYTES = 4_000_000
-
-function dataDir(): string {
-  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim()
-  if (raw) return raw
-  return join(process.cwd(), 'data')
-}
 
 const configPath = () => join(dataDir(), 'dashboard.json')
 

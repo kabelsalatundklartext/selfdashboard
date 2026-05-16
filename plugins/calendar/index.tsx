@@ -5,13 +5,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { reportClientLog } from '@/lib/reportLog'
 
 export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.6',
+  version: '1.4.7',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -297,6 +298,25 @@ function formatWeekRangeTitle(weekStart: Date, loc: string): string {
   return `${left} – ${right}`
 }
 
+function formatFeedError(code: string, detail: string | undefined, de: boolean): string {
+  const d = detail?.trim() ?? ''
+  if (code === 'unauthorized' || d.includes('App-Passwort') || d.includes('app-specific')) {
+    return de
+      ? 'Anmeldung fehlgeschlagen — bei 2FA das WEB.DE-App-Passwort nutzen (nicht das normale Passwort)'
+      : 'Auth failed — with 2FA use WEB.DE app password (not your normal password)'
+  }
+  if (code === 'not_calendar_data') {
+    return de
+      ? 'Keine Termin-Daten — CalDAV-URL prüfen (…/begenda/dav/…@web.de/calendar)'
+      : 'No event data — check CalDAV URL (…/begenda/dav/…@web.de/calendar)'
+  }
+  if (code === 'upstream_network' || code === 'fetch_timeout') {
+    return de ? 'Server nicht erreichbar (Netzwerk/Timeout)' : 'Server unreachable (network/timeout)'
+  }
+  if (d) return `${code} · ${d}`
+  return code
+}
+
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -363,10 +383,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
           }
           if (!j?.ok) {
-            const parts = [j?.error || `http_${res.status}`]
-            if (j?.upstreamStatus) parts.push(`HTTP ${j.upstreamStatus}`)
-            if (j?.detail) parts.push(j.detail)
-            throw new Error(parts.join(' · '))
+            throw new Error(formatFeedError(j?.error || `http_${res.status}`, j?.detail, de))
           }
           let host = 'ICS'
           try {
@@ -412,10 +429,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
           }
           if (!j?.ok) {
-            const parts = [j?.error || `http_${res.status}`]
-            if (j?.upstreamStatus) parts.push(`HTTP ${j.upstreamStatus}`)
-            if (j?.detail) parts.push(j.detail)
-            throw new Error(parts.join(' · '))
+            throw new Error(formatFeedError(j?.error || `http_${res.status}`, j?.detail, de))
           }
           let host = 'CalDAV'
           try {
@@ -443,6 +457,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         setRemoteEvents(merged)
         setRemoteErrors(errs)
         setRemoteLoading(false)
+        for (const [feedKey, msg] of Object.entries(errs)) {
+          reportClientLog({
+            level: 'error',
+            source: 'plugin',
+            category: 'calendar-feed',
+            pluginId: 'calendar',
+            instanceId,
+            message: `${feedKey}: ${msg}`,
+          })
+        }
       }
     }
 
