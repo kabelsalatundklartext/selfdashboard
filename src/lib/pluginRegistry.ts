@@ -9,15 +9,6 @@ interface RegisteredPlugin {
   component: PluginComponent
 }
 
-/** Legacy plugin IDs → current ID (dashboard.json migration). */
-const PLUGIN_ID_ALIASES: Record<string, string> = {
-  'crowdsec-threat-map': 'crowdsec',
-}
-
-export function resolvePluginId(id: string): string {
-  return PLUGIN_ID_ALIASES[id] ?? id
-}
-
 class PluginRegistry {
   private plugins: Map<string, RegisteredPlugin> = new Map()
 
@@ -31,7 +22,7 @@ class PluginRegistry {
   }
 
   get(id: string): RegisteredPlugin | undefined {
-    return this.plugins.get(resolvePluginId(id))
+    return this.plugins.get(id)
   }
 
   getAll(): RegisteredPlugin[] {
@@ -43,7 +34,7 @@ class PluginRegistry {
   }
 
   isRegistered(id: string): boolean {
-    return this.plugins.has(resolvePluginId(id))
+    return this.plugins.has(id)
   }
 }
 

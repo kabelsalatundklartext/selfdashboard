@@ -27,7 +27,6 @@ RUN mkdir -p public
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
 # Root: bind-mounted /var/run/docker.sock is owned by host root:docker — non-root often gets EACCES without --group-add.
 USER root
@@ -35,9 +34,7 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
-ENV CROWDSEC_DATA_DIR=/crowdsec-data
-ENV CROWDSEC_DB_PATH=/crowdsec-data/crowdsec.db
 
-RUN mkdir -p /app/data /crowdsec-data
+RUN mkdir -p /app/data
 
 CMD ["node", "server.js"]

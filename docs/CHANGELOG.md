@@ -6,17 +6,6 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ## 🇬🇧 English
 
-### CrowdSec plugin **2.0.0**
-
-| Topic | Description |
-|--------|-------------|
-| **Plugin ID** | `crowdsec` (legacy `crowdsec-threat-map` is migrated automatically in stored dashboards). |
-| **Data** | Direct read of **`crowdsec.db`** via `GET /api/crowdsec` — no threat-map-docker / exporter proxy. |
-| **Unraid** | Optional volume: host `…/appdata/crowdsec/data` → `/crowdsec-data` (read-only). |
-| **UI** | World map, live feed, themes; map/sidebar toggles. All plugin code under `plugins/crowdsec/`. |
-
----
-
 ### Docker plugin **1.7.9** (core: `src/lib/dockerEngine.ts`)
 
 | Topic | Change |
@@ -56,17 +45,6 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 ---
 
 ## 🇩🇪 Deutsch
-
-### CrowdSec-Plugin **2.0.0**
-
-| Thema | Beschreibung |
-|--------|----------------|
-| **Plugin-ID** | `crowdsec` (alte `crowdsec-threat-map` wird in gespeicherten Dashboards automatisch umgestellt). |
-| **Daten** | Direkt **`crowdsec.db`** über `GET /api/crowdsec` — kein threat-map-docker / Exporter. |
-| **Unraid** | Optionales Volume: Host `…/appdata/crowdsec/data` → `/crowdsec-data` (read-only). |
-| **UI** | Weltkarte, Live-Feed, Themes; Karte/Seitenleiste ausblendbar. Gesamter Plugin-Code unter `plugins/crowdsec/`. |
-
----
 
 ### Docker-Plugin **1.7.9** (Kern: `src/lib/dockerEngine.ts`)
 

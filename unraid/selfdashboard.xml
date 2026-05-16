@@ -70,30 +70,6 @@
     Required="false"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- CrowdSec data (optional — CrowdSec plugin reads crowdsec.db) -->
-  <Config
-    Name="CrowdSec Data"
-    Target="/crowdsec-data"
-    Default="/mnt/user/appdata/crowdsec/data"
-    Mode="ro"
-    Description="Optional. Mount CrowdSec appdata (contains crowdsec.db) read-only at /crowdsec-data for the CrowdSec plugin. Unraid default: /mnt/user/appdata/crowdsec/data. In plugin settings use path /crowdsec-data/crowdsec.db. Clear if you do not use CrowdSec."
-    Type="Path"
-    Display="always"
-    Required="false"
-    Mask="false">/mnt/user/appdata/crowdsec/data</Config>
-
-  <!-- CrowdSec postoverflows (optional — dynamic whitelist, read-write) -->
-  <Config
-    Name="CrowdSec Postoverflows"
-    Target="/crowdsec-postoverflows"
-    Default="/mnt/user/appdata/crowdsec/postoverflows"
-    Mode="rw"
-    Description="Optional. For CrowdSec plugin dynamic whitelist: mount postoverflows read-write at /crowdsec-postoverflows. Default whitelist path: /crowdsec-postoverflows/s01-whitelist/my-whitelist.yaml. Also requires Docker socket. Clear if unused."
-    Type="Path"
-    Display="always"
-    Required="false"
-    Mask="false">/mnt/user/appdata/crowdsec/postoverflows</Config>
-
   <!-- Docker Engine socket (optional — Docker widget, same host only) -->
   <Config
     Name="Docker Socket"
