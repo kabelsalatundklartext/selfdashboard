@@ -61,7 +61,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
-| 🛡️ CrowdSec | Security | Live attack map & feed from `crowdsec.db` (direct DB read, optional LAPI unban) | ✅ Included |
+| 🛡️ CrowdSec | Security | Live attack map & feed from `crowdsec.db` (direct DB read, no LAPI) | ✅ Included |
 
 ## Quick Start
 
@@ -213,9 +213,9 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 | Topic | Details |
 |---|---|
 | **Purpose** | World map with attack arcs, live feed, top countries — data read **directly** from CrowdSec’s SQLite DB (`crowdsec.db`). No separate threat-map container. |
-| **API** | `GET /api/crowdsec?dbPath=…` (metrics), optional `POST` for unban via LAPI. |
+| **API** | `GET /api/crowdsec?dbPath=…` — server reads SQLite (`crowdsec.db`) only. |
 | **Unraid volume** | Map host **`/mnt/user/appdata/crowdsec/data`** → container **`/crowdsec-data`** (read-only). Default DB path: **`/crowdsec-data/crowdsec.db`**. |
-| **Settings** | DB path, history days, refresh interval, optional LAPI URL + API key, server lat/lon for map arcs, show/hide map & sidebar. |
+| **Settings** | DB path, history days, refresh interval, optional server lat/lon for map arcs, show/hide map & sidebar. |
 | **Docker image** | `CROWDSEC_DATA_DIR` / `CROWDSEC_DB_PATH` env vars match the mount (see `Dockerfile`). |
 
 ---
@@ -353,7 +353,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
-| 🛡️ CrowdSec | Sicherheit | Angriffskarte & Live-Feed aus `crowdsec.db` (direkt aus DB, optional LAPI-Unban) | ✅ Enthalten |
+| 🛡️ CrowdSec | Sicherheit | Angriffskarte & Live-Feed aus `crowdsec.db` (direkt aus DB, kein LAPI) | ✅ Enthalten |
 
 ---
 
@@ -507,9 +507,9 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 | Thema | Details |
 |---|---|
 | **Zweck** | Weltkarte mit Angriffsbögen, Live-Feed, Top-Länder — Daten **direkt** aus der CrowdSec-SQLite-DB (`crowdsec.db`). Kein separater Threat-Map-Container. |
-| **API** | `GET /api/crowdsec?dbPath=…` (Metriken), optional `POST` für Unban über LAPI. |
+| **API** | `GET /api/crowdsec?dbPath=…` — Server liest nur SQLite (`crowdsec.db`). |
 | **Unraid-Volume** | Host **`/mnt/user/appdata/crowdsec/data`** → Container **`/crowdsec-data`** (read-only). Standard-Pfad: **`/crowdsec-data/crowdsec.db`**. |
-| **Einstellungen** | DB-Pfad, Historie in Tagen, Aktualisierungsintervall, optional LAPI-URL + API-Key, Server-Koordinaten für Bögen, Karte/Seitenleiste ein/aus. |
+| **Einstellungen** | DB-Pfad, Historie in Tagen, Aktualisierungsintervall, optionale Server-Koordinaten für Bögen, Karte/Seitenleiste ein/aus. |
 | **Docker-Image** | Env `CROWDSEC_DATA_DIR` / `CROWDSEC_DB_PATH` passen zum Mount (siehe `Dockerfile`). |
 
 ---

@@ -1,13 +1,13 @@
 'use client'
 
 import type { PluginComponent, PluginMeta } from '@/types'
-import { CrowdsecWidget, CrowdsecSettings } from '../crowdsec-threat-map/ThreatMapWidget'
+import { CrowdsecWidget, CrowdsecSettings } from './CrowdsecWidget'
 
 export const meta: PluginMeta = {
   id: 'crowdsec',
   name: 'CrowdSec',
   description:
-    'Echtzeit-Angriffe aus der CrowdSec-Datenbank (crowdsec.db): Weltkarte, Live-Feed, Top-Länder. Karte und Seitenleiste einzeln ausblendbar.',
+    'Echtzeit-Angriffe nur aus crowdsec.db (Weltkarte, Feed, Top-Länder) — kein LAPI/API-Key nötig.',
   version: '2.0.0',
   author: 'SelfDashboard',
   category: 'security',

@@ -13,7 +13,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **Plugin ID** | `crowdsec` (legacy `crowdsec-threat-map` is migrated automatically in stored dashboards). |
 | **Data** | Direct read of **`crowdsec.db`** via `GET /api/crowdsec` — no threat-map-docker / exporter proxy. |
 | **Unraid** | Optional volume: host `…/appdata/crowdsec/data` → `/crowdsec-data` (read-only). |
-| **UI** | World map, live feed, themes; map/sidebar toggles; optional LAPI unban. |
+| **UI** | World map, live feed, themes; map/sidebar toggles. All plugin code under `plugins/crowdsec/`. |
 
 ---
 
@@ -64,7 +64,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **Plugin-ID** | `crowdsec` (alte `crowdsec-threat-map` wird in gespeicherten Dashboards automatisch umgestellt). |
 | **Daten** | Direkt **`crowdsec.db`** über `GET /api/crowdsec` — kein threat-map-docker / Exporter. |
 | **Unraid** | Optionales Volume: Host `…/appdata/crowdsec/data` → `/crowdsec-data` (read-only). |
-| **UI** | Weltkarte, Live-Feed, Themes; Karte/Seitenleiste ausblendbar; optional LAPI-Unban. |
+| **UI** | Weltkarte, Live-Feed, Themes; Karte/Seitenleiste ausblendbar. Gesamter Plugin-Code unter `plugins/crowdsec/`. |
 
 ---
 

@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { PluginWidgetProps, PluginSettingsProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import type { AttackPoint, FeedItem, ParsedCrowdsecMetrics } from '@/lib/crowdsecMetrics'
-import { MapPanel } from '../crowdsec/MapPanel'
-import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from '../crowdsec/constants'
-import '../crowdsec/crowdsec.css'
+import { MapPanel } from './MapPanel'
+import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from './constants'
+import './crowdsec.css'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : ''
@@ -29,10 +29,15 @@ const SETUP_DB = 'CrowdSec-Datenbankpfad in den Einstellungen eintragen'
 
 function formatCrowdsecError(raw: string, de: boolean): string {
   if (raw === 'missing_db_path') return de ? SETUP_DB : 'Enter CrowdSec database path in settings'
-  if (raw === 'db_not_found') {
+  if (raw === 'db_not_found' || raw === 'db_not_a_file') {
     return de
       ? 'crowdsec.db nicht gefunden — Pfad prüfen und Volume in SelfDashboard mounten'
       : 'crowdsec.db not found — check path and mount volume in SelfDashboard'
+  }
+  if (raw === 'db_schema_unsupported') {
+    return de
+      ? 'Unbekanntes Datenbankschema — andere CrowdSec-Version?'
+      : 'Unknown database schema — different CrowdSec version?'
   }
   if (raw === 'db_path_not_allowed') {
     return de
@@ -45,20 +50,11 @@ function formatCrowdsecError(raw: string, de: boolean): string {
   return raw
 }
 
-interface WhitelistStatus {
-  ip?: string
-  status?: string
-  last_check?: string
-  last_change?: string
-}
-
 export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const { locale, editMode } = useDashboardStore()
   const de = locale === 'de'
 
   const dbPath = str(config.dbPath) || '/crowdsec-data/crowdsec.db'
-  const lapiUrl = str(config.lapiUrl)
-  const lapiKey = str(config.lapiKey)
   const daysBack = Math.min(3650, Math.max(1, Math.round(num(config.daysBack, 365))))
   const refreshSec = Math.min(300, Math.max(15, Math.round(num(config.refreshSeconds, 30))))
   const showMap = bool(config.showMap, true)
@@ -86,9 +82,7 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const [serverLat, setServerLat] = useState(0)
   const [serverLon, setServerLon] = useState(0)
   const [serverName, setServerName] = useState('')
-  const [whitelist, setWhitelist] = useState<WhitelistStatus | null>(null)
   const [lastUpdate, setLastUpdate] = useState('')
-  const localUnbanned = useRef(new Set<string>())
   const sparkRef = useRef<HTMLCanvasElement>(null)
 
   const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
@@ -96,7 +90,7 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const applyParsed = useCallback(
     (parsed: ParsedCrowdsecMetrics) => {
       setAttackData(parsed.attackData)
-      setFeedData(parsed.feedData.filter((f) => !localUnbanned.current.has(f.ip)))
+      setFeedData(parsed.feedData)
       setTotalAlerts(parsed.totalAlerts)
       if (serverLatCfg) setServerLat(serverLatCfg)
       else if (parsed.serverLat) setServerLat(parsed.serverLat)
@@ -139,21 +133,12 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
     }
   }, [dbPath, daysBack, de, applyParsed, serverLatCfg, serverLonCfg, serverNameCfg])
 
-  const fetchWhitelist = useCallback(async () => {
-    setWhitelist(null)
-  }, [])
-
   useEffect(() => {
     setLoading(true)
     fetchMetrics()
-    fetchWhitelist()
     const id = setInterval(fetchMetrics, refreshSec * 1000)
-    const wl = setInterval(fetchWhitelist, 60_000)
-    return () => {
-      clearInterval(id)
-      clearInterval(wl)
-    }
-  }, [fetchMetrics, fetchWhitelist, refreshSec])
+    return () => clearInterval(id)
+  }, [fetchMetrics, refreshSec])
 
   const filteredFeed = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -227,25 +212,6 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
     })
     ctx.stroke()
   }, [feedData, showSparkline])
-
-  const handleUnban = async (ip: string) => {
-    if (!lapiUrl || !lapiKey) {
-      alert(de ? 'Für Unban LAPI-URL und API-Key in den Einstellungen eintragen.' : 'Set LAPI URL and API key in settings for unban.')
-      return
-    }
-    if (!confirm(de ? `IP ${ip} entsperren?` : `Unban IP ${ip}?`)) return
-    const q = new URLSearchParams({ lapiUrl, lapiKey })
-    const res = await fetch(`/api/crowdsec?${q}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip }),
-    })
-    const j = await res.json().catch(() => ({}))
-    if ((j as { success?: boolean }).success) {
-      localUnbanned.current.add(ip)
-      fetchMetrics()
-    }
-  }
 
   const layoutClass =
     layoutMode === 'phone' ? 'cs-threat--phone' : layoutMode === 'tablet' ? 'cs-threat--tablet' : 'cs-threat--desktop'
@@ -382,15 +348,11 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
                       <div key={`${f.ip}-${f.time_iso}`} className="cs-threat-feed-item">
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                           <span className="ip">{f.ip}</span>
-                          <button
-                            type="button"
-                            className="cs-threat-btn"
-                            style={{ flex: 'none', padding: '2px 6px', fontSize: 7 }}
-                            onClick={() => handleUnban(f.ip)}
-                            title={de ? 'Entsperren' : 'Unban'}
-                          >
-                            {f.active_ban ? '🚫' : '📋'}
-                          </button>
+                          {f.active_ban ? (
+                            <span title={de ? 'Aktive Sperre (aus DB)' : 'Active ban (from DB)'} style={{ fontSize: 10 }}>
+                              🚫
+                            </span>
+                          ) : null}
                         </div>
                         <div className="cs-threat-feed-meta">
                           {FLAG[f.country] || '🏳️'} {COUNTRY_NAME[f.country] || f.country}
@@ -445,20 +407,10 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
             </div>
 
             <div className="cs-threat-wl">
-              <span
-                className="cs-threat-wl-dot"
-                style={{
-                  background:
-                    whitelist?.status === 'ok'
-                      ? 'var(--cs-ok)'
-                      : whitelist?.status === 'fehler'
-                        ? 'var(--cs-danger)'
-                        : 'rgba(160,255,216,0.3)',
-                }}
-              />
+              <span className="cs-threat-wl-dot" style={{ background: 'var(--cs-ok)' }} />
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                🛡️ {whitelist?.ip || '—'}
-                {lastUpdate ? ` · ${lastUpdate}` : ''}
+                crowdsec.db
+                {lastUpdate ? ` · ${de ? 'Aktualisiert' : 'Updated'} ${lastUpdate}` : ''}
               </span>
             </div>
           </aside>
@@ -471,8 +423,8 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
           <h4>{de ? 'EINRICHTUNG' : 'SETUP'}</h4>
           <p className="cs-threat-setup-lead">
             {de
-              ? 'Direkt aus der CrowdSec-Datenbank. Zahnrad oben rechts → Pfad eintragen.'
-              : 'Direct from CrowdSec database. Gear icon top-right → set path.'}
+              ? 'Nur crowdsec.db — kein API-Key, kein LAPI. Zahnrad → Pfad eintragen.'
+              : 'crowdsec.db only — no API key or LAPI. Gear icon → set path.'}
           </p>
           {layoutMode !== 'phone' && (
             <ol>
@@ -530,17 +482,9 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
         />
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
           {de
-            ? 'Unraid: Host /mnt/user/appdata/crowdsec/data → Container /crowdsec-data (read-only).'
-            : 'Unraid: mount host …/appdata/crowdsec/data → container /crowdsec-data (read-only).'}
+            ? 'Unraid: Host-Ordner …/crowdsec/data → Container /crowdsec-data (read-only). Kein API-Key nötig.'
+            : 'Unraid: host folder …/crowdsec/data → container /crowdsec-data (read-only). No API key needed.'}
         </p>
-      </div>
-
-      <div>
-        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
-          {de ? 'LAPI (Unban, optional)' : 'LAPI (unban, optional)'}
-        </label>
-        <input style={{ ...inp, marginBottom: 6 }} value={str(config.lapiUrl)} onChange={(e) => onChange('lapiUrl', e.target.value)} placeholder="http://192.168.1.69:8080" />
-        <input style={inp} type="password" value={str(config.lapiKey)} onChange={(e) => onChange('lapiKey', e.target.value)} placeholder="API-Key" />
       </div>
 
       <div>

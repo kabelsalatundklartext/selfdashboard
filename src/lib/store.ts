@@ -318,9 +318,14 @@ export const useDashboardStore = create<DashboardStore>()(
           }
           state.dashboards = state.dashboards.map((d) => ({
             ...d,
-            plugins: d.plugins.map((p) =>
-              p.pluginId === 'crowdsec-threat-map' ? { ...p, pluginId: 'crowdsec' } : p,
-            ),
+            plugins: d.plugins.map((p) => {
+              const id = p.pluginId === 'crowdsec-threat-map' ? 'crowdsec' : p.pluginId
+              if (id !== 'crowdsec' || !p.config) return p.pluginId === id ? p : { ...p, pluginId: id }
+              const cfg = { ...p.config } as Record<string, unknown>
+              delete cfg.lapiUrl
+              delete cfg.lapiKey
+              return { ...p, pluginId: id, config: cfg }
+            }),
           }))
         }
       },
