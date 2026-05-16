@@ -61,6 +61,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
+| 🛡️ CrowdSec | Security | Live attack map & feed from `crowdsec.db` (direct DB read, optional LAPI unban) | ✅ Included |
 
 ## Quick Start
 
@@ -207,6 +208,18 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 
 ---
 
+## CrowdSec plugin
+
+| Topic | Details |
+|---|---|
+| **Purpose** | World map with attack arcs, live feed, top countries — data read **directly** from CrowdSec’s SQLite DB (`crowdsec.db`). No separate threat-map container. |
+| **API** | `GET /api/crowdsec?dbPath=…` (metrics), optional `POST` for unban via LAPI. |
+| **Unraid volume** | Map host **`/mnt/user/appdata/crowdsec/data`** → container **`/crowdsec-data`** (read-only). Default DB path: **`/crowdsec-data/crowdsec.db`**. |
+| **Settings** | DB path, history days, refresh interval, optional LAPI URL + API key, server lat/lon for map arcs, show/hide map & sidebar. |
+| **Docker image** | `CROWDSEC_DATA_DIR` / `CROWDSEC_DB_PATH` env vars match the mount (see `Dockerfile`). |
+
+---
+
 ## Settings Overview
 
 **General** — Language (DE/EN), Dashboard title, Navbar display style, Dashboard tab visibility
@@ -234,7 +247,7 @@ Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and t
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, CrowdSec, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -340,6 +353,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
+| 🛡️ CrowdSec | Sicherheit | Angriffskarte & Live-Feed aus `crowdsec.db` (direkt aus DB, optional LAPI-Unban) | ✅ Enthalten |
 
 ---
 
@@ -488,6 +502,18 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
+## CrowdSec-Plugin
+
+| Thema | Details |
+|---|---|
+| **Zweck** | Weltkarte mit Angriffsbögen, Live-Feed, Top-Länder — Daten **direkt** aus der CrowdSec-SQLite-DB (`crowdsec.db`). Kein separater Threat-Map-Container. |
+| **API** | `GET /api/crowdsec?dbPath=…` (Metriken), optional `POST` für Unban über LAPI. |
+| **Unraid-Volume** | Host **`/mnt/user/appdata/crowdsec/data`** → Container **`/crowdsec-data`** (read-only). Standard-Pfad: **`/crowdsec-data/crowdsec.db`**. |
+| **Einstellungen** | DB-Pfad, Historie in Tagen, Aktualisierungsintervall, optional LAPI-URL + API-Key, Server-Koordinaten für Bögen, Karte/Seitenleiste ein/aus. |
+| **Docker-Image** | Env `CROWDSEC_DATA_DIR` / `CROWDSEC_DB_PATH` passen zum Mount (siehe `Dockerfile`). |
+
+---
+
 ## Einstellungen-Übersicht
 
 **Allgemein** — Sprache (DE/EN), Dashboard-Titel, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
@@ -515,7 +541,7 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, CrowdSec, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---

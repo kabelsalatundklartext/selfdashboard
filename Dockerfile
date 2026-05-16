@@ -1,6 +1,7 @@
 # ── Stage 1: deps ───────────────────────────────────────────
 FROM node:20-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* yarn.lock* ./
 RUN npm install --frozen-lockfile 2>/dev/null || npm install
 
@@ -25,6 +26,7 @@ RUN mkdir -p public
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
 # Root: bind-mounted /var/run/docker.sock is owned by host root:docker — non-root often gets EACCES without --group-add.
 USER root
@@ -36,6 +38,5 @@ ENV CROWDSEC_DATA_DIR=/crowdsec-data
 ENV CROWDSEC_DB_PATH=/crowdsec-data/crowdsec.db
 
 RUN mkdir -p /app/data /crowdsec-data
-COPY --from=builder /app/node_modules/sql.js/dist/sql-wasm.wasm ./node_modules/sql.js/dist/sql-wasm.wasm
 
 CMD ["node", "server.js"]

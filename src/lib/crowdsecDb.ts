@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import initSqlJs, { type Database } from 'sql.js'
+import Database from 'better-sqlite3'
 import type { AttackPoint, FeedItem, ParsedCrowdsecMetrics } from '@/lib/crowdsecMetrics'
 import { geoForCountry } from '@/lib/crowdsecGeo'
 
@@ -24,7 +24,7 @@ function parseCreatedAt(raw: unknown): Date | null {
     return Number.isFinite(d.getTime()) ? d : null
   }
   const s = String(raw).replace('Z', '').replace('T', ' ').split('.')[0]
-  const d = new Date(s.includes('-') ? s.replace(' ', 'T') + 'Z' : s)
+  const d = new Date(s.includes('-') ? `${s.replace(' ', 'T')}Z` : s)
   if (!Number.isFinite(d.getTime()) || d.getTime() < 1e12) return null
   return d
 }
@@ -73,10 +73,7 @@ export function resolveCrowdsecDbPath(userPath: string): string {
   return resolved
 }
 
-export async function loadFromCrowdsecDb(
-  dbPath: string,
-  opts: CrowdsecDbOptions = {},
-): Promise<ParsedCrowdsecMetrics> {
+export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {}): ParsedCrowdsecMetrics {
   const daysBack = Math.min(3650, Math.max(1, opts.daysBack ?? 365))
   const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 2000))
   const cutoff = Math.floor(Date.now() / 1000) - daysBack * 86400
@@ -84,23 +81,15 @@ export async function loadFromCrowdsecDb(
   const serverLon = opts.serverLon ?? 0
   const serverName = opts.serverName ?? 'Server'
 
-  const wasmPath = path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
-  const SQL = await initSqlJs(
-    fs.existsSync(wasmPath) ? { wasmBinary: fs.readFileSync(wasmPath) } : undefined,
-  )
-  const fileBuffer = fs.readFileSync(dbPath)
-  const db: Database = new SQL.Database(fileBuffer)
-
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true })
   try {
-    const stmt = db.prepare(ALERTS_SQL)
-    stmt.bind([cutoff, maxAlerts])
+    const rows = db.prepare(ALERTS_SQL).all(cutoff, maxAlerts) as AlertRow[]
     const feedData: FeedItem[] = []
     const feedSeen = new Set<string>()
     const flowMap = new Map<string, AttackPoint>()
     let totalAlerts = 0
 
-    while (stmt.step()) {
-      const row = stmt.getAsObject() as AlertRow
+    for (const row of rows) {
       const ip = row.ip ? String(row.ip) : ''
       const scenario = row.scenario ? String(row.scenario) : ''
       if (!ip || !scenario || scenario === 'unknown') continue
@@ -160,7 +149,6 @@ export async function loadFromCrowdsecDb(
       }
       totalAlerts += 1
     }
-    stmt.free()
 
     return {
       attackData: [...flowMap.values()],

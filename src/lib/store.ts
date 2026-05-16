@@ -316,10 +316,11 @@ export const useDashboardStore = create<DashboardStore>()(
           } else {
             state.navbarSearchWidthPx = Math.min(920, Math.max(200, Math.round(w)))
           }
-          const legacyIframe = 'crowdsec-threat-map'
           state.dashboards = state.dashboards.map((d) => ({
             ...d,
-            plugins: d.plugins.map((p) => (p.pluginId === legacyIframe ? { ...p, pluginId: 'iframe' } : p)),
+            plugins: d.plugins.map((p) =>
+              p.pluginId === 'crowdsec-threat-map' ? { ...p, pluginId: 'crowdsec' } : p,
+            ),
           }))
         }
       },

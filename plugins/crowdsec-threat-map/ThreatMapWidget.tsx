@@ -3,14 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { PluginWidgetProps, PluginSettingsProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
-import {
-  parseCrowdsecMetricsText,
-  type AttackPoint,
-  type FeedItem,
-} from '@/lib/crowdsecMetrics'
-import { MapPanel } from './MapPanel'
-import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from './constants'
-import './threat-map.css'
+import type { AttackPoint, FeedItem, ParsedCrowdsecMetrics } from '@/lib/crowdsecMetrics'
+import { MapPanel } from '../crowdsec/MapPanel'
+import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from '../crowdsec/constants'
+import '../crowdsec/crowdsec.css'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : ''
@@ -29,16 +25,7 @@ function num(v: unknown, fallback: number): number {
 
 type TabId = 'feed' | 'top10' | 'all'
 
-type ConnectionMode = 'database' | 'exporter'
-
 const SETUP_DB = 'CrowdSec-Datenbankpfad in den Einstellungen eintragen'
-const SETUP_URL = 'Exporter-URL in den Einstellungen eintragen (Legacy-Modus)'
-
-function connectionMode(config: Record<string, unknown>): ConnectionMode {
-  const m = str(config.connectionMode)
-  if (m === 'exporter' || m === 'database') return m
-  return str(config.url) ? 'exporter' : 'database'
-}
 
 function formatCrowdsecError(raw: string, de: boolean): string {
   if (raw === 'missing_db_path') return de ? SETUP_DB : 'Enter CrowdSec database path in settings'
@@ -51,10 +38,6 @@ function formatCrowdsecError(raw: string, de: boolean): string {
     return de
       ? 'Pfad nicht erlaubt — nur unter /crowdsec-data/ (Volume mounten)'
       : 'Path not allowed — must be under /crowdsec-data/ (mount volume)'
-  }
-  if (raw === 'missing_url') return de ? SETUP_URL : 'Enter exporter URL in settings (legacy mode)'
-  if (raw === 'upstream_error') {
-    return de ? 'Exporter antwortet nicht' : 'Exporter not responding'
   }
   if (raw === 'fetch_failed' || raw.includes('abort')) {
     return de ? 'Verbindung fehlgeschlagen' : 'Connection failed'
@@ -69,13 +52,11 @@ interface WhitelistStatus {
   last_change?: string
 }
 
-export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
+export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const { locale, editMode } = useDashboardStore()
   const de = locale === 'de'
 
-  const mode = connectionMode(config as Record<string, unknown>)
   const dbPath = str(config.dbPath) || '/crowdsec-data/crowdsec.db'
-  const baseUrl = str(config.url)
   const lapiUrl = str(config.lapiUrl)
   const lapiKey = str(config.lapiKey)
   const daysBack = Math.min(3650, Math.max(1, Math.round(num(config.daysBack, 365))))
@@ -113,7 +94,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
 
   const applyParsed = useCallback(
-    (parsed: ReturnType<typeof parseCrowdsecMetricsText>) => {
+    (parsed: ParsedCrowdsecMetrics) => {
       setAttackData(parsed.attackData)
       setFeedData(parsed.feedData.filter((f) => !localUnbanned.current.has(f.ip)))
       setTotalAlerts(parsed.totalAlerts)
@@ -129,26 +110,19 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   )
 
   const fetchMetrics = useCallback(async () => {
-    if (mode === 'database' && !dbPath) {
+    if (!dbPath) {
       setError(SETUP_DB)
-      setLoading(false)
-      return
-    }
-    if (mode === 'exporter' && !baseUrl) {
-      setError(SETUP_URL)
       setLoading(false)
       return
     }
     try {
       const q = new URLSearchParams({
-        mode,
+        dbPath,
         daysBack: String(daysBack),
         serverLat: String(serverLatCfg || 0),
         serverLon: String(serverLonCfg || 0),
         serverName: serverNameCfg || 'Server',
       })
-      if (mode === 'database') q.set('dbPath', dbPath)
-      else q.set('url', baseUrl)
 
       const res = await fetch(`/api/crowdsec?${q}`, { cache: 'no-store' })
       if (!res.ok) {
@@ -156,20 +130,14 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
         throw new Error(formatCrowdsecError(j.error || `HTTP ${res.status}`, de))
       }
 
-      if (mode === 'database') {
-        const parsed = (await res.json()) as ReturnType<typeof parseCrowdsecMetricsText>
-        applyParsed(parsed)
-      } else {
-        const text = await res.text()
-        applyParsed(parseCrowdsecMetricsText(text))
-      }
+      applyParsed((await res.json()) as ParsedCrowdsecMetrics)
     } catch (e) {
       const raw = e instanceof Error ? e.message : 'fetch_failed'
       setError(formatCrowdsecError(raw, de))
     } finally {
       setLoading(false)
     }
-  }, [mode, dbPath, baseUrl, daysBack, de, applyParsed, serverLatCfg, serverLonCfg, serverNameCfg])
+  }, [dbPath, daysBack, de, applyParsed, serverLatCfg, serverLonCfg, serverNameCfg])
 
   const fetchWhitelist = useCallback(async () => {
     setWhitelist(null)
@@ -497,14 +465,14 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
         )}
       </div>
 
-      {loading && <div className="cs-threat-loading">{de ? 'Lade Threat Feed…' : 'Loading threat feed…'}</div>}
-      {!loading && ((mode === 'database' && !dbPath) || (mode === 'exporter' && !baseUrl)) && (
+      {loading && <div className="cs-threat-loading">{de ? 'Lade CrowdSec…' : 'Loading CrowdSec…'}</div>}
+      {!loading && !dbPath && (
         <div className="cs-threat-setup">
           <h4>{de ? 'EINRICHTUNG' : 'SETUP'}</h4>
           <p className="cs-threat-setup-lead">
             {de
-              ? 'Direkt an CrowdSec (crowdsec.db) — kein threat-map-docker. Zahnrad oben rechts.'
-              : 'Direct CrowdSec (crowdsec.db) — no threat-map-docker. Gear icon top-right.'}
+              ? 'Direkt aus der CrowdSec-Datenbank. Zahnrad oben rechts → Pfad eintragen.'
+              : 'Direct from CrowdSec database. Gear icon top-right → set path.'}
           </p>
           {layoutMode !== 'phone' && (
             <ol>
@@ -519,7 +487,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
           )}
         </div>
       )}
-      {error && !loading && !((mode === 'database' && !dbPath) || (mode === 'exporter' && !baseUrl)) && (
+      {error && !loading && dbPath && (
         <div className="cs-threat-error">
           {de ? 'Verbindungsfehler: ' : 'Connection error: '}
           {error}
@@ -531,12 +499,11 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   )
 }
 
-export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
+export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
   const { locale } = useDashboardStore()
   const de = locale === 'de'
   const [testState, setTestState] = useState<'idle' | 'ok' | 'fail'>('idle')
   const [testMsg, setTestMsg] = useState('')
-  const mode = connectionMode(config as Record<string, unknown>)
   const inp: CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -552,43 +519,21 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
-        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-          {de ? 'Verbindung' : 'Connection'}
+        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+          {de ? 'Pfad crowdsec.db (im Container)' : 'crowdsec.db path (in container)'}
         </label>
-        <select
+        <input
           style={inp}
-          value={mode}
-          onChange={(e) => onChange('connectionMode', e.target.value)}
-        >
-          <option value="database">{de ? 'Direkt: crowdsec.db' : 'Direct: crowdsec.db'}</option>
-          <option value="exporter">{de ? 'Legacy: Exporter-URL' : 'Legacy: exporter URL'}</option>
-        </select>
+          value={str(config.dbPath) || '/crowdsec-data/crowdsec.db'}
+          onChange={(e) => onChange('dbPath', e.target.value)}
+          placeholder="/crowdsec-data/crowdsec.db"
+        />
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
+          {de
+            ? 'Unraid: Host /mnt/user/appdata/crowdsec/data → Container /crowdsec-data (read-only).'
+            : 'Unraid: mount host …/appdata/crowdsec/data → container /crowdsec-data (read-only).'}
+        </p>
       </div>
-
-      {mode === 'database' ? (
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
-            {de ? 'Pfad crowdsec.db' : 'crowdsec.db path'}
-          </label>
-          <input
-            style={inp}
-            value={str(config.dbPath) || '/crowdsec-data/crowdsec.db'}
-            onChange={(e) => onChange('dbPath', e.target.value)}
-          />
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
-            {de
-              ? 'Volume: Host /mnt/user/appdata/crowdsec/data → Container /crowdsec-data (read-only).'
-              : 'Volume: host …/appdata/crowdsec/data → container /crowdsec-data (read-only).'}
-          </p>
-        </div>
-      ) : (
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
-            {de ? 'Exporter-URL' : 'Exporter URL'}
-          </label>
-          <input style={inp} value={str(config.url)} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.69:8080" />
-        </div>
-      )}
 
       <div>
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
@@ -600,7 +545,7 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
 
       <div>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' }}>
-          {de ? 'Test der gewählten Verbindung:' : 'Test selected connection:'}
+          {de ? 'Datenbank testen:' : 'Test database:'}
         </p>
         <button
           type="button"
@@ -618,33 +563,22 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
             setTestState('idle')
             setTestMsg(de ? 'Teste…' : 'Testing…')
             try {
+              const dbPath = str(config.dbPath) || '/crowdsec-data/crowdsec.db'
+              if (!dbPath) throw new Error('missing_db_path')
               const q = new URLSearchParams({
-                mode,
+                dbPath,
                 daysBack: String(Math.round(num(config.daysBack, 365))),
                 serverLat: String(num(config.serverLat, 0)),
                 serverLon: String(num(config.serverLon, 0)),
               })
-              if (mode === 'database') q.set('dbPath', str(config.dbPath) || '/crowdsec-data/crowdsec.db')
-              else {
-                const url = str(config.url)
-                if (!url) throw new Error('missing_url')
-                q.set('url', url)
-              }
               const res = await fetch(`/api/crowdsec?${q}`, { cache: 'no-store' })
               if (!res.ok) {
                 const j = (await res.json().catch(() => ({}))) as { error?: string }
                 throw new Error(j.error || `HTTP ${res.status}`)
               }
-              if (mode === 'database') {
-                const j = (await res.json()) as { totalAlerts?: number }
-                setTestState('ok')
-                setTestMsg(de ? `OK — ${j.totalAlerts ?? 0} Alerts` : `OK — ${j.totalAlerts ?? 0} alerts`)
-              } else {
-                const text = await res.text()
-                if (!text.includes('cs_')) throw new Error('invalid_metrics')
-                setTestState('ok')
-                setTestMsg(de ? 'Exporter OK' : 'Exporter OK')
-              }
+              const j = (await res.json()) as { totalAlerts?: number }
+              setTestState('ok')
+              setTestMsg(de ? `OK — ${j.totalAlerts ?? 0} Alerts` : `OK — ${j.totalAlerts ?? 0} alerts`)
             } catch (e) {
               setTestState('fail')
               setTestMsg(formatCrowdsecError(e instanceof Error ? e.message : 'fetch_failed', de))

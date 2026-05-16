@@ -362,7 +362,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     <div ref={wrapRef} className="cs-threat-map-wrap">
       <div className="cs-threat-map-title">
         <h3>
-          CROWD<span>SEC</span> // THREAT MAP
+          CROWD<span>SEC</span> // LIVE MAP
         </h3>
         <span className="cs-threat-version">plugin</span>
       </div>
