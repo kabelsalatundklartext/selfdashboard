@@ -1,5 +1,12 @@
 export type ThreatTheme = 'cyan' | 'alarm' | 'matrix' | 'amber'
 
+export const THEME_LABELS: Record<ThreatTheme, string> = {
+  cyan: 'CYAN',
+  alarm: 'ALARM',
+  matrix: 'MATRIX',
+  amber: 'AMBER',
+}
+
 export const THEME_VARS: Record<ThreatTheme, Record<string, string>> = {
   cyan: {
     '--cs-bg': '#020810',

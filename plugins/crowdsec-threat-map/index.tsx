@@ -12,6 +12,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',
+  homepage: 'https://github.com/kabelsalatundklartext/crowdsec-threat-map-docker',
   defaultLayout: { w: 12, h: 10, minW: 6, minH: 6 },
   stackedExtraH: 4,
 }

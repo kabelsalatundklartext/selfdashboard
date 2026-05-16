@@ -9,7 +9,7 @@ import {
   type FeedItem,
 } from '@/lib/crowdsecMetrics'
 import { MapPanel } from './MapPanel'
-import { THEME_VARS, FLAG, COUNTRY_NAME, type ThreatTheme } from './constants'
+import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from './constants'
 import './threat-map.css'
 
 function str(v: unknown): string {
@@ -29,6 +29,27 @@ function num(v: unknown, fallback: number): number {
 
 type TabId = 'feed' | 'top10' | 'all'
 
+const SETUP_ERROR = 'Threat-Map URL in den Einstellungen eintragen'
+
+function formatThreatMapError(raw: string, de: boolean): string {
+  if (raw === SETUP_ERROR || raw === 'Enter Threat Map URL in settings') return raw
+  if (raw === 'missing_url') return de ? SETUP_ERROR : 'Enter Threat Map URL in settings'
+  if (raw === 'upstream_error') {
+    return de
+      ? 'Threat-Map antwortet nicht (Port 8080, Container läuft?)'
+      : 'Threat map not responding (port 8080, is container running?)'
+  }
+  if (raw === 'fetch_failed' || raw.includes('abort')) {
+    return de
+      ? 'SelfDashboard erreicht die Threat-Map nicht — Unraid-IP:Port nutzen, nicht localhost'
+      : 'Cannot reach threat map — use host IP:port, not localhost'
+  }
+  if (raw === 'invalid_url' || raw === 'invalid_protocol') {
+    return de ? 'Ungültige URL (z. B. http://192.168.1.69:8080)' : 'Invalid URL (e.g. http://192.168.1.69:8080)'
+  }
+  return raw
+}
+
 interface WhitelistStatus {
   ip?: string
   status?: string
@@ -37,7 +58,7 @@ interface WhitelistStatus {
 }
 
 export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
-  const { locale } = useDashboardStore()
+  const { locale, editMode } = useDashboardStore()
   const de = locale === 'de'
 
   const baseUrl = str(config.url)
@@ -76,7 +97,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
 
   const fetchMetrics = useCallback(async () => {
     if (!baseUrl) {
-      setError(de ? 'Threat-Map URL in den Einstellungen eintragen' : 'Enter Threat Map URL in settings')
+      setError(SETUP_ERROR)
       setLoading(false)
       return
     }
@@ -84,8 +105,12 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       const q = new URLSearchParams({ url: baseUrl, action: 'metrics' })
       const res = await fetch(`/api/crowdsec-threat-map?${q}`, { cache: 'no-store' })
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
-        throw new Error((j as { error?: string }).error || `HTTP ${res.status}`)
+        const j = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; status?: number }
+        const msg = j.error || `HTTP ${res.status}`
+        if (j.detail && j.error === 'upstream_error') {
+          throw new Error(formatThreatMapError('upstream_error', de) + (de ? ` (${j.status})` : ` (${j.status})`))
+        }
+        throw new Error(formatThreatMapError(msg, de))
       }
       const text = await res.text()
       const parsed = parseCrowdsecMetricsText(text)
@@ -100,7 +125,8 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       setLastUpdate(new Date().toLocaleTimeString(de ? 'de-DE' : 'en-GB'))
       setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'fetch_failed')
+      const raw = e instanceof Error ? e.message : 'fetch_failed'
+      setError(formatThreatMapError(raw, de))
     } finally {
       setLoading(false)
     }
@@ -293,7 +319,7 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
                   className={`cs-threat-theme-btn ${theme === th ? 'active' : ''}`}
                   onClick={() => setTheme(th)}
                 >
-                  {th.toUpperCase()}
+                  {THEME_LABELS[th]}
                 </button>
               ))}
             </div>
@@ -428,7 +454,36 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       </div>
 
       {loading && <div className="cs-threat-loading">{de ? 'Lade Threat Feed…' : 'Loading threat feed…'}</div>}
-      {error && !loading && (
+      {!loading && !baseUrl && (
+        <div className="cs-threat-setup">
+          <h4>{de ? 'EINRICHTUNG' : 'SETUP'}</h4>
+          <p style={{ margin: 0, fontSize: 10, opacity: 0.85 }}>
+            {de
+              ? 'Das Plugin braucht den separaten Container crowdsec-threat-map-docker (Port 8080).'
+              : 'This plugin needs the crowdsec-threat-map-docker container (port 8080).'}
+          </p>
+          <ol>
+            <li>
+              {de ? 'Container starten (Unraid: Docker → crowdsec-threat-map).' : 'Start the threat-map container.'}
+            </li>
+            <li>
+              {editMode
+                ? de
+                  ? 'Zahnrad auf dieser Kachel → Threat-Map URL eintragen.'
+                  : 'Gear on this tile → enter Threat Map URL.'
+                : de
+                  ? 'Bearbeiten aktivieren (Stift oben) → Zahnrad → URL eintragen.'
+                  : 'Enable edit mode (pencil) → gear → enter URL.'}
+            </li>
+            <li>
+              {de ? 'URL:' : 'URL:'}{' '}
+              <code>http://&lt;Unraid-IP&gt;:8080</code>
+              {de ? ' — nicht localhost, wenn SelfDashboard in Docker läuft.' : ' — not localhost if SelfDashboard runs in Docker.'}
+            </li>
+          </ol>
+        </div>
+      )}
+      {error && !loading && baseUrl && (
         <div className="cs-threat-error">
           {de ? 'Verbindungsfehler: ' : 'Connection error: '}
           {error}
@@ -443,6 +498,8 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
 export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
   const { locale } = useDashboardStore()
   const de = locale === 'de'
+  const [testState, setTestState] = useState<'idle' | 'ok' | 'fail'>('idle')
+  const [testMsg, setTestMsg] = useState('')
   const inp: CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -461,12 +518,57 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
           {de ? 'Threat-Map URL' : 'Threat Map URL'}
         </label>
-        <input style={inp} value={str(config.url)} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.10:8080" />
+        <input style={inp} value={str(config.url)} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.69:8080" />
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
           {de
-            ? 'Adresse des crowdsec-threat-map-docker Containers (Port 8080).'
-            : 'URL of your crowdsec-threat-map-docker container (port 8080).'}
+            ? 'Adresse des Containers crowdsec-threat-map-docker (Port 8080). SelfDashboard in Docker → Unraid-LAN-IP, nicht localhost.'
+            : 'crowdsec-threat-map-docker (port 8080). If SelfDashboard runs in Docker, use host LAN IP, not localhost.'}
         </p>
+        <button
+          type="button"
+          style={{
+            marginTop: 8,
+            padding: '6px 12px',
+            fontSize: 12,
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            cursor: 'pointer',
+          }}
+          onClick={async () => {
+            const url = str(config.url)
+            if (!url) {
+              setTestState('fail')
+              setTestMsg(de ? 'Zuerst URL eintragen' : 'Enter URL first')
+              return
+            }
+            setTestState('idle')
+            setTestMsg(de ? 'Teste…' : 'Testing…')
+            try {
+              const q = new URLSearchParams({ url, action: 'metrics' })
+              const res = await fetch(`/api/crowdsec-threat-map?${q}`, { cache: 'no-store' })
+              if (!res.ok) {
+                const j = (await res.json().catch(() => ({}))) as { error?: string }
+                throw new Error(j.error || `HTTP ${res.status}`)
+              }
+              const text = await res.text()
+              if (!text.includes('cs_') && !text.includes('crowdsec')) {
+                throw new Error(de ? 'Antwort sieht nicht nach CrowdSec-Metriken aus' : 'Response does not look like CrowdSec metrics')
+              }
+              setTestState('ok')
+              setTestMsg(de ? 'Verbindung OK' : 'Connection OK')
+            } catch (e) {
+              setTestState('fail')
+              setTestMsg(formatThreatMapError(e instanceof Error ? e.message : 'fetch_failed', de))
+            }
+          }}
+        >
+          {de ? 'Verbindung testen' : 'Test connection'}
+        </button>
+        {testMsg ? (
+          <p style={{ fontSize: 11, marginTop: 6, color: testState === 'ok' ? 'var(--accent)' : 'var(--text-muted)' }}>{testMsg}</p>
+        ) : null}
       </div>
 
       <div>

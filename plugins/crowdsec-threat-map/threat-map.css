@@ -339,7 +339,8 @@
 }
 
 .cs-threat-loading,
-.cs-threat-error {
+.cs-threat-error,
+.cs-threat-setup {
   position: absolute;
   inset: 0;
   display: flex;
@@ -354,6 +355,36 @@
 
 .cs-threat-error {
   color: var(--cs-danger);
+}
+
+.cs-threat-setup {
+  color: var(--cs-text);
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+.cs-threat-setup h4 {
+  margin: 0;
+  font-family: Orbitron, monospace;
+  font-size: 12px;
+  color: var(--cs-accent);
+  letter-spacing: 1px;
+}
+
+.cs-threat-setup ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  text-align: left;
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.cs-threat-setup code {
+  color: var(--cs-accent);
+  font-size: 10px;
 }
 
 .cs-threat-feed-only .cs-threat-sidebar {
