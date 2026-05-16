@@ -31,6 +31,15 @@ function stackedRowBoost(pluginId: string): number {
   return Math.min(24, Math.round(n))
 }
 
+/** Plugin-Meta minW/minH gilt für das Raster (überschreibt alte gespeicherte Mindestwerte). */
+function pluginLayoutMins(pluginId: string, layout?: PluginInstance['layout']): { minW: number; minH: number } {
+  const meta = pluginRegistry.get(pluginId)?.meta.defaultLayout
+  return {
+    minW: meta?.minW ?? layout?.minW ?? 1,
+    minH: meta?.minH ?? layout?.minH ?? 1,
+  }
+}
+
 /** Handy: eine Spalte — h/minH aus layoutPhone falls gesetzt, sonst Desktop-layout. */
 function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
   const sorted = [...plugins].sort((a, b) => {
@@ -46,7 +55,8 @@ function buildStackedLayout(plugins: PluginInstance[]): Layout[] {
     const ph = p.layoutPhone ?? {}
     const baseH = Math.max(1, Math.round(ph.h !== undefined ? ph.h : base?.h ?? 4))
     const h = baseH + boost
-    const minBase = Math.max(1, Math.round(ph.minH !== undefined ? ph.minH : base?.minH ?? 1))
+    const mins = pluginLayoutMins(p.pluginId, base)
+    const minBase = Math.max(1, Math.round(ph.minH !== undefined ? ph.minH : mins.minH))
     const minH = minBase + boost
     const item: Layout = {
       i: p.instanceId,
@@ -69,14 +79,15 @@ function buildTabletLayout(plugins: PluginInstance[]): Layout[] {
     const o = p.layoutTablet ?? {}
     const rawY = o.y !== undefined ? o.y : base.y
     const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
+    const mins = pluginLayoutMins(p.pluginId, base)
     return {
       i: p.instanceId,
       x: o.x !== undefined ? o.x : base.x ?? 0,
       y,
       w: Math.max(1, Math.round(o.w !== undefined ? o.w : base.w ?? 4)),
       h: Math.max(1, Math.round(o.h !== undefined ? o.h : base.h ?? 4)),
-      minW: o.minW ?? base.minW ?? 1,
-      minH: o.minH ?? base.minH ?? 1,
+      minW: o.minW ?? mins.minW,
+      minH: o.minH ?? mins.minH,
     }
   })
 }
@@ -159,14 +170,15 @@ export function DashboardGrid() {
       plugins.map((p) => {
         const rawY = p.layout?.y
         const y = typeof rawY === 'number' && Number.isFinite(rawY) ? rawY : 0
+        const mins = pluginLayoutMins(p.pluginId, p.layout)
         return {
           i: p.instanceId,
           x: p.layout?.x ?? 0,
           y,
           w: p.layout?.w ?? 4,
           h: p.layout?.h ?? 4,
-          minW: p.layout?.minW ?? 1,
-          minH: p.layout?.minH ?? 1,
+          minW: mins.minW,
+          minH: mins.minH,
         }
       }),
     [plugins]

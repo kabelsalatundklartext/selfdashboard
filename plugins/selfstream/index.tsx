@@ -10,12 +10,12 @@ export const meta: PluginMeta = {
   name: 'Selfstream',
   description:
     'Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt.',
-  version: '1.0.1',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
   iconUrl: '/plugin-logos/selfstream.png',
-  defaultLayout: { w: 4, h: 5, minW: 3, minH: 4 },
+  defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
 }
 
 function normalizeBase(url: string): string {
@@ -134,7 +134,7 @@ function Widget({ config }: PluginWidgetProps) {
     overflowY: 'auto',
     overflowX: 'hidden',
     boxSizing: 'border-box',
-    padding: '8px 12px 12px',
+    padding: '6px 8px 8px',
     containerType: 'size',
     minWidth: 0,
     width: '100%',
