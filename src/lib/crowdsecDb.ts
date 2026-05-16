@@ -15,6 +15,7 @@ export type CrowdsecDbOptions = {
 }
 
 type AlertRow = {
+  id: number
   scenario: string | null
   ip: string | null
   country: string | null
@@ -81,17 +82,52 @@ function extractIpFromSerialized(serialized: string | null | undefined): string 
   return m?.[1]?.trim() ?? ''
 }
 
-function extractCountryFromSerialized(serialized: string | null | undefined): string {
-  if (!serialized) return ''
+function extractMetaFromSerialized(serialized: string | null | undefined): { country: string; city: string } {
+  if (!serialized) return { country: '', city: '' }
   try {
     const o = JSON.parse(serialized) as Record<string, unknown>
     const meta = o.Meta as Record<string, unknown> | undefined
     const cc = meta?.source_country ?? meta?.SourceCountry
-    if (typeof cc === 'string' && cc.trim()) return cc.trim().toUpperCase()
+    const city = meta?.source_city ?? meta?.SourceCity ?? meta?.city
+    return {
+      country: typeof cc === 'string' && cc.trim() ? cc.trim().toUpperCase() : '',
+      city: typeof city === 'string' && city.trim() ? city.trim() : '',
+    }
   } catch {
-    /* ignore */
+    return { country: '', city: '' }
   }
+}
+
+function formatAsNumber(raw: string | null | undefined): string {
+  if (raw == null) return ''
+  const s = String(raw).trim()
+  if (!s) return ''
+  if (/^AS\d+/i.test(s)) return s.toUpperCase()
+  if (/^\d+$/.test(s)) return `AS${s}`
+  return s
+}
+
+function formatIpRange(ip: string, rangeFromDb: string | null | undefined): string {
+  const r = rangeFromDb ? String(rangeFromDb).trim() : ''
+  if (r) return r
+  const m = ip.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/)
+  if (m) return `${m[1]}.0/24`
   return ''
+}
+
+function formatFeedTime(dt: Date, de: boolean): string {
+  if (de) {
+    return dt.toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+  }
+  return dt.toISOString().replace('T', ' ').slice(0, 19)
 }
 
 function isUsableIp(ip: string): boolean {
@@ -146,6 +182,7 @@ function buildAlertsSql(db: Database.Database): string {
 
   return `
 SELECT
+  a.id,
   a.scenario,
   ${ipExpr} AS ip,
   ${countryCol} AS country,
@@ -220,13 +257,15 @@ export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {})
       if (!dt) continue
       if (dt.getTime() < cutoffMs) continue
 
+      const metaFromEvent = extractMetaFromSerialized(row.event_serialized)
       let country = row.country ? String(row.country).trim().toUpperCase() : ''
       if (!country || country === '??') {
-        country = extractCountryFromSerialized(row.event_serialized) || '??'
+        country = metaFromEvent.country || '??'
       }
+      const city = metaFromEvent.city
 
-      const asnumber = row.as_number != null ? String(row.as_number) : ''
-      const iprange = row.ip_range ? String(row.ip_range) : ''
+      const asnumber = formatAsNumber(row.as_number != null ? String(row.as_number) : '')
+      const iprange = formatIpRange(ip, row.ip_range)
 
       const scenarioClean = cleanScenario(scenario)
       let lat = row.latitude != null ? Number(row.latitude) : 0
@@ -238,15 +277,19 @@ export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {})
       }
 
       const timeIso = dt.toISOString().replace('T', ' ').slice(0, 19)
-      const timeDe = dt.toLocaleString('de-DE', { hour12: false })
+      const timeDe = formatFeedTime(dt, true)
+      const eventPreview = row.event_serialized
+        ? String(row.event_serialized).slice(0, 4000)
+        : ''
 
-      const feedKey = `${ip}|${scenarioClean}|${timeIso}`
+      const feedKey = `${row.id}|${ip}|${scenarioClean}`
       if (!feedSeen.has(feedKey)) {
         feedSeen.add(feedKey)
         feedData.push({
+          alertId: row.id,
           ip,
           country,
-          city: '',
+          city,
           scenario: scenarioClean,
           time_iso: timeIso,
           time_de: timeDe,
@@ -257,6 +300,7 @@ export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {})
           lon,
           active_ban: Number(row.active_ban) === 1,
           count: 1,
+          eventPreview,
         })
       }
 

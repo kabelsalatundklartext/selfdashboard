@@ -123,7 +123,7 @@
 }
 
 .cs-threat-sidebar {
-  width: clamp(180px, 24%, 250px);
+  width: clamp(200px, 28%, 320px);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -308,6 +308,238 @@
 .cs-threat-feed-meta {
   color: rgba(160, 255, 216, 0.55);
   margin-top: 3px;
+}
+
+/* Rich feed cards (threat-map style) */
+.cs-feed-card {
+  padding: 8px 8px 7px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(0, 255, 200, 0.12);
+  border-radius: 5px;
+  background: rgba(0, 10, 22, 0.75);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.cs-feed-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.cs-feed-card-ip {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cs-danger);
+  letter-spacing: 0.3px;
+  word-break: break-all;
+}
+
+.cs-feed-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+}
+
+.cs-feed-action {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--cs-dim);
+  background: rgba(0, 18, 36, 0.9);
+  color: rgba(160, 255, 216, 0.7);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+}
+
+.cs-feed-action:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.cs-feed-action--ban-on {
+  border-color: var(--cs-danger);
+  color: var(--cs-danger);
+  background: rgba(255, 34, 68, 0.12);
+}
+
+.cs-feed-action--alert-only {
+  border-color: #ffaa00;
+  color: #ffcc44;
+  background: rgba(255, 170, 0, 0.1);
+}
+
+.cs-feed-action--delete {
+  border-color: rgba(255, 136, 0, 0.5);
+}
+
+.cs-feed-action--delete:hover:not(:disabled) {
+  border-color: #ff8800;
+  color: #ffaa44;
+}
+
+.cs-feed-action--map.on {
+  border-color: #ffff00;
+  color: #ffff00;
+  background: rgba(255, 255, 0, 0.12);
+}
+
+.cs-feed-action--log:hover:not(:disabled),
+.cs-feed-action--search:hover,
+.cs-feed-action--map:hover {
+  border-color: var(--cs-accent);
+  color: var(--cs-accent);
+}
+
+.cs-feed-card--map-focus {
+  border-color: rgba(255, 255, 0, 0.45);
+  box-shadow: 0 0 12px rgba(255, 255, 0, 0.15);
+}
+
+.cs-feed-card-err {
+  font-size: 7px;
+  color: var(--cs-danger);
+  margin-top: 4px;
+}
+
+.cs-feed-card-line {
+  margin-top: 3px;
+  color: rgba(160, 255, 216, 0.55);
+}
+
+.cs-feed-card-range {
+  color: rgba(160, 255, 216, 0.45);
+  font-size: 7px;
+}
+
+.cs-feed-card-geo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+
+.cs-feed-cc {
+  color: #ffaa44;
+  font-weight: 600;
+}
+
+.cs-feed-city {
+  color: #ffee66;
+}
+
+.cs-feed-asn {
+  color: var(--cs-accent);
+  font-weight: 600;
+}
+
+.cs-feed-card-org {
+  color: rgba(160, 255, 216, 0.42);
+  font-size: 7px;
+}
+
+.cs-feed-card-scenario {
+  color: rgba(160, 255, 216, 0.5);
+}
+
+.cs-feed-card-time {
+  color: var(--cs-ok);
+  margin-top: 4px;
+}
+
+.cs-feed-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 8px 4px;
+  font-size: 8px;
+  border-top: 1px solid var(--cs-dim);
+}
+
+.cs-feed-pager-label {
+  color: rgba(160, 255, 216, 0.55);
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cs-feed-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.cs-feed-modal {
+  width: min(520px, 96vw);
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(2, 10, 20, 0.98);
+  border: 1px solid var(--cs-dim);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.cs-feed-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cs-dim);
+}
+
+.cs-feed-modal-head h4 {
+  margin: 0;
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  color: var(--cs-accent);
+}
+
+.cs-feed-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--cs-text);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.cs-feed-modal-meta {
+  margin: 0;
+  padding: 8px 12px 0;
+  font-size: 9px;
+  color: rgba(160, 255, 216, 0.55);
+}
+
+.cs-feed-modal-pre {
+  margin: 8px 12px 12px;
+  padding: 10px;
+  flex: 1;
+  overflow: auto;
+  font-size: 9px;
+  line-height: 1.35;
+  color: rgba(160, 255, 216, 0.75);
+  background: rgba(0, 8, 18, 0.9);
+  border: 1px solid rgba(0, 255, 200, 0.08);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .cs-threat-spark {

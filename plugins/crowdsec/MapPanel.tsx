@@ -20,6 +20,12 @@ interface ArcPath {
   phase: number
 }
 
+export type MapHighlight = {
+  ip: string
+  lat: number
+  lon: number
+}
+
 interface Props {
   attackData: AttackPoint[]
   serverLat: number
@@ -28,9 +34,10 @@ interface Props {
   linesOn: boolean
   animOn: boolean
   visible: boolean
+  highlight?: MapHighlight | null
 }
 
-export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn, animOn, visible }: Props) {
+export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn, animOn, visible, highlight }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -156,16 +163,41 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5 * ik)
     if (serverName) {
-      s.dotG!
-        .append('text')
-        .attr('x', sx + 12 * ik)
-        .attr('y', sy + 4 * ik)
-        .attr('fill', '#00aaff')
-        .attr('font-size', `${7 * ik}px`)
-        .attr('font-family', 'Share Tech Mono, monospace')
-        .text(serverName)
+    s.dotG!
+      .append('text')
+      .attr('x', sx + 12 * ik)
+      .attr('y', sy + 4 * ik)
+      .attr('fill', '#00aaff')
+      .attr('font-size', `${7 * ik}px`)
+      .attr('font-family', 'Share Tech Mono, monospace')
+      .text(serverName)
     }
-  }, [attackData, serverLat, serverLon, serverName, linesOn])
+    if (highlight && Number.isFinite(highlight.lat) && Number.isFinite(highlight.lon)) {
+      const hpt = s.proj!([highlight.lon, highlight.lat])
+      if (hpt) {
+        const [hx, hy] = hpt
+        s.dotG!
+          .append('circle')
+          .attr('class', 'adot-highlight-ring')
+          .attr('cx', hx)
+          .attr('cy', hy)
+          .attr('r', 14 * ik)
+          .attr('fill', 'none')
+          .attr('stroke', '#ffff00')
+          .attr('stroke-width', 2 * ik)
+          .attr('opacity', 0.9)
+        s.dotG!
+          .append('circle')
+          .attr('class', 'adot-highlight')
+          .attr('cx', hx)
+          .attr('cy', hy)
+          .attr('r', 5 * ik)
+          .attr('fill', '#ffff00')
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 1.2 * ik)
+      }
+    }
+  }, [attackData, serverLat, serverLon, serverName, linesOn, highlight])
 
   const fitMapToPoints = useCallback(() => {
     const s = stateRef.current
@@ -187,6 +219,28 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     s.fitTransform = d3.zoomIdentity.translate(s.W / 2 - cx * k, s.H / 2 - cy * k).scale(k)
     if (s.zoomBeh) d3.select(svg).transition().duration(600).call(s.zoomBeh.transform, s.fitTransform)
   }, [attackData, serverLat, serverLon])
+
+  const focusOnPoint = useCallback(
+    (lat: number, lon: number) => {
+      const s = stateRef.current
+      const svg = svgRef.current
+      if (!s.proj || !svg || !s.zoomBeh) return
+      const pt = s.proj([lon, lat])
+      if (!pt) return
+      const [px, py] = pt
+      const k = Math.min(s.currentScale, 4) * 1.4 || 2.5
+      const t = d3.zoomIdentity.translate(s.W / 2 - px * k, s.H / 2 - py * k).scale(k)
+      d3.select(svg).transition().duration(500).call(s.zoomBeh.transform, t)
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!highlight || !visible || !stateRef.current.initialized) return
+    if (Number.isFinite(highlight.lat) && Number.isFinite(highlight.lon)) {
+      focusOnPoint(highlight.lat, highlight.lon)
+    }
+  }, [highlight, visible, focusOnPoint])
 
   const setupProj = useCallback(() => {
     const wrap = wrapRef.current
@@ -285,7 +339,7 @@ export function MapPanel({ attackData, serverLat, serverLon, serverName, linesOn
     renderDots()
     fitMapToPoints()
     if (!animOn) drawStaticArcs()
-  }, [visible, attackData, serverLat, serverLon, serverName, linesOn, setupProj, drawBaseMap, buildArcPaths, renderDots, fitMapToPoints, animOn, drawStaticArcs])
+  }, [visible, attackData, serverLat, serverLon, serverName, linesOn, highlight, setupProj, drawBaseMap, buildArcPaths, renderDots, fitMapToPoints, animOn, drawStaticArcs])
 
   useEffect(() => {
     const s = stateRef.current

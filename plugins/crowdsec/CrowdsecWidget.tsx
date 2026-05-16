@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import type { PluginWidgetProps, PluginSettingsProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import type { AttackPoint, FeedItem, ParsedCrowdsecMetrics } from '@/lib/crowdsecMetrics'
-import { MapPanel } from './MapPanel'
+import { MapPanel, type MapHighlight } from './MapPanel'
+import { FeedCard, FeedLogModal } from './FeedCard'
 import { THEME_VARS, THEME_LABELS, FLAG, COUNTRY_NAME, type ThreatTheme } from './constants'
 import './crowdsec.css'
 
@@ -64,6 +65,8 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const serverLatCfg = num(config.serverLat, 0)
   const serverLonCfg = num(config.serverLon, 0)
   const serverNameCfg = str(config.serverName)
+  const crowdsecContainer = str(config.crowdsecContainer) || 'crowdsec'
+  const dockerUnban = bool(config.dockerUnban, false)
 
   const [theme, setTheme] = useState<ThreatTheme>(
     ['cyan', 'alarm', 'matrix', 'amber'].includes(configTheme) ? configTheme : 'cyan',
@@ -83,6 +86,8 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const [serverLon, setServerLon] = useState(0)
   const [serverName, setServerName] = useState('')
   const [lastUpdate, setLastUpdate] = useState('')
+  const [logItem, setLogItem] = useState<FeedItem | null>(null)
+  const [mapHighlight, setMapHighlight] = useState<MapHighlight | null>(null)
   const sparkRef = useRef<HTMLCanvasElement>(null)
 
   const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
@@ -150,7 +155,9 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
           f.country.toLowerCase().includes(q) ||
           f.city.toLowerCase().includes(q) ||
           f.scenario.toLowerCase().includes(q) ||
-          f.asname.toLowerCase().includes(q),
+          f.asname.toLowerCase().includes(q) ||
+          f.asnumber.toLowerCase().includes(q) ||
+          f.iprange.toLowerCase().includes(q),
       )
     }
     list.sort((a, b) => {
@@ -169,9 +176,11 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
   const scenarioCount = useMemo(() => new Set(attackData.map((d) => d.scenario)).size, [attackData])
   const countryCount = useMemo(() => new Set(attackData.map((d) => d.country)).size, [attackData])
 
-  const FEED_PER_PAGE = 15
+  const FEED_PER_PAGE = 20
   const pageCount = Math.max(1, Math.ceil(filteredFeed.length / FEED_PER_PAGE))
   const pageItems = filteredFeed.slice(feedPage * FEED_PER_PAGE, (feedPage + 1) * FEED_PER_PAGE)
+  const pageFrom = filteredFeed.length ? feedPage * FEED_PER_PAGE + 1 : 0
+  const pageTo = Math.min((feedPage + 1) * FEED_PER_PAGE, filteredFeed.length)
 
   useEffect(() => {
     if (feedPage >= pageCount) setFeedPage(0)
@@ -236,6 +245,7 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
               linesOn={linesOn}
               animOn={animOn}
               visible
+              highlight={mapHighlight}
             />
             <div className="cs-threat-legend">
               <span className="leg-item">
@@ -345,34 +355,45 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
                   </div>
                   <div className="cs-threat-feed">
                     {pageItems.map((f) => (
-                      <div key={`${f.ip}-${f.time_iso}`} className="cs-threat-feed-item">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                          <span className="ip">{f.ip}</span>
-                          {f.active_ban ? (
-                            <span title={de ? 'Aktive Sperre (aus DB)' : 'Active ban (from DB)'} style={{ fontSize: 10 }}>
-                              🚫
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="cs-threat-feed-meta">
-                          {FLAG[f.country] || '🏳️'} {COUNTRY_NAME[f.country] || f.country}
-                          {f.city ? ` · ${f.city}` : ''}
-                          <br />
-                          ⚡ {f.scenario}
-                          <br />
-                          🕐 {f.time_de || f.time_iso}
-                        </div>
-                      </div>
+                      <FeedCard
+                        key={`${f.alertId}-${f.ip}`}
+                        item={f}
+                        de={de}
+                        mapFocusIp={mapHighlight?.ip ?? null}
+                        dockerUnban={dockerUnban}
+                        crowdsecContainer={crowdsecContainer}
+                        onShowLog={setLogItem}
+                        onLookupIp={(ip) => {
+                          setSearch(ip)
+                          setFeedPage(0)
+                        }}
+                        onShowOnMap={(item) => {
+                          if (!showMap) return
+                          setMapHighlight({ ip: item.ip, lat: item.lat, lon: item.lon })
+                        }}
+                        onUnbanDone={() => void fetchMetrics()}
+                      />
                     ))}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: 6, fontSize: 8 }}>
+                  <div className="cs-feed-pager">
                     <button type="button" className="cs-threat-btn" disabled={feedPage <= 0} onClick={() => setFeedPage((p) => p - 1)}>
                       ◀
                     </button>
-                    <span>
-                      {feedPage + 1}/{pageCount}
+                    <span className="cs-feed-pager-label">
+                      {filteredFeed.length
+                        ? de
+                          ? `${pageFrom}–${pageTo} von ${filteredFeed.length}`
+                          : `${pageFrom}–${pageTo} of ${filteredFeed.length}`
+                        : de
+                          ? 'Keine Einträge'
+                          : 'No entries'}
                     </span>
-                    <button type="button" className="cs-threat-btn" disabled={feedPage >= pageCount - 1} onClick={() => setFeedPage((p) => p + 1)}>
+                    <button
+                      type="button"
+                      className="cs-threat-btn"
+                      disabled={feedPage >= pageCount - 1}
+                      onClick={() => setFeedPage((p) => p + 1)}
+                    >
                       ▶
                     </button>
                   </div>
@@ -445,6 +466,8 @@ export function CrowdsecWidget({ config, layoutMode }: PluginWidgetProps) {
           {error}
         </div>
       )}
+
+      <FeedLogModal item={logItem} de={de} onClose={() => setLogItem(null)} />
 
       <style>{`.blink{animation:blink 2s step-end infinite}@keyframes blink{50%{opacity:0}}`}</style>
     </div>
@@ -549,6 +572,31 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
         </button>
         {testMsg ? (
           <p style={{ fontSize: 11, marginTop: 6, color: testState === 'ok' ? 'var(--accent)' : 'var(--text-muted)' }}>{testMsg}</p>
+        ) : null}
+      </div>
+
+      <div>
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+          {de ? 'Sperre löschen (optional)' : 'Remove bans (optional)'}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
+          <input type="checkbox" checked={bool(config.dockerUnban, false)} onChange={(e) => onChange('dockerUnban', e.target.checked)} />
+          {de ? 'via Docker (cscli im CrowdSec-Container)' : 'via Docker (cscli in CrowdSec container)'}
+        </label>
+        {bool(config.dockerUnban, false) ? (
+          <>
+            <input
+              style={inp}
+              value={str(config.crowdsecContainer) || 'crowdsec'}
+              onChange={(e) => onChange('crowdsecContainer', e.target.value)}
+              placeholder="crowdsec"
+            />
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
+              {de
+                ? 'Wie threat-map-docker: Docker-Socket an SelfDashboard mounten (Unraid-Template). Feed-Button 🗑️ = cscli decisions delete.'
+                : 'Like threat-map-docker: mount Docker socket on SelfDashboard. Feed button 🗑️ runs cscli decisions delete.'}
+            </p>
+          </>
         ) : null}
       </div>
 

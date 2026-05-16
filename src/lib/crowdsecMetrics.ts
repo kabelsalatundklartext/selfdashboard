@@ -9,6 +9,7 @@ export interface AttackPoint {
 }
 
 export interface FeedItem {
+  alertId: number
   ip: string
   country: string
   city: string
@@ -22,6 +23,8 @@ export interface FeedItem {
   lon: number
   active_ban: boolean
   count: number
+  /** Truncated event JSON for detail modal (from events.serialized). */
+  eventPreview: string
 }
 
 export interface ParsedCrowdsecMetrics {
