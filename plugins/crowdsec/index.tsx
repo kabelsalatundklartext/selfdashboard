@@ -14,11 +14,11 @@ export const meta: PluginMeta = {
   name: 'CrowdSec',
   description:
     'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.',
-  version: '1.3.0',
+  version: '1.3.1',
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',
-  iconUrl: '/plugin-logos/crowdsec.svg',
+  iconUrl: '/plugin-logos/crowdsec.png',
   defaultLayout: { w: 5, h: 6, minW: 4, minH: 4 },
   stackedExtraH: 2,
 }
@@ -102,14 +102,6 @@ function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
               onChange={(e) => onChange('crowdsecContainer', e.target.value)}
               placeholder="crowdsec"
             />
-          </label>
-          <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={cfg.confirmUnban}
-              onChange={(e) => onChange('confirmUnban', e.target.checked)}
-            />
-            <span>{de ? 'Bestätigung vor Entsperren' : 'Confirm before unban'}</span>
           </label>
         </>
       )}

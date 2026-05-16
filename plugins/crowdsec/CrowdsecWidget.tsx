@@ -273,8 +273,7 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
       <section className="cs-split">
         <aside className="cs-sidebar">
           <header className="cs-brand">
-            <CrowdsecLogo size={28} />
-            <span className="cs-brand-name">CrowdSec</span>
+            <CrowdsecLogo variant="brand" />
           </header>
 
           <nav className="cs-nav" aria-label={de ? 'Navigation' : 'Navigation'}>
@@ -442,13 +441,14 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
                         type="button"
                         className="cs-unban-btn"
                         disabled={unbanBusy}
-                        onClick={() => {
-                          if (cfg.confirmUnban) setUnbanPending(item)
-                          else void doUnban(item)
+                        title={de ? 'Entsperren' : 'Unban'}
+                        aria-label={de ? 'Entsperren' : 'Unban'}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setUnbanPending(item)
                         }}
                       >
-                        <Trash2 size={12} strokeWidth={2} aria-hidden />
-                        {de ? 'Entsperren' : 'Unban'}
+                        <Trash2 size={13} strokeWidth={2} aria-hidden />
                       </button>
                     )}
                     <button

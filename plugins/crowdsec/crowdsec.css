@@ -22,6 +22,12 @@
   flex-shrink: 0;
 }
 
+.cs-logo-img {
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
 .cs-split {
   display: flex;
   flex: 1 1 auto;
@@ -45,17 +51,19 @@
 .cs-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 10px;
+  justify-content: center;
+  padding: 10px 10px 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.cs-brand-name {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--text);
+.cs-logo-img-brand {
+  display: block;
+  height: 34px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .cs-nav {
@@ -406,22 +414,25 @@
 }
 
 .cs-unban-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 8px;
+  justify-content: center;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, #ef4444 40%, var(--border));
-  background: color-mix(in srgb, #ef4444 10%, var(--surface));
-  color: color-mix(in srgb, #ef4444 85%, var(--text));
-  font-size: 10px;
-  font-weight: 600;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .cs-unban-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, #ef4444 18%, var(--surface));
+  border-color: color-mix(in srgb, #ef4444 35%, var(--border));
+  background: color-mix(in srgb, #ef4444 8%, var(--surface));
+  color: color-mix(in srgb, #ef4444 80%, var(--text));
 }
 
 .cs-unban-btn:disabled {
@@ -453,10 +464,10 @@
   min-width: 165px;
   max-width: 220px;
   padding: 6px 0;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 18%, transparent);
+  box-shadow: none;
 }
 
 .cs-wl-menu-title {
