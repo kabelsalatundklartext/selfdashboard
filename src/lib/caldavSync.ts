@@ -1,5 +1,5 @@
-import { createDAVClient, type DAVCalendar } from 'tsdav'
-import { expandIcsString, type IcsOccurrence } from '@/lib/calendarIcs'
+import { createDAVClient, type DAVCalendar, type DAVCalendarObject } from 'tsdav'
+import { buildAllDayVeventIcs, expandIcsString, newCalDavUid, type IcsOccurrence } from '@/lib/calendarIcs'
 import {
   buildBegendaCalendarUrl,
   CALENDAR_FETCH_TIMEOUT_MS,
@@ -29,6 +29,18 @@ export type CaldavFetchResult =
 export type CaldavDiscoverResult =
   | { ok: true; calendars: CaldavDiscoverCalendar[]; serverUrl: string }
   | { ok: false; error: CaldavFetchErrorCode | 'bad_url'; detail?: string }
+
+export type CaldavWriteAction = 'create' | 'update' | 'delete'
+
+export type CaldavWriteResult =
+  | { ok: true; uid: string; objectUrl: string; etag?: string }
+  | { ok: false; error: CaldavFetchErrorCode | 'bad_request' | 'not_found'; detail?: string }
+
+type CalDavConn = {
+  client: Awaited<ReturnType<typeof createDAVClient>>
+  calendar: DAVCalendar
+  collectionHref: string
+}
 
 function serverUrlFromCalendarHref(href: string): string {
   const u = new URL(href)
@@ -82,6 +94,194 @@ function resolveCalendarUrlInput(rawUrl: string, username: string): string {
     return { href: normalizeCalDavHref(clean.toString()) }
   })()
   return href
+}
+
+function calFilenameForUid(uid: string): string {
+  const safe = uid.replace(/[^a-zA-Z0-9@._-]+/g, '_').slice(0, 180)
+  return safe.endsWith('.ics') ? safe : `${safe}.ics`
+}
+
+function joinCalendarObjectUrl(calendarUrl: string, filename: string): string {
+  const base = calendarUrl.endsWith('/') ? calendarUrl : `${calendarUrl}/`
+  return `${base}${filename}`
+}
+
+function mapWriteHttpError(status: number, msg: string): CaldavWriteResult {
+  if (status === 401 || status === 403) {
+    return { ok: false, error: 'unauthorized', detail: msg }
+  }
+  if (status === 404) {
+    return { ok: false, error: 'not_found', detail: msg }
+  }
+  return { ok: false, error: 'upstream_http', detail: msg }
+}
+
+async function connectCalDav(
+  rawCalendarUrl: string,
+  username: string,
+  password: string,
+  signal: AbortSignal,
+): Promise<{ ok: true } & CalDavConn | { ok: false; error: CaldavFetchErrorCode; detail?: string }> {
+  const user = normalizeCaldavUsername(username, rawCalendarUrl)
+  const pass = password.trim()
+  if (!user || !pass) {
+    return { ok: false, error: 'unauthorized', detail: 'username and password required' }
+  }
+
+  let collectionHref: string
+  try {
+    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
+    if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
+      return {
+        ok: false,
+        error: 'wrong_dav_service',
+        detail: 'carddav.web.de is contacts — use caldav.web.de for calendars',
+      }
+    }
+  } catch (e) {
+    const code = e instanceof Error ? e.message : 'bad_url'
+    if (code === 'wrong_dav_service') return { ok: false, error: 'wrong_dav_service', detail: code }
+    if (code === 'missing_begenda_path') {
+      return {
+        ok: false,
+        error: 'not_calendar_data',
+        detail: 'WEB.DE: full URL …/begenda/dav/email@web.de/calendar required',
+      }
+    }
+    return { ok: false, error: 'upstream_http', detail: code }
+  }
+
+  const serverUrl = serverUrlFromCalendarHref(collectionHref)
+  const ac = new AbortController()
+  const onAbort = () => ac.abort()
+  signal.addEventListener('abort', onAbort)
+  const timer = setTimeout(() => ac.abort(), CALENDAR_FETCH_TIMEOUT_MS)
+
+  try {
+    const client = await createDAVClient({
+      serverUrl,
+      credentials: { username: user, password: pass },
+      authMethod: 'Basic',
+      defaultAccountType: 'caldav',
+      fetch: (input, init) =>
+        fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
+    })
+
+    const calendars = await client.fetchCalendars()
+    let calendar = pickCalendar(calendars, collectionHref)
+    if (!calendar) {
+      calendar = { url: collectionHref, displayName: 'calendar' } as DAVCalendar
+    }
+
+    return { ok: true, client, calendar, collectionHref }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/401|403|unauthorized|invalid credentials/i.test(msg)) {
+      return {
+        ok: false,
+        error: 'unauthorized',
+        detail: 'App-Passwort und volle E-Mail prüfen (WEB.DE/GMX)',
+      }
+    }
+    if (e instanceof Error && e.name === 'AbortError') {
+      return { ok: false, error: 'upstream_network', detail: 'timeout' }
+    }
+    return { ok: false, error: 'upstream_network', detail: msg }
+  } finally {
+    clearTimeout(timer)
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+export async function writeCalDavAllDayEvent(
+  rawCalendarUrl: string,
+  username: string,
+  password: string,
+  action: CaldavWriteAction,
+  fields: {
+    title?: string
+    date?: string
+    uid?: string
+    objectUrl?: string
+    etag?: string
+  },
+  signal: AbortSignal,
+): Promise<CaldavWriteResult> {
+  const conn = await connectCalDav(rawCalendarUrl, username, password, signal)
+  if (!conn.ok) return conn
+
+  try {
+    if (action === 'create') {
+      const title = fields.title?.trim()
+      const date = fields.date?.trim()
+      if (!title || !date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { ok: false, error: 'bad_request', detail: 'title and date (YYYY-MM-DD) required' }
+      }
+      const uid = fields.uid?.trim() || newCalDavUid()
+      const iCalString = buildAllDayVeventIcs({ uid, title, date })
+      const filename = calFilenameForUid(uid)
+      const res = await conn.client.createCalendarObject({
+        calendar: conn.calendar,
+        filename,
+        iCalString,
+      })
+      if (!res.ok) {
+        return mapWriteHttpError(res.status, `create failed (${res.status})`)
+      }
+      const objectUrl = joinCalendarObjectUrl(conn.calendar.url, filename)
+      const etag = res.headers.get('etag') ?? undefined
+      return { ok: true, uid, objectUrl, etag }
+    }
+
+    if (action === 'update') {
+      const objectUrl = fields.objectUrl?.trim()
+      const title = fields.title?.trim()
+      const date = fields.date?.trim()
+      const uid = fields.uid?.trim()
+      if (!objectUrl || !title || !date || !uid || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { ok: false, error: 'bad_request', detail: 'objectUrl, uid, title and date required' }
+      }
+      const iCalString = buildAllDayVeventIcs({ uid, title, date })
+      const calendarObject: DAVCalendarObject = {
+        url: objectUrl,
+        data: iCalString,
+        etag: fields.etag,
+      }
+      const res = await conn.client.updateCalendarObject({ calendarObject })
+      if (!res.ok) {
+        return mapWriteHttpError(res.status, `update failed (${res.status})`)
+      }
+      const etag = res.headers.get('etag') ?? fields.etag
+      return { ok: true, uid, objectUrl, etag }
+    }
+
+    const objectUrl = fields.objectUrl?.trim()
+    if (!objectUrl) {
+      return { ok: false, error: 'bad_request', detail: 'objectUrl required' }
+    }
+    const calendarObject: DAVCalendarObject = {
+      url: objectUrl,
+      etag: fields.etag,
+    }
+    const res = await conn.client.deleteCalendarObject({ calendarObject })
+    if (!res.ok && res.status !== 404) {
+      return mapWriteHttpError(res.status, `delete failed (${res.status})`)
+    }
+    return {
+      ok: true,
+      uid: fields.uid?.trim() || '',
+      objectUrl,
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/401|403|unauthorized/i.test(msg)) {
+      return { ok: false, error: 'unauthorized', detail: msg }
+    }
+    if (e instanceof Error && e.name === 'AbortError') {
+      return { ok: false, error: 'upstream_network', detail: 'timeout' }
+    }
+    return { ok: false, error: 'upstream_network', detail: msg }
+  }
 }
 
 function parseCalendarObjects(
@@ -205,64 +405,27 @@ export async function fetchCalDavOccurrencesTsdav(
   rangeEnd: Date,
   signal: AbortSignal,
 ): Promise<CaldavFetchResult> {
-  const user = normalizeCaldavUsername(username, rawCalendarUrl)
-  const pass = password.trim()
-  if (!user || !pass) {
-    return { ok: false, error: 'unauthorized', detail: 'username and password required' }
+  const conn = await connectCalDav(rawCalendarUrl, username, password, signal)
+  if (!conn.ok) {
+    return {
+      ok: false,
+      error: conn.error,
+      status: conn.error === 'unauthorized' ? 401 : undefined,
+      detail: conn.detail,
+    }
   }
 
-  let collectionHref: string
   try {
-    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
-    if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
-      return {
-        ok: false,
-        error: 'wrong_dav_service',
-        detail: 'carddav.web.de is contacts — use caldav.web.de for calendars',
-      }
+    let calendar = conn.calendar
+    let occurrences = await fetchObjectsForCalendar(conn.client, calendar, rangeStart, rangeEnd)
+    if (
+      occurrences.length === 0 &&
+      calendar.url.replace(/\/$/, '') !== conn.collectionHref.replace(/\/$/, '')
+    ) {
+      const direct = { url: conn.collectionHref, displayName: 'calendar' } as DAVCalendar
+      occurrences = await fetchObjectsForCalendar(conn.client, direct, rangeStart, rangeEnd)
+      if (occurrences.length > 0) calendar = direct
     }
-  } catch (e) {
-    const code = e instanceof Error ? e.message : 'bad_url'
-    if (code === 'wrong_dav_service') {
-      return { ok: false, error: 'wrong_dav_service', detail: code }
-    }
-    if (code === 'missing_begenda_path') {
-      return {
-        ok: false,
-        error: 'not_calendar_data',
-        detail: 'WEB.DE: full URL …/begenda/dav/email@web.de/calendar required',
-      }
-    }
-    return { ok: false, error: 'upstream_http', detail: code }
-  }
-
-  const serverUrl = serverUrlFromCalendarHref(collectionHref)
-  const ac = new AbortController()
-  const onAbort = () => ac.abort()
-  signal.addEventListener('abort', onAbort)
-  const timer = setTimeout(() => ac.abort(), CALENDAR_FETCH_TIMEOUT_MS)
-
-  try {
-    const client = await createDAVClient({
-      serverUrl,
-      credentials: { username: user, password: pass },
-      authMethod: 'Basic',
-      defaultAccountType: 'caldav',
-      fetch: (input, init) =>
-        fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
-    })
-
-    const calendars = await client.fetchCalendars()
-    const calendar = pickCalendar(calendars, collectionHref)
-    if (!calendar) {
-      return {
-        ok: false,
-        error: 'not_calendar_data',
-        detail: 'no calendar collection found — use discover or check URL',
-      }
-    }
-
-    const occurrences = await fetchObjectsForCalendar(client, calendar, rangeStart, rangeEnd)
     return { ok: true, occurrences, via: 'tsdav', calendarUrl: calendar.url }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -278,8 +441,5 @@ export async function fetchCalDavOccurrencesTsdav(
       return { ok: false, error: 'upstream_network', detail: 'timeout' }
     }
     return { ok: false, error: 'upstream_network', detail: msg }
-  } finally {
-    clearTimeout(timer)
-    signal.removeEventListener('abort', onAbort)
   }
 }

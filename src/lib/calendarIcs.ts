@@ -10,6 +10,9 @@ export type IcsOccurrence = {
   allDay: boolean
   /** Nur bei zeitgebundenem Termin, lokale Uhrzeit HH:mm. */
   timeLabel?: string
+  /** CalDAV-Ressource (für Update/Delete). */
+  objectUrl?: string
+  etag?: string
 }
 
 function pad2(n: number): string {
@@ -135,4 +138,45 @@ export function expandIcsString(
   }
 
   return out
+}
+
+/** Nächstes Kalendertag (YYYY-MM-DD) für DTEND bei ganztägigen Terminen. */
+export function nextYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(y!, (m ?? 1) - 1, (d ?? 1) + 1, 12, 0, 0, 0)
+  return toLocalYmd(dt)
+}
+
+function escapeIcsText(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+}
+
+export function newCalDavUid(): string {
+  const base =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+  return `${base}@selfdashboard`
+}
+
+/** Ganztägiges VEVENT als iCalendar-Text (CalDAV PUT). */
+export function buildAllDayVeventIcs(params: { uid: string; title: string; date: string }): string {
+  const dtStart = params.date.replace(/-/g, '')
+  const dtEnd = nextYmd(params.date).replace(/-/g, '')
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z?$/, 'Z')
+  const summary = escapeIcsText(params.title.trim().slice(0, 240) || '(no title)')
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SelfDashboard//CalDAV//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${params.uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;VALUE=DATE:${dtStart}`,
+    `DTEND;VALUE=DATE:${dtEnd}`,
+    `SUMMARY:${summary}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n')
 }

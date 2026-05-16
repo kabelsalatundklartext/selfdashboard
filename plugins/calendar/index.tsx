@@ -11,8 +11,8 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Calendar',
   description:
-    'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.8',
+    'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
+  version: '2.1.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -71,8 +71,8 @@ export const meta: PluginMeta = {
       defaultValue: 15,
     },
     {
-      key: 'icsRefreshMinutes',
-      label: 'ICS + CalDAV aktualisieren (Min)',
+      key: 'caldavRefreshMinutes',
+      label: 'CalDAV aktualisieren (Min)',
       type: 'number',
       defaultValue: 30,
     },
@@ -87,6 +87,11 @@ interface CalendarEventRow {
   id: string
   title: string
   date: string
+  /** CalDAV UID nach erfolgreichem Push. */
+  caldavUid?: string
+  caldavHref?: string
+  caldavEtag?: string
+  feedIndex?: number
 }
 
 function newEventId(): string {
@@ -104,7 +109,23 @@ function parseEvents(raw: unknown): CalendarEventRow[] {
     const title = str(o.title).slice(0, 240)
     const date = str(o.date)
     if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !title) continue
-    out.push({ id, title, date })
+    const caldavUid = str(o.caldavUid).slice(0, 240) || undefined
+    const caldavHref = str(o.caldavHref).slice(0, 2000) || undefined
+    const caldavEtag = str(o.caldavEtag).slice(0, 200) || undefined
+    const feedIndexRaw = o.feedIndex
+    const feedIndex =
+      typeof feedIndexRaw === 'number' && Number.isInteger(feedIndexRaw) && feedIndexRaw >= 0 && feedIndexRaw < 4
+        ? feedIndexRaw
+        : undefined
+    out.push({
+      id,
+      title,
+      date,
+      ...(caldavUid ? { caldavUid } : {}),
+      ...(caldavHref ? { caldavHref } : {}),
+      ...(caldavEtag ? { caldavEtag } : {}),
+      ...(feedIndex !== undefined ? { feedIndex } : {}),
+    })
   }
   return out
 }
@@ -119,38 +140,23 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : ''
 }
 
-type IcsFeedConfig = { url: string; name?: string }
-
 type CalDavFeedConfig = { url: string; username?: string; password?: string; name?: string }
+type IcsFeedConfig = { url: string; name?: string }
 
 interface RemoteCalEvent {
   id: string
+  uid?: string
   title: string
   date: string
   timeLabel?: string | null
   feedIndex: number
   feedName?: string
-  sourceKind: 'ics' | 'caldav'
+  sourceKind: 'caldav'
 }
 
 type ListEntry =
-  | { mode: 'local'; id: string; date: string; title: string }
+  | { mode: 'local'; id: string; date: string; title: string; synced?: boolean }
   | { mode: 'remote'; id: string; date: string; title: string; time?: string; source?: string }
-
-function parseIcsFeeds(raw: unknown): IcsFeedConfig[] {
-  if (!Array.isArray(raw)) return []
-  const out: IcsFeedConfig[] = []
-  for (const row of raw) {
-    if (!row || typeof row !== 'object') continue
-    const o = row as Record<string, unknown>
-    const url = str(o.url)
-    if (!url) continue
-    const name = str(o.name)
-    out.push({ url: url.slice(0, 2000), ...(name ? { name: name.slice(0, 120) } : {}) })
-    if (out.length >= 8) break
-  }
-  return out
-}
 
 function parseCalDavFeeds(raw: unknown): CalDavFeedConfig[] {
   if (!Array.isArray(raw)) return []
@@ -174,7 +180,7 @@ function parseCalDavFeeds(raw: unknown): CalDavFeedConfig[] {
   return out
 }
 
-/** Wie {@link parseIcsFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
+/** Wie {@link parseCalDavFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
 function parseIcsFeedsDraft(raw: unknown): IcsFeedConfig[] {
   if (!Array.isArray(raw)) return []
   const out: IcsFeedConfig[] = []
@@ -183,13 +189,15 @@ function parseIcsFeedsDraft(raw: unknown): IcsFeedConfig[] {
     const o = row as Record<string, unknown>
     const url = typeof o.url === 'string' ? o.url.trim().slice(0, 2000) : ''
     const name = str(o.name)
-    out.push({ url, ...(name ? { name: name.slice(0, 120) } : {}) })
+    out.push({
+      url,
+      ...(name ? { name: name.slice(0, 120) } : {}),
+    })
     if (out.length >= 8) break
   }
   return out
 }
 
-/** Wie {@link parseCalDavFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
 function parseCalDavFeedsDraft(raw: unknown): CalDavFeedConfig[] {
   if (!Array.isArray(raw)) return []
   const out: CalDavFeedConfig[] = []
@@ -337,6 +345,48 @@ function formatFeedError(code: string, detail: string | undefined, de: boolean):
   return code
 }
 
+type CaldavWriteOk = { uid: string; objectUrl: string; etag: string | null }
+
+async function postCalDavWrite(
+  feed: CalDavFeedConfig,
+  body: Record<string, unknown>,
+  de: boolean,
+): Promise<{ ok: true; data: CaldavWriteOk } | { ok: false; message: string }> {
+  const res = await fetch('/api/calendar-caldav/write', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      calendarUrl: feed.url,
+      username: feed.username ?? '',
+      password: feed.password ?? '',
+      ...body,
+    }),
+  })
+  const j = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    detail?: string
+    uid?: string
+    objectUrl?: string
+    etag?: string | null
+  }
+  if (!j?.ok) {
+    const msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
+    return { ok: false, message: msg }
+  }
+  if (body.action === 'delete') {
+    return {
+      ok: true,
+      data: { uid: j.uid ?? '', objectUrl: j.objectUrl ?? '', etag: j.etag ?? null },
+    }
+  }
+  if (!j.uid || !j.objectUrl) {
+    const msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
+    return { ok: false, message: msg }
+  }
+  return { ok: true, data: { uid: j.uid, objectUrl: j.objectUrl, etag: j.etag ?? null } }
+}
+
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -349,22 +399,24 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showEventList = (config as Record<string, unknown>).showEventList !== false
   const listUpcomingOnly = (config as Record<string, unknown>).listUpcomingOnly === true
   const maxListEntries = clampListMax((config as Record<string, unknown>).maxListEntries)
-  const icsRefreshMinutes = clampIcsRefresh((config as Record<string, unknown>).icsRefreshMinutes)
   const startsMonday = weekStartsMonday(weekMode, de)
 
   const rawEvents = (config as Record<string, unknown>).events
-  const rawIcsFeeds = (config as Record<string, unknown>).icsFeeds
   const rawCalDavFeeds = (config as Record<string, unknown>).caldavFeeds
+  const cfg = config as Record<string, unknown>
   const events = useMemo(() => parseEvents(rawEvents), [rawEvents])
-  const icsFeeds = useMemo(() => parseIcsFeeds(rawIcsFeeds), [rawIcsFeeds])
   const calDavFeeds = useMemo(() => parseCalDavFeeds(rawCalDavFeeds), [rawCalDavFeeds])
+  const caldavRefreshMinutes = clampIcsRefresh(cfg.caldavRefreshMinutes ?? cfg.icsRefreshMinutes)
 
   const [remoteEvents, setRemoteEvents] = useState<RemoteCalEvent[]>([])
   const [remoteErrors, setRemoteErrors] = useState<Record<string, string>>({})
   const [remoteLoading, setRemoteLoading] = useState(false)
+  const [caldavRefreshTick, setCaldavRefreshTick] = useState(0)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (icsFeeds.length === 0 && calDavFeeds.length === 0) {
+    if (calDavFeeds.length === 0) {
       setRemoteEvents([])
       setRemoteErrors({})
       setRemoteLoading(false)
@@ -383,50 +435,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setRemoteLoading(true)
       const errs: Record<string, string> = {}
       const merged: RemoteCalEvent[] = []
-      for (let i = 0; i < icsFeeds.length; i++) {
-        const feed = icsFeeds[i]!
-        try {
-          const res = await fetch('/api/calendar-ics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: feed.url,
-              windowStart: winStart.toISOString(),
-              windowEnd: winEnd.toISOString(),
-            }),
-          })
-          const j = (await res.json()) as {
-            ok?: boolean
-            error?: string
-            upstreamStatus?: number
-            detail?: string
-            events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
-          }
-          if (!j?.ok) {
-            throw new Error(formatFeedError(j?.error || `http_${res.status}`, j?.detail, de))
-          }
-          let host = 'ICS'
-          try {
-            host = new URL(feed.url).hostname
-          } catch {
-            /* ignore */
-          }
-          const label = feed.name?.trim() || host
-          for (const ev of j.events ?? []) {
-            merged.push({
-              id: `ics${i}-${ev.id}`,
-              title: ev.title,
-              date: ev.date,
-              timeLabel: ev.timeLabel,
-              feedIndex: i,
-              feedName: label,
-              sourceKind: 'ics',
-            })
-          }
-        } catch (e) {
-          errs[`ics:${i}`] = e instanceof Error ? e.message : String(e)
-        }
-      }
+      const linkedUids = new Set(
+        events.map((e) => e.caldavUid).filter((u): u is string => Boolean(u)),
+      )
       for (let i = 0; i < calDavFeeds.length; i++) {
         const feed = calDavFeeds[i]!
         try {
@@ -447,7 +458,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             upstreamStatus?: number
             detail?: string
             suggestedUrl?: string
-            events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
+            events?: { id: string; uid?: string; title: string; date: string; timeLabel?: string | null }[]
           }
           if (!j?.ok) {
             let msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
@@ -464,8 +475,10 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           }
           const label = feed.name?.trim() || host
           for (const ev of j.events ?? []) {
+            if (ev.uid && linkedUids.has(ev.uid)) continue
             merged.push({
               id: `dav${i}-${ev.id}`,
+              uid: ev.uid,
               title: ev.title,
               date: ev.date,
               timeLabel: ev.timeLabel,
@@ -496,13 +509,13 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     }
 
     void load()
-    const ms = Math.max(5, icsRefreshMinutes) * 60_000
+    const ms = Math.max(5, caldavRefreshMinutes) * 60_000
     const timer = window.setInterval(() => void load(), ms)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [icsFeeds, calDavFeeds, icsRefreshMinutes])
+  }, [calDavFeeds, caldavRefreshMinutes, caldavRefreshTick, de, instanceId, events])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -520,6 +533,102 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       updatePluginConfig(instanceId, { events: next })
     },
     [instanceId, updatePluginConfig],
+  )
+
+  const primaryFeedIndex = 0
+
+  const pushEventToCalDav = useCallback(
+    async (
+      action: 'create' | 'update' | 'delete',
+      row: CalendarEventRow,
+    ): Promise<CalendarEventRow | null> => {
+      if (calDavFeeds.length === 0) return row
+      const feedIdx =
+        typeof row.feedIndex === 'number' && row.feedIndex >= 0 && row.feedIndex < calDavFeeds.length
+          ? row.feedIndex
+          : primaryFeedIndex
+      const feed = calDavFeeds[feedIdx]
+      if (!feed?.url || !feed.password) {
+        setSyncError(
+          de ? 'CalDAV-Feed ohne URL oder Passwort — in den Einstellungen prüfen' : 'CalDAV feed missing URL or password',
+        )
+        return null
+      }
+
+      setSyncBusy(true)
+      setSyncError(null)
+      try {
+        if (action === 'delete') {
+          if (!row.caldavHref) return row
+          const del = await postCalDavWrite(
+            feed,
+            {
+              action: 'delete',
+              objectUrl: row.caldavHref,
+              etag: row.caldavEtag ?? '',
+              uid: row.caldavUid ?? '',
+            },
+            de,
+          )
+          if (!del.ok) {
+            setSyncError(del.message)
+            return null
+          }
+          return row
+        }
+
+        if (action === 'update' && row.caldavHref && row.caldavUid) {
+          const upd = await postCalDavWrite(
+            feed,
+            {
+              action: 'update',
+              title: row.title,
+              date: row.date,
+              uid: row.caldavUid,
+              objectUrl: row.caldavHref,
+              etag: row.caldavEtag ?? '',
+            },
+            de,
+          )
+          if (!upd.ok) {
+            setSyncError(upd.message)
+            return null
+          }
+          return {
+            ...row,
+            feedIndex: feedIdx,
+            caldavUid: upd.data.uid,
+            caldavHref: upd.data.objectUrl,
+            caldavEtag: upd.data.etag ?? undefined,
+          }
+        }
+
+        const create = await postCalDavWrite(
+          feed,
+          {
+            action: 'create',
+            title: row.title,
+            date: row.date,
+            uid: row.caldavUid ?? '',
+          },
+          de,
+        )
+        if (!create.ok) {
+          setSyncError(create.message)
+          return null
+        }
+        return {
+          ...row,
+          feedIndex: feedIdx,
+          caldavUid: create.data.uid,
+          caldavHref: create.data.objectUrl,
+          caldavEtag: create.data.etag ?? undefined,
+        }
+      } finally {
+        setSyncBusy(false)
+      }
+    },
+    [calDavFeeds, de, primaryFeedIndex],
   )
 
   const [view, setView] = useState(() => monthStart(new Date().getFullYear(), new Date().getMonth()))
@@ -604,6 +713,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       id: e.id,
       date: e.date,
       title: e.title,
+      synced: Boolean(e.caldavUid && e.caldavHref),
     }))
     for (const r of remoteEvents) {
       rows.push({
@@ -652,25 +762,58 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
 
   const addNewEvent = useCallback(() => {
     const t = newTitle.trim()
-    if (!t || !pickerYmd) return
-    persistEvents([...events, { id: newEventId(), title: t.slice(0, 240), date: pickerYmd }])
-    setNewTitle('')
-  }, [newTitle, pickerYmd, events, persistEvents])
+    if (!t || !pickerYmd || syncBusy) return
+    const draft: CalendarEventRow = { id: newEventId(), title: t.slice(0, 240), date: pickerYmd }
+    void (async () => {
+      let saved = draft
+      if (calDavFeeds.length > 0) {
+        const synced = await pushEventToCalDav('create', draft)
+        if (!synced) return
+        saved = synced
+      }
+      persistEvents([...events, saved])
+      setNewTitle('')
+      if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+    })()
+  }, [newTitle, pickerYmd, events, persistEvents, calDavFeeds.length, pushEventToCalDav, syncBusy])
 
   const saveEditing = useCallback(() => {
-    if (!editing) return
+    if (!editing || syncBusy) return
     const t = editing.title.trim()
     if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(editing.date)) return
-    persistEvents(events.map((e) => (e.id === editing.id ? { ...e, title: t.slice(0, 240), date: editing.date } : e)))
-    setEditing(null)
-  }, [editing, events, persistEvents])
+    const prev = events.find((e) => e.id === editing.id)
+    if (!prev) return
+    const draft: CalendarEventRow = { ...prev, title: t.slice(0, 240), date: editing.date }
+    void (async () => {
+      let saved = draft
+      if (calDavFeeds.length > 0) {
+        const action = draft.caldavHref && draft.caldavUid ? 'update' : 'create'
+        const synced = await pushEventToCalDav(action, draft)
+        if (!synced) return
+        saved = synced
+      }
+      persistEvents(events.map((e) => (e.id === editing.id ? saved : e)))
+      setEditing(null)
+      if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+    })()
+  }, [editing, events, persistEvents, calDavFeeds.length, pushEventToCalDav, syncBusy])
 
   const deleteEvent = useCallback(
     (id: string) => {
-      persistEvents(events.filter((e) => e.id !== id))
-      if (editing?.id === id) setEditing(null)
+      if (syncBusy) return
+      const row = events.find((e) => e.id === id)
+      if (!row) return
+      void (async () => {
+        if (calDavFeeds.length > 0 && row.caldavHref) {
+          const ok = await pushEventToCalDav('delete', row)
+          if (!ok) return
+        }
+        persistEvents(events.filter((e) => e.id !== id))
+        if (editing?.id === id) setEditing(null)
+        if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+      })()
     },
-    [events, persistEvents, editing],
+    [events, persistEvents, editing, calDavFeeds.length, pushEventToCalDav, syncBusy],
   )
 
   const muted = 'var(--text-muted)'
@@ -803,38 +946,69 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </button>
       </div>
 
-      {icsFeeds.length + calDavFeeds.length > 0 && (
-        <p
+      {calDavFeeds.length > 0 && (
+        <div
           style={{
             margin: 0,
-            fontSize: '10px',
-            color: Object.keys(remoteErrors).length > 0 ? '#fb7185' : muted,
-            textAlign: 'center',
-            lineHeight: 1.35,
             flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px',
           }}
         >
-          {remoteLoading
-            ? de
-              ? 'Externe Kalender werden geladen …'
-              : 'Loading external calendars…'
-            : Object.keys(remoteErrors).length > 0
-              ? (() => {
-                  const parts = Object.entries(remoteErrors).map(([key, msg]) => {
-                    const [kind, idxStr] = key.split(':')
-                    const idx = Number(idxStr)
-                    const label =
-                      kind === 'dav'
-                        ? calDavFeeds[idx]?.name?.trim() || `CalDAV ${idx + 1}`
-                        : icsFeeds[idx]?.name?.trim() || `ICS ${idx + 1}`
-                    return `${label}: ${msg}`
-                  })
-                  return de ? `Fehler: ${parts.join(' · ')}` : `Errors: ${parts.join(' · ')}`
-                })()
-              : de
-                ? `${remoteEvents.length} externe Termine im Fenster · alle ${icsRefreshMinutes} min aktualisiert`
-                : `${remoteEvents.length} external events in window · refresh every ${icsRefreshMinutes} min`}
-        </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '10px',
+              color: Object.keys(remoteErrors).length > 0 ? '#fb7185' : muted,
+              textAlign: 'center',
+              lineHeight: 1.35,
+            }}
+          >
+            {remoteLoading
+              ? de
+                ? 'Externe Kalender werden geladen …'
+                : 'Loading external calendars…'
+              : Object.keys(remoteErrors).length > 0
+                ? (() => {
+                    const parts = Object.entries(remoteErrors).map(([key, msg]) => {
+                      const idx = Number(key.split(':')[1])
+                      const label = calDavFeeds[idx]?.name?.trim() || `CalDAV ${idx + 1}`
+                      return `${label}: ${msg}`
+                    })
+                    return de ? `Fehler: ${parts.join(' · ')}` : `Errors: ${parts.join(' · ')}`
+                  })()
+                : de
+                  ? `${remoteEvents.length} externe · Zwei-Wege-Sync aktiv · alle ${caldavRefreshMinutes} min`
+                  : `${remoteEvents.length} external · two-way sync · every ${caldavRefreshMinutes} min`}
+          </p>
+          {syncError ? (
+            <p style={{ margin: 0, fontSize: '10px', color: '#fb7185', textAlign: 'center', lineHeight: 1.35 }}>
+              {de ? `Sync-Fehler: ${syncError}` : `Sync error: ${syncError}`}
+            </p>
+          ) : null}
+          {!remoteLoading && Object.keys(remoteErrors).length === 0 && !syncError ? (
+            <p style={{ margin: 0, fontSize: '9px', color: muted, textAlign: 'center', lineHeight: 1.3, maxWidth: '100%' }}>
+              {de
+                ? 'Neue Termine (Tipp auf Tag) werden zum ersten CalDAV-Feed geschrieben (z. B. WEB.DE).'
+                : 'New events (tap a day) are pushed to the first CalDAV feed (e.g. WEB.DE).'}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setCaldavRefreshTick((n) => n + 1)}
+            disabled={remoteLoading || syncBusy}
+            style={{
+              ...todayBtnStyle,
+              fontSize: '10px',
+              padding: '3px 10px',
+              opacity: remoteLoading || syncBusy ? 0.6 : 1,
+            }}
+          >
+            {syncBusy ? (de ? 'Synchronisiere …' : 'Syncing…') : de ? 'Jetzt aktualisieren' : 'Refresh now'}
+          </button>
+        </div>
       )}
 
       <div
@@ -1033,7 +1207,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                 textTransform: 'uppercase',
               }}
             >
-              {de ? 'Lokal' : 'Local'}
+              {de ? 'Dashboard' : 'Dashboard'}
             </p>
           )}
 
@@ -1081,7 +1255,14 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   color: text,
                 }}
               >
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ev.title}
+                  {ev.caldavUid && calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'CalDAV' : 'CalDAV'}</span>
+                  ) : calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'nur Dashboard' : 'dashboard only'}</span>
+                  ) : null}
+                </span>
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                   <button type="button" onClick={() => setEditing({ id: ev.id, title: ev.title, date: ev.date })} style={chipBtnStyle}>
                     {lab.edit}
@@ -1111,11 +1292,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               <button
                 type="button"
                 onClick={addNewEvent}
-                disabled={!newTitle.trim()}
+                disabled={!newTitle.trim() || syncBusy}
                 style={{
                   ...primarySmallBtnStyle,
-                  opacity: !newTitle.trim() ? 0.45 : 1,
-                  cursor: !newTitle.trim() ? 'not-allowed' : 'pointer',
+                  opacity: !newTitle.trim() || syncBusy ? 0.45 : 1,
+                  cursor: !newTitle.trim() || syncBusy ? 'not-allowed' : 'pointer',
                 }}
               >
                 {lab.add}
@@ -1185,6 +1366,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                       </span>
                     ) : null}{' '}
                     — {row.title}
+                    {row.mode === 'local' && row.synced ? (
+                      <span style={{ color: muted, fontSize: '10px' }}> · CalDAV</span>
+                    ) : null}
                     {row.mode === 'remote' && row.source ? (
                       <span style={{ color: muted, fontSize: '10px' }}> · {row.source}</span>
                     ) : null}
@@ -1267,6 +1451,88 @@ const todayBtnStyle: CSSProperties = {
   padding: '4px 12px',
   borderRadius: '999px',
   cursor: 'pointer',
+}
+
+function CalDavFeedTools({
+  feed,
+  de,
+  onApplyUrl,
+}: {
+  feed: CalDavFeedConfig
+  de: boolean
+  onApplyUrl: (url: string) => void
+}) {
+  const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const applyWebDe = () => {
+    const mail = (feed.username ?? '').trim()
+    if (!mail) {
+      setStatus(de ? 'Zuerst E-Mail als Benutzername eintragen' : 'Enter email as username first')
+      return
+    }
+    const addr = mail.includes('@') ? mail : `${mail}@web.de`
+    onApplyUrl(`https://caldav.web.de/begenda/dav/${addr}/calendar`)
+    setStatus(de ? 'WEB.DE-URL gesetzt' : 'WEB.DE URL applied')
+  }
+
+  const testConnection = async () => {
+    setBusy(true)
+    setStatus(null)
+    try {
+      const res = await fetch('/api/calendar-caldav/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          calendarUrl: feed.url,
+          username: feed.username ?? '',
+          password: feed.password ?? '',
+        }),
+      })
+      const j = (await res.json()) as {
+        ok?: boolean
+        error?: string
+        detail?: string
+        suggestedUrl?: string
+        calendars?: { url: string; displayName: string }[]
+      }
+      if (!j?.ok) {
+        let msg = formatFeedError(j?.error || 'error', j?.detail, de)
+        if (j?.suggestedUrl) msg += ` → ${j.suggestedUrl}`
+        setStatus(msg)
+        return
+      }
+      const n = j.calendars?.length ?? 0
+      if (n === 1 && j.calendars?.[0]?.url) onApplyUrl(j.calendars[0].url)
+      setStatus(de ? `${n} Kalender gefunden` : `${n} calendar(s) found`)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '8px' }}>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn-ghost"
+          style={{ fontSize: '11px', padding: '4px 10px' }}
+          disabled={busy || !feed.password}
+          onClick={() => void testConnection()}
+        >
+          {de ? 'Verbindung testen' : 'Test connection'}
+        </button>
+        <button type="button" className="btn-ghost" style={{ fontSize: '11px', padding: '4px 10px' }} onClick={applyWebDe}>
+          WEB.DE
+        </button>
+      </div>
+      {status ? (
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>{status}</p>
+      ) : null}
+    </div>
+  )
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
@@ -1501,6 +1767,32 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
             {de ? 'CalDAV (Server-Kalender)' : 'CalDAV (server calendar)'}
           </p>
+          <p
+            style={{
+              fontSize: '11px',
+              color: '#f59e0b',
+              lineHeight: 1.55,
+              margin: '0 0 10px',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              border: '1px solid color-mix(in srgb, #f59e0b 35%, var(--border))',
+              background: 'color-mix(in srgb, #f59e0b 8%, var(--surface-2))',
+            }}
+          >
+            {de ? (
+              <>
+                <strong>Zwei-Wege-Sync (CalDAV):</strong> Termine von WEB.DE/CalDAV werden gelesen; Termine, die du im
+                Widget per Tipp auf einen Tag anlegst oder bearbeitest, werden zum <strong>ersten CalDAV-Feed</strong>{' '}
+                geschrieben (ganztägig). ICS/Webcal-Feeds bleiben nur lesen.
+              </>
+            ) : (
+              <>
+                <strong>Two-way CalDAV sync:</strong> events are pulled from your server; events you add or edit in the
+                widget are pushed to the <strong>first CalDAV feed</strong> (all-day only). ICS/webcal feeds stay
+                read-only.
+              </>
+            )}
+          </p>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
             {de ? (
               <>
@@ -1670,6 +1962,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                         setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, password: v } : f)))
                       }}
                     />
+                    <CalDavFeedTools
+                      feed={feed}
+                      de={de}
+                      onApplyUrl={(url) => setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, url } : f)))}
+                    />
                     <button
                       type="button"
                       className="btn-ghost"
@@ -1695,15 +1992,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </div>
 
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          {de ? 'ICS + CalDAV alle X Minuten neu laden' : 'Refresh ICS + CalDAV every X minutes'}
+          {de ? 'CalDAV alle X Minuten neu laden' : 'Refresh CalDAV every X minutes'}
         </label>
         <input
           style={inp}
           type="number"
           min={5}
           max={240}
-          value={clampIcsRefresh((config as Record<string, unknown>).icsRefreshMinutes)}
-          onChange={(e) => onChange('icsRefreshMinutes', clampIcsRefresh(e.target.value))}
+          value={clampIcsRefresh((config as Record<string, unknown>).caldavRefreshMinutes ?? (config as Record<string, unknown>).icsRefreshMinutes)}
+          onChange={(e) => onChange('caldavRefreshMinutes', clampIcsRefresh(e.target.value))}
         />
       </div>
     </div>
