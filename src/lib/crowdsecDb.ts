@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3'
 import type { CrowdsecCountryStat, CrowdsecDashboardData, CrowdsecFeedItem } from '@/lib/crowdsecMetrics'
+import { applyGeoipToCountry, createGeoipLookup } from '@/lib/crowdsecGeoip'
 
 type AlertRow = {
   id: number
@@ -42,8 +43,60 @@ function extractIpFromSerialized(raw: string | null): string {
 
 function extractMetaFromSerialized(raw: string | null): { country: string; city: string } {
   if (!raw) return { country: '', city: '' }
-  const country = raw.match(/"IsoCode"\s*:\s*"([^"]+)"/i)?.[1]?.toUpperCase() ?? ''
-  const city = raw.match(/"City"\s*:\s*"([^"]+)"/)?.[1] ?? ''
+
+  const tryParse = (): { country: string; city: string } | null => {
+    const t = raw.trim()
+    if (!t.startsWith('{') && !t.startsWith('[')) return null
+    try {
+      const walk = (v: unknown): { country: string; city: string } | null => {
+        if (!v || typeof v !== 'object') return null
+        if (Array.isArray(v)) {
+          for (const x of v) {
+            const hit = walk(x)
+            if (hit?.country) return hit
+          }
+          return null
+        }
+        const o = v as Record<string, unknown>
+        const city = typeof o.City === 'string' ? o.City : typeof o.city === 'string' ? o.city : ''
+        for (const key of ['IsoCode', 'iso_code', 'country_code', 'CountryCode', 'GeoIsoCode', 'country']) {
+          const val = o[key]
+          if (typeof val === 'string' && /^[A-Za-z]{2}$/.test(val.trim())) {
+            return { country: val.trim().toUpperCase(), city }
+          }
+        }
+        for (const val of Object.values(o)) {
+          const hit = walk(val)
+          if (hit?.country) return hit
+        }
+        return city ? { country: '', city } : null
+      }
+      return walk(JSON.parse(t))
+    } catch {
+      return null
+    }
+  }
+
+  const parsed = tryParse()
+  if (parsed?.country) return parsed
+
+  const countryPatterns = [
+    /"IsoCode"\s*:\s*"([A-Za-z]{2})"/i,
+    /"iso_code"\s*:\s*"([A-Za-z]{2})"/i,
+    /"country_code"\s*:\s*"([A-Za-z]{2})"/i,
+    /"CountryCode"\s*:\s*"([A-Za-z]{2})"/i,
+    /"GeoIsoCode"\s*:\s*"([A-Za-z]{2})"/i,
+    /"country"\s*:\s*"([A-Za-z]{2})"/i,
+  ]
+  let country = ''
+  for (const re of countryPatterns) {
+    const m = raw.match(re)
+    if (m?.[1]) {
+      country = m[1].toUpperCase()
+      break
+    }
+  }
+  const city = raw.match(/"City"\s*:\s*"([^"]+)"/i)?.[1] ?? raw.match(/"city"\s*:\s*"([^"]+)"/)?.[1] ?? ''
   return { country, city }
 }
 
@@ -159,12 +212,17 @@ export function resolveCrowdsecDbPath(userPath: string): string {
   return resolved
 }
 
-export function loadCrowdsecDashboard(dbPath: string, opts: CrowdsecDbOptions = {}): CrowdsecDashboardData {
+export async function loadCrowdsecDashboard(
+  dbPath: string,
+  opts: CrowdsecDbOptions = {},
+): Promise<CrowdsecDashboardData> {
   const daysBack = Math.min(3650, Math.max(1, opts.daysBack ?? 30))
   const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 500))
   const statsHours = Math.min(168, Math.max(1, opts.statsHours ?? 24))
   const cutoffMs = Date.now() - daysBack * 86400_000
   const cutoff24h = Date.now() - statsHours * 3600_000
+
+  const geoip = await createGeoipLookup()
 
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
   try {
@@ -196,8 +254,11 @@ export function loadCrowdsecDashboard(dbPath: string, opts: CrowdsecDbOptions = 
 
       const meta = extractMetaFromSerialized(row.event_serialized)
       let country = row.country ? String(row.country).trim().toUpperCase() : ''
-      if (!country || country === '??') country = meta.country || '??'
-      const city = meta.city
+      if (!country || country === '??') country = meta.country || ''
+      let city = meta.city
+      const geo = applyGeoipToCountry(ip, country, city, geoip)
+      country = geo.country
+      city = geo.city
       const isBan = Number(row.active_ban) === 1
       if (isBan) activeBans += 1
 
@@ -223,6 +284,7 @@ export function loadCrowdsecDashboard(dbPath: string, opts: CrowdsecDbOptions = 
     }
 
     const countries: CrowdsecCountryStat[] = [...countryMap.entries()]
+      .filter(([country]) => country && country !== '??')
       .map(([country, count]) => ({ country, count }))
       .sort((a, b) => b.count - a.count)
 
@@ -231,9 +293,13 @@ export function loadCrowdsecDashboard(dbPath: string, opts: CrowdsecDbOptions = 
       alertsInRange,
       alertsLast24h,
       activeBans,
-      countryCount: countryMap.size,
+      countryCount: countries.length,
       scenarioCount: scenarios.size,
       countries,
+      geoip: {
+        enabled: Boolean(geoip),
+        path: geoip?.dbPath ?? null,
+      },
     }
   } finally {
     db.close()

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const resolved = resolveCrowdsecDbPath(dbPath)
-    const data = loadCrowdsecDashboard(resolved, { daysBack, statsHours, maxAlerts })
+    const data = await loadCrowdsecDashboard(resolved, { daysBack, statsHours, maxAlerts })
     return NextResponse.json(data)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'crowdsec_error'

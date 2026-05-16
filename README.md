@@ -61,6 +61,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
+| 🛡️ CrowdSec | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
 
 ## Quick Start
 
@@ -99,6 +100,7 @@ docker-compose up -d
 
 - **Shared configuration (`dashboard.json`):** when **`/app/data`** is mounted (Unraid: *Config Storage*), SelfDashboard saves **`dashboard.json`** on the server after changes (`PUT /api/dashboard-state`) and loads it on startup (`GET`). Every browser then sees the same dashboards and widgets; **`localStorage`** remains a fast local cache. **Back up** your host appdata folder. Optional **`SELFDASHBOARD_DATA_DIR`** changes the directory *inside* the container where the file is written (the official image sets **`/app/data`**).
 - The **Unraid Community Apps** template (`unraid/selfdashboard.xml`) includes a **Docker Socket** mapping (host `/var/run/docker.sock` → container `/var/run/docker.sock`, read-only), equivalent to `-v /var/run/docker.sock:/var/run/docker.sock`. It is shown **by default** in the template (not hidden under “more settings”). Clear the path if you do not want the Docker widget.
+- **CrowdSec Data (optional)** maps a host folder with `crowdsec.db` to `/crowdsec-data` (read-only). **Leave empty** if you do not use the CrowdSec widget — SelfDashboard does not require CrowdSec. See **CrowdSec widget (optional)** below.
 - The **Custom plugins** path is a **bind-mount**: files on the Unraid disk only appear inside the container when that host folder is mapped to `/app/plugins/custom`. The **stock** image does **not** auto-register new TypeScript plugins from that folder — see **Building Your Own Plugin** and rebuild the image (or use a custom image that reads it).
 - The Docker plugin uses **`/api/docker-containers`** on the **same machine** where SelfDashboard runs. It talks to the **local** Docker Engine via that socket only.
 - **Permission denied (`EACCES`)** on the socket: the container user must be allowed to open the mounted socket (host `root:docker`). The Unraid template sets **`ExtraParams` `--group-add=281`** (common Unraid `docker` GID). If yours differs, run `stat -c '%g' /var/run/docker.sock` on the host and adjust. Newer SelfDashboard images run as **root** in the container so the socket usually works without tuning.
@@ -109,6 +111,39 @@ docker-compose up -d
 ### Remote / “external” Docker
 
 The current implementation **does not** list containers on **another** server. A Unix socket is **local to one host** and cannot reach Docker on a different machine over the network. Practical options: install SelfDashboard **on** that other host (and mount its socket), or use a separate **HTTP API** (e.g. Portainer) — that would be a different plugin/feature, not the socket-based widget.
+
+---
+
+## CrowdSec widget (optional)
+
+**You do not need CrowdSec to run SelfDashboard.** This plugin is only for users who already run [CrowdSec](https://www.crowdsec.net/) on the **same server** and want a compact dashboard widget (overview, bans, countries, searchable IP feed).
+
+| What | Details |
+|---|---|
+| **Purpose** | Read-only view of alerts/bans from CrowdSec’s local SQLite file `crowdsec.db` — no LAPI, no CrowdSec container API |
+| **Required?** | **No** — skip all CrowdSec mounts if you do not use the widget |
+| **Data source** | File `crowdsec.db` on a bind-mounted folder (default in widget: `/crowdsec-data/crowdsec.db`) |
+| **Unraid template** | **CrowdSec Data (optional)** — map your CrowdSec appdata/data folder to `/crowdsec-data` (read-only). Leave **empty** if unused |
+| **Unban (optional)** | Enable in plugin settings; requires **Docker Socket** mount and the CrowdSec container name (e.g. `crowdsec`) so SelfDashboard can run `cscli` via `docker exec` |
+| **Time range** | Selectable in the widget (1 / 7 / 30 / 90 / 365 days); plugin settings set defaults |
+| **GeoIP / flags** | Countries resolved from **GeoLite2** `.mmdb` on disk (same as CrowdSec threat-map setups). Auto-search in `/crowdsec-data` for `GeoLite2-City.mmdb` or `GeoLite2-Country.mmdb`. Install via CrowdSec (`cscli hub` / geoip collection) or mount the file next to `crowdsec.db`. Flag images use emoji + optional `flagcdn.com` |
+| **Env (optional)** | `CROWDSEC_DATA_DIR`, `CROWDSEC_GEOIP_PATH` (direct path to `.mmdb`), `CROWDSEC_DB_PATH`, `CROWDSEC_CONTAINER` |
+
+**Docker run example (optional CrowdSec mount):**
+
+```bash
+docker run -d \
+  --name selfdashboard \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -e TZ=Europe/Berlin \
+  -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /mnt/user/appdata/crowdsec/data:/crowdsec-data:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/kabelsalatundklartext/selfdashboard:latest
+```
+
+After install: add the **CrowdSec** widget from the store, confirm the DB path, pick a time range. Enable unban only if you understand the security impact (same as allowing Docker control from the dashboard).
 
 ---
 
@@ -261,6 +296,10 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | `TZ` | `Europe/Berlin` | Timezone |
 | `NODE_ENV` | `production` | Node.js environment |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (in the official image) | Directory inside the container where **`dashboard.json`** is stored. Must match your **`/app/data`** bind-mount unless you intentionally use another path. |
+| `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Allowed root for DB paths (CrowdSec widget only; optional) |
+| `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
+| `CROWDSEC_DB_PATH` | — | Default DB file if widget path is empty (optional) |
+| `CROWDSEC_CONTAINER` | `crowdsec` | Docker container name for optional unban via `cscli` (optional) |
 
 ---
 
@@ -273,6 +312,9 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | Port already in use | Change host port: `-p 3001:3000` |
 | Widgets invisible in edit mode | Try refreshing the page |
 | Theme not applying | Hard refresh: Ctrl+Shift+R |
+| CrowdSec widget: `crowdsec.db not found` | Set **CrowdSec Data (optional)** in the Unraid template (host folder with `crowdsec.db` → `/crowdsec-data:ro`), or remove the widget if you do not use CrowdSec |
+| CrowdSec: no country flags / all `??` | Ensure **GeoLite2-City.mmdb** (or Country) is in the mounted CrowdSec data folder, or set `CROWDSEC_GEOIP_PATH` |
+| CrowdSec: unban fails | Mount **Docker Socket**, check container name in plugin settings, enable unban there |
 
 ---
 
@@ -340,6 +382,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
+| 🛡️ CrowdSec | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
 
 ---
 
@@ -380,6 +423,7 @@ docker-compose up -d
 
 - **Gemeinsame Konfiguration (`dashboard.json`):** Ist **`/app/data`** gemappt (Unraid: *Config Storage*), schreibt SelfDashboard nach Änderungen **`dashboard.json`** auf den Server (`PUT /api/dashboard-state`) und lädt sie beim Start (`GET`). Alle Browser sehen dieselben Dashboards und Widgets; **`localStorage`** bleibt ein schneller lokaler Cache. **Backup** des Appdata-Ordners nicht vergessen. Optional setzt **`SELFDASHBOARD_DATA_DIR`** das Verzeichnis *im* Container für die Datei (offizielles Image: **`/app/data`**).
 - Das **Community-Apps-Template** (`unraid/selfdashboard.xml`) enthält einen Eintrag **Docker Socket** (Host `/var/run/docker.sock` → Container `/var/run/docker.sock`, **read-only**), entspricht **` -v /var/run/docker.sock:/var/run/docker.sock`**. Der Eintrag ist **standardmäßig sichtbar** (nicht nur unter „mehr Einstellungen“). Pfad leer lassen / Mapping entfernen, wenn du das Docker-Widget nicht brauchst.
+- **CrowdSec Data (optional)** mappt einen Host-Ordner mit `crowdsec.db` nach `/crowdsec-data` (**read-only**). **Leer lassen**, wenn du das CrowdSec-Widget nicht nutzt — SelfDashboard braucht CrowdSec **nicht**. Details: Abschnitt **CrowdSec-Widget (optional)**.
 - **Custom Plugins:** der konfigurierte Pfad ist ein **Bind-Mount** — Dateien auf der Unraid-Platte sind im Container nur sichtbar, wenn dieser Host-Ordner nach **`/app/plugins/custom`** gemappt ist. Das **Standard-Image** lädt daraus **keine** neuen TypeScript-Plugins automatisch in den Store — siehe **Eigenes Plugin entwickeln** und Image neu bauen (oder eigenes Image, das den Ordner auswertet).
 - Das Docker-Plugin ruft **`/api/docker-containers`** nur auf dem **gleichen Rechner** auf, auf dem SelfDashboard läuft, und spricht so die **lokale** Docker Engine über den Socket an.
 - **`EACCES` / Zugriff verweigert** auf dem Socket: Der Container-Prozess braucht Rechte auf den gemounteten Socket (Host `root:docker`). Das Unraid-Template setzt **`ExtraParams` `--group-add=281`** (typische Unraid-`docker`-GID). Abweichend: auf dem Host `stat -c '%g' /var/run/docker.sock` ausführen und anpassen. Neuere SelfDashboard-Images laufen im Container als **root**, dann klappt der Socket meist ohne Feintuning.
@@ -390,6 +434,39 @@ docker-compose up -d
 ### Anderes / „externes“ Docker
 
 Mit dem **aktuellen** Socket-Ansatz werden **keine** Container eines **anderen** Servers angezeigt. Ein Unix-Socket ist **lokal** und geht nicht übers Netz zu fremdem Docker. Praktisch: SelfDashboard **auf jenem Host** installieren (und dort den Socket mounten), oder später eine **HTTP-API** (z. B. Portainer) anbinden — das wäre ein anderes Feature als das Socket-Widget.
+
+---
+
+## CrowdSec-Widget (optional)
+
+**SelfDashboard funktioniert ohne CrowdSec.** Das Plugin richtet sich an Nutzer, die [CrowdSec](https://www.crowdsec.net/) bereits auf **demselben Server** betreiben und Alerts/Banns im Dashboard sehen möchten (Übersicht, Banns, Länder, durchsuchbarer IP-Feed).
+
+| Thema | Details |
+|---|---|
+| **Zweck** | Nur-Lesen-Ansicht auf die lokale SQLite-Datei `crowdsec.db` — **kein** LAPI, **keine** CrowdSec-Container-API |
+| **Pflicht?** | **Nein** — alle CrowdSec-Mounts weglassen, wenn du das Widget nicht nutzt |
+| **Datenquelle** | Datei `crowdsec.db` per Bind-Mount (Standard im Widget: `/crowdsec-data/crowdsec.db`) |
+| **Unraid-Template** | **CrowdSec Data (optional)** — CrowdSec-Appdata/Data-Ordner nach `/crowdsec-data` (**read-only**). Feld **leer lassen**, wenn nicht genutzt |
+| **Entsperren (optional)** | In den Plugin-Einstellungen aktivieren; zusätzlich **Docker Socket** und Container-Name (z. B. `crowdsec`) für `cscli` per `docker exec` |
+| **Zeitraum** | Im Widget wählbar (1 / 7 / 30 / 90 / 365 Tage); Einstellungen liefern Standardwerte |
+| **GeoIP / Flaggen** | Länder aus **GeoLite2** `.mmdb` auf der Platte (wie beim CrowdSec Threat-Map). Automatische Suche in `/crowdsec-data` nach `GeoLite2-City.mmdb` / `GeoLite2-Country.mmdb` (CrowdSec Hub/geoip). Flaggen: Emoji + optional `flagcdn.com` |
+| **Env (optional)** | `CROWDSEC_DATA_DIR`, `CROWDSEC_GEOIP_PATH` (Pfad zur `.mmdb`), `CROWDSEC_DB_PATH`, `CROWDSEC_CONTAINER` |
+
+**Docker-Beispiel (optionaler CrowdSec-Mount):**
+
+```bash
+docker run -d \
+  --name selfdashboard \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -e TZ=Europe/Berlin \
+  -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /mnt/user/appdata/crowdsec/data:/crowdsec-data:ro \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  ghcr.io/kabelsalatundklartext/selfdashboard:latest
+```
+
+Nach der Installation: **CrowdSec**-Widget im Store hinzufügen, DB-Pfad prüfen, Zeitraum wählen. Entsperren nur aktivieren, wenn dir bewusst ist, dass damit (wie beim Docker-Widget) Steuerung über den Socket möglich wird.
 
 ---
 
@@ -515,7 +592,7 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, …) stecken **fest im Docker-Image**. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
@@ -527,6 +604,10 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `NODE_ENV` | `production` | Node.js Umgebung |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (im offiziellen Image) | Verzeichnis **im** Container für **`dashboard.json`**. Muss zum **`/app/data`-Bind-Mount** passen, außer du nutzt bewusst einen anderen Pfad. |
+| `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Erlaubtes Wurzelverzeichnis für DB-Pfade (nur CrowdSec-Widget; optional) |
+| `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
+| `CROWDSEC_DB_PATH` | — | Standard-DB-Datei, wenn im Widget kein Pfad gesetzt ist (optional) |
+| `CROWDSEC_CONTAINER` | `crowdsec` | Docker-Container-Name für optionales Entsperren per `cscli` (optional) |
 
 ---
 
@@ -535,6 +616,9 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | Problem | Lösung |
 |---|---|
 | Dashboard lädt nicht | Logs prüfen: `docker logs selfdashboard` |
+| CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
+| CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
+| CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
 | Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Zeigt ein **neuer Browser** ein leeres Dashboard, prüfe ob **`/app/data`** gemappt und beschreibbar ist (Abschnitt *Gemeinsame Konfiguration* oben). |
 | Port bereits belegt | Host-Port ändern: `-p 3001:3000` |
 | Widgets im Bearbeitungsmodus unsichtbar | Seite neu laden |

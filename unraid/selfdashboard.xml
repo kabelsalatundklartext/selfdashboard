@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, etc.). Shared config: with the Config Storage volume on /app/data, the app saves dashboard.json on the server (dashboards, widgets, settings) so every browser stays in sync; the browser still uses localStorage as a fast cache. Backup that host folder. Optional env SELFDASHBOARD_DATA_DIR overrides the in-container data directory (image default: /app/data). Docker widget: bind-mount the host Docker socket (see Docker Socket). Extra parameter --group-add=281 matches the usual Unraid docker group GID for socket access (change if stat -c '%g' /var/run/docker.sock differs). Builtin plugins are compiled into the image from src/lib/pluginLoader.ts (not bind-mounted). The optional Custom Plugins Path maps to /app/plugins/custom; the stock image does not auto-load TS plugins from there — use it only if you need the folder for your own files or a custom-built image. Custom plugin workflow: see README / docs/PLUGIN_DEV.md and rebuild the image.</Overview>
+  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, optional CrowdSec widget, etc.). Shared config: with the Config Storage volume on /app/data, the app saves dashboard.json on the server (dashboards, widgets, settings) so every browser stays in sync; the browser still uses localStorage as a fast cache. Backup that host folder. Optional env SELFDASHBOARD_DATA_DIR overrides the in-container data directory (image default: /app/data). Docker widget: bind-mount the host Docker socket (see Docker Socket). Optional CrowdSec widget: only if you run CrowdSec on this server — mount its data folder read-only (see CrowdSec Data); not required for SelfDashboard to work. Unban in the widget additionally needs Docker Socket + plugin setting. Extra parameter --group-add=281 matches the usual Unraid docker group GID for socket access (change if stat -c '%g' /var/run/docker.sock differs). Builtin plugins are compiled into the image from src/lib/pluginLoader.ts (not bind-mounted). The optional Custom Plugins Path maps to /app/plugins/custom; the stock image does not auto-load TS plugins from there — use it only if you need the folder for your own files or a custom-built image. Details: README (CrowdSec section). Custom plugin workflow: docs/PLUGIN_DEV.md and rebuild the image.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
@@ -70,17 +70,17 @@
     Required="false"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- CrowdSec SQLite (optional — CrowdSec plugin reads crowdsec.db) -->
+  <!-- CrowdSec (optional — only for the CrowdSec dashboard widget; SelfDashboard works without it) -->
   <Config
-    Name="CrowdSec Data"
+    Name="CrowdSec Data (optional)"
     Target="/crowdsec-data"
-    Default="/mnt/user/appdata/crowdsec/data"
+    Default=""
     Mode="ro"
-    Description="Host folder with crowdsec.db (read-only). Mount CrowdSec’s data directory, e.g. /mnt/user/appdata/crowdsec/data → /crowdsec-data. Default DB path in plugin settings: /crowdsec-data/crowdsec.db."
+    Description="OPTIONAL — leave empty if you do not use the CrowdSec widget. Bind-mount the CrowdSec data folder (read-only), e.g. /mnt/user/appdata/crowdsec/data → /crowdsec-data. Must contain crowdsec.db; for country flags also GeoLite2-City.mmdb or GeoLite2-Country.mmdb in the same folder (CrowdSec hub/geoip — same as threat-map setups). Widget DB path: /crowdsec-data/crowdsec.db. GeoIP via local .mmdb only (no external API). Unban: also map Docker Socket + enable in plugin settings. See README — CrowdSec."
     Type="Path"
     Display="always"
     Required="false"
-    Mask="false">/mnt/user/appdata/crowdsec/data</Config>
+    Mask="false"></Config>
 
   <!-- Docker Engine socket (optional — Docker widget, same host only) -->
   <Config

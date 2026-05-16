@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, Gavel, Globe, Search, Settings, Shield, Trash2 } from 'lucide-react'
+import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
+import type { ThemeId } from '@/types'
+import { CrowdsecLogo } from './CrowdsecLogo'
 import type { CrowdsecDashboardData, CrowdsecFeedItem } from '@/lib/crowdsecMetrics'
 import type { Locale } from '@/lib/i18n'
 import { COUNTRY_NAME } from './constants'
@@ -27,7 +29,7 @@ export type CrowdsecConfig = {
   lookupEnabled: Record<LookupServiceId, boolean>
 }
 
-type SidebarTab = 'overview' | 'bans' | 'countries' | 'settings'
+type SidebarTab = 'overview' | 'bans' | 'countries'
 type LayoutMode = 'phone' | 'tablet' | 'desktop'
 
 const TIME_RANGES = [
@@ -37,8 +39,6 @@ const TIME_RANGES = [
   { days: 90, de: '90 Tage', en: '90 days' },
   { days: 365, de: '365 Tage', en: '365 days' },
 ] as const
-
-const LOGO = '/plugin-logos/crowdsec.svg'
 
 function cfgBool(v: unknown, fallback: boolean): boolean {
   if (v === undefined || v === null || v === '') return fallback
@@ -124,9 +124,10 @@ type Props = {
   config: Record<string, unknown>
   locale: Locale
   layoutMode?: LayoutMode
+  theme?: ThemeId
 }
 
-export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: Props) {
+export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', theme = 'dark' }: Props) {
   const de = locale !== 'en'
   const cfg = useMemo(() => parseCrowdsecConfig(raw), [raw])
   const layoutClass =
@@ -262,20 +263,24 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: 
   }
 
   return (
-    <section className={`cs-widget ${layoutClass}`.trim()} style={{ position: 'relative' }}>
+    <section
+      className={`cs-widget ${layoutClass} cs-theme-${theme}`.trim()}
+      style={{ position: 'relative' }}
+      data-theme={theme}
+    >
       {error ? <p className="cs-error">{errLabel(error)}</p> : null}
 
       <section className="cs-split">
         <aside className="cs-sidebar">
           <header className="cs-brand">
-            <img src={LOGO} alt="" width={28} height={28} />
+            <CrowdsecLogo size={28} />
             <span className="cs-brand-name">CrowdSec</span>
           </header>
 
           <nav className="cs-nav" aria-label={de ? 'Navigation' : 'Navigation'}>
             <button
               type="button"
-              className={`cs-nav-item${tab === 'overview' ? ' cs-nav-item-active' : ''}`}
+              className={`cs-nav-item cs-nav-item-btn${tab === 'overview' ? ' cs-nav-item-active' : ''}`}
               onClick={() => setTab('overview')}
             >
               <span className="cs-nav-row">
@@ -293,7 +298,7 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: 
             </button>
             <button
               type="button"
-              className={`cs-nav-item${tab === 'bans' ? ' cs-nav-item-active' : ''}`}
+              className={`cs-nav-item cs-nav-item-btn${tab === 'bans' ? ' cs-nav-item-active' : ''}`}
               onClick={() => setTab('bans')}
             >
               <span className="cs-nav-row">
@@ -309,7 +314,7 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: 
             </button>
             <button
               type="button"
-              className={`cs-nav-item${tab === 'countries' ? ' cs-nav-item-active' : ''}`}
+              className={`cs-nav-item cs-nav-item-btn${tab === 'countries' ? ' cs-nav-item-active' : ''}`}
               onClick={() => setTab('countries')}
             >
               <span className="cs-nav-row">
@@ -323,19 +328,12 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: 
                 </>
               )}
             </button>
-            <button
-              type="button"
-              className={`cs-nav-item${tab === 'settings' ? ' cs-nav-item-active' : ''}`}
-              onClick={() => setTab('settings')}
-            >
-              <span className="cs-nav-row">
-                <Settings size={14} strokeWidth={2.2} aria-hidden />
-                {de ? 'Zeitraum' : 'Period'}
-              </span>
-            </button>
           </nav>
 
-          <section className="cs-range-mobile">{rangeSelect}</section>
+          <section className="cs-range-mobile">
+            <span className="cs-range-label">{de ? 'Zeitraum' : 'Time range'}</span>
+            {rangeSelect}
+          </section>
 
           {tab === 'countries' && data && (
             <section className="cs-sidebar-extra">
@@ -356,23 +354,16 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop' }: 
             </section>
           )}
 
-          {tab === 'settings' && (
-            <section className="cs-sidebar-extra">
-              <p style={{ margin: '0 0 8px', fontSize: 10, color: 'var(--cs-muted)' }}>
-                {de
-                  ? 'Zeitraum für Feed und Statistik „Zeitraum“. Weitere Optionen im Plugin-Dialog (Zahnrad).'
-                  : 'Time range for feed and period stats. More options in the plugin settings dialog.'}
-              </p>
-              {rangeSelect}
-              <p style={{ margin: '10px 0 0', fontSize: 10, color: 'var(--cs-muted)' }}>
-                {de ? `Aktuell: ${daysBack} Tage · ${formatInt(data?.alertsInRange ?? 0, locale)} Alerts` : `Current: ${daysBack} days · ${formatInt(data?.alertsInRange ?? 0, locale)} alerts`}
-              </p>
-            </section>
-          )}
-
           <section className="cs-range-wrap">
             <span className="cs-range-label">{de ? 'Zeitraum' : 'Time range'}</span>
             {rangeSelect}
+            {data?.geoip && !data.geoip.enabled && (
+              <p className="cs-geoip-hint">
+                {de
+                  ? 'GeoIP: GeoLite2-*.mmdb fehlt im CrowdSec-Ordner (Länder/Flaggen).'
+                  : 'GeoIP: GeoLite2-*.mmdb missing in CrowdSec data folder (countries/flags).'}
+              </p>
+            )}
           </section>
         </aside>
 

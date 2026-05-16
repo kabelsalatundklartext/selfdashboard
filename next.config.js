@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: ['better-sqlite3', 'maxmind'],
   outputFileTracingIncludes: {
     '/*': ['./node_modules/better-sqlite3/**/*'],
   },

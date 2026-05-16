@@ -16,6 +16,11 @@ export interface CrowdsecCountryStat {
   count: number
 }
 
+export interface CrowdsecGeoipInfo {
+  enabled: boolean
+  path: string | null
+}
+
 export interface CrowdsecDashboardData {
   feed: CrowdsecFeedItem[]
   alertsInRange: number
@@ -24,4 +29,5 @@ export interface CrowdsecDashboardData {
   countryCount: number
   scenarioCount: number
   countries: CrowdsecCountryStat[]
+  geoip?: CrowdsecGeoipInfo
 }
