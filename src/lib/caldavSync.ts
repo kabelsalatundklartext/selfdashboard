@@ -188,7 +188,7 @@ async function connectCalDav(
         fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
     })
 
-    const calendars = (await client.fetchCalendars()) ?? []
+    const calendars = asCalendarList(await client.fetchCalendars())
     let calendar = pickCalendar(calendars, collectionHref)
     if (!calendar) {
       calendar = { url: collectionHref, displayName: 'calendar' } as DAVCalendar
@@ -343,9 +343,13 @@ function parseCalendarObjects(
   return merged
 }
 
+function asCalendarList(raw: unknown): DAVCalendar[] {
+  return Array.isArray(raw) ? raw : []
+}
+
 function mergeOccurrences(target: IcsOccurrence[], incoming: IcsOccurrence[]): IcsOccurrence[] {
   const seen = new Set(target.map((o) => o.stableId))
-  for (const o of incoming) {
+  for (const o of incoming ?? []) {
     if (seen.has(o.stableId)) continue
     seen.add(o.stableId)
     target.push(o)
@@ -634,7 +638,7 @@ export async function discoverCalDavCalendars(
         fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
     })
 
-    const calendars = (await client.fetchCalendars()) ?? []
+    const calendars = asCalendarList(await client.fetchCalendars())
     const list = calendars.map((c) => ({
       url: c.url,
       displayName: displayNameOf(c),
@@ -683,24 +687,33 @@ export async function fetchCalDavOccurrencesTsdav(
     let calendar = conn.calendar
     let occurrences: IcsOccurrence[] = []
     let rawObjectCount = 0
-    const allCals = (await conn.client.fetchCalendars()) ?? []
+    let allCals: DAVCalendar[] = []
+    try {
+      allCals = asCalendarList(await conn.client.fetchCalendars())
+    } catch {
+      /* WEB.DE: Kalenderliste optional — konfigurierte Collection reicht */
+    }
     const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
     const seenCal = new Set<string>()
     for (const cal of targets) {
       const key = cal.url.replace(/\/$/, '').toLowerCase()
       if (seenCal.has(key)) continue
       seenCal.add(key)
-      const pulled = await fetchObjectsForCalendar(
-        conn.client,
-        cal,
-        rangeStart,
-        rangeEnd,
-        conn.username,
-        conn.password,
-        signal,
-      )
-      rawObjectCount += pulled.rawObjectCount
-      mergeOccurrences(occurrences, pulled.occurrences)
+      try {
+        const pulled = await fetchObjectsForCalendar(
+          conn.client,
+          cal,
+          rangeStart,
+          rangeEnd,
+          conn.username,
+          conn.password,
+          signal,
+        )
+        rawObjectCount += pulled.rawObjectCount
+        mergeOccurrences(occurrences, pulled.occurrences ?? [])
+      } catch {
+        /* nächste Collection / Strategie */
+      }
     }
 
     if (occurrences.length === 0) {
@@ -708,18 +721,22 @@ export async function fetchCalDavOccurrencesTsdav(
       const dkey = direct.url.replace(/\/$/, '').toLowerCase()
       if (!seenCal.has(dkey)) {
         seenCal.add(dkey)
-        const directPulled = await fetchObjectsForCalendar(
-          conn.client,
-          direct,
-          rangeStart,
-          rangeEnd,
-          conn.username,
-          conn.password,
-          signal,
-        )
-        rawObjectCount += directPulled.rawObjectCount
-        mergeOccurrences(occurrences, directPulled.occurrences)
-        if (directPulled.occurrences.length > 0) calendar = direct
+        try {
+          const directPulled = await fetchObjectsForCalendar(
+            conn.client,
+            direct,
+            rangeStart,
+            rangeEnd,
+            conn.username,
+            conn.password,
+            signal,
+          )
+          rawObjectCount += directPulled.rawObjectCount
+          mergeOccurrences(occurrences, directPulled.occurrences ?? [])
+          if ((directPulled.occurrences ?? []).length > 0) calendar = direct
+        } catch {
+          /* direct collection failed */
+        }
       }
     }
 
