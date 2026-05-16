@@ -13,15 +13,7 @@ import {
   normalizeCustomSearchProviders,
   normalizeSearchProviders,
 } from '@/lib/searchProviders'
-import type { Dashboard } from '@/types'
-
-function migrateLegacyPlugins(dashboards: Dashboard[]): Dashboard[] {
-  const legacyIframe = 'crowdsec-threat-map'
-  return dashboards.map((d) => ({
-    ...d,
-    plugins: d.plugins.map((p) => (p.pluginId === legacyIframe ? { ...p, pluginId: 'iframe' } : p)),
-  }))
-}
+import { stripRemovedPlugins } from '@/lib/removedPlugins'
 
 function normalizeServerPayload(parsed: DashboardStatePersisted): DashboardStatePersisted {
   const navbarSearchProviders = normalizeSearchProviders(parsed.navbarSearchProviders)
@@ -32,7 +24,7 @@ function normalizeServerPayload(parsed: DashboardStatePersisted): DashboardState
   }
   return {
     ...parsed,
-    dashboards: migrateLegacyPlugins(parsed.dashboards),
+    dashboards: stripRemovedPlugins(parsed.dashboards),
     navbarSearchProviders,
     navbarSearchCustomProviders,
     navbarSearchLastProvider,

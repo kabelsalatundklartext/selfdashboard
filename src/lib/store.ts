@@ -5,6 +5,7 @@ import {
   pickPersistedDashboardState,
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
+import { stripRemovedPlugins } from '@/lib/removedPlugins'
 import type { Locale } from './i18n'
 import type { SearchProviderId } from './searchProviders'
 import {
@@ -316,12 +317,7 @@ export const useDashboardStore = create<DashboardStore>()(
           } else {
             state.navbarSearchWidthPx = Math.min(920, Math.max(200, Math.round(w)))
           }
-          state.dashboards = state.dashboards.map((d) => ({
-            ...d,
-            plugins: d.plugins.filter(
-              (p) => p.pluginId !== 'crowdsec' && p.pluginId !== 'crowdsec-threat-map',
-            ),
-          }))
+          state.dashboards = stripRemovedPlugins(state.dashboards)
         }
       },
     }
