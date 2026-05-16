@@ -1,4 +1,11 @@
-import { createDAVClient, type DAVCalendar, type DAVCalendarObject } from 'tsdav'
+import {
+  calendarQuery,
+  createDAVClient,
+  DAVNamespaceShort,
+  getBasicAuthHeaders,
+  type DAVCalendar,
+  type DAVCalendarObject,
+} from 'tsdav'
 import { buildVeventIcs, expandIcsString, newCalDavUid, type IcsOccurrence } from '@/lib/calendarIcs'
 import {
   buildBegendaCalendarUrl,
@@ -23,7 +30,15 @@ export type CaldavDiscoverCalendar = {
 }
 
 export type CaldavFetchResult =
-  | { ok: true; occurrences: IcsOccurrence[]; via: 'tsdav'; calendarUrl: string }
+  | {
+      ok: true
+      occurrences: IcsOccurrence[]
+      via: 'tsdav'
+      calendarUrl: string
+      /** Roh-Objekte mit ICS-Text vor Expand (Diagnose). */
+      rawObjectCount?: number
+      calendarsTried?: number
+    }
   | { ok: false; error: CaldavFetchErrorCode; status?: number; detail?: string }
 
 export type CaldavDiscoverResult =
@@ -40,6 +55,8 @@ type CalDavConn = {
   client: Awaited<ReturnType<typeof createDAVClient>>
   calendar: DAVCalendar
   collectionHref: string
+  username: string
+  password: string
 }
 
 function serverUrlFromCalendarHref(href: string): string {
@@ -173,7 +190,7 @@ async function connectCalDav(
       calendar = { url: collectionHref, displayName: 'calendar' } as DAVCalendar
     }
 
-    return { ok: true, client, calendar, collectionHref }
+    return { ok: true, client, calendar, collectionHref, username: user, password: pass }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/401|403|unauthorized|invalid credentials/i.test(msg)) {
@@ -347,32 +364,141 @@ function objectHasIcsData(obj: { data?: unknown }): boolean {
   return Boolean(text && /BEGIN:(VEVENT|VCALENDAR)/i.test(text))
 }
 
+function resolveObjectHref(href: string, calendarUrl: string): string {
+  if (!href) return ''
+  if (href.startsWith('http://') || href.startsWith('https://')) return href
+  const base = calendarUrl.endsWith('/') ? calendarUrl : `${calendarUrl}/`
+  return new URL(href, base).href
+}
+
+function extractCalendarDataFromProps(props: unknown): string {
+  if (!props || typeof props !== 'object') return ''
+  const p = props as Record<string, unknown>
+  const raw = p.calendarData ?? p['cal:calendar-data']
+  if (typeof raw === 'string' && /BEGIN:(VEVENT|VCALENDAR)/i.test(raw)) return raw
+  if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    if (typeof o._cdata === 'string') return o._cdata
+    if (typeof o.value === 'string') return o.value
+  }
+  return ''
+}
+
+async function fetchIcsBodyDirect(
+  objectUrl: string,
+  username: string,
+  password: string,
+  signal: AbortSignal,
+): Promise<string> {
+  const token = Buffer.from(`${username}:${password}`).toString('base64')
+  const res = await fetch(objectUrl, {
+    method: 'GET',
+    headers: {
+      Authorization: `Basic ${token}`,
+      Accept: 'text/calendar, text/plain, */*',
+    },
+    signal,
+    cache: 'no-store',
+    redirect: 'follow',
+  })
+  if (!res.ok) return ''
+  const text = await res.text()
+  if (!text || !/BEGIN:(VEVENT|VCALENDAR)/i.test(text)) return ''
+  return text
+}
+
+/** tsdav hydrate via objectUrls does not load per-href ICS on many servers — GET each resource. */
 async function hydrateCalendarObjects(
-  client: Awaited<ReturnType<typeof createDAVClient>>,
   calendar: DAVCalendar,
   objects: DAVCalendarObject[],
+  username: string,
+  password: string,
+  signal: AbortSignal,
 ): Promise<DAVCalendarObject[]> {
-  const needUrls = objects
-    .filter((o) => o.url && !objectHasIcsData(o))
-    .map((o) => o.url)
-  if (!needUrls.length) return objects
+  const out: DAVCalendarObject[] = []
+  for (const o of objects) {
+    if (objectHasIcsData(o)) {
+      out.push(o)
+      continue
+    }
+    if (!o.url) continue
+    const href = resolveObjectHref(o.url, calendar.url)
+    if (!href) continue
+    try {
+      const text = await fetchIcsBodyDirect(href, username, password, signal)
+      if (text) out.push({ ...o, url: href, data: text })
+    } catch {
+      /* skip */
+    }
+  }
+  return out
+}
 
+const VEVENT_ONLY_FILTERS = [
+  {
+    'comp-filter': {
+      _attributes: { name: 'VCALENDAR' },
+      'comp-filter': {
+        _attributes: { name: 'VEVENT' },
+      },
+    },
+  },
+]
+
+async function fetchObjectsViaListAndGet(
+  calendar: DAVCalendar,
+  username: string,
+  password: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+  signal: AbortSignal,
+): Promise<IcsOccurrence[]> {
+  const authHeaders = getBasicAuthHeaders({ username, password })
+  const fetchFn = (input: RequestInfo | URL, init?: RequestInit) =>
+    fetch(input, { ...init, signal, cache: 'no-store', redirect: 'follow' })
+
+  let responses: Awaited<ReturnType<typeof calendarQuery>> = []
   try {
-    const filled = await client.fetchCalendarObjects({
-      calendar,
-      objectUrls: needUrls,
-      useMultiGet: false,
-      urlFilter: caldavObjectUrlFilter,
-    })
-    const byUrl = new Map(filled.map((o) => [o.url.replace(/\/$/, '').toLowerCase(), o]))
-    return objects.map((o) => {
-      const hit = byUrl.get(o.url.replace(/\/$/, '').toLowerCase())
-      if (hit?.data) return { ...o, data: hit.data, etag: hit.etag ?? o.etag }
-      return o
+    responses = await calendarQuery({
+      url: calendar.url,
+      props: {
+        [`${DAVNamespaceShort.DAV}:getetag`]: {},
+        [`${DAVNamespaceShort.CALDAV}:calendar-data`]: {},
+      },
+      filters: VEVENT_ONLY_FILTERS,
+      depth: '1',
+      headers: authHeaders,
+      fetch: fetchFn,
     })
   } catch {
-    return objects
+    return []
   }
+
+  const objects: DAVCalendarObject[] = []
+  const seenUrl = new Set<string>()
+
+  for (const res of responses) {
+    const href = resolveObjectHref(res.href ?? '', calendar.url)
+    if (!href || !caldavObjectUrlFilter(href)) continue
+    const key = href.replace(/\/$/, '').toLowerCase()
+    if (seenUrl.has(key)) continue
+    seenUrl.add(key)
+
+    let data = extractCalendarDataFromProps(res.props)
+    if (!data) {
+      data = await fetchIcsBodyDirect(href, username, password, signal)
+    }
+    if (data) {
+      const etagVal = (res.props as { getetag?: unknown } | undefined)?.getetag
+      objects.push({
+        url: href,
+        data,
+        etag: etagVal != null ? String(etagVal) : undefined,
+      })
+    }
+  }
+
+  return parseCalendarObjects(objects, rangeStart, rangeEnd)
 }
 
 async function fetchObjectsForCalendar(
@@ -380,38 +506,65 @@ async function fetchObjectsForCalendar(
   calendar: DAVCalendar,
   rangeStart: Date,
   rangeEnd: Date,
-): Promise<IcsOccurrence[]> {
+  username: string,
+  password: string,
+  signal: AbortSignal,
+): Promise<{ occurrences: IcsOccurrence[]; rawObjectCount: number }> {
   const timeRange = { start: rangeStart.toISOString(), end: rangeEnd.toISOString() }
   const urlFilter = caldavObjectUrlFilter
-  const attempts: { useMultiGet: boolean; expand: boolean; timeRange?: { start: string; end: string } }[] = [
-    { useMultiGet: false, expand: true, timeRange },
-    { useMultiGet: false, expand: false, timeRange },
-    { useMultiGet: true, expand: true, timeRange },
-    { useMultiGet: true, expand: false, timeRange },
-    { useMultiGet: false, expand: false, timeRange },
-    { useMultiGet: false, expand: true },
-    { useMultiGet: true, expand: true },
+  const attempts: {
+    useMultiGet: boolean
+    expand: boolean
+    timeRange?: { start: string; end: string }
+    filters?: typeof VEVENT_ONLY_FILTERS
+  }[] = [
+    { useMultiGet: false, expand: false, filters: VEVENT_ONLY_FILTERS },
     { useMultiGet: false, expand: false },
+    { useMultiGet: false, expand: false, timeRange },
+    { useMultiGet: false, expand: true, timeRange },
+    { useMultiGet: true, expand: false, timeRange },
+    { useMultiGet: false, expand: true },
+    { useMultiGet: false, expand: false, timeRange },
   ]
   let best: IcsOccurrence[] = []
+  let bestRaw = 0
   for (const opts of attempts) {
     try {
       let objects = await client.fetchCalendarObjects({
         calendar,
+        ...(opts.filters ? { filters: opts.filters } : {}),
         ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
         expand: opts.expand,
         useMultiGet: opts.useMultiGet,
         urlFilter,
       })
-      objects = await hydrateCalendarObjects(client, calendar, objects)
+      const rawListed = objects.length
+      objects = await hydrateCalendarObjects(calendar, objects, username, password, signal)
+      const withData = objects.filter((o) => objectHasIcsData(o)).length
+      if (withData > bestRaw) bestRaw = withData
       const occ = parseCalendarObjects(objects, rangeStart, rangeEnd)
       if (occ.length > best.length) best = occ
-      if (occ.length > 0) return occ
+      if (occ.length > 0) return { occurrences: occ, rawObjectCount: withData }
     } catch {
       /* try next strategy */
     }
   }
-  return best
+
+  if (best.length === 0) {
+    const viaList = await fetchObjectsViaListAndGet(
+      calendar,
+      username,
+      password,
+      rangeStart,
+      rangeEnd,
+      signal,
+    )
+    if (viaList.length > 0) {
+      return { occurrences: viaList, rawObjectCount: viaList.length }
+    }
+  }
+
+  return { occurrences: best, rawObjectCount: bestRaw }
 }
 
 function calendarsForFetch(
@@ -431,6 +584,8 @@ function calendarsForFetch(
     return false
   })
   if (related.length > 0) return related
+  // WEB.DE: alle entdeckten Kalender durchsuchen, falls die konfigurierte URL nicht die Event-Collection ist
+  if (/\/begenda\/dav\//i.test(norm) && all.length > 0) return all
   return [primary]
 }
 
@@ -518,6 +673,7 @@ export async function fetchCalDavOccurrencesTsdav(
   try {
     let calendar = conn.calendar
     let occurrences: IcsOccurrence[] = []
+    let rawObjectCount = 0
     const allCals = await conn.client.fetchCalendars()
     const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
     const seenCal = new Set<string>()
@@ -525,18 +681,47 @@ export async function fetchCalDavOccurrencesTsdav(
       const key = cal.url.replace(/\/$/, '').toLowerCase()
       if (seenCal.has(key)) continue
       seenCal.add(key)
-      const occ = await fetchObjectsForCalendar(conn.client, cal, rangeStart, rangeEnd)
-      mergeOccurrences(occurrences, occ)
+      const pulled = await fetchObjectsForCalendar(
+        conn.client,
+        cal,
+        rangeStart,
+        rangeEnd,
+        conn.username,
+        conn.password,
+        signal,
+      )
+      rawObjectCount += pulled.rawObjectCount
+      mergeOccurrences(occurrences, pulled.occurrences)
     }
 
     if (occurrences.length === 0) {
       const direct = { url: conn.collectionHref, displayName: 'calendar' } as DAVCalendar
-      const directOcc = await fetchObjectsForCalendar(conn.client, direct, rangeStart, rangeEnd)
-      mergeOccurrences(occurrences, directOcc)
-      if (directOcc.length > 0) calendar = direct
+      const dkey = direct.url.replace(/\/$/, '').toLowerCase()
+      if (!seenCal.has(dkey)) {
+        seenCal.add(dkey)
+        const directPulled = await fetchObjectsForCalendar(
+          conn.client,
+          direct,
+          rangeStart,
+          rangeEnd,
+          conn.username,
+          conn.password,
+          signal,
+        )
+        rawObjectCount += directPulled.rawObjectCount
+        mergeOccurrences(occurrences, directPulled.occurrences)
+        if (directPulled.occurrences.length > 0) calendar = direct
+      }
     }
 
-    return { ok: true, occurrences, via: 'tsdav', calendarUrl: calendar.url }
+    return {
+      ok: true,
+      occurrences,
+      via: 'tsdav',
+      calendarUrl: calendar.url,
+      rawObjectCount,
+      calendarsTried: seenCal.size,
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/401|403|unauthorized|invalid credentials/i.test(msg)) {

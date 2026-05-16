@@ -148,6 +148,8 @@ export async function POST(req: Request) {
       fetchedAt: new Date().toISOString(),
       via: result.via,
       window: { start: toLocalYmd(range.start), end: toLocalYmd(range.end) },
+      rawObjectCount: result.rawObjectCount,
+      calendarsTried: result.calendarsTried,
     })
   } catch (e) {
     const name = e instanceof Error ? e.name : ''

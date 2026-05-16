@@ -2,11 +2,11 @@
 
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { reportClientLog } from '@/lib/reportLog'
-import { DayEventModal, type EventEditDraft } from './DayEventModal'
 
 export const meta: PluginMeta = {
   id: 'calendar',
@@ -98,6 +98,15 @@ interface CalendarEventRow {
   feedIndex?: number
 }
 
+type EventEditDraft = {
+  id: string
+  title: string
+  date: string
+  allDay: boolean
+  startTime: string
+  endTime: string
+}
+
 function eventTimeLabel(ev: { allDay?: boolean; startTime?: string; endTime?: string }, de: boolean): string {
   if (ev.allDay === true || (!ev.startTime && ev.allDay !== false)) {
     return de ? 'ganztägig' : 'all day'
@@ -169,6 +178,31 @@ function parseEvents(raw: unknown): CalendarEventRow[] {
     })
   }
   return out
+}
+
+/** Entfernt lokale Termine, die per CalDAV synchronisiert waren, aber auf dem Server nicht mehr existieren. */
+function pruneLocalEventsAbsentOnCalDav(
+  local: CalendarEventRow[],
+  serverUidsByFeed: Map<number, Set<string>>,
+  feedErrors: Record<string, string>,
+): CalendarEventRow[] {
+  if (serverUidsByFeed.size === 0) return local
+  return local.filter((e) => {
+    if (!e.caldavUid) return true
+    const indices =
+      typeof e.feedIndex === 'number' && e.feedIndex >= 0
+        ? [e.feedIndex]
+        : [...serverUidsByFeed.keys()]
+    let checkedOkFeed = false
+    for (const idx of indices) {
+      if (feedErrors[`dav:${idx}`]) continue
+      const uids = serverUidsByFeed.get(idx)
+      if (!uids) continue
+      checkedOkFeed = true
+      if (uids.has(e.caldavUid)) return true
+    }
+    return !checkedOkFeed
+  })
 }
 
 function clampListMax(v: unknown): number {
@@ -428,6 +462,51 @@ async function postCalDavWrite(
   return { ok: true, data: { uid: j.uid, objectUrl: j.objectUrl, etag: j.etag ?? null } }
 }
 
+function EventTimeFields({
+  de,
+  allDay,
+  startTime,
+  endTime,
+  onAllDay,
+  onStart,
+  onEnd,
+  inpStyle,
+}: {
+  de: boolean
+  allDay: boolean
+  startTime: string
+  endTime: string
+  onAllDay: (v: boolean) => void
+  onStart: (v: string) => void
+  onEnd: (v: string) => void
+  inpStyle: CSSProperties
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={allDay} onChange={(e) => onAllDay(e.target.checked)} />
+        {de ? 'Ganztägig' : 'All day'}
+      </label>
+      {!allDay ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Von' : 'From'}
+            </span>
+            <input style={inpStyle} type="time" value={startTime} onChange={(e) => onStart(e.target.value)} />
+          </div>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Bis' : 'To'}
+            </span>
+            <input style={inpStyle} type="time" value={endTime} onChange={(e) => onEnd(e.target.value)} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -455,6 +534,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [caldavRefreshTick, setCaldavRefreshTick] = useState(0)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncPruneHint, setSyncPruneHint] = useState<string | null>(null)
 
   useEffect(() => {
     if (calDavFeeds.length === 0) {
@@ -476,6 +556,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setRemoteLoading(true)
       const errs: Record<string, string> = {}
       const merged: RemoteCalEvent[] = []
+      const serverUidsByFeed = new Map<number, Set<string>>()
       const linkedUids = new Set(
         events.map((e) => e.caldavUid).filter((u): u is string => Boolean(u)),
       )
@@ -515,8 +596,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             /* ignore */
           }
           const label = feed.name?.trim() || host
+          const feedUids = new Set<string>()
           for (const ev of j.events ?? []) {
-            if (ev.uid && linkedUids.has(ev.uid)) continue
+            if (ev.uid) {
+              feedUids.add(ev.uid)
+              if (linkedUids.has(ev.uid)) continue
+            }
             merged.push({
               id: `dav${i}-${ev.id}`,
               uid: ev.uid,
@@ -528,11 +613,22 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               sourceKind: 'caldav',
             })
           }
+          serverUidsByFeed.set(i, feedUids)
         } catch (e) {
           errs[`dav:${i}`] = e instanceof Error ? e.message : String(e)
         }
       }
       if (!cancelled) {
+        const pruned = pruneLocalEventsAbsentOnCalDav(events, serverUidsByFeed, errs)
+        if (pruned.length < events.length) {
+          const removed = events.length - pruned.length
+          updatePluginConfig(instanceId, { events: pruned })
+          setSyncPruneHint(
+            de
+              ? `${removed} Dashboard-Termin(e) entfernt (auf WEB.DE/CalDAV nicht mehr vorhanden)`
+              : `${removed} dashboard event(s) removed (no longer on CalDAV)`,
+          )
+        }
         setRemoteEvents(merged)
         setRemoteErrors(errs)
         setRemoteLoading(false)
@@ -556,7 +652,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [calDavFeeds, caldavRefreshMinutes, caldavRefreshTick, de, instanceId, events])
+  }, [calDavFeeds, caldavRefreshMinutes, caldavRefreshTick, de, instanceId, events, updatePluginConfig])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -682,7 +778,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
   const [editing, setEditing] = useState<EventEditDraft | null>(null)
-    const closeDayModal = useCallback(() => {
+  const [dayModalMounted, setDayModalMounted] = useState(false)
+
+  const closeDayModal = useCallback(() => {
     setPickerYmd(null)
     setEditing(null)
     setNewTitle('')
@@ -690,6 +788,19 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     setNewStartTime('09:00')
     setNewEndTime('10:00')
   }, [])
+
+  useEffect(() => {
+    setDayModalMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!pickerYmd) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDayModal()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pickerYmd, closeDayModal])
 
   useEffect(() => {
     const id = window.setInterval(() => setMinuteTick((n) => n + 1), 60_000)
@@ -1061,6 +1172,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                       remoteEvents.length === 0 ? ' · missing WEB.DE events? tap Refresh now' : ''
                     }`}
           </p>
+          {syncPruneHint ? (
+            <p style={{ margin: 0, fontSize: '10px', color: muted, textAlign: 'center', lineHeight: 1.35 }}>
+              {syncPruneHint}
+            </p>
+          ) : null}
           {syncError ? (
             <p style={{ margin: 0, fontSize: '10px', color: '#fb7185', textAlign: 'center', lineHeight: 1.35 }}>
               {de ? `Sync-Fehler: ${syncError}` : `Sync error: ${syncError}`}
@@ -1219,49 +1335,216 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </div>
       </div>
 
-      <DayEventModal
-        open={pickerYmd != null}
-        de={de}
-        pickerLabel={pickerLabel}
-        dayTitleLabel={lab.dayTitle}
-        closeLabel={lab.closeDay}
-        emptyDayLabel={lab.emptyDay}
-        titleLabel={lab.titleLabel}
-        dateLabel={lab.dateLabel}
-        saveLabel={lab.save}
-        cancelLabel={lab.cancel}
-        delLabel={lab.del}
-        editLabel={lab.edit}
-        addLabel={lab.add}
-        newPh={lab.newPh}
-        border={border}
-        text={text}
-        muted={muted}
-        accent={accent}
-        inpSmall={inpSmall}
-        chipBtnStyle={chipBtnStyle}
-        primarySmallBtnStyle={primarySmallBtnStyle}
-        ghostSmallBtnStyle={ghostSmallBtnStyle}
-        dangerSmallBtnStyle={dangerSmallBtnStyle}
-        dayRemoteEvents={dayRemoteEvents}
-        dayLocalEvents={dayLocalEvents}
-        editing={editing}
-        setEditing={setEditing}
-        newTitle={newTitle}
-        setNewTitle={setNewTitle}
-        newAllDay={newAllDay}
-        setNewAllDay={setNewAllDay}
-        newStartTime={newStartTime}
-        setNewStartTime={setNewStartTime}
-        newEndTime={newEndTime}
-        setNewEndTime={setNewEndTime}
-        syncBusy={syncBusy}
-        calDavConfigured={calDavFeeds.length > 0}
-        onClose={closeDayModal}
-        onSaveEditing={saveEditing}
-        onDelete={deleteEvent}
-        onAdd={addNewEvent}
-      />
+      {pickerYmd && (
+        <div
+          style={{
+            flexShrink: 0,
+            border: `1px solid color-mix(in srgb, ${border} 70%, transparent)`,
+            borderRadius: '8px',
+            padding: 'clamp(6px, 1.4cqmin, 10px)',
+            background: 'color-mix(in srgb, var(--surface-2) 90%, var(--background))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            maxHeight: '38%',
+            overflow: 'auto',
+            minHeight: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <p style={{ margin: 0, fontSize: 'clamp(10px, 2.3cqmin, 12px)', fontWeight: 700, color: text }}>
+              {lab.dayTitle} {pickerLabel}
+            </p>
+            <button type="button" onClick={() => setPickerYmd(null)} style={chipBtnStyle}>
+              {lab.closeDay}
+            </button>
+          </div>
+
+          {dayRemoteEvents.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                {de ? 'ICS / CalDAV' : 'ICS / CalDAV'}
+              </p>
+              {dayRemoteEvents.map((rev) => (
+                <div
+                  key={rev.id}
+                  style={{
+                    fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                    color: text,
+                    padding: '5px 8px',
+                    borderRadius: '6px',
+                    background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+                  }}
+                >
+                  <span style={{ color: muted, fontSize: '10px', display: 'block', lineHeight: 1.2 }}>
+                    {rev.feedName}
+                    {rev.sourceKind === 'caldav' ? (de ? ' · CalDAV' : ' · CalDAV') : (de ? ' · ICS' : ' · ICS')}
+                  </span>
+                  <span>
+                    {rev.timeLabel ? `${rev.timeLabel} · ` : ''}
+                    {rev.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {dayLocalEvents.length > 0 && (
+            <p
+              style={{
+                margin: dayRemoteEvents.length ? '8px 0 0' : '6px 0 0',
+                fontSize: '10px',
+                fontWeight: 600,
+                color: muted,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {de ? 'Dashboard' : 'Dashboard'}
+            </p>
+          )}
+
+          {dayLocalEvents.length === 0 && dayRemoteEvents.length === 0 && (
+            <p style={{ margin: 0, fontSize: '11px', color: muted }}>{lab.emptyDay}</p>
+          )}
+
+          {dayLocalEvents.map((ev) =>
+            editing?.id === ev.id ? (
+              <div key={ev.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '10px', color: muted }}>{lab.titleLabel}</label>
+                <input
+                  style={inpSmall}
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+                <label style={{ fontSize: '10px', color: muted }}>{lab.dateLabel}</label>
+                <input
+                  style={inpSmall}
+                  type="date"
+                  value={editing.date}
+                  onChange={(e) => setEditing({ ...editing, date: e.target.value })}
+                />
+                <EventTimeFields
+                  de={de}
+                  allDay={editing.allDay}
+                  startTime={editing.startTime}
+                  endTime={editing.endTime}
+                  inpStyle={inpSmall}
+                  onAllDay={(v) => setEditing({ ...editing, allDay: v })}
+                  onStart={(v) => setEditing({ ...editing, startTime: v })}
+                  onEnd={(v) => setEditing({ ...editing, endTime: v })}
+                />
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={saveEditing} style={primarySmallBtnStyle}>
+                    {lab.save}
+                  </button>
+                  <button type="button" onClick={() => setEditing(null)} style={ghostSmallBtnStyle}>
+                    {lab.cancel}
+                  </button>
+                  <button type="button" onClick={() => deleteEvent(ev.id)} style={dangerSmallBtnStyle}>
+                    {lab.del}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                key={ev.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                  color: text,
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: muted, fontSize: '10px', marginRight: '6px' }}>{eventTimeLabel(ev, de)}</span>
+                  {ev.title}
+                  {ev.caldavUid && calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'CalDAV' : 'CalDAV'}</span>
+                  ) : calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'nur Dashboard' : 'dashboard only'}</span>
+                  ) : null}
+                </span>
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditing({
+                        id: ev.id,
+                        title: ev.title,
+                        date: ev.date,
+                        allDay: ev.allDay === true || (!ev.startTime && ev.allDay !== false),
+                        startTime: ev.startTime ?? '09:00',
+                        endTime: ev.endTime ?? '10:00',
+                      })
+                    }
+                    style={chipBtnStyle}
+                  >
+                    {lab.edit}
+                  </button>
+                  <button type="button" onClick={() => deleteEvent(ev.id)} style={chipBtnStyle}>
+                    {lab.del}
+                  </button>
+                </div>
+              </div>
+            ),
+          )}
+
+          {!editing && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                marginTop: '8px',
+                paddingTop: '12px',
+                borderTop: `1px solid color-mix(in srgb, ${border} 55%, transparent)`,
+              }}
+            >
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: text }}>
+                {de ? 'Neuer Termin' : 'New event'}
+              </p>
+              <input
+                style={{ ...inpSmall, fontSize: '14px', padding: '10px 12px' }}
+                placeholder={lab.newPh}
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addNewEvent()
+                  }
+                }}
+              />
+              <EventTimeFields
+                de={de}
+                allDay={newAllDay}
+                startTime={newStartTime}
+                endTime={newEndTime}
+                inpStyle={{ ...inpSmall, fontSize: '14px', padding: '8px 10px' }}
+                onAllDay={setNewAllDay}
+                onStart={setNewStartTime}
+                onEnd={setNewEndTime}
+              />
+              <button
+                type="button"
+                onClick={addNewEvent}
+                disabled={!newTitle.trim() || syncBusy}
+                style={{
+                  ...primarySmallBtnStyle,
+                  opacity: !newTitle.trim() || syncBusy ? 0.45 : 1,
+                  cursor: !newTitle.trim() || syncBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {lab.add}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {showEventList && (
         <div
