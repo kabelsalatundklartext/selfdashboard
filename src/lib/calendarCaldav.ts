@@ -1,6 +1,10 @@
 import { Buffer } from 'node:buffer'
 import { expandIcsString, type IcsOccurrence } from '@/lib/calendarIcs'
-import { CALENDAR_MAX_ICS_BYTES, normalizeCalDavHref } from '@/lib/calendarApiShared'
+import {
+  CALENDAR_MAX_ICS_BYTES,
+  isCardDavContactsHost,
+  normalizeCalDavHref,
+} from '@/lib/calendarApiShared'
 
 function toCalDavUtc(d: Date): string {
   const y = d.getUTCFullYear()
@@ -121,12 +125,13 @@ function extractHrefPathsFromMultistatus(xml: string, calendarHref: string): str
     const h = decodeXmlEntities((m[1] ?? '').trim())
     if (!h || h === '/') continue
     if (isSameCollectionHref(h, collectionPath)) continue
-    if (collectionPath && h.startsWith(collectionPath) && h.length > collectionPath.length + 1) {
-      hrefs.push(h)
+    const resolved = resolveDavHref(calendarHref, h)
+    if (collectionPath && resolved.startsWith(collectionPath) && resolved.length > collectionPath.length + 1) {
+      hrefs.push(resolved)
       continue
     }
-    if (/\.ics$/i.test(h) || /\/event/i.test(h) || /\/e\d/i.test(h) || /[0-9a-f-]{20,}/i.test(h)) {
-      hrefs.push(h)
+    if (/\.ics$/i.test(resolved) || /\/event/i.test(resolved) || /\/e\d/i.test(resolved) || /[0-9a-f-]{20,}/i.test(resolved)) {
+      hrefs.push(resolved)
     }
   }
   return [...new Set(hrefs)]
@@ -178,6 +183,18 @@ export type CaldavFetchErrorCode =
   | 'ics_too_large'
   | 'not_calendar_data'
   | 'unauthorized'
+  | 'wrong_dav_service'
+
+function resolveDavHref(collectionHref: string, href: string): string {
+  const h = href.trim()
+  if (!h) return h
+  if (/^https?:\/\//i.test(h)) return h
+  try {
+    return new URL(h, collectionHref.endsWith('/') ? collectionHref : `${collectionHref}/`).toString()
+  } catch {
+    return h
+  }
+}
 
 const GET_FALLBACK_STATUSES = new Set([400, 404, 405, 406, 415, 422])
 
@@ -198,9 +215,9 @@ function looksLikeLoginPage(text: string): boolean {
 
 async function calDavRequest(
   calendarHref: string,
-  method: 'REPORT' | 'PROPFIND',
+  method: 'REPORT' | 'PROPFIND' | 'OPTIONS',
   headers: Record<string, string>,
-  xmlBody: string,
+  xmlBody: string | undefined,
   depth: '0' | '1' | 'infinity',
   signal: AbortSignal,
 ): Promise<Response> {
@@ -213,8 +230,9 @@ async function calDavRequest(
       ...headers,
       'Content-Type': 'application/xml; charset=utf-8',
       Depth: depth,
+      ...(method === 'REPORT' || method === 'PROPFIND' ? { Brief: 't' } : {}),
     },
-    body: xmlBody,
+    ...(xmlBody !== undefined ? { body: xmlBody } : {}),
   })
 }
 
@@ -329,9 +347,21 @@ export async function fetchCalDavOccurrences(
   | { ok: false; error: CaldavFetchErrorCode; status?: number; detail?: string }
 > {
   const href = normalizeCalDavHref(calendarHref)
+  try {
+    if (isCardDavContactsHost(new URL(href).hostname)) {
+      return {
+        ok: false,
+        error: 'wrong_dav_service',
+        detail: 'carddav host — use caldav.web.de for calendar',
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
   const auth = basicAuthHeader(username, password)
   const commonHeaders: Record<string, string> = {
-    'User-Agent': 'SelfDashboard-calendar-caldav/1.3',
+    'User-Agent': 'SelfDashboard-calendar-caldav/1.4',
     Accept: 'text/calendar, application/calendar+json, text/xml, application/xml, text/plain, */*',
   }
   if (auth) commonHeaders.Authorization = auth

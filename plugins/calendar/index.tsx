@@ -12,7 +12,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.7',
+  version: '1.4.8',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -300,7 +300,27 @@ function formatWeekRangeTitle(weekStart: Date, loc: string): string {
 
 function formatFeedError(code: string, detail: string | undefined, de: boolean): string {
   const d = detail?.trim() ?? ''
+  if (
+    code === 'wrong_dav_service' ||
+    /carddav\.web\.de/i.test(d) ||
+    /carddav host/i.test(d)
+  ) {
+    return de
+      ? 'Falsche Adresse: carddav.web.de ist fürs Adressbuch — Kalender braucht caldav.web.de (…/begenda/dav/…@web.de/calendar)'
+      : 'Wrong URL: carddav.web.de is for contacts — calendars need caldav.web.de (…/begenda/dav/…@web.de/calendar)'
+  }
+  if (code === 'missing_begenda_path') {
+    return de
+      ? 'WEB.DE: vollständige URL z. B. https://caldav.web.de/begenda/dav/name@web.de/calendar'
+      : 'WEB.DE: use full URL e.g. https://caldav.web.de/begenda/dav/you@web.de/calendar'
+  }
   if (code === 'unauthorized' || d.includes('App-Passwort') || d.includes('app-specific')) {
+    const onCardDav = /carddav/i.test(d)
+    if (onCardDav) {
+      return de
+        ? 'Anmeldung an carddav.web.de fehlgeschlagen — das ist Kontakte. Kalender-URL auf caldav.web.de umstellen.'
+        : 'Auth to carddav.web.de failed — that is contacts. Switch calendar URL to caldav.web.de.'
+    }
     return de
       ? 'Anmeldung fehlgeschlagen — bei 2FA das WEB.DE-App-Passwort nutzen (nicht das normale Passwort)'
       : 'Auth failed — with 2FA use WEB.DE app password (not your normal password)'
@@ -426,10 +446,15 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             error?: string
             upstreamStatus?: number
             detail?: string
+            suggestedUrl?: string
             events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
           }
           if (!j?.ok) {
-            throw new Error(formatFeedError(j?.error || `http_${res.status}`, j?.detail, de))
+            let msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
+            if (j?.suggestedUrl) {
+              msg += de ? ` — Richtige URL: ${j.suggestedUrl}` : ` — Use URL: ${j.suggestedUrl}`
+            }
+            throw new Error(msg)
           }
           let host = 'CalDAV'
           try {
@@ -1513,6 +1538,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               <>
                 <strong>WEB.DE:</strong>{' '}
                 <code style={{ fontSize: '10px' }}>https://caldav.web.de/begenda/dav/Ihre-Adresse@web.de/calendar</code>
+                {' '}
+                <span style={{ color: '#f59e0b' }}>
+                  (nicht <code style={{ fontSize: '10px' }}>carddav.web.de</code> — das ist nur Kontakte/Adressbuch)
+                </span>
                 — bei 2FA ein{' '}
                 <a href="https://hilfe.web.de/sicherheit/2fa/anwendungsspezifisches-passwort.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
                   anwendungsspezifisches Passwort
@@ -1608,7 +1637,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                     <input
                       style={{ ...inp, marginBottom: '8px' }}
                       value={feed.url}
-                      placeholder="http://192.168.1.15:5000/caldav/svensende/personal/"
+                      placeholder="https://caldav.web.de/begenda/dav/name@web.de/calendar"
                       onChange={(e) => {
                         const v = e.target.value
                         setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, url: v } : f)))
@@ -1621,7 +1650,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                       style={{ ...inp, marginBottom: '8px' }}
                       autoComplete="off"
                       value={feed.username ?? ''}
-                      placeholder={de ? 'leer = nur aus URL' : 'empty = from URL only'}
+                      placeholder={de ? 'z. B. name@web.de' : 'e.g. you@web.de'}
                       onChange={(e) => {
                         const v = e.target.value
                         setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, username: v } : f)))

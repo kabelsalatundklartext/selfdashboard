@@ -8,6 +8,7 @@ import {
 } from '@/lib/calendarApiShared'
 import { fetchCalDavOccurrences } from '@/lib/calendarCaldav'
 import { logApiFailure } from '@/lib/errorLog'
+import { fixCommonCalDavUrlMistakes, normalizeCaldavUsername } from '@/lib/calendarApiShared'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,19 +32,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 })
   }
 
+  const rawCalendarUrl = String(body.calendarUrl ?? '')
+  const urlFix = fixCommonCalDavUrlMistakes(rawCalendarUrl)
+
   let url: URL
   try {
-    url = normalizeCalendarHttpUrl(String(body.calendarUrl ?? ''))
+    url = normalizeCalendarHttpUrl(rawCalendarUrl)
   } catch (e) {
     const code = e instanceof Error ? e.message : 'bad_url'
-    return NextResponse.json({ ok: false, error: code }, { status: 400 })
+    const status =
+      code === 'wrong_dav_service' ? 400 : code === 'missing_begenda_path' ? 400 : 400
+    const detail =
+      code === 'wrong_dav_service'
+        ? 'CardDAV (carddav.web.de) ist für Kontakte — Kalender: https://caldav.web.de/begenda/dav/Ihre-Adresse@web.de/calendar'
+        : code === 'missing_begenda_path'
+          ? 'WEB.DE: vollständige CalDAV-URL mit /begenda/dav/…@web.de/calendar angeben'
+          : undefined
+    void logApiFailure('calendar-caldav', code, { detail, fixes: urlFix.fixes })
+    return NextResponse.json({ ok: false, error: code, detail, suggestedUrl: urlFix.fixes.length ? urlFix.url : undefined }, { status })
   }
 
   const { href, urlUser, urlPass } = splitUrlBasicAuth(url)
   const userBody = clampStr(body.username, 800)
   const passBody = typeof body.password === 'string' ? body.password.slice(0, 2000) : ''
-  const username = userBody || urlUser
-  const password = passBody || urlPass
+  const username = normalizeCaldavUsername(userBody || urlUser, href)
+  const password = (passBody || urlPass).trim()
 
   let range: { start: Date; end: Date }
   try {
@@ -61,15 +74,17 @@ export async function POST(req: Request) {
 
     if (!result.ok) {
       const status =
-        result.error === 'unauthorized'
-          ? 401
-          : result.error === 'ics_too_large'
-            ? 413
-            : result.error === 'not_calendar_data'
-              ? 422
-              : result.error === 'upstream_network'
-                ? 504
-                : 502
+        result.error === 'wrong_dav_service'
+          ? 400
+          : result.error === 'unauthorized'
+            ? 401
+            : result.error === 'ics_too_large'
+              ? 413
+              : result.error === 'not_calendar_data'
+                ? 422
+                : result.error === 'upstream_network'
+                  ? 504
+                  : 502
       void logApiFailure('calendar-caldav', result.error, {
         upstreamStatus: result.status,
         detail: result.detail,
@@ -81,6 +96,7 @@ export async function POST(req: Request) {
           error: result.error,
           upstreamStatus: result.status,
           detail: result.detail,
+          ...(urlFix.fixes.length ? { suggestedUrl: urlFix.url, urlFixes: urlFix.fixes } : {}),
         },
         { status },
       )
