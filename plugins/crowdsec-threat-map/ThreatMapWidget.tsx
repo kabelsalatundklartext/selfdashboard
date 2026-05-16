@@ -29,23 +29,35 @@ function num(v: unknown, fallback: number): number {
 
 type TabId = 'feed' | 'top10' | 'all'
 
-const SETUP_ERROR = 'Threat-Map URL in den Einstellungen eintragen'
+type ConnectionMode = 'database' | 'exporter'
 
-function formatThreatMapError(raw: string, de: boolean): string {
-  if (raw === SETUP_ERROR || raw === 'Enter Threat Map URL in settings') return raw
-  if (raw === 'missing_url') return de ? SETUP_ERROR : 'Enter Threat Map URL in settings'
-  if (raw === 'upstream_error') {
+const SETUP_DB = 'CrowdSec-Datenbankpfad in den Einstellungen eintragen'
+const SETUP_URL = 'Exporter-URL in den Einstellungen eintragen (Legacy-Modus)'
+
+function connectionMode(config: Record<string, unknown>): ConnectionMode {
+  const m = str(config.connectionMode)
+  if (m === 'exporter' || m === 'database') return m
+  return str(config.url) ? 'exporter' : 'database'
+}
+
+function formatCrowdsecError(raw: string, de: boolean): string {
+  if (raw === 'missing_db_path') return de ? SETUP_DB : 'Enter CrowdSec database path in settings'
+  if (raw === 'db_not_found') {
     return de
-      ? 'Threat-Map antwortet nicht (Port 8080, Container läuft?)'
-      : 'Threat map not responding (port 8080, is container running?)'
+      ? 'crowdsec.db nicht gefunden — Pfad prüfen und Volume in SelfDashboard mounten'
+      : 'crowdsec.db not found — check path and mount volume in SelfDashboard'
+  }
+  if (raw === 'db_path_not_allowed') {
+    return de
+      ? 'Pfad nicht erlaubt — nur unter /crowdsec-data/ (Volume mounten)'
+      : 'Path not allowed — must be under /crowdsec-data/ (mount volume)'
+  }
+  if (raw === 'missing_url') return de ? SETUP_URL : 'Enter exporter URL in settings (legacy mode)'
+  if (raw === 'upstream_error') {
+    return de ? 'Exporter antwortet nicht' : 'Exporter not responding'
   }
   if (raw === 'fetch_failed' || raw.includes('abort')) {
-    return de
-      ? 'SelfDashboard erreicht die Threat-Map nicht — Unraid-IP:Port nutzen, nicht localhost'
-      : 'Cannot reach threat map — use host IP:port, not localhost'
-  }
-  if (raw === 'invalid_url' || raw === 'invalid_protocol') {
-    return de ? 'Ungültige URL (z. B. http://192.168.1.69:8080)' : 'Invalid URL (e.g. http://192.168.1.69:8080)'
+    return de ? 'Verbindung fehlgeschlagen' : 'Connection failed'
   }
   return raw
 }
@@ -61,7 +73,12 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   const { locale, editMode } = useDashboardStore()
   const de = locale === 'de'
 
+  const mode = connectionMode(config as Record<string, unknown>)
+  const dbPath = str(config.dbPath) || '/crowdsec-data/crowdsec.db'
   const baseUrl = str(config.url)
+  const lapiUrl = str(config.lapiUrl)
+  const lapiKey = str(config.lapiKey)
+  const daysBack = Math.min(3650, Math.max(1, Math.round(num(config.daysBack, 365))))
   const refreshSec = Math.min(300, Math.max(15, Math.round(num(config.refreshSeconds, 30))))
   const showMap = bool(config.showMap, true)
   const showSidebar = bool(config.showSidebar, true)
@@ -95,25 +112,8 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
 
   const themeStyle = useMemo(() => THEME_VARS[theme] as CSSProperties, [theme])
 
-  const fetchMetrics = useCallback(async () => {
-    if (!baseUrl) {
-      setError(SETUP_ERROR)
-      setLoading(false)
-      return
-    }
-    try {
-      const q = new URLSearchParams({ url: baseUrl, action: 'metrics' })
-      const res = await fetch(`/api/crowdsec-threat-map?${q}`, { cache: 'no-store' })
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; detail?: string; status?: number }
-        const msg = j.error || `HTTP ${res.status}`
-        if (j.detail && j.error === 'upstream_error') {
-          throw new Error(formatThreatMapError('upstream_error', de) + (de ? ` (${j.status})` : ` (${j.status})`))
-        }
-        throw new Error(formatThreatMapError(msg, de))
-      }
-      const text = await res.text()
-      const parsed = parseCrowdsecMetricsText(text)
+  const applyParsed = useCallback(
+    (parsed: ReturnType<typeof parseCrowdsecMetricsText>) => {
       setAttackData(parsed.attackData)
       setFeedData(parsed.feedData.filter((f) => !localUnbanned.current.has(f.ip)))
       setTotalAlerts(parsed.totalAlerts)
@@ -124,24 +124,56 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       setServerName(serverNameCfg || parsed.serverName || 'Server')
       setLastUpdate(new Date().toLocaleTimeString(de ? 'de-DE' : 'en-GB'))
       setError(null)
+    },
+    [de, serverLatCfg, serverLonCfg, serverNameCfg],
+  )
+
+  const fetchMetrics = useCallback(async () => {
+    if (mode === 'database' && !dbPath) {
+      setError(SETUP_DB)
+      setLoading(false)
+      return
+    }
+    if (mode === 'exporter' && !baseUrl) {
+      setError(SETUP_URL)
+      setLoading(false)
+      return
+    }
+    try {
+      const q = new URLSearchParams({
+        mode,
+        daysBack: String(daysBack),
+        serverLat: String(serverLatCfg || 0),
+        serverLon: String(serverLonCfg || 0),
+        serverName: serverNameCfg || 'Server',
+      })
+      if (mode === 'database') q.set('dbPath', dbPath)
+      else q.set('url', baseUrl)
+
+      const res = await fetch(`/api/crowdsec?${q}`, { cache: 'no-store' })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(formatCrowdsecError(j.error || `HTTP ${res.status}`, de))
+      }
+
+      if (mode === 'database') {
+        const parsed = (await res.json()) as ReturnType<typeof parseCrowdsecMetricsText>
+        applyParsed(parsed)
+      } else {
+        const text = await res.text()
+        applyParsed(parseCrowdsecMetricsText(text))
+      }
     } catch (e) {
       const raw = e instanceof Error ? e.message : 'fetch_failed'
-      setError(formatThreatMapError(raw, de))
+      setError(formatCrowdsecError(raw, de))
     } finally {
       setLoading(false)
     }
-  }, [baseUrl, de, serverLatCfg, serverLonCfg, serverNameCfg])
+  }, [mode, dbPath, baseUrl, daysBack, de, applyParsed, serverLatCfg, serverLonCfg, serverNameCfg])
 
   const fetchWhitelist = useCallback(async () => {
-    if (!baseUrl) return
-    try {
-      const q = new URLSearchParams({ url: baseUrl, action: 'whitelist' })
-      const res = await fetch(`/api/crowdsec-threat-map?${q}`, { cache: 'no-store' })
-      if (res.ok) setWhitelist((await res.json()) as WhitelistStatus)
-    } catch {
-      setWhitelist(null)
-    }
-  }, [baseUrl])
+    setWhitelist(null)
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -229,9 +261,13 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
   }, [feedData, showSparkline])
 
   const handleUnban = async (ip: string) => {
-    if (!baseUrl || !confirm(de ? `IP ${ip} entsperren?` : `Unban IP ${ip}?`)) return
-    const q = new URLSearchParams({ url: baseUrl })
-    const res = await fetch(`/api/crowdsec-threat-map?${q}`, {
+    if (!lapiUrl || !lapiKey) {
+      alert(de ? 'Für Unban LAPI-URL und API-Key in den Einstellungen eintragen.' : 'Set LAPI URL and API key in settings for unban.')
+      return
+    }
+    if (!confirm(de ? `IP ${ip} entsperren?` : `Unban IP ${ip}?`)) return
+    const q = new URLSearchParams({ lapiUrl, lapiKey })
+    const res = await fetch(`/api/crowdsec?${q}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ip }),
@@ -462,32 +498,28 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       </div>
 
       {loading && <div className="cs-threat-loading">{de ? 'Lade Threat Feed…' : 'Loading threat feed…'}</div>}
-      {!loading && !baseUrl && (
+      {!loading && ((mode === 'database' && !dbPath) || (mode === 'exporter' && !baseUrl)) && (
         <div className="cs-threat-setup">
           <h4>{de ? 'EINRICHTUNG' : 'SETUP'}</h4>
           <p className="cs-threat-setup-lead">
-            {layoutMode === 'phone'
-              ? de
-                ? 'Container crowdsec-threat-map-docker (Port 8080) starten, dann Zahnrad oben rechts auf der Kachel → URL.'
-                : 'Start crowdsec-threat-map-docker (port 8080), then gear icon top-right on this tile → URL.'
-              : de
-                ? 'Separater Container crowdsec-threat-map-docker (Port 8080). URL über das Zahnrad oben rechts auf dieser Kachel (nicht von diesem Text verdeckt).'
-                : 'Requires crowdsec-threat-map-docker (port 8080). Set URL via the gear icon top-right on this tile.'}
+            {de
+              ? 'Direkt an CrowdSec (crowdsec.db) — kein threat-map-docker. Zahnrad oben rechts.'
+              : 'Direct CrowdSec (crowdsec.db) — no threat-map-docker. Gear icon top-right.'}
           </p>
           {layoutMode !== 'phone' && (
             <ol>
               <li>
-                {de ? 'Container starten (Unraid: Docker → crowdsec-threat-map).' : 'Start the threat-map container.'}
+                {de ? 'Volume ' : 'Volume '}
+                <code>/mnt/user/appdata/crowdsec/data</code> → <code>/crowdsec-data</code>
               </li>
               <li>
-                <code>http://&lt;Unraid-IP&gt;:8080</code>
-                {de ? ' — nicht localhost in Docker.' : ' — not localhost in Docker.'}
+                <code>/crowdsec-data/crowdsec.db</code>
               </li>
             </ol>
           )}
         </div>
       )}
-      {error && !loading && baseUrl && (
+      {error && !loading && !((mode === 'database' && !dbPath) || (mode === 'exporter' && !baseUrl)) && (
         <div className="cs-threat-error">
           {de ? 'Verbindungsfehler: ' : 'Connection error: '}
           {error}
@@ -504,6 +536,7 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
   const de = locale === 'de'
   const [testState, setTestState] = useState<'idle' | 'ok' | 'fail'>('idle')
   const [testMsg, setTestMsg] = useState('')
+  const mode = connectionMode(config as Record<string, unknown>)
   const inp: CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -519,14 +552,55 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
-          {de ? 'Threat-Map URL' : 'Threat Map URL'}
+        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+          {de ? 'Verbindung' : 'Connection'}
         </label>
-        <input style={inp} value={str(config.url)} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.69:8080" />
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
-          {de
-            ? 'Adresse des Containers crowdsec-threat-map-docker (Port 8080). SelfDashboard in Docker → Unraid-LAN-IP, nicht localhost.'
-            : 'crowdsec-threat-map-docker (port 8080). If SelfDashboard runs in Docker, use host LAN IP, not localhost.'}
+        <select
+          style={inp}
+          value={mode}
+          onChange={(e) => onChange('connectionMode', e.target.value)}
+        >
+          <option value="database">{de ? 'Direkt: crowdsec.db' : 'Direct: crowdsec.db'}</option>
+          <option value="exporter">{de ? 'Legacy: Exporter-URL' : 'Legacy: exporter URL'}</option>
+        </select>
+      </div>
+
+      {mode === 'database' ? (
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+            {de ? 'Pfad crowdsec.db' : 'crowdsec.db path'}
+          </label>
+          <input
+            style={inp}
+            value={str(config.dbPath) || '/crowdsec-data/crowdsec.db'}
+            onChange={(e) => onChange('dbPath', e.target.value)}
+          />
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.45 }}>
+            {de
+              ? 'Volume: Host /mnt/user/appdata/crowdsec/data → Container /crowdsec-data (read-only).'
+              : 'Volume: host …/appdata/crowdsec/data → container /crowdsec-data (read-only).'}
+          </p>
+        </div>
+      ) : (
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+            {de ? 'Exporter-URL' : 'Exporter URL'}
+          </label>
+          <input style={inp} value={str(config.url)} onChange={(e) => onChange('url', e.target.value)} placeholder="http://192.168.1.69:8080" />
+        </div>
+      )}
+
+      <div>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+          {de ? 'LAPI (Unban, optional)' : 'LAPI (unban, optional)'}
+        </label>
+        <input style={{ ...inp, marginBottom: 6 }} value={str(config.lapiUrl)} onChange={(e) => onChange('lapiUrl', e.target.value)} placeholder="http://192.168.1.69:8080" />
+        <input style={inp} type="password" value={str(config.lapiKey)} onChange={(e) => onChange('lapiKey', e.target.value)} placeholder="API-Key" />
+      </div>
+
+      <div>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 6px' }}>
+          {de ? 'Test der gewählten Verbindung:' : 'Test selected connection:'}
         </p>
         <button
           type="button"
@@ -541,30 +615,39 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
             cursor: 'pointer',
           }}
           onClick={async () => {
-            const url = str(config.url)
-            if (!url) {
-              setTestState('fail')
-              setTestMsg(de ? 'Zuerst URL eintragen' : 'Enter URL first')
-              return
-            }
             setTestState('idle')
             setTestMsg(de ? 'Teste…' : 'Testing…')
             try {
-              const q = new URLSearchParams({ url, action: 'metrics' })
-              const res = await fetch(`/api/crowdsec-threat-map?${q}`, { cache: 'no-store' })
+              const q = new URLSearchParams({
+                mode,
+                daysBack: String(Math.round(num(config.daysBack, 365))),
+                serverLat: String(num(config.serverLat, 0)),
+                serverLon: String(num(config.serverLon, 0)),
+              })
+              if (mode === 'database') q.set('dbPath', str(config.dbPath) || '/crowdsec-data/crowdsec.db')
+              else {
+                const url = str(config.url)
+                if (!url) throw new Error('missing_url')
+                q.set('url', url)
+              }
+              const res = await fetch(`/api/crowdsec?${q}`, { cache: 'no-store' })
               if (!res.ok) {
                 const j = (await res.json().catch(() => ({}))) as { error?: string }
                 throw new Error(j.error || `HTTP ${res.status}`)
               }
-              const text = await res.text()
-              if (!text.includes('cs_') && !text.includes('crowdsec')) {
-                throw new Error(de ? 'Antwort sieht nicht nach CrowdSec-Metriken aus' : 'Response does not look like CrowdSec metrics')
+              if (mode === 'database') {
+                const j = (await res.json()) as { totalAlerts?: number }
+                setTestState('ok')
+                setTestMsg(de ? `OK — ${j.totalAlerts ?? 0} Alerts` : `OK — ${j.totalAlerts ?? 0} alerts`)
+              } else {
+                const text = await res.text()
+                if (!text.includes('cs_')) throw new Error('invalid_metrics')
+                setTestState('ok')
+                setTestMsg(de ? 'Exporter OK' : 'Exporter OK')
               }
-              setTestState('ok')
-              setTestMsg(de ? 'Verbindung OK' : 'Connection OK')
             } catch (e) {
               setTestState('fail')
-              setTestMsg(formatThreatMapError(e instanceof Error ? e.message : 'fetch_failed', de))
+              setTestMsg(formatCrowdsecError(e instanceof Error ? e.message : 'fetch_failed', de))
             }
           }}
         >
@@ -573,6 +656,20 @@ export function ThreatMapSettings({ config, onChange }: PluginSettingsProps) {
         {testMsg ? (
           <p style={{ fontSize: 11, marginTop: 6, color: testState === 'ok' ? 'var(--accent)' : 'var(--text-muted)' }}>{testMsg}</p>
         ) : null}
+      </div>
+
+      <div>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 600 }}>
+          {de ? 'Historie (Tage)' : 'History (days)'}
+        </label>
+        <input
+          style={inp}
+          type="number"
+          min={1}
+          max={3650}
+          value={Math.round(num(config.daysBack, 365))}
+          onChange={(e) => onChange('daysBack', Math.min(3650, Math.max(1, Math.round(Number(e.target.value)) || 365)))}
+        />
       </div>
 
       <div>

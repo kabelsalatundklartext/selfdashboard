@@ -5,10 +5,10 @@ import { ThreatMapWidget, ThreatMapSettings } from './ThreatMapWidget'
 
 export const meta: PluginMeta = {
   id: 'crowdsec-threat-map',
-  name: 'CrowdSec Threat Map',
+  name: 'CrowdSec',
   description:
-    'Echtzeit-Angriffskarte wie crowdsec-threat-map-docker: Weltkarte, Live-Feed, Top-Länder. Karte und Seitenleiste einzeln ausblendbar — ohne iframe.',
-  version: '1.0.0',
+    'Echtzeit-Angriffe direkt aus der CrowdSec-Datenbank (crowdsec.db): Weltkarte, Live-Feed, Top-Länder. Karte und Seitenleiste einzeln ausblendbar — kein threat-map-docker nötig.',
+  version: '2.0.0',
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',

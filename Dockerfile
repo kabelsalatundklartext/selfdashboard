@@ -32,7 +32,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
+ENV CROWDSEC_DATA_DIR=/crowdsec-data
+ENV CROWDSEC_DB_PATH=/crowdsec-data/crowdsec.db
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /crowdsec-data
+COPY --from=builder /app/node_modules/sql.js/dist/sql-wasm.wasm ./node_modules/sql.js/dist/sql-wasm.wasm
 
 CMD ["node", "server.js"]
