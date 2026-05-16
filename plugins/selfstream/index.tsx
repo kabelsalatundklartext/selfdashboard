@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   name: 'Selfstream',
   description:
     'Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt.',
-  version: '1.0.2',
+  version: '1.0.3',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
@@ -203,42 +203,63 @@ function Widget({ config }: PluginWidgetProps) {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '4px',
                     width: '100%',
                     minWidth: 0,
                     fontSize: fs,
                     lineHeight: 1.35,
                   }}
                 >
-                  <div
+                  <span
+                    aria-hidden
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      flex: '0 1 34%',
-                      minWidth: 0,
-                      maxWidth: '42%',
-                      fontWeight: 700,
-                      color: 'var(--text)',
-                      overflow: 'hidden',
+                      fontSize: '0.75em',
+                      color: item.isCatchup ? '#a78bfa' : 'var(--accent)',
+                      flexShrink: 0,
+                      width: '1em',
+                      textAlign: 'center',
                     }}
                   >
-                    <span
-                      aria-hidden
-                      style={{
-                        fontSize: '0.75em',
-                        color: item.isCatchup ? '#a78bfa' : 'var(--accent)',
-                        flexShrink: 0,
-                        width: '1em',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {item.isCatchup ? '⏪' : '▶'}
-                    </span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user}</span>
-                  </div>
+                    {item.isCatchup ? '⏪' : '▶'}
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: 'var(--text)',
+                      flexShrink: 0,
+                      maxWidth: '38%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {user}
+                  </span>
                   <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
-                  <TitleCol tit={tit} prog={prog} />
+                  <span
+                    style={{
+                      flex: '1 1 auto',
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--text)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {tit}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
+                  <span
+                    style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      color: 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {prog}
+                  </span>
                 </div>
               </li>
             )
@@ -268,46 +289,6 @@ function EmptyState({ de, shell }: { de: boolean; shell: React.CSSProperties }) 
           </>
         )}
       </p>
-    </div>
-  )
-}
-
-function TitleCol({ tit, prog }: { tit: string; prog: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: '5px',
-        minWidth: 0,
-        flex: '1 1 0%',
-        overflow: 'hidden',
-      }}
-    >
-      <span
-        style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          minWidth: 0,
-          flex: '1 1 auto',
-          color: 'var(--text)',
-          fontWeight: 500,
-        }}
-      >
-        {tit}
-      </span>
-      <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
-      <span
-        style={{
-          fontVariantNumeric: 'tabular-nums',
-          color: 'var(--text-muted)',
-          whiteSpace: 'nowrap',
-          flexShrink: 0,
-        }}
-      >
-        {prog}
-      </span>
     </div>
   )
 }

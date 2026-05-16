@@ -9,7 +9,7 @@ export const meta: PluginMeta = {
   name: 'Emby',
   description:
     'Aktive Wiedergaben per Emby-/Jellyfin-kompatibler API: Nutzer, Titel, Gerät, Pause (Basis-URL + API-Key).',
-  version: '1.0.3',
+  version: '1.0.5',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎬',
@@ -65,25 +65,6 @@ async function fetchSessionsJson(base: string, apiKey: string): Promise<Session[
   throw new Error(lastErr || 'Sessions-Endpoint nicht gefunden (/emby/Sessions oder /Sessions)')
 }
 
-async function fetchServerName(base: string, apiKey: string): Promise<string | null> {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'X-Emby-Token': apiKey,
-  }
-  for (const p of ['/emby/System/Info', '/System/Info']) {
-    const res = await fetch(`${base}${p}`, { method: 'GET', headers, cache: 'no-store' })
-    if (!res.ok) continue
-    try {
-      const j = (await res.json()) as Record<string, unknown>
-      const name = String(j.ServerName ?? j.Name ?? '').trim()
-      return name || null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
 function ticksToMs(ticks: number): number {
   return Math.round(ticks / 10000)
 }
@@ -131,34 +112,27 @@ function Heading({ text }: { text: string }) {
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const [sessions, setSessions] = useState<Session[]>([])
-  const [serverName, setServerName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const base = normalizeBase((config.url as string) || '')
   const apiKey = String(config.apiKey || '').trim()
   const refresh = ((config.refreshInterval as number) ?? 10) * 1000
-  const showServer = config.showServerName !== false
-
   const fetch_ = useCallback(async () => {
     if (!base || !apiKey) {
       setLoading(false)
       return
     }
     try {
-      const [list, name] = await Promise.all([
-        fetchSessionsJson(base, apiKey),
-        showServer ? fetchServerName(base, apiKey) : Promise.resolve(null),
-      ])
+      const list = await fetchSessionsJson(base, apiKey)
       setSessions(list)
-      setServerName(name)
       setError(null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [base, apiKey, showServer])
+  }, [base, apiKey])
 
   useEffect(() => {
     fetch_()
@@ -227,11 +201,10 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   const active = playingSessions(sessions)
-  const title = serverName ? `Emby — ${serverName}` : 'Emby'
 
   return (
     <div style={shell}>
-      <Heading text={title} />
+      <Heading text="Emby" />
       {active.length === 0 ? (
         <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>
           {de ? 'Keine aktive Wiedergabe.' : 'Nothing playing.'}
@@ -265,122 +238,69 @@ function Widget({ config }: PluginWidgetProps) {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '4px',
                     width: '100%',
                     minWidth: 0,
                     fontSize: fs,
                     lineHeight: 1.35,
                   }}
                 >
-                  <div
+                  <span
+                    aria-hidden
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      flex: '0 1 34%',
-                      minWidth: 0,
-                      maxWidth: '42%',
+                      fontSize: '0.75em',
+                      color: paused ? '#f59e0b' : 'var(--accent)',
+                      flexShrink: 0,
+                      width: '1em',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {paused ? '⏸' : '▶'}
+                  </span>
+                  <span
+                    style={{
                       fontWeight: 700,
                       color: 'var(--text)',
+                      flexShrink: 0,
+                      maxWidth: '38%',
                       overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <span
-                      aria-hidden
-                      style={{
-                        fontSize: '0.75em',
-                        color: paused ? '#f59e0b' : 'var(--accent)',
-                        flexShrink: 0,
-                        width: '1em',
-                        textAlign: 'center',
-                      }}
-                    >
-                      {paused ? '⏸' : '▶'}
-                    </span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{user}</span>
-                  </div>
+                    {user}
+                  </span>
                   <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
-                  <div
+                  <span
                     style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: '5px',
+                      flex: '1 1 auto',
                       minWidth: 0,
-                      flex: '1 1 0%',
                       overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--text)',
+                      fontWeight: 500,
                     }}
                   >
-                    <span
-                      style={{
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        minWidth: 0,
-                        flex: '1 1 auto',
-                        color: 'var(--text)',
-                        fontWeight: 500,
-                      }}
-                    >
-                      {tit}
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
-                    <span
-                      style={{
-                        fontVariantNumeric: 'tabular-nums',
-                        color: 'var(--text-muted)',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {prog}
-                    </span>
-                  </div>
+                    {tit}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
+                  <span
+                    style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      color: 'var(--text-muted)',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {prog}
+                  </span>
                 </div>
               </li>
             )
           })}
         </ul>
       )}
-    </div>
-  )
-}
-
-function ToggleRow({
-  label,
-  on,
-  onToggle,
-}: {
-  label: string
-  on: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', cursor: 'pointer' }} onClick={onToggle}>
-      <span style={{ fontSize: '13px', color: 'var(--text)', flex: 1 }}>{label}</span>
-      <div
-        style={{
-          width: '36px',
-          height: '20px',
-          borderRadius: '10px',
-          background: on ? 'var(--accent)' : 'var(--border)',
-          position: 'relative',
-          transition: 'background 0.2s',
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: '2px',
-            left: on ? '18px' : '2px',
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            background: '#fff',
-            transition: 'left 0.2s',
-          }}
-        />
-      </div>
     </div>
   )
 }
@@ -397,12 +317,6 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     outline: 'none',
     width: '100%',
     boxSizing: 'border-box',
-  }
-
-  const sub = (key: string, def = true) => {
-    const v = (config as Record<string, unknown>)[key]
-    if (v === undefined || v === null) return def
-    return v !== false
   }
 
   return (
@@ -447,7 +361,6 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value={60}>60</option>
         </select>
       </div>
-      <ToggleRow label={de ? 'Servername abfragen' : 'Fetch server name'} on={sub('showServerName', true)} onToggle={() => onChange('showServerName', !sub('showServerName', true))} />
     </div>
   )
 }
