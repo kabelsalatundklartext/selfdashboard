@@ -59,11 +59,16 @@
 
 .cs-logo-img-brand {
   display: block;
-  height: 34px;
+  height: 40px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
-  object-position: left center;
+  object-position: center center;
+}
+
+.cs-sidebar-extra-pinned {
+  flex: 1 1 auto;
+  min-height: 48px;
 }
 
 .cs-nav {

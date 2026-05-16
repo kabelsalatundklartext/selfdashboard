@@ -14,7 +14,7 @@ export const meta: PluginMeta = {
   name: 'CrowdSec',
   description:
     'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.',
-  version: '1.3.1',
+  version: '1.3.2',
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',
@@ -83,6 +83,18 @@ function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
           value={cfg.maxAlerts}
           onChange={(e) => onChange('maxAlerts', Number(e.target.value))}
         />
+      </label>
+      <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.showCountriesList}
+          onChange={(e) => onChange('showCountriesList', e.target.checked)}
+        />
+        <span>
+          {de
+            ? 'Länderliste in der Sidebar dauerhaft anzeigen'
+            : 'Always show country list in sidebar'}
+        </span>
       </label>
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <input

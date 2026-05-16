@@ -26,6 +26,8 @@ export type CrowdsecConfig = {
   dockerUnban: boolean
   crowdsecContainer: string
   confirmUnban: boolean
+  /** When true, country list stays visible under nav (not only on Länder tab). */
+  showCountriesList: boolean
   lookupEnabled: Record<LookupServiceId, boolean>
 }
 
@@ -74,6 +76,7 @@ export function parseCrowdsecConfig(raw: Record<string, unknown>): CrowdsecConfi
     dockerUnban: cfgBool(raw.dockerUnban, false),
     crowdsecContainer: cfgStr(raw.crowdsecContainer, 'crowdsec'),
     confirmUnban: cfgBool(raw.confirmUnban, true),
+    showCountriesList: cfgBool(raw.showCountriesList, true),
     lookupEnabled,
   }
 }
@@ -334,10 +337,12 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
             {rangeSelect}
           </section>
 
-          {tab === 'countries' && data && (
-            <section className="cs-sidebar-extra">
+          {data && (cfg.showCountriesList || tab === 'countries') && (
+            <section
+              className={`cs-sidebar-extra${cfg.showCountriesList ? ' cs-sidebar-extra-pinned' : ''}`}
+            >
               <section className="cs-country-list">
-                {data.countries.slice(0, 25).map((c) => {
+                {data.countries.slice(0, 40).map((c) => {
                   const cc = normalizeCountryCode(c.country) || '??'
                   return (
                     <article key={`${cc}-${c.count}`} className="cs-country-row">

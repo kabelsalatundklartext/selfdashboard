@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 
-const LOGO_SRC = '/plugin-logos/crowdsec.png'
+const BRAND_LOGO_SRC = '/plugin-logos/crowdsec_breit.png'
+const ICON_LOGO_SRC = '/plugin-logos/crowdsec.png'
 
 function LogoFallback({ height }: { height: number }) {
   return (
@@ -29,9 +30,10 @@ type Props = {
   variant?: 'icon' | 'brand'
 }
 
-/** Official CrowdSec logo from `public/plugin-logos/crowdsec.png`. */
+/** CrowdSec logos: wide wordmark in widget, square icon elsewhere. */
 export function CrowdsecLogo({ size = 28, variant = 'icon' }: Props) {
   const [failed, setFailed] = useState(false)
+  const src = variant === 'brand' ? BRAND_LOGO_SRC : ICON_LOGO_SRC
 
   if (failed) {
     return <LogoFallback height={variant === 'brand' ? 32 : size} />
@@ -40,7 +42,7 @@ export function CrowdsecLogo({ size = 28, variant = 'icon' }: Props) {
   if (variant === 'brand') {
     return (
       <img
-        src={LOGO_SRC}
+        src={src}
         alt="CrowdSec"
         className="cs-logo-img cs-logo-img-brand"
         decoding="async"
@@ -51,7 +53,7 @@ export function CrowdsecLogo({ size = 28, variant = 'icon' }: Props) {
 
   return (
     <img
-      src={LOGO_SRC}
+      src={src}
       alt=""
       width={size}
       height={size}
