@@ -475,10 +475,10 @@ function EventTimeFields({
               {de ? 'Bis' : 'To'}
             </span>
             <input style={inpStyle} type="time" value={endTime} onChange={(e) => onEnd(e.target.value)} />
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       ) : null}
-    </motion.div>
+    </div>
   )
 }
 
@@ -1447,7 +1447,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           )}
 
           {!editing && (
-            <motion.div
+            <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
