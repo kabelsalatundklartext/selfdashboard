@@ -2,18 +2,18 @@
 
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { reportClientLog } from '@/lib/reportLog'
+import { DayEventModal, type EventEditDraft } from './DayEventModal'
 
 export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.2.0',
+  version: '2.3.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -96,15 +96,6 @@ interface CalendarEventRow {
   caldavHref?: string
   caldavEtag?: string
   feedIndex?: number
-}
-
-type EventEditDraft = {
-  id: string
-  title: string
-  date: string
-  allDay: boolean
-  startTime: string
-  endTime: string
 }
 
 function eventTimeLabel(ev: { allDay?: boolean; startTime?: string; endTime?: string }, de: boolean): string {
@@ -437,51 +428,6 @@ async function postCalDavWrite(
   return { ok: true, data: { uid: j.uid, objectUrl: j.objectUrl, etag: j.etag ?? null } }
 }
 
-function EventTimeFields({
-  de,
-  allDay,
-  startTime,
-  endTime,
-  onAllDay,
-  onStart,
-  onEnd,
-  inpStyle,
-}: {
-  de: boolean
-  allDay: boolean
-  startTime: string
-  endTime: string
-  onAllDay: (v: boolean) => void
-  onStart: (v: string) => void
-  onEnd: (v: string) => void
-  inpStyle: CSSProperties
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
-        <input type="checkbox" checked={allDay} onChange={(e) => onAllDay(e.target.checked)} />
-        {de ? 'Ganztägig' : 'All day'}
-      </label>
-      {!allDay ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <div>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              {de ? 'Von' : 'From'}
-            </span>
-            <input style={inpStyle} type="time" value={startTime} onChange={(e) => onStart(e.target.value)} />
-          </div>
-          <div>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-              {de ? 'Bis' : 'To'}
-            </span>
-            <input style={inpStyle} type="time" value={endTime} onChange={(e) => onEnd(e.target.value)} />
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -736,9 +682,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [newStartTime, setNewStartTime] = useState('09:00')
   const [newEndTime, setNewEndTime] = useState('10:00')
   const [editing, setEditing] = useState<EventEditDraft | null>(null)
-  const [dayModalMounted, setDayModalMounted] = useState(false)
-
-  const closeDayModal = useCallback(() => {
+    const closeDayModal = useCallback(() => {
     setPickerYmd(null)
     setEditing(null)
     setNewTitle('')
@@ -746,19 +690,6 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     setNewStartTime('09:00')
     setNewEndTime('10:00')
   }, [])
-
-  useEffect(() => {
-    setDayModalMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!pickerYmd) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeDayModal()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [pickerYmd, closeDayModal])
 
   useEffect(() => {
     const id = window.setInterval(() => setMinuteTick((n) => n + 1), 60_000)
@@ -1288,216 +1219,49 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </div>
       </div>
 
-      {pickerYmd && (
-        <div
-          style={{
-            flexShrink: 0,
-            border: `1px solid color-mix(in srgb, ${border} 70%, transparent)`,
-            borderRadius: '8px',
-            padding: 'clamp(6px, 1.4cqmin, 10px)',
-            background: 'color-mix(in srgb, var(--surface-2) 90%, var(--background))',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            maxHeight: '38%',
-            overflow: 'auto',
-            minHeight: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <p style={{ margin: 0, fontSize: 'clamp(10px, 2.3cqmin, 12px)', fontWeight: 700, color: text }}>
-              {lab.dayTitle} {pickerLabel}
-            </p>
-            <button type="button" onClick={() => setPickerYmd(null)} style={chipBtnStyle}>
-              {lab.closeDay}
-            </button>
-          </div>
-
-          {dayRemoteEvents.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                {de ? 'ICS / CalDAV' : 'ICS / CalDAV'}
-              </p>
-              {dayRemoteEvents.map((rev) => (
-                <div
-                  key={rev.id}
-                  style={{
-                    fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-                    color: text,
-                    padding: '5px 8px',
-                    borderRadius: '6px',
-                    background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
-                  }}
-                >
-                  <span style={{ color: muted, fontSize: '10px', display: 'block', lineHeight: 1.2 }}>
-                    {rev.feedName}
-                    {rev.sourceKind === 'caldav' ? (de ? ' · CalDAV' : ' · CalDAV') : (de ? ' · ICS' : ' · ICS')}
-                  </span>
-                  <span>
-                    {rev.timeLabel ? `${rev.timeLabel} · ` : ''}
-                    {rev.title}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {dayLocalEvents.length > 0 && (
-            <p
-              style={{
-                margin: dayRemoteEvents.length ? '8px 0 0' : '6px 0 0',
-                fontSize: '10px',
-                fontWeight: 600,
-                color: muted,
-                letterSpacing: '0.03em',
-                textTransform: 'uppercase',
-              }}
-            >
-              {de ? 'Dashboard' : 'Dashboard'}
-            </p>
-          )}
-
-          {dayLocalEvents.length === 0 && dayRemoteEvents.length === 0 && (
-            <p style={{ margin: 0, fontSize: '11px', color: muted }}>{lab.emptyDay}</p>
-          )}
-
-          {dayLocalEvents.map((ev) =>
-            editing?.id === ev.id ? (
-              <div key={ev.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '10px', color: muted }}>{lab.titleLabel}</label>
-                <input
-                  style={inpSmall}
-                  value={editing.title}
-                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                />
-                <label style={{ fontSize: '10px', color: muted }}>{lab.dateLabel}</label>
-                <input
-                  style={inpSmall}
-                  type="date"
-                  value={editing.date}
-                  onChange={(e) => setEditing({ ...editing, date: e.target.value })}
-                />
-                <EventTimeFields
-                  de={de}
-                  allDay={editing.allDay}
-                  startTime={editing.startTime}
-                  endTime={editing.endTime}
-                  inpStyle={inpSmall}
-                  onAllDay={(v) => setEditing({ ...editing, allDay: v })}
-                  onStart={(v) => setEditing({ ...editing, startTime: v })}
-                  onEnd={(v) => setEditing({ ...editing, endTime: v })}
-                />
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <button type="button" onClick={saveEditing} style={primarySmallBtnStyle}>
-                    {lab.save}
-                  </button>
-                  <button type="button" onClick={() => setEditing(null)} style={ghostSmallBtnStyle}>
-                    {lab.cancel}
-                  </button>
-                  <button type="button" onClick={() => deleteEvent(ev.id)} style={dangerSmallBtnStyle}>
-                    {lab.del}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div
-                key={ev.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                  fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-                  color: text,
-                }}
-              >
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span style={{ color: muted, fontSize: '10px', marginRight: '6px' }}>{eventTimeLabel(ev, de)}</span>
-                  {ev.title}
-                  {ev.caldavUid && calDavFeeds.length > 0 ? (
-                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'CalDAV' : 'CalDAV'}</span>
-                  ) : calDavFeeds.length > 0 ? (
-                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'nur Dashboard' : 'dashboard only'}</span>
-                  ) : null}
-                </span>
-                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setEditing({
-                        id: ev.id,
-                        title: ev.title,
-                        date: ev.date,
-                        allDay: ev.allDay === true || (!ev.startTime && ev.allDay !== false),
-                        startTime: ev.startTime ?? '09:00',
-                        endTime: ev.endTime ?? '10:00',
-                      })
-                    }
-                    style={chipBtnStyle}
-                  >
-                    {lab.edit}
-                  </button>
-                  <button type="button" onClick={() => deleteEvent(ev.id)} style={chipBtnStyle}>
-                    {lab.del}
-                  </button>
-                </div>
-              </div>
-            ),
-          )}
-
-          {!editing && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                marginTop: '8px',
-                paddingTop: '12px',
-                borderTop: `1px solid color-mix(in srgb, ${border} 55%, transparent)`,
-              }}
-            >
-              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: text }}>
-                {de ? 'Neuer Termin' : 'New event'}
-              </p>
-              <input
-                style={{ ...inpSmall, fontSize: '14px', padding: '10px 12px' }}
-                placeholder={lab.newPh}
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    addNewEvent()
-                  }
-                }}
-              />
-              <EventTimeFields
-                de={de}
-                allDay={newAllDay}
-                startTime={newStartTime}
-                endTime={newEndTime}
-                inpStyle={{ ...inpSmall, fontSize: '14px', padding: '8px 10px' }}
-                onAllDay={setNewAllDay}
-                onStart={setNewStartTime}
-                onEnd={setNewEndTime}
-              />
-              <button
-                type="button"
-                onClick={addNewEvent}
-                disabled={!newTitle.trim() || syncBusy}
-                style={{
-                  ...primarySmallBtnStyle,
-                  opacity: !newTitle.trim() || syncBusy ? 0.45 : 1,
-                  cursor: !newTitle.trim() || syncBusy ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {lab.add}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      <DayEventModal
+        open={pickerYmd != null}
+        de={de}
+        pickerLabel={pickerLabel}
+        dayTitleLabel={lab.dayTitle}
+        closeLabel={lab.closeDay}
+        emptyDayLabel={lab.emptyDay}
+        titleLabel={lab.titleLabel}
+        dateLabel={lab.dateLabel}
+        saveLabel={lab.save}
+        cancelLabel={lab.cancel}
+        delLabel={lab.del}
+        editLabel={lab.edit}
+        addLabel={lab.add}
+        newPh={lab.newPh}
+        border={border}
+        text={text}
+        muted={muted}
+        accent={accent}
+        inpSmall={inpSmall}
+        chipBtnStyle={chipBtnStyle}
+        primarySmallBtnStyle={primarySmallBtnStyle}
+        ghostSmallBtnStyle={ghostSmallBtnStyle}
+        dangerSmallBtnStyle={dangerSmallBtnStyle}
+        dayRemoteEvents={dayRemoteEvents}
+        dayLocalEvents={dayLocalEvents}
+        editing={editing}
+        setEditing={setEditing}
+        newTitle={newTitle}
+        setNewTitle={setNewTitle}
+        newAllDay={newAllDay}
+        setNewAllDay={setNewAllDay}
+        newStartTime={newStartTime}
+        setNewStartTime={setNewStartTime}
+        newEndTime={newEndTime}
+        setNewEndTime={setNewEndTime}
+        syncBusy={syncBusy}
+        calDavConfigured={calDavFeeds.length > 0}
+        onClose={closeDayModal}
+        onSaveEditing={saveEditing}
+        onDelete={deleteEvent}
+        onAdd={addNewEvent}
+      />
 
       {showEventList && (
         <div
@@ -1688,6 +1452,8 @@ function CalDavFeedTools({
         detail?: string
         suggestedUrl?: string
         calendars?: { url: string; displayName: string }[]
+        eventCount?: number
+        fetchDetail?: string
       }
       if (!j?.ok) {
         let msg = formatFeedError(j?.error || 'error', j?.detail, de)
@@ -1697,7 +1463,13 @@ function CalDavFeedTools({
       }
       const n = j.calendars?.length ?? 0
       if (n === 1 && j.calendars?.[0]?.url) onApplyUrl(j.calendars[0].url)
-      setStatus(de ? `${n} Kalender gefunden` : `${n} calendar(s) found`)
+      const cnt = j.eventCount ?? 0
+      const extra = j.fetchDetail ? ` · ${j.fetchDetail}` : ''
+      setStatus(
+        de
+          ? `${n} Kalender · ${cnt} Termine im Abruf-Fenster${extra}`
+          : `${n} calendar(s) · ${cnt} events in fetch window${extra}`,
+      )
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
     } finally {

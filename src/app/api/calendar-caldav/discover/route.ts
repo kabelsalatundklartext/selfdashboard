@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { discoverCalDavCalendars } from '@/lib/caldavSync'
+import { discoverCalDavCalendars, fetchCalDavOccurrencesTsdav } from '@/lib/caldavSync'
 import { fixCommonCalDavUrlMistakes, buildBegendaCalendarUrl } from '@/lib/calendarApiShared'
 import { logApiFailure } from '@/lib/errorLog'
 
@@ -53,9 +53,33 @@ export async function POST(req: Request) {
     )
   }
 
+  let eventCount = 0
+  let fetchDetail: string | undefined
+  try {
+    const start = new Date()
+    start.setDate(start.getDate() - 14)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date()
+    end.setDate(end.getDate() + 180)
+    end.setHours(23, 59, 59, 999)
+    const ac = new AbortController()
+    const to = setTimeout(() => ac.abort(), 25_000)
+    const pulled = await fetchCalDavOccurrencesTsdav(rawUrl, username, password, start, end, ac.signal)
+    clearTimeout(to)
+    if (pulled.ok) {
+      eventCount = pulled.occurrences.length
+    } else {
+      fetchDetail = pulled.detail ?? pulled.error
+    }
+  } catch (e) {
+    fetchDetail = e instanceof Error ? e.message : String(e)
+  }
+
   return NextResponse.json({
     ok: true,
     calendars: result.calendars,
     serverUrl: result.serverUrl,
+    eventCount,
+    fetchDetail,
   })
 }

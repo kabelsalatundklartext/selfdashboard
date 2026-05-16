@@ -331,6 +331,17 @@ function mergeOccurrences(target: IcsOccurrence[], incoming: IcsOccurrence[]): I
   return target
 }
 
+/** tsdav default filter drops URLs without ".ics" — WEB.DE/Begenda often uses opaque paths. */
+function caldavObjectUrlFilter(url: string): boolean {
+  if (!url) return false
+  const u = url.toLowerCase()
+  if (u.includes('.vcf')) return false
+  if (u.includes('.ics')) return true
+  if (/\/begenda\/dav\//i.test(u)) return true
+  if (/\/calendar\//i.test(u) && !u.endsWith('/calendar') && !u.endsWith('/calendar/')) return true
+  return true
+}
+
 function objectHasIcsData(obj: { data?: unknown }): boolean {
   const text = typeof obj.data === 'string' ? obj.data : obj.data != null ? String(obj.data) : ''
   return Boolean(text && /BEGIN:(VEVENT|VCALENDAR)/i.test(text))
@@ -350,7 +361,8 @@ async function hydrateCalendarObjects(
     const filled = await client.fetchCalendarObjects({
       calendar,
       objectUrls: needUrls,
-      useMultiGet: true,
+      useMultiGet: false,
+      urlFilter: caldavObjectUrlFilter,
     })
     const byUrl = new Map(filled.map((o) => [o.url.replace(/\/$/, '').toLowerCase(), o]))
     return objects.map((o) => {
@@ -370,11 +382,14 @@ async function fetchObjectsForCalendar(
   rangeEnd: Date,
 ): Promise<IcsOccurrence[]> {
   const timeRange = { start: rangeStart.toISOString(), end: rangeEnd.toISOString() }
+  const urlFilter = caldavObjectUrlFilter
   const attempts: { useMultiGet: boolean; expand: boolean; timeRange?: { start: string; end: string } }[] = [
-    { useMultiGet: true, expand: true, timeRange },
-    { useMultiGet: true, expand: false, timeRange },
     { useMultiGet: false, expand: true, timeRange },
     { useMultiGet: false, expand: false, timeRange },
+    { useMultiGet: true, expand: true, timeRange },
+    { useMultiGet: true, expand: false, timeRange },
+    { useMultiGet: false, expand: false, timeRange },
+    { useMultiGet: false, expand: true },
     { useMultiGet: true, expand: true },
     { useMultiGet: false, expand: false },
   ]
@@ -386,6 +401,7 @@ async function fetchObjectsForCalendar(
         ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
         expand: opts.expand,
         useMultiGet: opts.useMultiGet,
+        urlFilter,
       })
       objects = await hydrateCalendarObjects(client, calendar, objects)
       const occ = parseCalendarObjects(objects, rangeStart, rangeEnd)
