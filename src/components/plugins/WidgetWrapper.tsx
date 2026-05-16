@@ -113,7 +113,7 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
         {/* Drag handle */}
         {editMode && (
           <div className="drag-handle" style={{
-            position: 'absolute', top: '5px', left: '5px', zIndex: 15,
+            position: 'absolute', top: '5px', left: '5px', zIndex: 100,
             background: 'var(--accent)', borderRadius: '5px',
             padding: '2px 4px', cursor: 'grab',
             opacity: hovering ? 0.9 : 0.4, transition: 'opacity 0.2s',
@@ -124,14 +124,14 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
         )}
 
         {/* Controls — top right, only in edit mode on hover */}
-        {editMode && hovering && (
+        {editMode && (hovering || layoutMode !== 'desktop') && (
           <div
             style={{
               position: 'absolute',
               top: '5px',
               left: '36px',
               right: '14px',
-              zIndex: 15,
+              zIndex: 100,
               display: 'flex',
               gap: '3px',
               alignItems: 'center',
@@ -205,6 +205,7 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
             display: 'flex',
             flexDirection: 'column',
             containerType: 'size',
+            zIndex: 1,
           }}
         >
           <div

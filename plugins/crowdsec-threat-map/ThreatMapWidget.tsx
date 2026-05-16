@@ -243,7 +243,15 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
     }
   }
 
-  const rootClass = !showMap && showSidebar ? 'cs-threat-root cs-threat-feed-only' : 'cs-threat-root'
+  const layoutClass =
+    layoutMode === 'phone' ? 'cs-threat--phone' : layoutMode === 'tablet' ? 'cs-threat--tablet' : 'cs-threat--desktop'
+  const rootClass = [
+    !showMap && showSidebar ? 'cs-threat-root cs-threat-feed-only' : 'cs-threat-root',
+    layoutClass,
+    editMode ? 'cs-threat--edit' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <div className={rootClass} style={themeStyle}>
@@ -457,30 +465,26 @@ export function ThreatMapWidget({ config, layoutMode }: PluginWidgetProps) {
       {!loading && !baseUrl && (
         <div className="cs-threat-setup">
           <h4>{de ? 'EINRICHTUNG' : 'SETUP'}</h4>
-          <p style={{ margin: 0, fontSize: 10, opacity: 0.85 }}>
-            {de
-              ? 'Das Plugin braucht den separaten Container crowdsec-threat-map-docker (Port 8080).'
-              : 'This plugin needs the crowdsec-threat-map-docker container (port 8080).'}
+          <p className="cs-threat-setup-lead">
+            {layoutMode === 'phone'
+              ? de
+                ? 'Container crowdsec-threat-map-docker (Port 8080) starten, dann Zahnrad oben rechts auf der Kachel → URL.'
+                : 'Start crowdsec-threat-map-docker (port 8080), then gear icon top-right on this tile → URL.'
+              : de
+                ? 'Separater Container crowdsec-threat-map-docker (Port 8080). URL über das Zahnrad oben rechts auf dieser Kachel (nicht von diesem Text verdeckt).'
+                : 'Requires crowdsec-threat-map-docker (port 8080). Set URL via the gear icon top-right on this tile.'}
           </p>
-          <ol>
-            <li>
-              {de ? 'Container starten (Unraid: Docker → crowdsec-threat-map).' : 'Start the threat-map container.'}
-            </li>
-            <li>
-              {editMode
-                ? de
-                  ? 'Zahnrad auf dieser Kachel → Threat-Map URL eintragen.'
-                  : 'Gear on this tile → enter Threat Map URL.'
-                : de
-                  ? 'Bearbeiten aktivieren (Stift oben) → Zahnrad → URL eintragen.'
-                  : 'Enable edit mode (pencil) → gear → enter URL.'}
-            </li>
-            <li>
-              {de ? 'URL:' : 'URL:'}{' '}
-              <code>http://&lt;Unraid-IP&gt;:8080</code>
-              {de ? ' — nicht localhost, wenn SelfDashboard in Docker läuft.' : ' — not localhost if SelfDashboard runs in Docker.'}
-            </li>
-          </ol>
+          {layoutMode !== 'phone' && (
+            <ol>
+              <li>
+                {de ? 'Container starten (Unraid: Docker → crowdsec-threat-map).' : 'Start the threat-map container.'}
+              </li>
+              <li>
+                <code>http://&lt;Unraid-IP&gt;:8080</code>
+                {de ? ' — nicht localhost in Docker.' : ' — not localhost in Docker.'}
+              </li>
+            </ol>
+          )}
         </div>
       )}
       {error && !loading && baseUrl && (
