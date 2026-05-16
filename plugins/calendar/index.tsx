@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine, ICS-Abonnements und CalDAV (Basic-Auth, Nextcloud/Synology …) über Server-Proxy.',
-  version: '1.4.3',
+  version: '1.4.4',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -358,9 +358,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           const j = (await res.json()) as {
             ok?: boolean
             error?: string
+            upstreamStatus?: number
+            detail?: string
             events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
           }
-          if (!j?.ok) throw new Error(j?.error || `http_${res.status}`)
+          if (!j?.ok) {
+            const parts = [j?.error || `http_${res.status}`]
+            if (j?.upstreamStatus) parts.push(`HTTP ${j.upstreamStatus}`)
+            if (j?.detail) parts.push(j.detail)
+            throw new Error(parts.join(' · '))
+          }
           let host = 'ICS'
           try {
             host = new URL(feed.url).hostname
@@ -400,9 +407,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           const j = (await res.json()) as {
             ok?: boolean
             error?: string
+            upstreamStatus?: number
+            detail?: string
             events?: { id: string; title: string; date: string; timeLabel?: string | null }[]
           }
-          if (!j?.ok) throw new Error(j?.error || `http_${res.status}`)
+          if (!j?.ok) {
+            const parts = [j?.error || `http_${res.status}`]
+            if (j?.upstreamStatus) parts.push(`HTTP ${j.upstreamStatus}`)
+            if (j?.detail) parts.push(j.detail)
+            throw new Error(parts.join(' · '))
+          }
           let host = 'CalDAV'
           try {
             host = new URL(feed.url).hostname

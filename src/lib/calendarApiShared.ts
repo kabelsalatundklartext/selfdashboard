@@ -25,7 +25,14 @@ export function splitUrlBasicAuth(url: URL): { href: string; urlUser: string; ur
   const u = new URL(url.toString())
   u.username = ''
   u.password = ''
-  return { href: u.toString(), urlUser, urlPass }
+  return { href: normalizeCalDavHref(u.toString()), urlUser, urlPass }
+}
+
+/** Doppelte Schrägstriche im Pfad bereinigen (z. B. …/calendars//calendar). */
+export function normalizeCalDavHref(href: string): string {
+  const u = new URL(href)
+  u.pathname = u.pathname.replace(/\/{2,}/g, '/')
+  return u.toString()
 }
 
 export function parseCalendarWindow(body: Record<string, unknown>): { start: Date; end: Date } {

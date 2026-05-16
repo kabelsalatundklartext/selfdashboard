@@ -66,8 +66,18 @@ export async function POST(req: Request) {
             ? 413
             : result.error === 'not_calendar_data'
               ? 422
-              : 502
-      return NextResponse.json({ ok: false, error: result.error, upstreamStatus: result.status }, { status })
+              : result.error === 'upstream_network'
+                ? 504
+                : 502
+      return NextResponse.json(
+        {
+          ok: false,
+          error: result.error,
+          upstreamStatus: result.status,
+          detail: result.detail,
+        },
+        { status },
+      )
     }
 
     const events = result.occurrences.map((o) => ({

@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { expandIcsString, type IcsOccurrence } from '@/lib/calendarIcs'
-import { CALENDAR_MAX_ICS_BYTES } from '@/lib/calendarApiShared'
+import { CALENDAR_MAX_ICS_BYTES, normalizeCalDavHref } from '@/lib/calendarApiShared'
 
 function toCalDavUtc(d: Date): string {
   const y = d.getUTCFullYear()
@@ -12,9 +12,19 @@ function toCalDavUtc(d: Date): string {
   return `${y}${mo}${da}T${h}${mi}${s}Z`
 }
 
-function buildCalendarQueryXml(rangeStart: Date, rangeEnd: Date): string {
+function buildCalendarQueryXml(rangeStart: Date, rangeEnd: Date, nested = true): string {
   const startZ = toCalDavUtc(rangeStart)
   const endZ = toCalDavUtc(rangeEnd)
+  const timeRange = `<c:time-range start="${startZ}" end="${endZ}"/>`
+  const eventFilter = nested
+    ? `<c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VEVENT">
+        ${timeRange}
+      </c:comp-filter>
+    </c:comp-filter>`
+    : `<c:comp-filter name="VEVENT">
+        ${timeRange}
+      </c:comp-filter>`
   return `<?xml version="1.0" encoding="utf-8"?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -22,11 +32,7 @@ function buildCalendarQueryXml(rangeStart: Date, rangeEnd: Date): string {
     <c:calendar-data/>
   </d:prop>
   <c:filter>
-    <c:comp-filter name="VCALENDAR">
-      <c:comp-filter name="VEVENT">
-        <c:time-range start="${startZ}" end="${endZ}"/>
-      </c:comp-filter>
-    </c:comp-filter>
+    ${eventFilter}
   </c:filter>
 </c:calendar-query>`
 }
@@ -78,7 +84,51 @@ function expandParts(icsChunks: string[], rangeStart: Date, rangeEnd: Date): Ics
   return dedupeOccurrences(merged)
 }
 
-export type CaldavFetchErrorCode = 'upstream_http' | 'ics_too_large' | 'not_calendar_data' | 'unauthorized'
+export type CaldavFetchErrorCode =
+  | 'upstream_http'
+  | 'upstream_network'
+  | 'ics_too_large'
+  | 'not_calendar_data'
+  | 'unauthorized'
+
+const GET_FALLBACK_STATUSES = new Set([400, 404, 405, 406, 415, 422])
+
+async function calDavReport(
+  calendarHref: string,
+  headers: Record<string, string>,
+  xmlBody: string,
+  depth: '1' | 'infinity',
+  signal: AbortSignal,
+): Promise<Response> {
+  return fetch(calendarHref, {
+    method: 'REPORT',
+    redirect: 'follow',
+    cache: 'no-store',
+    signal,
+    headers: {
+      ...headers,
+      'Content-Type': 'application/xml; charset=utf-8',
+      Depth: depth,
+    },
+    body: xmlBody,
+  })
+}
+
+function parseReportResponse(
+  xmlText: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+): { ok: true; occurrences: IcsOccurrence[] } | { ok: false; error: 'not_calendar_data' } {
+  const chunks = extractCalendarDataFromMultistatus(xmlText)
+  if (chunks.length === 0) {
+    if (/BEGIN:VCALENDAR/i.test(xmlText)) {
+      const occ = expandIcsString(xmlText, rangeStart, rangeEnd)
+      return { ok: true, occurrences: occ }
+    }
+    return { ok: false, error: 'not_calendar_data' }
+  }
+  return { ok: true, occurrences: expandParts(chunks, rangeStart, rangeEnd) }
+}
 
 export async function fetchCalDavOccurrences(
   calendarHref: string,
@@ -87,17 +137,21 @@ export async function fetchCalDavOccurrences(
   rangeStart: Date,
   rangeEnd: Date,
   signal: AbortSignal,
-): Promise<{ ok: true; occurrences: IcsOccurrence[]; via: 'get' | 'report' } | { ok: false; error: CaldavFetchErrorCode; status?: number }> {
+): Promise<
+  | { ok: true; occurrences: IcsOccurrence[]; via: 'get' | 'report' }
+  | { ok: false; error: CaldavFetchErrorCode; status?: number; detail?: string }
+> {
+  const href = normalizeCalDavHref(calendarHref)
   const auth = basicAuthHeader(username, password)
   const commonHeaders: Record<string, string> = {
-    'User-Agent': 'SelfDashboard-calendar-caldav/1.0',
+    'User-Agent': 'SelfDashboard-calendar-caldav/1.1',
     Accept: 'text/calendar, application/calendar+json, text/xml, application/xml, text/plain, */*',
   }
   if (auth) commonHeaders.Authorization = auth
 
   // 1) GET — viele Server (Nextcloud, Synology) liefern den Kalender als ICS.
   try {
-    const getRes = await fetch(calendarHref, {
+    const getRes = await fetch(href, {
       method: 'GET',
       redirect: 'follow',
       cache: 'no-store',
@@ -117,49 +171,66 @@ export async function fetchCalDavOccurrences(
         const occ = expandIcsString(text, rangeStart, rangeEnd)
         return { ok: true, occurrences: occ, via: 'get' }
       }
+    } else if (!GET_FALLBACK_STATUSES.has(getRes.status)) {
+      return {
+        ok: false,
+        error: 'upstream_http',
+        status: getRes.status,
+        detail: `GET ${getRes.status}`,
+      }
     }
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.toLowerCase().includes('abort')) {
+      return { ok: false, error: 'upstream_network', status: 0, detail: 'timeout' }
+    }
     /* REPORT versuchen */
   }
 
-  // 2) REPORT calendar-query
-  const xmlBody = buildCalendarQueryXml(rangeStart, rangeEnd)
-  let reportRes: Response
-  try {
-    reportRes = await fetch(calendarHref, {
-      method: 'REPORT',
-      redirect: 'follow',
-      cache: 'no-store',
-      signal,
-      headers: {
-        ...commonHeaders,
-        'Content-Type': 'application/xml; charset=utf-8',
-        Depth: '0',
-      },
-      body: xmlBody,
-    })
-  } catch {
-    return { ok: false, error: 'upstream_http', status: 0 }
-  }
+  // 2) REPORT calendar-query — RFC 4791: Depth 1 oder infinity (nicht 0).
+  const reportAttempts: { xml: string; depth: '1' | 'infinity' }[] = [
+    { xml: buildCalendarQueryXml(rangeStart, rangeEnd, true), depth: '1' },
+    { xml: buildCalendarQueryXml(rangeStart, rangeEnd, false), depth: '1' },
+    { xml: buildCalendarQueryXml(rangeStart, rangeEnd, true), depth: 'infinity' },
+  ]
 
-  if (reportRes.status === 401 || reportRes.status === 403) {
-    return { ok: false, error: 'unauthorized', status: reportRes.status }
-  }
+  let lastStatus = 0
+  let lastDetail = ''
 
-  if (!reportRes.ok && reportRes.status !== 207) {
-    return { ok: false, error: 'upstream_http', status: reportRes.status }
-  }
-
-  const xmlText = await reportRes.text()
-  const chunks = extractCalendarDataFromMultistatus(xmlText)
-  if (chunks.length === 0) {
-    if (/BEGIN:VCALENDAR/i.test(xmlText)) {
-      const occ = expandIcsString(xmlText, rangeStart, rangeEnd)
-      return { ok: true, occurrences: occ, via: 'report' }
+  for (const attempt of reportAttempts) {
+    let reportRes: Response
+    try {
+      reportRes = await calDavReport(href, commonHeaders, attempt.xml, attempt.depth, signal)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return {
+        ok: false,
+        error: 'upstream_network',
+        status: 0,
+        detail: msg || 'REPORT failed',
+      }
     }
-    return { ok: false, error: 'not_calendar_data', status: reportRes.status }
+
+    if (reportRes.status === 401 || reportRes.status === 403) {
+      return { ok: false, error: 'unauthorized', status: reportRes.status }
+    }
+
+    lastStatus = reportRes.status
+    if (!reportRes.ok && reportRes.status !== 207) {
+      lastDetail = `REPORT ${reportRes.status} (Depth ${attempt.depth})`
+      continue
+    }
+
+    const xmlText = await reportRes.text()
+    const parsed = parseReportResponse(xmlText, rangeStart, rangeEnd)
+    if (parsed.ok) {
+      return { ok: true, occurrences: parsed.occurrences, via: 'report' }
+    }
+    lastDetail = 'REPORT 207 without calendar-data'
   }
 
-  const occ = expandParts(chunks, rangeStart, rangeEnd)
-  return { ok: true, occurrences: occ, via: 'report' }
+  if (lastStatus > 0) {
+    return { ok: false, error: 'upstream_http', status: lastStatus, detail: lastDetail || undefined }
+  }
+  return { ok: false, error: 'upstream_network', status: 0, detail: lastDetail || 'REPORT failed' }
 }
