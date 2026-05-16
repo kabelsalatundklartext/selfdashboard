@@ -79,6 +79,9 @@ export async function POST(req: Request) {
         uid: clampStr(body.uid, 240),
         objectUrl: clampStr(body.objectUrl, 2000),
         etag: clampStr(body.etag, 200),
+        allDay: body.allDay === true,
+        startTime: clampStr(body.startTime, 5),
+        endTime: clampStr(body.endTime, 5),
       },
       ac.signal,
     )

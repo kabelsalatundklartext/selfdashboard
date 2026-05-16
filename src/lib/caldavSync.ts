@@ -1,5 +1,5 @@
 import { createDAVClient, type DAVCalendar, type DAVCalendarObject } from 'tsdav'
-import { buildAllDayVeventIcs, expandIcsString, newCalDavUid, type IcsOccurrence } from '@/lib/calendarIcs'
+import { buildVeventIcs, expandIcsString, newCalDavUid, type IcsOccurrence } from '@/lib/calendarIcs'
 import {
   buildBegendaCalendarUrl,
   CALENDAR_FETCH_TIMEOUT_MS,
@@ -204,6 +204,9 @@ export async function writeCalDavAllDayEvent(
     uid?: string
     objectUrl?: string
     etag?: string
+    allDay?: boolean
+    startTime?: string
+    endTime?: string
   },
   signal: AbortSignal,
 ): Promise<CaldavWriteResult> {
@@ -218,7 +221,14 @@ export async function writeCalDavAllDayEvent(
         return { ok: false, error: 'bad_request', detail: 'title and date (YYYY-MM-DD) required' }
       }
       const uid = fields.uid?.trim() || newCalDavUid()
-      const iCalString = buildAllDayVeventIcs({ uid, title, date })
+      const iCalString = buildVeventIcs({
+        uid,
+        title,
+        date,
+        allDay: fields.allDay,
+        startTime: fields.startTime,
+        endTime: fields.endTime,
+      })
       const filename = calFilenameForUid(uid)
       const res = await conn.client.createCalendarObject({
         calendar: conn.calendar,
@@ -241,7 +251,14 @@ export async function writeCalDavAllDayEvent(
       if (!objectUrl || !title || !date || !uid || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return { ok: false, error: 'bad_request', detail: 'objectUrl, uid, title and date required' }
       }
-      const iCalString = buildAllDayVeventIcs({ uid, title, date })
+      const iCalString = buildVeventIcs({
+        uid,
+        title,
+        date,
+        allDay: fields.allDay,
+        startTime: fields.startTime,
+        endTime: fields.endTime,
+      })
       const calendarObject: DAVCalendarObject = {
         url: objectUrl,
         data: iCalString,
@@ -314,6 +331,38 @@ function mergeOccurrences(target: IcsOccurrence[], incoming: IcsOccurrence[]): I
   return target
 }
 
+function objectHasIcsData(obj: { data?: unknown }): boolean {
+  const text = typeof obj.data === 'string' ? obj.data : obj.data != null ? String(obj.data) : ''
+  return Boolean(text && /BEGIN:(VEVENT|VCALENDAR)/i.test(text))
+}
+
+async function hydrateCalendarObjects(
+  client: Awaited<ReturnType<typeof createDAVClient>>,
+  calendar: DAVCalendar,
+  objects: DAVCalendarObject[],
+): Promise<DAVCalendarObject[]> {
+  const needUrls = objects
+    .filter((o) => o.url && !objectHasIcsData(o))
+    .map((o) => o.url)
+  if (!needUrls.length) return objects
+
+  try {
+    const filled = await client.fetchCalendarObjects({
+      calendar,
+      objectUrls: needUrls,
+      useMultiGet: true,
+    })
+    const byUrl = new Map(filled.map((o) => [o.url.replace(/\/$/, '').toLowerCase(), o]))
+    return objects.map((o) => {
+      const hit = byUrl.get(o.url.replace(/\/$/, '').toLowerCase())
+      if (hit?.data) return { ...o, data: hit.data, etag: hit.etag ?? o.etag }
+      return o
+    })
+  } catch {
+    return objects
+  }
+}
+
 async function fetchObjectsForCalendar(
   client: Awaited<ReturnType<typeof createDAVClient>>,
   calendar: DAVCalendar,
@@ -332,12 +381,13 @@ async function fetchObjectsForCalendar(
   let best: IcsOccurrence[] = []
   for (const opts of attempts) {
     try {
-      const objects = await client.fetchCalendarObjects({
+      let objects = await client.fetchCalendarObjects({
         calendar,
         ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
         expand: opts.expand,
         useMultiGet: opts.useMultiGet,
       })
+      objects = await hydrateCalendarObjects(client, calendar, objects)
       const occ = parseCalendarObjects(objects, rangeStart, rangeEnd)
       if (occ.length > best.length) best = occ
       if (occ.length > 0) return occ
@@ -451,26 +501,23 @@ export async function fetchCalDavOccurrencesTsdav(
 
   try {
     let calendar = conn.calendar
-    let occurrences = await fetchObjectsForCalendar(conn.client, calendar, rangeStart, rangeEnd)
+    let occurrences: IcsOccurrence[] = []
+    const allCals = await conn.client.fetchCalendars()
+    const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
+    const seenCal = new Set<string>()
+    for (const cal of targets) {
+      const key = cal.url.replace(/\/$/, '').toLowerCase()
+      if (seenCal.has(key)) continue
+      seenCal.add(key)
+      const occ = await fetchObjectsForCalendar(conn.client, cal, rangeStart, rangeEnd)
+      mergeOccurrences(occurrences, occ)
+    }
 
-    if (
-      occurrences.length === 0 &&
-      calendar.url.replace(/\/$/, '') !== conn.collectionHref.replace(/\/$/, '')
-    ) {
+    if (occurrences.length === 0) {
       const direct = { url: conn.collectionHref, displayName: 'calendar' } as DAVCalendar
       const directOcc = await fetchObjectsForCalendar(conn.client, direct, rangeStart, rangeEnd)
       mergeOccurrences(occurrences, directOcc)
       if (directOcc.length > 0) calendar = direct
-    }
-
-    if (occurrences.length === 0) {
-      const allCals = await conn.client.fetchCalendars()
-      const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
-      for (const cal of targets) {
-        if (cal.url.replace(/\/$/, '') === calendar.url.replace(/\/$/, '')) continue
-        const occ = await fetchObjectsForCalendar(conn.client, cal, rangeStart, rangeEnd)
-        mergeOccurrences(occurrences, occ)
-      }
     }
 
     return { ok: true, occurrences, via: 'tsdav', calendarUrl: calendar.url }

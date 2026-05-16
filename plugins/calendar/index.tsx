@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.1.1',
+  version: '2.2.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -83,16 +83,61 @@ export const meta: PluginMeta = {
 type WeekStartMode = 'auto' | 'monday' | 'sunday'
 type CalendarViewMode = 'month' | 'week'
 
-/** Ein Termin = ganztägig, lokales Datum YYYY-MM-DD (gespeichert in `config.events`). */
+/** Termin in `config.events` — ganztägig oder mit lokalem Zeitfenster (HH:mm). */
 interface CalendarEventRow {
   id: string
   title: string
   date: string
+  allDay?: boolean
+  startTime?: string
+  endTime?: string
   /** CalDAV UID nach erfolgreichem Push. */
   caldavUid?: string
   caldavHref?: string
   caldavEtag?: string
   feedIndex?: number
+}
+
+type EventEditDraft = {
+  id: string
+  title: string
+  date: string
+  allDay: boolean
+  startTime: string
+  endTime: string
+}
+
+function eventTimeLabel(ev: { allDay?: boolean; startTime?: string; endTime?: string }, de: boolean): string {
+  if (ev.allDay === true || (!ev.startTime && ev.allDay !== false)) {
+    return de ? 'ganztägig' : 'all day'
+  }
+  if (ev.startTime && ev.endTime) return `${ev.startTime}–${ev.endTime}`
+  return ev.startTime ?? ''
+}
+
+function caldavTimeFields(row: CalendarEventRow): { allDay: boolean; startTime: string; endTime: string } {
+  if (row.allDay === true || (!row.startTime && row.allDay !== false)) {
+    return { allDay: true, startTime: '', endTime: '' }
+  }
+  return {
+    allDay: false,
+    startTime: row.startTime ?? '09:00',
+    endTime: row.endTime ?? '10:00',
+  }
+}
+
+function rowFromEditDraft(d: EventEditDraft): CalendarEventRow {
+  if (d.allDay) {
+    return { id: d.id, title: d.title, date: d.date, allDay: true }
+  }
+  return {
+    id: d.id,
+    title: d.title,
+    date: d.date,
+    allDay: false,
+    startTime: d.startTime,
+    endTime: d.endTime,
+  }
 }
 
 function newEventId(): string {
@@ -118,10 +163,14 @@ function parseEvents(raw: unknown): CalendarEventRow[] {
       typeof feedIndexRaw === 'number' && Number.isInteger(feedIndexRaw) && feedIndexRaw >= 0 && feedIndexRaw < 4
         ? feedIndexRaw
         : undefined
+    const startTime = str(o.startTime).slice(0, 5)
+    const endTime = str(o.endTime).slice(0, 5)
+    const allDay = o.allDay === true || (!startTime && o.allDay !== false)
     out.push({
       id,
       title,
       date,
+      ...(allDay ? { allDay: true } : { allDay: false, startTime: startTime || '09:00', endTime: endTime || '10:00' }),
       ...(caldavUid ? { caldavUid } : {}),
       ...(caldavHref ? { caldavHref } : {}),
       ...(caldavEtag ? { caldavEtag } : {}),
@@ -388,6 +437,51 @@ async function postCalDavWrite(
   return { ok: true, data: { uid: j.uid, objectUrl: j.objectUrl, etag: j.etag ?? null } }
 }
 
+function EventTimeFields({
+  de,
+  allDay,
+  startTime,
+  endTime,
+  onAllDay,
+  onStart,
+  onEnd,
+  inpStyle,
+}: {
+  de: boolean
+  allDay: boolean
+  startTime: string
+  endTime: string
+  onAllDay: (v: boolean) => void
+  onStart: (v: string) => void
+  onEnd: (v: string) => void
+  inpStyle: CSSProperties
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={allDay} onChange={(e) => onAllDay(e.target.checked)} />
+        {de ? 'Ganztägig' : 'All day'}
+      </label>
+      {!allDay ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Von' : 'From'}
+            </span>
+            <input style={inpStyle} type="time" value={startTime} onChange={(e) => onStart(e.target.value)} />
+          </div>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Bis' : 'To'}
+            </span>
+            <input style={inpStyle} type="time" value={endTime} onChange={(e) => onEnd(e.target.value)} />
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </motion.div>
+  )
+}
+
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -588,6 +682,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               uid: row.caldavUid,
               objectUrl: row.caldavHref,
               etag: row.caldavEtag ?? '',
+              ...caldavTimeFields(row),
             },
             de,
           )
@@ -611,6 +706,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
             title: row.title,
             date: row.date,
             uid: row.caldavUid ?? '',
+            ...caldavTimeFields(row),
           },
           de,
         )
@@ -636,13 +732,19 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [, setMinuteTick] = useState(0)
   const [pickerYmd, setPickerYmd] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
-  const [editing, setEditing] = useState<{ id: string; title: string; date: string } | null>(null)
+  const [newAllDay, setNewAllDay] = useState(true)
+  const [newStartTime, setNewStartTime] = useState('09:00')
+  const [newEndTime, setNewEndTime] = useState('10:00')
+  const [editing, setEditing] = useState<EventEditDraft | null>(null)
   const [dayModalMounted, setDayModalMounted] = useState(false)
 
   const closeDayModal = useCallback(() => {
     setPickerYmd(null)
     setEditing(null)
     setNewTitle('')
+    setNewAllDay(true)
+    setNewStartTime('09:00')
+    setNewEndTime('10:00')
   }, [])
 
   useEffect(() => {
@@ -784,7 +886,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const addNewEvent = useCallback(() => {
     const t = newTitle.trim()
     if (!t || !pickerYmd || syncBusy) return
-    const draft: CalendarEventRow = { id: newEventId(), title: t.slice(0, 240), date: pickerYmd }
+    const draft: CalendarEventRow = newAllDay
+      ? { id: newEventId(), title: t.slice(0, 240), date: pickerYmd, allDay: true }
+      : {
+          id: newEventId(),
+          title: t.slice(0, 240),
+          date: pickerYmd,
+          allDay: false,
+          startTime: newStartTime,
+          endTime: newEndTime,
+        }
     void (async () => {
       let saved = draft
       if (calDavFeeds.length > 0) {
@@ -796,7 +907,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setNewTitle('')
       if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
     })()
-  }, [newTitle, pickerYmd, events, persistEvents, calDavFeeds.length, pushEventToCalDav, syncBusy])
+  }, [
+    newTitle,
+    newAllDay,
+    newStartTime,
+    newEndTime,
+    pickerYmd,
+    events,
+    persistEvents,
+    calDavFeeds.length,
+    pushEventToCalDav,
+    syncBusy,
+  ])
 
   const saveEditing = useCallback(() => {
     if (!editing || syncBusy) return
@@ -804,7 +926,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(editing.date)) return
     const prev = events.find((e) => e.id === editing.id)
     if (!prev) return
-    const draft: CalendarEventRow = { ...prev, title: t.slice(0, 240), date: editing.date }
+    const draft: CalendarEventRow = { ...prev, ...rowFromEditDraft({ ...editing, title: t.slice(0, 240) }) }
     void (async () => {
       let saved = draft
       if (calDavFeeds.length > 0) {
@@ -1166,58 +1288,35 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </div>
       </div>
 
-      {dayModalMounted &&
-        pickerYmd &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal
-            aria-labelledby="cal-day-dialog-title"
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 10000,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 'max(12px, 2vh)',
-              background: 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(3px)',
-            }}
-            onClick={closeDayModal}
-          >
-            <div
-              role="document"
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: 'min(420px, 100%)',
-                maxHeight: 'min(88vh, 640px)',
-                overflow: 'auto',
-                borderRadius: '12px',
-                border: `1px solid ${border}`,
-                background: 'var(--surface)',
-                boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
-                padding: '16px 18px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                <p
-                  id="cal-day-dialog-title"
-                  style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: text, lineHeight: 1.35 }}
-                >
-                  {lab.dayTitle} {pickerLabel}
-                </p>
-                <button type="button" onClick={closeDayModal} style={chipBtnStyle} aria-label={lab.closeDay}>
-                  {lab.closeDay}
-                </button>
-              </div>
+      {pickerYmd && (
+        <div
+          style={{
+            flexShrink: 0,
+            border: `1px solid color-mix(in srgb, ${border} 70%, transparent)`,
+            borderRadius: '8px',
+            padding: 'clamp(6px, 1.4cqmin, 10px)',
+            background: 'color-mix(in srgb, var(--surface-2) 90%, var(--background))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            maxHeight: '38%',
+            overflow: 'auto',
+            minHeight: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <p style={{ margin: 0, fontSize: 'clamp(10px, 2.3cqmin, 12px)', fontWeight: 700, color: text }}>
+              {lab.dayTitle} {pickerLabel}
+            </p>
+            <button type="button" onClick={() => setPickerYmd(null)} style={chipBtnStyle}>
+              {lab.closeDay}
+            </button>
+          </div>
+
           {dayRemoteEvents.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                {de ? 'Extern (CalDAV)' : 'External (CalDAV)'}
+                {de ? 'ICS / CalDAV' : 'ICS / CalDAV'}
               </p>
               {dayRemoteEvents.map((rev) => (
                 <div
@@ -1279,6 +1378,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   value={editing.date}
                   onChange={(e) => setEditing({ ...editing, date: e.target.value })}
                 />
+                <EventTimeFields
+                  de={de}
+                  allDay={editing.allDay}
+                  startTime={editing.startTime}
+                  endTime={editing.endTime}
+                  inpStyle={inpSmall}
+                  onAllDay={(v) => setEditing({ ...editing, allDay: v })}
+                  onStart={(v) => setEditing({ ...editing, startTime: v })}
+                  onEnd={(v) => setEditing({ ...editing, endTime: v })}
+                />
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <button type="button" onClick={saveEditing} style={primarySmallBtnStyle}>
                     {lab.save}
@@ -1304,6 +1413,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                 }}
               >
                 <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: muted, fontSize: '10px', marginRight: '6px' }}>{eventTimeLabel(ev, de)}</span>
                   {ev.title}
                   {ev.caldavUid && calDavFeeds.length > 0 ? (
                     <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'CalDAV' : 'CalDAV'}</span>
@@ -1312,7 +1422,20 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   ) : null}
                 </span>
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                  <button type="button" onClick={() => setEditing({ id: ev.id, title: ev.title, date: ev.date })} style={chipBtnStyle}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditing({
+                        id: ev.id,
+                        title: ev.title,
+                        date: ev.date,
+                        allDay: ev.allDay === true || (!ev.startTime && ev.allDay !== false),
+                        startTime: ev.startTime ?? '09:00',
+                        endTime: ev.endTime ?? '10:00',
+                      })
+                    }
+                    style={chipBtnStyle}
+                  >
                     {lab.edit}
                   </button>
                   <button type="button" onClick={() => deleteEvent(ev.id)} style={chipBtnStyle}>
@@ -1324,7 +1447,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           )}
 
           {!editing && (
-            <div
+            <motion.div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -1349,6 +1472,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                   }
                 }}
               />
+              <EventTimeFields
+                de={de}
+                allDay={newAllDay}
+                startTime={newStartTime}
+                endTime={newEndTime}
+                inpStyle={{ ...inpSmall, fontSize: '14px', padding: '8px 10px' }}
+                onAllDay={setNewAllDay}
+                onStart={setNewStartTime}
+                onEnd={setNewEndTime}
+              />
               <button
                 type="button"
                 onClick={addNewEvent}
@@ -1363,10 +1496,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               </button>
             </div>
           )}
-            </div>
-          </div>,
-          document.body,
-        )}
+        </div>
+      )}
 
       {showEventList && (
         <div

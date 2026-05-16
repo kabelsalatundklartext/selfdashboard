@@ -161,10 +161,74 @@ export function newCalDavUid(): string {
 
 /** Ganztägiges VEVENT als iCalendar-Text (CalDAV PUT). */
 export function buildAllDayVeventIcs(params: { uid: string; title: string; date: string }): string {
-  const dtStart = params.date.replace(/-/g, '')
-  const dtEnd = nextYmd(params.date).replace(/-/g, '')
+  return buildVeventIcs({ ...params, allDay: true })
+}
+
+function parseHm(hm: string): { h: number; m: number } | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hm.trim())
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null
+  return { h, m: min }
+}
+
+function localDtStamp(y: number, mo: number, d: number, h: number, mi: number): string {
+  return `${y}${pad2(mo)}${pad2(d)}T${pad2(h)}${pad2(mi)}00`
+}
+
+/** VEVENT mit optionalem Zeitfenster (lokale Zeit, ohne TZID — kompatibel mit WEB.DE). */
+export function buildVeventIcs(params: {
+  uid: string
+  title: string
+  date: string
+  allDay?: boolean
+  startTime?: string
+  endTime?: string
+}): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z?$/, 'Z')
   const summary = escapeIcsText(params.title.trim().slice(0, 240) || '(no title)')
+  const [y, mo, d] = params.date.split('-').map(Number)
+  if (!y || !mo || !d) {
+    return buildAllDayVeventIcs({ uid: params.uid, title: params.title, date: params.date })
+  }
+
+  const timed = params.allDay !== true && params.startTime && params.endTime
+  if (!timed) {
+    const dtStart = params.date.replace(/-/g, '')
+    const dtEnd = nextYmd(params.date).replace(/-/g, '')
+    return [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//SelfDashboard//CalDAV//EN',
+      'CALSCALE:GREGORIAN',
+      'BEGIN:VEVENT',
+      `UID:${params.uid}`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${dtStart}`,
+      `DTEND;VALUE=DATE:${dtEnd}`,
+      `SUMMARY:${summary}`,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n')
+  }
+
+  const st = parseHm(params.startTime!) ?? { h: 9, m: 0 }
+  let en = parseHm(params.endTime!) ?? { h: 10, m: 0 }
+  let endY = y
+  let endMo = mo
+  let endD = d
+  if (st.h * 60 + st.m >= en.h * 60 + en.m) {
+    const next = new Date(y, mo - 1, d + 1, 12, 0, 0, 0)
+    endY = next.getFullYear()
+    endMo = next.getMonth() + 1
+    endD = next.getDate()
+    if (en.h === st.h && en.m === st.m) {
+      en = { h: st.h + 1 > 23 ? 23 : st.h + 1, m: st.m }
+    }
+  }
+  const dtStart = localDtStamp(y, mo, d, st.h, st.m)
+  const dtEnd = localDtStamp(endY, endMo, endD, en.h, en.m)
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -173,8 +237,8 @@ export function buildAllDayVeventIcs(params: { uid: string; title: string; date:
     'BEGIN:VEVENT',
     `UID:${params.uid}`,
     `DTSTAMP:${stamp}`,
-    `DTSTART;VALUE=DATE:${dtStart}`,
-    `DTEND;VALUE=DATE:${dtEnd}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
     `SUMMARY:${summary}`,
     'END:VEVENT',
     'END:VCALENDAR',
