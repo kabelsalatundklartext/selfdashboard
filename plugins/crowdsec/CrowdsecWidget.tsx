@@ -514,15 +514,31 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
                 daysBack: String(Math.round(num(config.daysBack, 365))),
                 serverLat: String(num(config.serverLat, 0)),
                 serverLon: String(num(config.serverLon, 0)),
+                probe: '1',
               })
               const res = await fetch(`/api/crowdsec?${q}`, { cache: 'no-store' })
               if (!res.ok) {
                 const j = (await res.json().catch(() => ({}))) as { error?: string }
                 throw new Error(j.error || `HTTP ${res.status}`)
               }
-              const j = (await res.json()) as { totalAlerts?: number }
+              const j = (await res.json()) as {
+                totalAlerts?: number
+                probe?: { totalInDb: number; feedRows: number; mapPoints: number }
+              }
               setTestState('ok')
-              setTestMsg(de ? `OK — ${j.totalAlerts ?? 0} Alerts` : `OK — ${j.totalAlerts ?? 0} alerts`)
+              const n = j.totalAlerts ?? 0
+              const inDb = j.probe?.totalInDb ?? 0
+              if (n > 0) {
+                setTestMsg(de ? `OK — ${n} Alerts (${j.probe?.feedRows ?? n} im Feed)` : `OK — ${n} alerts (${j.probe?.feedRows ?? n} in feed)`)
+              } else if (inDb > 0) {
+                setTestMsg(
+                  de
+                    ? `DB hat ${inDb} Alerts, aber 0 im Zeitraum — „Historie (Tage)“ erhöhen oder cscli alerts list prüfen`
+                    : `DB has ${inDb} alerts but 0 in range — increase “History (days)” or check cscli alerts list`,
+                )
+              } else {
+                setTestMsg(de ? 'OK — DB erreichbar, noch keine Alerts in crowdsec.db' : 'OK — DB reachable, no alerts in crowdsec.db yet')
+              }
             } catch (e) {
               setTestState('fail')
               setTestMsg(formatCrowdsecError(e instanceof Error ? e.message : 'fetch_failed', de))

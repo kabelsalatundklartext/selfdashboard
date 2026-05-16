@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { loadFromCrowdsecDb, resolveCrowdsecDbPath } from '@/lib/crowdsecDb'
+import { loadFromCrowdsecDb, probeCrowdsecDb, resolveCrowdsecDbPath } from '@/lib/crowdsecDb'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
   const serverLon = Number(sp.get('serverLon') || 0)
   const serverName = sp.get('serverName')?.trim() || 'Server'
   const dbPathRaw = sp.get('dbPath')?.trim() || process.env.CROWDSEC_DB_PATH || '/crowdsec-data/crowdsec.db'
+  const probe = sp.get('probe') === '1'
 
   try {
     const dbPath = resolveCrowdsecDbPath(dbPathRaw)
@@ -20,6 +21,10 @@ export async function GET(req: NextRequest) {
       serverLon,
       serverName,
     })
+    if (probe) {
+      const stats = probeCrowdsecDb(dbPath, daysBack)
+      return NextResponse.json({ ...data, probe: stats })
+    }
     return NextResponse.json(data)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'db_error'

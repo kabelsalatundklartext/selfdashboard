@@ -14,31 +14,90 @@ export type CrowdsecDbOptions = {
   maxAlerts?: number
 }
 
+type AlertRow = {
+  scenario: string | null
+  ip: string | null
+  country: string | null
+  as_name: string | null
+  as_number: string | null
+  ip_range: string | null
+  latitude: number | null
+  longitude: number | null
+  active_ban: number | null
+  created_at: unknown
+  started_at: unknown
+  stopped_at: unknown
+  event_serialized: string | null
+}
+
 function cleanScenario(scenario: string): string {
   const i = scenario.indexOf('/')
   return i >= 0 ? scenario.slice(i + 1) : scenario
 }
 
-function parseCreatedAt(raw: unknown): Date | null {
+/** Parse CrowdSec/ent timestamps (RFC3339, SQLite datetime, unix s/ms/ns). */
+export function parseCreatedAt(raw: unknown): Date | null {
   if (raw == null) return null
   if (typeof raw === 'number') {
-    const d = new Date(raw * (raw < 1e12 ? 1000 : 1))
-    return Number.isFinite(d.getTime()) ? d : null
+    const n = raw
+    if (!Number.isFinite(n) || n <= 0) return null
+    if (n > 1e15) return new Date(Math.floor(n / 1_000_000))
+    if (n > 1e12) return new Date(n)
+    if (n > 1e9) return new Date(n * 1000)
+    return null
   }
   const s = String(raw).trim()
   if (!s) return null
-  const normalized = s.includes('T') ? s : s.replace(' ', 'T')
-  const d = new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`)
-  if (!Number.isFinite(d.getTime()) || d.getTime() < 1e12) return null
+  let d = new Date(s)
+  if (!Number.isFinite(d.getTime())) {
+    const normalized = s.includes('T') ? s : s.replace(' ', 'T')
+    d = new Date(normalized.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(normalized) ? normalized : `${normalized}Z`)
+  }
+  if (!Number.isFinite(d.getTime()) || d.getFullYear() < 2000) return null
   return d
 }
 
-function alertCreatedTsExpr(): string {
-  return `CASE
-    WHEN a.created_at IS NULL THEN 0
-    WHEN typeof(a.created_at) IN ('integer', 'real') THEN CAST(a.created_at AS INTEGER)
-    ELSE CAST(strftime('%s', a.created_at) AS INTEGER)
-  END`
+function rowTimestamp(row: AlertRow): Date | null {
+  return parseCreatedAt(row.created_at) ?? parseCreatedAt(row.started_at) ?? parseCreatedAt(row.stopped_at)
+}
+
+function extractIpFromSerialized(serialized: string | null | undefined): string {
+  if (!serialized) return ''
+  const s = serialized.trim()
+  if (!s) return ''
+  try {
+    const o = JSON.parse(s) as Record<string, unknown>
+    const meta = o.Meta as Record<string, unknown> | undefined
+    const fromMeta = meta?.source_ip ?? meta?.SourceIP
+    if (typeof fromMeta === 'string' && fromMeta.trim()) return fromMeta.trim()
+    if (typeof o.source_ip === 'string' && o.source_ip.trim()) return o.source_ip.trim()
+    const src = o.Source as Record<string, unknown> | undefined
+    if (src && typeof src.ip === 'string' && src.ip.trim()) return src.ip.trim()
+    if (src && typeof src.value === 'string' && src.value.trim()) return src.value.trim()
+  } catch {
+    /* regex fallback */
+  }
+  const m = s.match(/"source_ip"\s*:\s*"([^"\\]+)"/i)
+  return m?.[1]?.trim() ?? ''
+}
+
+function extractCountryFromSerialized(serialized: string | null | undefined): string {
+  if (!serialized) return ''
+  try {
+    const o = JSON.parse(serialized) as Record<string, unknown>
+    const meta = o.Meta as Record<string, unknown> | undefined
+    const cc = meta?.source_country ?? meta?.SourceCountry
+    if (typeof cc === 'string' && cc.trim()) return cc.trim().toUpperCase()
+  } catch {
+    /* ignore */
+  }
+  return ''
+}
+
+function isUsableIp(ip: string): boolean {
+  const v = ip.trim()
+  if (!v || v === '127.0.0.1' || v === '::1') return false
+  return true
 }
 
 function buildAlertsSql(db: Database.Database): string {
@@ -48,11 +107,11 @@ function buildAlertsSql(db: Database.Database): string {
     throw new Error('db_schema_unsupported')
   }
 
-  const ipExpr = names.has('source_value')
-    ? `COALESCE(NULLIF(TRIM(a.source_value), ''), NULLIF(TRIM(a.source_ip), ''))`
-    : names.has('source_ip')
-      ? `NULLIF(TRIM(a.source_ip), '')`
-      : `NULLIF(TRIM(a.source_value), '')`
+  const ipExpr = names.has('source_ip')
+    ? `COALESCE(NULLIF(TRIM(a.source_ip), ''), NULLIF(TRIM(a.source_value), ''))`
+    : names.has('source_value')
+      ? `NULLIF(TRIM(a.source_value), '')`
+      : `''`
 
   const countryCol = names.has('source_country') ? 'a.source_country' : "''"
   const asNameCol = names.has('source_as_name') ? 'a.source_as_name' : "''"
@@ -60,14 +119,22 @@ function buildAlertsSql(db: Database.Database): string {
   const rangeCol = names.has('source_range') ? 'a.source_range' : "''"
   const latCol = names.has('source_latitude') ? 'a.source_latitude' : '0'
   const lonCol = names.has('source_longitude') ? 'a.source_longitude' : '0'
-  const tsExpr = alertCreatedTsExpr()
+  const startedCol = names.has('started_at') ? 'a.started_at' : 'NULL'
+  const stoppedCol = names.has('stopped_at') ? 'a.stopped_at' : 'NULL'
 
+  const eventTables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
+    .all() as { name: string }[]
+  const eventSerializedExpr =
+    eventTables.length > 0
+      ? `(SELECT e.serialized FROM events e WHERE e.alert_events = a.id ORDER BY e.id DESC LIMIT 1)`
+      : 'NULL'
+
+  let activeBanExpr = '0'
   const decisionTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
     .all() as { name: string }[]
-  const hasDecisions = decisionTables.length > 0
-  let activeBanExpr = '0'
-  if (hasDecisions) {
+  if (decisionTables.length > 0) {
     const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
     const dNames = new Set(dCols.map((c) => c.name))
     if (dNames.has('alert_decisions')) {
@@ -88,25 +155,14 @@ SELECT
   ${latCol} AS latitude,
   ${lonCol} AS longitude,
   ${activeBanExpr} AS active_ban,
-  a.created_at
+  a.created_at,
+  ${startedCol} AS started_at,
+  ${stoppedCol} AS stopped_at,
+  ${eventSerializedExpr} AS event_serialized
 FROM alerts a
-WHERE ${tsExpr} >= ?
-ORDER BY ${tsExpr} DESC
+ORDER BY a.id DESC
 LIMIT ?
 `
-}
-
-type AlertRow = {
-  scenario: string | null
-  ip: string | null
-  country: string | null
-  as_name: string | null
-  as_number: string | null
-  ip_range: string | null
-  latitude: number | null
-  longitude: number | null
-  active_ban: number | null
-  created_at: unknown
 }
 
 const ALLOWED_DB_ROOTS = () => {
@@ -136,7 +192,7 @@ export function resolveCrowdsecDbPath(userPath: string): string {
 export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {}): ParsedCrowdsecMetrics {
   const daysBack = Math.min(3650, Math.max(1, opts.daysBack ?? 365))
   const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 2000))
-  const cutoff = Math.floor(Date.now() / 1000) - daysBack * 86400
+  const cutoffMs = Date.now() - daysBack * 86400 * 1000
   const serverLat = opts.serverLat ?? 0
   const serverLon = opts.serverLon ?? 0
   const serverName = opts.serverName ?? 'Server'
@@ -144,23 +200,33 @@ export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {})
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
   try {
     const sql = buildAlertsSql(db)
-    const rows = db.prepare(sql).all(cutoff, maxAlerts) as AlertRow[]
+    const rows = db.prepare(sql).all(maxAlerts) as AlertRow[]
     const feedData: FeedItem[] = []
     const feedSeen = new Set<string>()
     const flowMap = new Map<string, AttackPoint>()
     let totalAlerts = 0
 
     for (const row of rows) {
-      const ip = row.ip ? String(row.ip).trim() : ''
       const scenario = row.scenario ? String(row.scenario).trim() : ''
-      if (!ip || !scenario || scenario === 'unknown') continue
+      if (!scenario || scenario === 'unknown') continue
 
-      const country = row.country ? String(row.country).trim() || '??' : '??'
+      let ip = row.ip ? String(row.ip).trim() : ''
+      if (!isUsableIp(ip)) {
+        ip = extractIpFromSerialized(row.event_serialized)
+      }
+      if (!isUsableIp(ip)) continue
+
+      const dt = rowTimestamp(row)
+      if (!dt) continue
+      if (dt.getTime() < cutoffMs) continue
+
+      let country = row.country ? String(row.country).trim().toUpperCase() : ''
+      if (!country || country === '??') {
+        country = extractCountryFromSerialized(row.event_serialized) || '??'
+      }
+
       const asnumber = row.as_number != null ? String(row.as_number) : ''
       const iprange = row.ip_range ? String(row.ip_range) : ''
-
-      const dt = parseCreatedAt(row.created_at)
-      if (!dt) continue
 
       const scenarioClean = cleanScenario(scenario)
       let lat = row.latitude != null ? Number(row.latitude) : 0
@@ -219,6 +285,29 @@ export function loadFromCrowdsecDb(dbPath: string, opts: CrowdsecDbOptions = {})
       serverLat,
       serverLon,
       serverName,
+    }
+  } finally {
+    db.close()
+  }
+}
+
+/** Lightweight DB probe for settings “test connection”. */
+export function probeCrowdsecDb(dbPath: string, daysBack = 365): {
+  totalInDb: number
+  totalAlerts: number
+  feedRows: number
+  mapPoints: number
+} {
+  const resolved = resolveCrowdsecDbPath(dbPath)
+  const db = new Database(resolved, { readonly: true, fileMustExist: true })
+  try {
+    const totalInDb = (db.prepare('SELECT COUNT(*) AS c FROM alerts').get() as { c: number }).c
+    const parsed = loadFromCrowdsecDb(resolved, { daysBack, maxAlerts: 3000 })
+    return {
+      totalInDb,
+      totalAlerts: parsed.totalAlerts,
+      feedRows: parsed.feedData.length,
+      mapPoints: parsed.attackData.length,
     }
   } finally {
     db.close()
