@@ -64,17 +64,21 @@ function serverUrlFromCalendarHref(href: string): string {
   return `${u.protocol}//${u.host}`
 }
 
-function pickCalendar(calendars: DAVCalendar[], collectionHref: string): DAVCalendar | null {
-  if (!calendars.length) return null
+function pickCalendar(
+  calendars: DAVCalendar[] | undefined | null,
+  collectionHref: string,
+): DAVCalendar | null {
+  const list = calendars ?? []
+  if (!list.length) return null
   const norm = collectionHref.replace(/\/$/, '').toLowerCase()
-  const exact = calendars.find((c) => c.url.replace(/\/$/, '').toLowerCase() === norm)
+  const exact = list.find((c) => c.url.replace(/\/$/, '').toLowerCase() === norm)
   if (exact) return exact
-  const nested = calendars.find((c) => {
+  const nested = list.find((c) => {
     const cu = c.url.replace(/\/$/, '').toLowerCase()
     return norm.startsWith(cu) || cu.startsWith(norm)
   })
   if (nested) return nested
-  return calendars[0] ?? null
+  return list[0] ?? null
 }
 
 function displayNameOf(cal: DAVCalendar): string {
@@ -184,7 +188,7 @@ async function connectCalDav(
         fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
     })
 
-    const calendars = await client.fetchCalendars()
+    const calendars = (await client.fetchCalendars()) ?? []
     let calendar = pickCalendar(calendars, collectionHref)
     if (!calendar) {
       calendar = { url: collectionHref, displayName: 'calendar' } as DAVCalendar
@@ -298,7 +302,8 @@ export async function writeCalDavAllDayEvent(
       etag: fields.etag,
     }
     const res = await conn.client.deleteCalendarObject({ calendarObject })
-    if (!res.ok && res.status !== 404) {
+    // 404 = schon weg; 412 = veraltetes ETag (z. B. bereits in WEB.DE gelöscht)
+    if (!res.ok && res.status !== 404 && res.status !== 412) {
       return mapWriteHttpError(res.status, `delete failed (${res.status})`)
     }
     return {
@@ -477,6 +482,8 @@ async function fetchObjectsViaListAndGet(
   const objects: DAVCalendarObject[] = []
   const seenUrl = new Set<string>()
 
+  if (!Array.isArray(responses)) return []
+
   for (const res of responses) {
     const href = resolveObjectHref(res.href ?? '', calendar.url)
     if (!href || !caldavObjectUrlFilter(href)) continue
@@ -530,14 +537,15 @@ async function fetchObjectsForCalendar(
   let bestRaw = 0
   for (const opts of attempts) {
     try {
-      let objects = await client.fetchCalendarObjects({
-        calendar,
-        ...(opts.filters ? { filters: opts.filters } : {}),
-        ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
-        expand: opts.expand,
-        useMultiGet: opts.useMultiGet,
-        urlFilter,
-      })
+      let objects =
+        (await client.fetchCalendarObjects({
+          calendar,
+          ...(opts.filters ? { filters: opts.filters } : {}),
+          ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
+          expand: opts.expand,
+          useMultiGet: opts.useMultiGet,
+          urlFilter,
+        })) ?? []
       const rawListed = objects.length
       objects = await hydrateCalendarObjects(calendar, objects, username, password, signal)
       const withData = objects.filter((o) => objectHasIcsData(o)).length
@@ -568,13 +576,14 @@ async function fetchObjectsForCalendar(
 }
 
 function calendarsForFetch(
-  all: DAVCalendar[],
+  all: DAVCalendar[] | undefined | null,
   collectionHref: string,
   primary: DAVCalendar,
 ): DAVCalendar[] {
-  if (!all.length) return [primary]
+  const list = all ?? []
+  if (!list.length) return [primary]
   const norm = collectionHref.replace(/\/$/, '').toLowerCase()
-  const related = all.filter((c) => {
+  const related = list.filter((c) => {
     const u = c.url.replace(/\/$/, '').toLowerCase()
     if (u === norm || norm.startsWith(u) || u.startsWith(norm)) return true
     if (/\/begenda\/dav\//i.test(norm) && /begenda/i.test(u)) {
@@ -585,7 +594,7 @@ function calendarsForFetch(
   })
   if (related.length > 0) return related
   // WEB.DE: alle entdeckten Kalender durchsuchen, falls die konfigurierte URL nicht die Event-Collection ist
-  if (/\/begenda\/dav\//i.test(norm) && all.length > 0) return all
+  if (/\/begenda\/dav\//i.test(norm) && list.length > 0) return list
   return [primary]
 }
 
@@ -625,7 +634,7 @@ export async function discoverCalDavCalendars(
         fetch(input, { ...init, signal: ac.signal, cache: 'no-store', redirect: 'follow' }),
     })
 
-    const calendars = await client.fetchCalendars()
+    const calendars = (await client.fetchCalendars()) ?? []
     const list = calendars.map((c) => ({
       url: c.url,
       displayName: displayNameOf(c),
@@ -674,7 +683,7 @@ export async function fetchCalDavOccurrencesTsdav(
     let calendar = conn.calendar
     let occurrences: IcsOccurrence[] = []
     let rawObjectCount = 0
-    const allCals = await conn.client.fetchCalendars()
+    const allCals = (await conn.client.fetchCalendars()) ?? []
     const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
     const seenCal = new Set<string>()
     for (const cal of targets) {

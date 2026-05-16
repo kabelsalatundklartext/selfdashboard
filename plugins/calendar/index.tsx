@@ -2,8 +2,8 @@
 
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
+import { DayEventModal } from './DayEventModal'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { reportClientLog } from '@/lib/reportLog'
@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.3.0',
+  version: '2.3.1',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -792,15 +792,6 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   useEffect(() => {
     setDayModalMounted(true)
   }, [])
-
-  useEffect(() => {
-    if (!pickerYmd) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeDayModal()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [pickerYmd, closeDayModal])
 
   useEffect(() => {
     const id = window.setInterval(() => setMinuteTick((n) => n + 1), 60_000)
