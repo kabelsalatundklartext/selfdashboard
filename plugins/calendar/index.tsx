@@ -13,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.3.2',
+  version: '2.4.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -226,7 +226,7 @@ interface RemoteCalEvent {
   timeLabel?: string | null
   feedIndex: number
   feedName?: string
-  sourceKind: 'caldav'
+  sourceKind: 'caldav' | 'ics'
 }
 
 type ListEntry =
@@ -256,6 +256,24 @@ function parseCalDavFeeds(raw: unknown): CalDavFeedConfig[] {
 }
 
 /** Wie {@link parseCalDavFeeds}, behält aber leere URLs (neue Zeile in den Einstellungen). */
+function parseIcsFeeds(raw: unknown): IcsFeedConfig[] {
+  if (!Array.isArray(raw)) return []
+  const out: IcsFeedConfig[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const url = str(o.url).slice(0, 2000)
+    if (!url) continue
+    const name = str(o.name)
+    out.push({
+      url,
+      ...(name ? { name: name.slice(0, 120) } : {}),
+    })
+    if (out.length >= 8) break
+  }
+  return out
+}
+
 function parseIcsFeedsDraft(raw: unknown): IcsFeedConfig[] {
   if (!Array.isArray(raw)) return []
   const out: IcsFeedConfig[] = []
@@ -523,9 +541,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
 
   const rawEvents = (config as Record<string, unknown>).events
   const rawCalDavFeeds = (config as Record<string, unknown>).caldavFeeds
+  const rawIcsFeeds = (config as Record<string, unknown>).icsFeeds
   const cfg = config as Record<string, unknown>
   const events = useMemo(() => parseEvents(rawEvents), [rawEvents])
   const calDavFeeds = useMemo(() => parseCalDavFeeds(rawCalDavFeeds), [rawCalDavFeeds])
+  const icsFeeds = useMemo(() => parseIcsFeeds(rawIcsFeeds), [rawIcsFeeds])
   const caldavRefreshMinutes = clampIcsRefresh(cfg.caldavRefreshMinutes ?? cfg.icsRefreshMinutes)
 
   const [remoteEvents, setRemoteEvents] = useState<RemoteCalEvent[]>([])
@@ -538,10 +558,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [fetchDiag, setFetchDiag] = useState<{ raw: number; parsed: number } | null>(null)
 
   useEffect(() => {
-    if (calDavFeeds.length === 0) {
+    if (calDavFeeds.length === 0 && icsFeeds.length === 0) {
       setRemoteEvents([])
       setRemoteErrors({})
       setRemoteLoading(false)
+      setFetchDiag(null)
       return
     }
 
@@ -624,6 +645,47 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           errs[`dav:${i}`] = e instanceof Error ? e.message : String(e)
         }
       }
+
+      for (let i = 0; i < icsFeeds.length; i++) {
+        const feed = icsFeeds[i]!
+        try {
+          const res = await fetch('/api/calendar-ics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: feed.url,
+              windowStart: winStart.toISOString(),
+              windowEnd: winEnd.toISOString(),
+            }),
+          })
+          const j = (await res.json()) as {
+            ok?: boolean
+            error?: string
+            detail?: string
+            events?: { id: string; uid?: string; title: string; date: string; timeLabel?: string | null }[]
+          }
+          if (!j?.ok) {
+            throw new Error(formatFeedError(j?.error || `http_${res.status}`, j?.detail, de))
+          }
+          const label = feed.name?.trim() || 'ICS'
+          for (const ev of j.events ?? []) {
+            merged.push({
+              id: `ics${i}-${ev.id}`,
+              uid: ev.uid,
+              title: ev.title,
+              date: ev.date,
+              timeLabel: ev.timeLabel,
+              feedIndex: i,
+              feedName: label,
+              sourceKind: 'ics',
+            })
+          }
+          totalParsed += (j.events ?? []).length
+        } catch (e) {
+          errs[`ics:${i}`] = e instanceof Error ? e.message : String(e)
+        }
+      }
+
       if (!cancelled) {
         setFetchDiag({ raw: totalRaw, parsed: totalParsed })
         const pruned = pruneLocalEventsAbsentOnCalDav(events, serverUidsByFeed, errs)
@@ -659,7 +721,16 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [calDavFeeds, caldavRefreshMinutes, caldavRefreshTick, de, instanceId, events, updatePluginConfig])
+  }, [
+    calDavFeeds,
+    icsFeeds,
+    caldavRefreshMinutes,
+    caldavRefreshTick,
+    de,
+    instanceId,
+    events,
+    updatePluginConfig,
+  ])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -1129,7 +1200,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </button>
       </div>
 
-      {calDavFeeds.length > 0 && (
+      {(calDavFeeds.length > 0 || icsFeeds.length > 0) && (
         <div
           style={{
             margin: 0,
@@ -1989,6 +2060,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                   <label style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                     iCal / ICS URL (https://…)
                   </label>
+                  <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0 0 6px', lineHeight: 1.4 }}>
+                    {de
+                      ? 'WEB.DE: Kalender-Einstellungen → Zahnrad → Freigeben → „Kalender-URL zum Einbinden“ (nur Lesen). CalDAV unten für Schreiben.'
+                      : 'WEB.DE: Calendar settings → share → embed URL (read-only). Use CalDAV below to push events.'}
+                  </p>
                   <input
                     style={inp}
                     value={feed.url}

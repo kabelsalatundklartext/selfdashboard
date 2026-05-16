@@ -7,6 +7,7 @@ import {
   type DAVCalendar,
   type DAVCalendarObject,
 } from 'tsdav'
+import { fetchOccurrencesRawCaldav } from '@/lib/caldavRaw'
 import { buildVeventIcs, expandIcsString, newCalDavUid, type IcsOccurrence } from '@/lib/calendarIcs'
 import {
   buildBegendaCalendarUrl,
@@ -765,6 +766,60 @@ export async function fetchCalDavOccurrencesTsdav(
   rangeEnd: Date,
   signal: AbortSignal,
 ): Promise<CaldavFetchResult> {
+  const user = normalizeCaldavUsername(username, rawCalendarUrl)
+  const pass = password.trim()
+
+  let collectionHref: string
+  try {
+    collectionHref = resolveCalendarUrlInput(rawCalendarUrl, user)
+    if (isCardDavContactsHost(new URL(collectionHref).hostname)) {
+      return { ok: false, error: 'wrong_dav_service', detail: 'carddav is for contacts' }
+    }
+  } catch (e) {
+    const code = e instanceof Error ? e.message : 'bad_url'
+    return {
+      ok: false,
+      error: code === 'wrong_dav_service' ? 'wrong_dav_service' : 'upstream_http',
+      detail: code,
+    }
+  }
+
+  if (user && pass) {
+    try {
+      const raw = await fetchOccurrencesRawCaldav(
+        collectionHref,
+        user,
+        pass,
+        rangeStart,
+        rangeEnd,
+        signal,
+      )
+      if (!raw.ok) {
+        if (raw.status === 401 || raw.status === 403) {
+          return {
+            ok: false,
+            error: 'unauthorized',
+            status: 401,
+            detail: 'App-Passwort und volle E-Mail prüfen (WEB.DE/GMX)',
+          }
+        }
+      } else if (raw.icsBlocks > 0 || raw.occurrences.length > 0) {
+        return {
+          ok: true,
+          occurrences: raw.occurrences,
+          via: 'tsdav',
+          calendarUrl: collectionHref,
+          rawObjectCount: raw.icsBlocks,
+          calendarsTried: 1,
+        }
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        return { ok: false, error: 'upstream_network', detail: 'timeout' }
+      }
+    }
+  }
+
   const conn = await connectCalDav(rawCalendarUrl, username, password, signal)
   if (!conn.ok) {
     return {
