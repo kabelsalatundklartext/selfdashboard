@@ -1754,11 +1754,6 @@ function CalDavFeedTools({
         detail?: string
         suggestedUrl?: string
         calendars?: { url: string; displayName: string }[]
-        eventCount?: number
-        rawObjectCount?: number
-        fetchDetail?: string
-        probe?: { step: string; status: number; hint?: string; icsBlocks?: number; hrefs?: number }[]
-        collectionUrl?: string
       }
       if (!j?.ok) {
         let msg = formatFeedError(j?.error || 'error', j?.detail, de)
@@ -1768,19 +1763,11 @@ function CalDavFeedTools({
       }
       const n = j.calendars?.length ?? 0
       if (n === 1 && j.calendars?.[0]?.url) onApplyUrl(j.calendars[0].url)
-      const cnt = j.eventCount ?? 0
-      const raw = j.rawObjectCount ?? 0
-      const extra = j.fetchDetail ? ` · ${j.fetchDetail}` : ''
-      const probeLine = j.probe
-        ?.map(
-          (s) =>
-            `${s.step}:${s.status}${s.icsBlocks != null ? ` ics=${s.icsBlocks}` : ''}${s.hrefs != null ? ` url=${s.hrefs}` : ''}${s.hint ? ` (${s.hint})` : ''}`,
-        )
-        .join(' | ')
+      const names = (j.calendars ?? []).map((c) => c.displayName || c.url).slice(0, 3)
       setStatus(
         de
-          ? `${n} Kalender · ${cnt} Termine · ${raw} ICS${extra}${probeLine ? ` — ${probeLine}` : ''}`
-          : `${n} calendar(s) · ${cnt} events · ${raw} ICS${extra}${probeLine ? ` — ${probeLine}` : ''}`,
+          ? `CalDAV OK · ${n} Kalender${names.length ? ` (${names.join(', ')})` : ''} — Termine lesen per ICS-URL oben`
+          : `CalDAV OK · ${n} calendar(s)${names.length ? ` (${names.join(', ')})` : ''} — use ICS URL above to read events`,
       )
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))

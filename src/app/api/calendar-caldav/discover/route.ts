@@ -1,11 +1,5 @@
 import { NextResponse } from 'next/server'
-import { probeCalDavRead } from '@/lib/caldavRaw'
-import {
-  discoverCalDavCalendars,
-  fetchCalDavOccurrencesTsdav,
-  resolveCalendarCollectionHref,
-} from '@/lib/caldavSync'
-import { normalizeCaldavUsername } from '@/lib/calendarApiShared'
+import { discoverCalDavCalendars } from '@/lib/caldavSync'
 import { fixCommonCalDavUrlMistakes, buildBegendaCalendarUrl } from '@/lib/calendarApiShared'
 import { logApiFailure } from '@/lib/errorLog'
 
@@ -18,7 +12,7 @@ function clampStr(v: unknown, max: number): string {
   return v.trim().slice(0, max)
 }
 
-/** POST: list CalDAV calendars on server (tsdav discovery). */
+/** POST: verify CalDAV credentials and list calendar collections (write/export setup). */
 export async function POST(req: Request) {
   const len = Number(req.headers.get('content-length') || 0)
   if (len > MAX_BODY_BYTES) {
@@ -59,52 +53,9 @@ export async function POST(req: Request) {
     )
   }
 
-  let eventCount = 0
-  let rawObjectCount = 0
-  let fetchDetail: string | undefined
-  let probe: Awaited<ReturnType<typeof probeCalDavRead>>['steps'] | undefined
-  try {
-    const start = new Date()
-    start.setDate(start.getDate() - 14)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date()
-    end.setDate(end.getDate() + 180)
-    end.setHours(23, 59, 59, 999)
-    const ac = new AbortController()
-    const to = setTimeout(() => ac.abort(), 25_000)
-    const user = normalizeCaldavUsername(username, rawUrl)
-    const href = resolveCalendarCollectionHref(rawUrl, user)
-    const probed = await probeCalDavRead(href, user, password, start, end, ac.signal)
-    probe = probed.steps
-
-    const pulled = await fetchCalDavOccurrencesTsdav(rawUrl, username, password, start, end, ac.signal)
-    clearTimeout(to)
-    if (pulled.ok) {
-      eventCount = pulled.occurrences.length
-      rawObjectCount = pulled.rawObjectCount ?? 0
-      if (!probe.length) probe = pulled.probe
-    } else {
-      fetchDetail = pulled.detail ?? pulled.error
-      probe = pulled.probe ?? probe
-    }
-  } catch (e) {
-    fetchDetail = e instanceof Error ? e.message : String(e)
-  }
-
   return NextResponse.json({
     ok: true,
     calendars: result.calendars,
     serverUrl: result.serverUrl,
-    eventCount,
-    rawObjectCount,
-    fetchDetail,
-    probe,
-    collectionUrl: (() => {
-      try {
-        return resolveCalendarCollectionHref(rawUrl, normalizeCaldavUsername(username, rawUrl))
-      } catch {
-        return undefined
-      }
-    })(),
   })
 }
