@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import * as d3 from 'd3'
 import { feature, mesh } from 'topojson-client'
-import type { Topology } from 'topojson-specification'
+import type { Topology } from 'topojson-client'
 import type { AttackPoint } from '@/lib/crowdsecMetrics'
 import { countColor } from '@/lib/crowdsecMetrics'
 
