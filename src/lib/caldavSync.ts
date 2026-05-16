@@ -304,6 +304,16 @@ function parseCalendarObjects(
   return merged
 }
 
+function mergeOccurrences(target: IcsOccurrence[], incoming: IcsOccurrence[]): IcsOccurrence[] {
+  const seen = new Set(target.map((o) => o.stableId))
+  for (const o of incoming) {
+    if (seen.has(o.stableId)) continue
+    seen.add(o.stableId)
+    target.push(o)
+  }
+  return target
+}
+
 async function fetchObjectsForCalendar(
   client: Awaited<ReturnType<typeof createDAVClient>>,
   calendar: DAVCalendar,
@@ -311,27 +321,51 @@ async function fetchObjectsForCalendar(
   rangeEnd: Date,
 ): Promise<IcsOccurrence[]> {
   const timeRange = { start: rangeStart.toISOString(), end: rangeEnd.toISOString() }
-  const attempts: { useMultiGet: boolean; expand: boolean }[] = [
+  const attempts: { useMultiGet: boolean; expand: boolean; timeRange?: { start: string; end: string } }[] = [
+    { useMultiGet: true, expand: true, timeRange },
+    { useMultiGet: true, expand: false, timeRange },
+    { useMultiGet: false, expand: true, timeRange },
+    { useMultiGet: false, expand: false, timeRange },
     { useMultiGet: true, expand: true },
-    { useMultiGet: false, expand: true },
     { useMultiGet: false, expand: false },
   ]
+  let best: IcsOccurrence[] = []
   for (const opts of attempts) {
     try {
       const objects = await client.fetchCalendarObjects({
         calendar,
-        timeRange,
+        ...(opts.timeRange ? { timeRange: opts.timeRange } : {}),
         expand: opts.expand,
         useMultiGet: opts.useMultiGet,
       })
       const occ = parseCalendarObjects(objects, rangeStart, rangeEnd)
+      if (occ.length > best.length) best = occ
       if (occ.length > 0) return occ
-      if (objects.length === 0) return []
     } catch {
       /* try next strategy */
     }
   }
-  return []
+  return best
+}
+
+function calendarsForFetch(
+  all: DAVCalendar[],
+  collectionHref: string,
+  primary: DAVCalendar,
+): DAVCalendar[] {
+  if (!all.length) return [primary]
+  const norm = collectionHref.replace(/\/$/, '').toLowerCase()
+  const related = all.filter((c) => {
+    const u = c.url.replace(/\/$/, '').toLowerCase()
+    if (u === norm || norm.startsWith(u) || u.startsWith(norm)) return true
+    if (/\/begenda\/dav\//i.test(norm) && /begenda/i.test(u)) {
+      const normBase = norm.replace(/\/calendar\/?$/, '')
+      return u.startsWith(normBase) || normBase.startsWith(u)
+    }
+    return false
+  })
+  if (related.length > 0) return related
+  return [primary]
 }
 
 export async function discoverCalDavCalendars(
@@ -418,14 +452,27 @@ export async function fetchCalDavOccurrencesTsdav(
   try {
     let calendar = conn.calendar
     let occurrences = await fetchObjectsForCalendar(conn.client, calendar, rangeStart, rangeEnd)
+
     if (
       occurrences.length === 0 &&
       calendar.url.replace(/\/$/, '') !== conn.collectionHref.replace(/\/$/, '')
     ) {
       const direct = { url: conn.collectionHref, displayName: 'calendar' } as DAVCalendar
-      occurrences = await fetchObjectsForCalendar(conn.client, direct, rangeStart, rangeEnd)
-      if (occurrences.length > 0) calendar = direct
+      const directOcc = await fetchObjectsForCalendar(conn.client, direct, rangeStart, rangeEnd)
+      mergeOccurrences(occurrences, directOcc)
+      if (directOcc.length > 0) calendar = direct
     }
+
+    if (occurrences.length === 0) {
+      const allCals = await conn.client.fetchCalendars()
+      const targets = calendarsForFetch(allCals, conn.collectionHref, calendar)
+      for (const cal of targets) {
+        if (cal.url.replace(/\/$/, '') === calendar.url.replace(/\/$/, '')) continue
+        const occ = await fetchObjectsForCalendar(conn.client, cal, rangeStart, rangeEnd)
+        mergeOccurrences(occurrences, occ)
+      }
+    }
+
     return { ok: true, occurrences, via: 'tsdav', calendarUrl: calendar.url }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

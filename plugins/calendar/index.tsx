@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -12,7 +13,7 @@ export const meta: PluginMeta = {
   name: 'Calendar',
   description:
     'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.1.0',
+  version: '2.1.1',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -636,6 +637,26 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [pickerYmd, setPickerYmd] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [editing, setEditing] = useState<{ id: string; title: string; date: string } | null>(null)
+  const [dayModalMounted, setDayModalMounted] = useState(false)
+
+  const closeDayModal = useCallback(() => {
+    setPickerYmd(null)
+    setEditing(null)
+    setNewTitle('')
+  }, [])
+
+  useEffect(() => {
+    setDayModalMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!pickerYmd) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDayModal()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pickerYmd, closeDayModal])
 
   useEffect(() => {
     const id = window.setInterval(() => setMinuteTick((n) => n + 1), 60_000)
@@ -980,8 +1001,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                     return de ? `Fehler: ${parts.join(' · ')}` : `Errors: ${parts.join(' · ')}`
                   })()
                 : de
-                  ? `${remoteEvents.length} externe · Zwei-Wege-Sync aktiv · alle ${caldavRefreshMinutes} min`
-                  : `${remoteEvents.length} external · two-way sync · every ${caldavRefreshMinutes} min`}
+                  ? `${remoteEvents.length} externe · Zwei-Wege-Sync · alle ${caldavRefreshMinutes} min${
+                      remoteEvents.length === 0 ? ' · WEB.DE-Termine fehlen? „Jetzt aktualisieren“' : ''
+                    }`
+                  : `${remoteEvents.length} external · two-way sync · every ${caldavRefreshMinutes} min${
+                      remoteEvents.length === 0 ? ' · missing WEB.DE events? tap Refresh now' : ''
+                    }`}
           </p>
           {syncError ? (
             <p style={{ margin: 0, fontSize: '10px', color: '#fb7185', textAlign: 'center', lineHeight: 1.35 }}>
@@ -1015,7 +1040,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         role="grid"
         aria-label={de ? 'Kalender' : 'Calendar'}
         style={{
-          flex: pickerYmd || showEventList ? '1 1 45%' : 1,
+          flex: showEventList ? '1 1 55%' : 1,
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
@@ -1141,35 +1166,58 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </div>
       </div>
 
-      {pickerYmd && (
-        <div
-          style={{
-            flexShrink: 0,
-            border: `1px solid color-mix(in srgb, ${border} 70%, transparent)`,
-            borderRadius: '8px',
-            padding: 'clamp(6px, 1.4cqmin, 10px)',
-            background: 'color-mix(in srgb, var(--surface-2) 90%, var(--background))',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            maxHeight: '38%',
-            overflow: 'auto',
-            minHeight: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <p style={{ margin: 0, fontSize: 'clamp(10px, 2.3cqmin, 12px)', fontWeight: 700, color: text }}>
-              {lab.dayTitle} {pickerLabel}
-            </p>
-            <button type="button" onClick={() => setPickerYmd(null)} style={chipBtnStyle}>
-              {lab.closeDay}
-            </button>
-          </div>
-
+      {dayModalMounted &&
+        pickerYmd &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal
+            aria-labelledby="cal-day-dialog-title"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 'max(12px, 2vh)',
+              background: 'rgba(0, 0, 0, 0.55)',
+              backdropFilter: 'blur(3px)',
+            }}
+            onClick={closeDayModal}
+          >
+            <div
+              role="document"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 'min(420px, 100%)',
+                maxHeight: 'min(88vh, 640px)',
+                overflow: 'auto',
+                borderRadius: '12px',
+                border: `1px solid ${border}`,
+                background: 'var(--surface)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                <p
+                  id="cal-day-dialog-title"
+                  style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: text, lineHeight: 1.35 }}
+                >
+                  {lab.dayTitle} {pickerLabel}
+                </p>
+                <button type="button" onClick={closeDayModal} style={chipBtnStyle} aria-label={lab.closeDay}>
+                  {lab.closeDay}
+                </button>
+              </div>
           {dayRemoteEvents.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                {de ? 'ICS / CalDAV' : 'ICS / CalDAV'}
+                {de ? 'Extern (CalDAV)' : 'External (CalDAV)'}
               </p>
               {dayRemoteEvents.map((rev) => (
                 <div
@@ -1276,9 +1324,21 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
           )}
 
           {!editing && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                marginTop: '8px',
+                paddingTop: '12px',
+                borderTop: `1px solid color-mix(in srgb, ${border} 55%, transparent)`,
+              }}
+            >
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: text }}>
+                {de ? 'Neuer Termin' : 'New event'}
+              </p>
               <input
-                style={inpSmall}
+                style={{ ...inpSmall, fontSize: '14px', padding: '10px 12px' }}
                 placeholder={lab.newPh}
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
@@ -1303,8 +1363,10 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               </button>
             </div>
           )}
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {showEventList && (
         <div
