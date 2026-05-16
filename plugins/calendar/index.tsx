@@ -12,8 +12,8 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Calendar',
   description:
-    'Monats-/Wochenansicht, lokale Termine und Zwei-Wege-CalDAV-Sync (WEB.DE, GMX, Nextcloud, Synology …) via tsdav-Server-Proxy.',
-  version: '2.4.1',
+    'Monats-/Wochenansicht mit iCal/ICS-Abonnements (wie Homarr) — WEB.DE, Google, Outlook, Nextcloud. Optional CalDAV nur zum Exportieren neuer Termine.',
+  version: '3.0.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
@@ -72,8 +72,8 @@ export const meta: PluginMeta = {
       defaultValue: 15,
     },
     {
-      key: 'caldavRefreshMinutes',
-      label: 'CalDAV aktualisieren (Min)',
+      key: 'icsRefreshMinutes',
+      label: 'iCal-Feeds aktualisieren (Min)',
       type: 'number',
       defaultValue: 30,
     },
@@ -178,31 +178,6 @@ function parseEvents(raw: unknown): CalendarEventRow[] {
     })
   }
   return out
-}
-
-/** Entfernt lokale Termine, die per CalDAV synchronisiert waren, aber auf dem Server nicht mehr existieren. */
-function pruneLocalEventsAbsentOnCalDav(
-  local: CalendarEventRow[],
-  serverUidsByFeed: Map<number, Set<string>>,
-  feedErrors: Record<string, string>,
-): CalendarEventRow[] {
-  if (serverUidsByFeed.size === 0) return local
-  return local.filter((e) => {
-    if (!e.caldavUid) return true
-    const indices =
-      typeof e.feedIndex === 'number' && e.feedIndex >= 0
-        ? [e.feedIndex]
-        : [...serverUidsByFeed.keys()]
-    let checkedOkFeed = false
-    for (const idx of indices) {
-      if (feedErrors[`dav:${idx}`]) continue
-      const uids = serverUidsByFeed.get(idx)
-      if (!uids) continue
-      checkedOkFeed = true
-      if (uids.has(e.caldavUid)) return true
-    }
-    return !checkedOkFeed
-  })
 }
 
 function clampListMax(v: unknown): number {
@@ -480,6 +455,51 @@ async function postCalDavWrite(
   return { ok: true, data: { uid: j.uid, objectUrl: j.objectUrl, etag: j.etag ?? null } }
 }
 
+function EventTimeFields({
+  de,
+  allDay,
+  startTime,
+  endTime,
+  onAllDay,
+  onStart,
+  onEnd,
+  inpStyle,
+}: {
+  de: boolean
+  allDay: boolean
+  startTime: string
+  endTime: string
+  onAllDay: (v: boolean) => void
+  onStart: (v: string) => void
+  onEnd: (v: string) => void
+  inpStyle: CSSProperties
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={allDay} onChange={(e) => onAllDay(e.target.checked)} />
+        {de ? 'Ganztägig' : 'All day'}
+      </label>
+      {!allDay ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Von' : 'From'}
+            </span>
+            <input style={inpStyle} type="time" value={startTime} onChange={(e) => onStart(e.target.value)} />
+          </div>
+          <div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+              {de ? 'Bis' : 'To'}
+            </span>
+            <input style={inpStyle} type="time" value={endTime} onChange={(e) => onEnd(e.target.value)} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const loc = de ? 'de-DE' : 'en-GB'
@@ -501,24 +521,22 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const events = useMemo(() => parseEvents(rawEvents), [rawEvents])
   const calDavFeeds = useMemo(() => parseCalDavFeeds(rawCalDavFeeds), [rawCalDavFeeds])
   const icsFeeds = useMemo(() => parseIcsFeeds(rawIcsFeeds), [rawIcsFeeds])
-  const caldavRefreshMinutes = clampIcsRefresh(cfg.caldavRefreshMinutes ?? cfg.icsRefreshMinutes)
+  const icsRefreshMinutes = clampIcsRefresh(cfg.icsRefreshMinutes ?? cfg.caldavRefreshMinutes)
 
   const [remoteEvents, setRemoteEvents] = useState<RemoteCalEvent[]>([])
   const [remoteErrors, setRemoteErrors] = useState<Record<string, string>>({})
   const [remoteLoading, setRemoteLoading] = useState(false)
-  const [caldavRefreshTick, setCaldavRefreshTick] = useState(0)
+  const [icsRefreshTick, setIcsRefreshTick] = useState(0)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
-  const [syncPruneHint, setSyncPruneHint] = useState<string | null>(null)
-  const [fetchDiag, setFetchDiag] = useState<{ raw: number; parsed: number } | null>(null)
-  const [probeHint, setProbeHint] = useState<string | null>(null)
+  const [remoteEventCount, setRemoteEventCount] = useState<number | null>(null)
 
   useEffect(() => {
-    if (calDavFeeds.length === 0 && icsFeeds.length === 0) {
+    if (icsFeeds.length === 0) {
       setRemoteEvents([])
       setRemoteErrors({})
       setRemoteLoading(false)
-      setFetchDiag(null)
+      setRemoteEventCount(null)
       return
     }
 
@@ -534,84 +552,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setRemoteLoading(true)
       const errs: Record<string, string> = {}
       const merged: RemoteCalEvent[] = []
-      let totalRaw = 0
       let totalParsed = 0
-      let lastProbe:
-        | { step: string; status: number; hrefs?: number; icsBlocks?: number; hint?: string }[]
-        | undefined
-      const serverUidsByFeed = new Map<number, Set<string>>()
-      const linkedUids = new Set(
-        events.map((e) => e.caldavUid).filter((u): u is string => Boolean(u)),
-      )
-      for (let i = 0; i < calDavFeeds.length; i++) {
-        const feed = calDavFeeds[i]!
-        try {
-          const res = await fetch('/api/calendar-caldav', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              calendarUrl: feed.url,
-              username: feed.username ?? '',
-              password: feed.password ?? '',
-              windowStart: winStart.toISOString(),
-              windowEnd: winEnd.toISOString(),
-            }),
-          })
-          const j = (await res.json()) as {
-            ok?: boolean
-            error?: string
-            upstreamStatus?: number
-            detail?: string
-            suggestedUrl?: string
-            events?: { id: string; uid?: string; title: string; date: string; timeLabel?: string | null }[]
-            rawObjectCount?: number
-            probe?: {
-              step: string
-              status: number
-              hrefs?: number
-              icsBlocks?: number
-              hint?: string
-            }[]
-          }
-          if (!j?.ok) {
-            let msg = formatFeedError(j?.error || `http_${res.status}`, j?.detail, de)
-            if (j?.suggestedUrl) {
-              msg += de ? ` — Richtige URL: ${j.suggestedUrl}` : ` — Use URL: ${j.suggestedUrl}`
-            }
-            throw new Error(msg)
-          }
-          let host = 'CalDAV'
-          try {
-            host = new URL(feed.url).hostname
-          } catch {
-            /* ignore */
-          }
-          const label = feed.name?.trim() || host
-          const feedUids = new Set<string>()
-          for (const ev of j.events ?? []) {
-            if (ev.uid) {
-              feedUids.add(ev.uid)
-              if (linkedUids.has(ev.uid)) continue
-            }
-            merged.push({
-              id: `dav${i}-${ev.id}`,
-              uid: ev.uid,
-              title: ev.title,
-              date: ev.date,
-              timeLabel: ev.timeLabel,
-              feedIndex: i,
-              feedName: label,
-              sourceKind: 'caldav',
-            })
-          }
-          serverUidsByFeed.set(i, feedUids)
-          totalRaw += typeof j.rawObjectCount === 'number' ? j.rawObjectCount : 0
-          totalParsed += (j.events ?? []).length
-          if (j.probe?.length) lastProbe = j.probe
-        } catch (e) {
-          errs[`dav:${i}`] = e instanceof Error ? e.message : String(e)
-        }
-      }
 
       for (let i = 0; i < icsFeeds.length; i++) {
         const feed = icsFeeds[i]!
@@ -654,26 +595,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       }
 
       if (!cancelled) {
-        setFetchDiag({ raw: totalRaw, parsed: totalParsed })
-        const hint =
-          lastProbe?.find((s) => s.hint)?.hint ??
-          lastProbe
-            ?.map(
-              (s) =>
-                `${s.step} HTTP ${s.status}${s.icsBlocks != null ? ` · ${s.icsBlocks} ICS` : ''}${s.hrefs != null ? ` · ${s.hrefs} URLs` : ''}`,
-            )
-            .join(' · ')
-        setProbeHint(hint || null)
-        const pruned = pruneLocalEventsAbsentOnCalDav(events, serverUidsByFeed, errs)
-        if (pruned.length < events.length) {
-          const removed = events.length - pruned.length
-          updatePluginConfig(instanceId, { events: pruned })
-          setSyncPruneHint(
-            de
-              ? `${removed} Dashboard-Termin(e) entfernt (auf WEB.DE/CalDAV nicht mehr vorhanden)`
-              : `${removed} dashboard event(s) removed (no longer on CalDAV)`,
-          )
-        }
+        setRemoteEventCount(totalParsed)
         setRemoteEvents(merged)
         setRemoteErrors(errs)
         setRemoteLoading(false)
@@ -691,22 +613,13 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     }
 
     void load()
-    const ms = Math.max(5, caldavRefreshMinutes) * 60_000
+    const ms = Math.max(5, icsRefreshMinutes) * 60_000
     const timer = window.setInterval(() => void load(), ms)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [
-    calDavFeeds,
-    icsFeeds,
-    caldavRefreshMinutes,
-    caldavRefreshTick,
-    de,
-    instanceId,
-    events,
-    updatePluginConfig,
-  ])
+  }, [icsFeeds, icsRefreshMinutes, icsRefreshTick, de, instanceId])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, number>()
@@ -992,7 +905,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       }
       persistEvents([...events, saved])
       setNewTitle('')
-      if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+      if (calDavFeeds.length > 0) setIcsRefreshTick((n) => n + 1)
     })()
   }, [
     newTitle,
@@ -1024,7 +937,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       }
       persistEvents(events.map((e) => (e.id === editing.id ? saved : e)))
       setEditing(null)
-      if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+      if (calDavFeeds.length > 0) setIcsRefreshTick((n) => n + 1)
     })()
   }, [editing, events, persistEvents, calDavFeeds.length, pushEventToCalDav, syncBusy])
 
@@ -1040,7 +953,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         }
         persistEvents(events.filter((e) => e.id !== id))
         if (editing?.id === id) setEditing(null)
-        if (calDavFeeds.length > 0) setCaldavRefreshTick((n) => n + 1)
+        if (calDavFeeds.length > 0) setIcsRefreshTick((n) => n + 1)
       })()
     },
     [events, persistEvents, editing, calDavFeeds.length, pushEventToCalDav, syncBusy],
@@ -1204,56 +1117,42 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
                 ? (() => {
                     const parts = Object.entries(remoteErrors).map(([key, msg]) => {
                       const idx = Number(key.split(':')[1])
-                      const label = calDavFeeds[idx]?.name?.trim() || `CalDAV ${idx + 1}`
+                      const label = icsFeeds[idx]?.name?.trim() || `iCal ${idx + 1}`
                       return `${label}: ${msg}`
                     })
                     return de ? `Fehler: ${parts.join(' · ')}` : `Errors: ${parts.join(' · ')}`
                   })()
-                : de
-                  ? `${remoteEvents.length} externe · Zwei-Wege-Sync · alle ${caldavRefreshMinutes} min${
-                      fetchDiag && fetchDiag.raw > 0 && remoteEvents.length === 0
-                        ? ` · ${fetchDiag.raw} ICS gelesen, 0 im Fenster`
-                        : fetchDiag && fetchDiag.raw === 0 && remoteEvents.length === 0
-                          ? ' · 0 ICS auf Server — URL/App-Passwort?'
-                          : remoteEvents.length === 0
-                            ? ' · „Jetzt aktualisieren“'
-                            : ''
-                    }`
-                  : `${remoteEvents.length} external · two-way sync · every ${caldavRefreshMinutes} min${
-                      fetchDiag && fetchDiag.raw > 0 && remoteEvents.length === 0
-                        ? ` · ${fetchDiag.raw} ICS read, 0 in window`
-                        : fetchDiag && fetchDiag.raw === 0 && remoteEvents.length === 0
-                          ? ' · 0 ICS on server — check URL/password'
-                          : remoteEvents.length === 0
-                            ? ' · tap Refresh now'
-                            : ''
-                    }`}
+                : icsFeeds.length === 0
+                  ? de
+                    ? 'Kein iCal-Feed — in Einstellungen ICS-URL eintragen (z. B. WEB.DE Freigabe-Link)'
+                    : 'No iCal feed — add an ICS URL in settings (e.g. WEB.DE share link)'
+                  : de
+                    ? `${remoteEvents.length} iCal · alle ${icsRefreshMinutes} min${
+                        remoteEvents.length === 0 && remoteEventCount === 0
+                          ? ' · Feed OK, keine Termine im Fenster'
+                          : ''
+                      }`
+                    : `${remoteEvents.length} iCal · every ${icsRefreshMinutes} min${
+                        remoteEvents.length === 0 && remoteEventCount === 0
+                          ? ' · feed OK, no events in window'
+                          : ''
+                      }`}
           </p>
-          {syncPruneHint ? (
-            <p style={{ margin: 0, fontSize: '10px', color: muted, textAlign: 'center', lineHeight: 1.35 }}>
-              {syncPruneHint}
-            </p>
-          ) : null}
-          {probeHint && remoteEvents.length === 0 ? (
-            <p style={{ margin: 0, fontSize: '9px', color: muted, textAlign: 'center', lineHeight: 1.35 }}>
-              {probeHint}
-            </p>
-          ) : null}
           {syncError ? (
             <p style={{ margin: 0, fontSize: '10px', color: '#fb7185', textAlign: 'center', lineHeight: 1.35 }}>
               {de ? `Sync-Fehler: ${syncError}` : `Sync error: ${syncError}`}
             </p>
           ) : null}
-          {!remoteLoading && Object.keys(remoteErrors).length === 0 && !syncError ? (
+          {!remoteLoading && Object.keys(remoteErrors).length === 0 && !syncError && calDavFeeds.length > 0 ? (
             <p style={{ margin: 0, fontSize: '9px', color: muted, textAlign: 'center', lineHeight: 1.3, maxWidth: '100%' }}>
               {de
-                ? 'Neue Termine (Tipp auf Tag) werden zum ersten CalDAV-Feed geschrieben (z. B. WEB.DE).'
-                : 'New events (tap a day) are pushed to the first CalDAV feed (e.g. WEB.DE).'}
+                ? 'Neue Termine (Tipp auf Tag) können optional zum ersten CalDAV-Feed exportiert werden.'
+                : 'New events (tap a day) can optionally be exported to the first CalDAV feed.'}
             </p>
           ) : null}
           <button
             type="button"
-            onClick={() => setCaldavRefreshTick((n) => n + 1)}
+            onClick={() => setIcsRefreshTick((n) => n + 1)}
             disabled={remoteLoading || syncBusy}
             style={{
               ...todayBtnStyle,
@@ -1397,51 +1296,216 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </div>
       </div>
 
-      {dayModalMounted ? (
-        <DayEventModal
-          open={Boolean(pickerYmd)}
-          de={de}
-          pickerLabel={pickerLabel}
-          dayTitleLabel={lab.dayTitle}
-          closeLabel={lab.closeDay}
-          emptyDayLabel={lab.emptyDay}
-          titleLabel={lab.titleLabel}
-          dateLabel={lab.dateLabel}
-          saveLabel={lab.save}
-          cancelLabel={lab.cancel}
-          delLabel={lab.del}
-          editLabel={lab.edit}
-          addLabel={lab.add}
-          newPh={lab.newPh}
-          border={border}
-          text={text}
-          muted={muted}
-          accent={accent}
-          inpSmall={inpSmall}
-          chipBtnStyle={chipBtnStyle}
-          primarySmallBtnStyle={primarySmallBtnStyle}
-          ghostSmallBtnStyle={ghostSmallBtnStyle}
-          dangerSmallBtnStyle={dangerSmallBtnStyle}
-          dayRemoteEvents={dayRemoteEvents}
-          dayLocalEvents={dayLocalEvents}
-          editing={editing}
-          setEditing={setEditing}
-          newTitle={newTitle}
-          setNewTitle={setNewTitle}
-          newAllDay={newAllDay}
-          setNewAllDay={setNewAllDay}
-          newStartTime={newStartTime}
-          setNewStartTime={setNewStartTime}
-          newEndTime={newEndTime}
-          setNewEndTime={setNewEndTime}
-          syncBusy={syncBusy}
-          calDavConfigured={calDavFeeds.length > 0}
-          onClose={closeDayModal}
-          onSaveEditing={saveEditing}
-          onDelete={deleteEvent}
-          onAdd={addNewEvent}
-        />
-      ) : null}
+      {pickerYmd && (
+        <div
+          style={{
+            flexShrink: 0,
+            border: `1px solid color-mix(in srgb, ${border} 70%, transparent)`,
+            borderRadius: '8px',
+            padding: 'clamp(6px, 1.4cqmin, 10px)',
+            background: 'color-mix(in srgb, var(--surface-2) 90%, var(--background))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px',
+            maxHeight: '38%',
+            overflow: 'auto',
+            minHeight: 0,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+            <p style={{ margin: 0, fontSize: 'clamp(10px, 2.3cqmin, 12px)', fontWeight: 700, color: text }}>
+              {lab.dayTitle} {pickerLabel}
+            </p>
+            <button type="button" onClick={() => setPickerYmd(null)} style={chipBtnStyle}>
+              {lab.closeDay}
+            </button>
+          </div>
+
+          {dayRemoteEvents.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <p style={{ margin: 0, fontSize: '10px', fontWeight: 600, color: muted, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                {de ? 'ICS / CalDAV' : 'ICS / CalDAV'}
+              </p>
+              {dayRemoteEvents.map((rev) => (
+                <div
+                  key={rev.id}
+                  style={{
+                    fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                    color: text,
+                    padding: '5px 8px',
+                    borderRadius: '6px',
+                    background: 'color-mix(in srgb, var(--accent) 7%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+                  }}
+                >
+                  <span style={{ color: muted, fontSize: '10px', display: 'block', lineHeight: 1.2 }}>
+                    {rev.feedName}
+                    {rev.sourceKind === 'caldav' ? (de ? ' · CalDAV' : ' · CalDAV') : (de ? ' · ICS' : ' · ICS')}
+                  </span>
+                  <span>
+                    {rev.timeLabel ? `${rev.timeLabel} · ` : ''}
+                    {rev.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {dayLocalEvents.length > 0 && (
+            <p
+              style={{
+                margin: dayRemoteEvents.length ? '8px 0 0' : '6px 0 0',
+                fontSize: '10px',
+                fontWeight: 600,
+                color: muted,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {de ? 'Dashboard' : 'Dashboard'}
+            </p>
+          )}
+
+          {dayLocalEvents.length === 0 && dayRemoteEvents.length === 0 && (
+            <p style={{ margin: 0, fontSize: '11px', color: muted }}>{lab.emptyDay}</p>
+          )}
+
+          {dayLocalEvents.map((ev) =>
+            editing?.id === ev.id ? (
+              <div key={ev.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '10px', color: muted }}>{lab.titleLabel}</label>
+                <input
+                  style={inpSmall}
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                />
+                <label style={{ fontSize: '10px', color: muted }}>{lab.dateLabel}</label>
+                <input
+                  style={inpSmall}
+                  type="date"
+                  value={editing.date}
+                  onChange={(e) => setEditing({ ...editing, date: e.target.value })}
+                />
+                <EventTimeFields
+                  de={de}
+                  allDay={editing.allDay}
+                  startTime={editing.startTime}
+                  endTime={editing.endTime}
+                  inpStyle={inpSmall}
+                  onAllDay={(v) => setEditing({ ...editing, allDay: v })}
+                  onStart={(v) => setEditing({ ...editing, startTime: v })}
+                  onEnd={(v) => setEditing({ ...editing, endTime: v })}
+                />
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={saveEditing} style={primarySmallBtnStyle}>
+                    {lab.save}
+                  </button>
+                  <button type="button" onClick={() => setEditing(null)} style={ghostSmallBtnStyle}>
+                    {lab.cancel}
+                  </button>
+                  <button type="button" onClick={() => deleteEvent(ev.id)} style={dangerSmallBtnStyle}>
+                    {lab.del}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                key={ev.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                  fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                  color: text,
+                }}
+              >
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: muted, fontSize: '10px', marginRight: '6px' }}>{eventTimeLabel(ev, de)}</span>
+                  {ev.title}
+                  {ev.caldavUid && calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'CalDAV' : 'CalDAV'}</span>
+                  ) : calDavFeeds.length > 0 ? (
+                    <span style={{ color: muted, fontSize: '10px' }}> · {de ? 'nur Dashboard' : 'dashboard only'}</span>
+                  ) : null}
+                </span>
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditing({
+                        id: ev.id,
+                        title: ev.title,
+                        date: ev.date,
+                        allDay: ev.allDay === true || (!ev.startTime && ev.allDay !== false),
+                        startTime: ev.startTime ?? '09:00',
+                        endTime: ev.endTime ?? '10:00',
+                      })
+                    }
+                    style={chipBtnStyle}
+                  >
+                    {lab.edit}
+                  </button>
+                  <button type="button" onClick={() => deleteEvent(ev.id)} style={chipBtnStyle}>
+                    {lab.del}
+                  </button>
+                </div>
+              </div>
+            ),
+          )}
+
+          {!editing && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                marginTop: '8px',
+                paddingTop: '12px',
+                borderTop: `1px solid color-mix(in srgb, ${border} 55%, transparent)`,
+              }}
+            >
+              <p style={{ margin: 0, fontSize: '11px', fontWeight: 600, color: text }}>
+                {de ? 'Neuer Termin' : 'New event'}
+              </p>
+              <input
+                style={{ ...inpSmall, fontSize: '14px', padding: '10px 12px' }}
+                placeholder={lab.newPh}
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addNewEvent()
+                  }
+                }}
+              />
+              <EventTimeFields
+                de={de}
+                allDay={newAllDay}
+                startTime={newStartTime}
+                endTime={newEndTime}
+                inpStyle={{ ...inpSmall, fontSize: '14px', padding: '8px 10px' }}
+                onAllDay={setNewAllDay}
+                onStart={setNewStartTime}
+                onEnd={setNewEndTime}
+              />
+              <button
+                type="button"
+                onClick={addNewEvent}
+                disabled={!newTitle.trim() || syncBusy}
+                style={{
+                  ...primarySmallBtnStyle,
+                  opacity: !newTitle.trim() || syncBusy ? 0.45 : 1,
+                  cursor: !newTitle.trim() || syncBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {lab.add}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {showEventList && (
         <div
@@ -1588,6 +1652,64 @@ const todayBtnStyle: CSSProperties = {
   padding: '4px 12px',
   borderRadius: '999px',
   cursor: 'pointer',
+}
+
+function IcsFeedTools({ feed, de }: { feed: IcsFeedConfig; de: boolean }) {
+  const [status, setStatus] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const testConnection = async () => {
+    const url = feed.url.trim()
+    if (!url) {
+      setStatus(de ? 'Zuerst ICS-URL eintragen' : 'Enter ICS URL first')
+      return
+    }
+    setBusy(true)
+    setStatus(null)
+    try {
+      const winStart = new Date()
+      winStart.setDate(winStart.getDate() - 14)
+      const winEnd = new Date()
+      winEnd.setDate(winEnd.getDate() + 90)
+      const res = await fetch('/api/calendar-ics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          windowStart: winStart.toISOString(),
+          windowEnd: winEnd.toISOString(),
+        }),
+      })
+      const j = (await res.json()) as { ok?: boolean; error?: string; detail?: string; events?: unknown[] }
+      if (!j?.ok) {
+        setStatus(formatFeedError(j?.error || 'error', j?.detail, de))
+        return
+      }
+      const n = j.events?.length ?? 0
+      setStatus(de ? `${n} Termine in den nächsten ~3 Monaten` : `${n} events in the next ~3 months`)
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '8px' }}>
+      <button
+        type="button"
+        className="btn-ghost"
+        style={{ fontSize: '11px', padding: '4px 10px' }}
+        disabled={busy || !feed.url.trim()}
+        onClick={() => void testConnection()}
+      >
+        {de ? 'Verbindung testen' : 'Test connection'}
+      </button>
+      {status ? (
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>{status}</p>
+      ) : null}
+    </div>
+  )
 }
 
 function CalDavFeedTools({
@@ -1801,28 +1923,47 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
         <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-          {de ? 'ICS / Webcal (nur lesen)' : 'ICS / Webcal (read-only)'}
+          {de ? 'iCal / ICS (wie Homarr)' : 'iCal / ICS (Homarr-style)'}
         </p>
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.55, margin: '0 0 8px' }}>
           {de ? (
             <>
-              Ein <strong>ICS- oder Webcal-Link</strong> reicht aus: der Anbieter stellt eine feste URL bereit (häufig
-              „öffentlicher Kalender“, „Zum Abonnement“ oder „Secret address“). SelfDashboard lädt die Termine{' '}
-              <strong>serverseitig</strong> – der Browser blockiert nichts (kein CORS), und <strong>lokale Adressen</strong>{' '}
-              (z. B. Synology mit <code style={{ fontSize: '10px' }}>https://…:5001/…</code>) funktionieren genauso.
+              Externe Termine nur per <strong>ICS-Abonnement-URL</strong> (GET + ical.js), wie bei{' '}
+              <a href="https://homarr.dev/docs/integrations/ical/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                Homarr iCal
+              </a>
+              . CalDAV wird hier nicht zum Lesen verwendet.
             </>
           ) : (
             <>
-              You only need an <strong>ICS / webcal URL</strong> (often “public calendar”, “subscribe”, or “secret
-              address”). SelfDashboard fetches events <strong>on the server</strong>, so the browser does not hit CORS
-              limits — <strong>LAN URLs</strong> work too (e.g. Synology at <code style={{ fontSize: '10px' }}>https://…:5001/…</code>).
+              External events via <strong>ICS subscription URL</strong> only (GET + ical.js), like{' '}
+              <a href="https://homarr.dev/docs/integrations/ical/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+                Homarr iCal
+              </a>
+              . CalDAV is not used for reading.
             </>
           )}
         </p>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+          {de ? 'iCal-Feeds alle X Minuten neu laden' : 'Refresh iCal feeds every X minutes'}
+        </label>
+        <input
+          style={{ ...inp, marginBottom: '12px' }}
+          type="number"
+          min={5}
+          max={240}
+          value={clampIcsRefresh((config as Record<string, unknown>).icsRefreshMinutes ?? (config as Record<string, unknown>).caldavRefreshMinutes)}
+          onChange={(e) => onChange('icsRefreshMinutes', clampIcsRefresh(e.target.value))}
+        />
         <p style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           {de ? 'Hilfe: Link beim Anbieter finden' : 'Help: find the link in your provider UI'}
         </p>
         <ul style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 12px', paddingLeft: '18px', lineHeight: 1.5 }}>
+          <li>
+            <a href="https://hilfe.web.de/kalender/verwalten/teilen.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+              WEB.DE / GMX — Kalender-URL zum Einbinden
+            </a>
+          </li>
           <li>
             <a href="https://support.google.com/calendar/answer/37648" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
               Google Calendar
@@ -1900,6 +2041,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                       setFeeds(feeds.map((f, idx) => (idx === i ? { ...f, url: v } : f)))
                     }}
                   />
+                  <IcsFeedTools feed={feed} de={de} />
                   <button
                     type="button"
                     className="btn-ghost"
@@ -1925,31 +2067,30 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
         <div style={{ marginTop: '4px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
-            {de ? 'CalDAV (Server-Kalender)' : 'CalDAV (server calendar)'}
+            {de ? 'CalDAV (optional — nur exportieren)' : 'CalDAV (optional — export only)'}
           </p>
           <p
             style={{
               fontSize: '11px',
-              color: '#f59e0b',
+              color: 'var(--text-muted)',
               lineHeight: 1.55,
               margin: '0 0 10px',
               padding: '8px 10px',
               borderRadius: '6px',
-              border: '1px solid color-mix(in srgb, #f59e0b 35%, var(--border))',
-              background: 'color-mix(in srgb, #f59e0b 8%, var(--surface-2))',
+              border: '1px solid var(--border)',
+              background: 'var(--surface-2)',
             }}
           >
             {de ? (
               <>
-                <strong>Zwei-Wege-Sync (CalDAV):</strong> Termine von WEB.DE/CalDAV werden gelesen; Termine, die du im
-                Widget per Tipp auf einen Tag anlegst oder bearbeitest, werden zum <strong>ersten CalDAV-Feed</strong>{' '}
-                geschrieben (ganztägig). ICS/Webcal-Feeds bleiben nur lesen.
+                <strong>Nicht wie Homarr:</strong> CalDAV wird hier nur genutzt, wenn du im Widget neue Termine nach
+                WEB.DE/Nextcloud <strong>schreiben</strong> willst. Zum <strong>Anzeigen</strong> immer die ICS-URL oben
+                verwenden.
               </>
             ) : (
               <>
-                <strong>Two-way CalDAV sync:</strong> events are pulled from your server; events you add or edit in the
-                widget are pushed to the <strong>first CalDAV feed</strong> (all-day only). ICS/webcal feeds stay
-                read-only.
+                <strong>Unlike Homarr:</strong> CalDAV here is only for <strong>pushing</strong> new widget events to
+                WEB.DE/Nextcloud. For <strong>display</strong>, always use the ICS URL above.
               </>
             )}
           </p>
@@ -2150,18 +2291,6 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             )
           })()}
         </div>
-
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          {de ? 'CalDAV alle X Minuten neu laden' : 'Refresh CalDAV every X minutes'}
-        </label>
-        <input
-          style={inp}
-          type="number"
-          min={5}
-          max={240}
-          value={clampIcsRefresh((config as Record<string, unknown>).caldavRefreshMinutes ?? (config as Record<string, unknown>).icsRefreshMinutes)}
-          onChange={(e) => onChange('caldavRefreshMinutes', clampIcsRefresh(e.target.value))}
-        />
       </div>
     </div>
   )
