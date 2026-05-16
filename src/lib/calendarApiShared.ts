@@ -98,6 +98,18 @@ export function normalizeCalDavHref(href: string): string {
   return u.toString()
 }
 
+/** WEB.DE/GMX Standard-Kalender-Collection (wie Thunderbird). */
+export function buildBegendaCalendarUrl(
+  usernameOrEmail: string,
+  host: 'caldav.web.de' | 'caldav.gmx.net' = 'caldav.web.de',
+): string {
+  const u = usernameOrEmail.trim()
+  if (!u) return `https://${host}/`
+  const domain = host.includes('gmx') ? 'gmx.net' : 'web.de'
+  const addr = u.includes('@') ? u : `${u}@${domain}`
+  return `https://${host}/begenda/dav/${addr}/calendar`
+}
+
 /** E-Mail aus WEB.DE/GMX-CalDAV-Pfad, z. B. …/dav/nutzer@web.de/calendar */
 export function emailFromBegendaCalDavPath(href: string): string | null {
   try {

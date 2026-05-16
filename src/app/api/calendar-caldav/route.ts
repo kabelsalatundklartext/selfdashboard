@@ -8,7 +8,11 @@ import {
 } from '@/lib/calendarApiShared'
 import { fetchCalDavOccurrences } from '@/lib/calendarCaldav'
 import { logApiFailure } from '@/lib/errorLog'
-import { fixCommonCalDavUrlMistakes, normalizeCaldavUsername } from '@/lib/calendarApiShared'
+import {
+  buildBegendaCalendarUrl,
+  fixCommonCalDavUrlMistakes,
+  normalizeCaldavUsername,
+} from '@/lib/calendarApiShared'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,23 +37,40 @@ export async function POST(req: Request) {
   }
 
   const rawCalendarUrl = String(body.calendarUrl ?? '')
+  const userBodyEarly = clampStr(body.username, 800)
   const urlFix = fixCommonCalDavUrlMistakes(rawCalendarUrl)
+
+  let calendarUrlInput = urlFix.url || rawCalendarUrl
+  if (
+    userBodyEarly &&
+    !/\/begenda\/dav\//i.test(calendarUrlInput) &&
+    /caldav\.(web\.de|gmx\.net)/i.test(calendarUrlInput)
+  ) {
+    const host = /gmx\.net/i.test(calendarUrlInput) ? 'caldav.gmx.net' : 'caldav.web.de'
+    calendarUrlInput = buildBegendaCalendarUrl(userBodyEarly, host)
+  }
 
   let url: URL
   try {
-    url = normalizeCalendarHttpUrl(rawCalendarUrl)
+    url = normalizeCalendarHttpUrl(calendarUrlInput)
   } catch (e) {
     const code = e instanceof Error ? e.message : 'bad_url'
-    const status =
-      code === 'wrong_dav_service' ? 400 : code === 'missing_begenda_path' ? 400 : 400
+    const status = 400
+    const begendaHost = /gmx/i.test(calendarUrlInput) ? 'caldav.gmx.net' : 'caldav.web.de'
+    const suggestedUrl =
+      code === 'missing_begenda_path' && userBodyEarly
+        ? buildBegendaCalendarUrl(userBodyEarly, begendaHost as 'caldav.web.de' | 'caldav.gmx.net')
+        : urlFix.fixes.length
+          ? urlFix.url
+          : undefined
     const detail =
       code === 'wrong_dav_service'
         ? 'CardDAV (carddav.web.de) ist für Kontakte — Kalender: https://caldav.web.de/begenda/dav/Ihre-Adresse@web.de/calendar'
         : code === 'missing_begenda_path'
           ? 'WEB.DE: vollständige CalDAV-URL mit /begenda/dav/…@web.de/calendar angeben'
           : undefined
-    void logApiFailure('calendar-caldav', code, { detail, fixes: urlFix.fixes })
-    return NextResponse.json({ ok: false, error: code, detail, suggestedUrl: urlFix.fixes.length ? urlFix.url : undefined }, { status })
+    void logApiFailure('calendar-caldav', code, { detail, fixes: urlFix.fixes, suggestedUrl })
+    return NextResponse.json({ ok: false, error: code, detail, suggestedUrl }, { status })
   }
 
   const { href, urlUser, urlPass } = splitUrlBasicAuth(url)
@@ -87,7 +108,10 @@ export async function POST(req: Request) {
                   : 502
       void logApiFailure('calendar-caldav', result.error, {
         upstreamStatus: result.status,
-        detail: result.detail,
+        detail:
+          result.error === 'unauthorized'
+            ? '401 — App-Passwort + volle E-Mail prüfen (nicht Hauptpasswort)'
+            : result.detail,
         host: url.hostname,
       })
       return NextResponse.json(
