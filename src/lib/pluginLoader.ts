@@ -17,6 +17,7 @@ import * as unraidDocker from '../../plugins/unraid-docker'
 import * as fritzbox from '../../plugins/fritzbox'
 import * as weather from '../../plugins/weather'
 import * as crowdsec from '../../plugins/crowdsec'
+import * as selfstream from '../../plugins/selfstream'
 
 export function loadBuiltinPlugins() {
   registerPlugin(bookmarks.meta, bookmarks.component)
@@ -33,4 +34,5 @@ export function loadBuiltinPlugins() {
   registerPlugin(unraidDocker.meta, unraidDocker.component)
   registerPlugin(weather.meta, weather.component)
   registerPlugin(crowdsec.meta, crowdsec.component)
+  registerPlugin(selfstream.meta, selfstream.component)
 }
