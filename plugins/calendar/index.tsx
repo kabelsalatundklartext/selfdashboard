@@ -22,9 +22,9 @@
  * inline so the plugin works regardless of which theme is active.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, List, LayoutGrid } from 'lucide-react'
+import { Plus, List, LayoutGrid, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
@@ -150,14 +150,17 @@ function loadHiddenCalendarIds(): Set<string> {
   catch { return new Set() }
 }
 
-const widgetNavBtnStyle = {
-  all: 'unset',
-  cursor: 'pointer',
-  padding: '2px 8px',
+const widgetNavBtnStyle: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: '4px',
+  background: 'transparent',
+  cursor: 'pointer',
+  padding: '2px 8px',
   fontSize: '12px',
   color: 'var(--text-muted)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 }
 
 // ===========================================================================
@@ -420,7 +423,7 @@ function Widget({ config }: PluginWidgetProps) {
             </div>
 
         {/* upcoming list */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
           {!summary && <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>…</div>}
           {summary && summary.upcoming.length === 0 && (
             <div style={{
@@ -453,13 +456,20 @@ function Widget({ config }: PluginWidgetProps) {
         </div>
           </>
         ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden', minHeight: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-              <button type="button" onClick={() => shiftMonth(-1)} style={widgetNavBtnStyle}>‹</button>
-              <div style={{ flex: 1, textAlign: 'center', fontSize: '13px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+              <button type="button" aria-label={t('prev')} onClick={() => shiftMonth(-1)} style={widgetNavBtnStyle}>
+                <ChevronLeft size={14} />
+              </button>
+              <div style={{
+                flexGrow: 1, minWidth: 0, textAlign: 'center', fontSize: '13px', fontWeight: 600,
+                color: 'var(--text)', textTransform: 'capitalize',
+              }}>
                 {monthLabel}
               </div>
-              <button type="button" onClick={() => shiftMonth(1)} style={widgetNavBtnStyle}>›</button>
+              <button type="button" aria-label={t('next')} onClick={() => shiftMonth(1)} style={widgetNavBtnStyle}>
+                <ChevronRight size={14} />
+              </button>
             </div>
             <button type="button" onClick={goToday} style={{
               ...widgetNavBtnStyle, alignSelf: 'center', fontSize: '11px', padding: '2px 10px',
@@ -477,7 +487,7 @@ function Widget({ config }: PluginWidgetProps) {
                 onClickEvent={openEventFromMonth}
               />
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
               <div style={{
                 fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)',
                 textTransform: 'uppercase', letterSpacing: '0.04em',
