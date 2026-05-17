@@ -196,6 +196,18 @@ const widgetNavBtnStyle: CSSProperties = {
   justifyContent: 'center',
 }
 
+const widgetMiniBtnStyle: CSSProperties = {
+  border: '1px solid var(--border)',
+  borderRadius: '4px',
+  background: 'transparent',
+  cursor: 'pointer',
+  padding: '2px 6px',
+  color: 'var(--text-muted)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
 // ===========================================================================
 // Widget — compact dashboard tile
 // ===========================================================================
@@ -217,7 +229,6 @@ function Widget({ config }: PluginWidgetProps) {
   const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
   const [monthEvents, setMonthEvents] = useState<EventView[]>([])
   const [listEvents, setListEvents] = useState<EventView[]>([])
-  const [dayPopup, setDayPopup] = useState<Date | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -388,17 +399,16 @@ function Widget({ config }: PluginWidgetProps) {
     return map
   }, [monthEvents])
 
+  const selectedDayEvents = useMemo(
+    () => monthEventsByDay[dateKeyLocal(selectedDay)] ?? [],
+    [monthEventsByDay, selectedDay],
+  )
+
   const monthLabel = monthCursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
 
   const openEventFromMonth = (ev: EventView) => {
     loadCalendars().catch(() => undefined)
     setEventDialog(ev)
-  }
-
-  const openDayPopup = (day: Date) => {
-    const d = startOfLocalDay(day)
-    setSelectedDay(d)
-    setDayPopup(d)
   }
 
   const shiftMonth = (delta: number) => {
@@ -538,7 +548,7 @@ function Widget({ config }: PluginWidgetProps) {
                 selectedDay={selectedDay}
                 eventsByDay={monthEventsByDay}
                 onSelectDay={d => setSelectedDay(startOfLocalDay(d))}
-                onClickDay={openDayPopup}
+                onClickDay={d => setSelectedDay(startOfLocalDay(d))}
                 onClickEvent={openEventFromMonth}
               />
             </div>
@@ -601,24 +611,6 @@ function Widget({ config }: PluginWidgetProps) {
             if (msg) showFlash(msg)
             void refreshAllEvents()
           }}
-        />
-      )}
-      {dayPopup && (
-        <DayEventsPopup
-          locale={locale}
-          day={dayPopup}
-          events={monthEventsByDay[dateKeyLocal(dayPopup)] ?? []}
-          canAdd={writableCalendars.length > 0}
-          onClose={() => setDayPopup(null)}
-          onAdd={() => {
-            setDayPopup(null)
-            setEventDialog({
-              calendarId: pickDefaultWritableCalendar(writableCalendars)?.id ?? writableCalendars[0]?.id,
-              allDay: false,
-              dtstart: selectedDay.toISOString(),
-            })
-          }}
-          onClickEvent={ev => { setDayPopup(null); openEventFromMonth(ev) }}
         />
       )}
     </>
@@ -1091,6 +1083,84 @@ function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEv
         </div>
       </div>
     </ModalPortal>
+  )
+}
+
+/** Compact day event list for the dashboard tile month view. */
+function WidgetDayEventsPanel({ locale, day, events, canAdd, onAdd, onClickEvent, onOpenFull }: {
+  locale: Locale
+  day: Date
+  events: EventView[]
+  canAdd: boolean
+  onAdd: () => void
+  onClickEvent: (ev: EventView) => void
+  onOpenFull: () => void
+}) {
+  const t = (k: string) => tr(k, locale)
+  const sorted = useMemo(
+    () => [...events].sort((a, b) => a.dtstart.localeCompare(b.dtstart)),
+    [events],
+  )
+  const dayLabel = day.toLocaleDateString(localeToBcp47(locale), {
+    weekday: 'short', day: '2-digit', month: 'short',
+  })
+  return (
+    <div style={{
+      flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '6px',
+      border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+        padding: '6px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+      }}>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {dayLabel}
+          {sorted.length > 0 && (
+            <span style={{ marginLeft: '6px', fontWeight: 400, color: 'var(--text-muted)' }}>
+              ({sorted.length})
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+          {canAdd && (
+            <button type="button" onClick={onAdd} title={t('addEvent')} style={widgetMiniBtnStyle}>
+              <Plus size={12} />
+            </button>
+          )}
+          <button type="button" onClick={onOpenFull} title={t('monthView')} style={widgetMiniBtnStyle}>
+            {ICONS.calendar}
+          </button>
+        </div>
+      </div>
+      <div style={{ flexGrow: 1, overflowY: 'auto', padding: '4px 8px 8px', minHeight: 0 }}>
+        {!sorted.length && (
+          <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic', padding: '4px 2px' }}>
+            {t('noEventsThisDay')}
+          </div>
+        )}
+        {sorted.map(ev => (
+          <button
+            key={eventRowKey(ev)}
+            onClick={() => onClickEvent(ev)}
+            style={{
+              all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '5px 6px', marginBottom: '4px',
+              background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px',
+              borderLeft: `3px solid ${ev.calendarColor ?? '#5a9bd4'}`,
+              fontSize: '11px', minWidth: 0, boxSizing: 'border-box',
+            }}
+          >
+            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: 'var(--text-muted)', minWidth: '44px', flexShrink: 0 }}>
+              {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
+            </span>
+            <span style={{ flexGrow: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+              {ev.summary || t('untitled')}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
