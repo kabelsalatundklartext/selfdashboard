@@ -16,20 +16,11 @@ import { badRequest, ok } from '@/lib/calendar/api-helpers'
 import { buildVcalendar, expandRecurrences, newUid } from '@/lib/calendar/ical'
 import { mutateStore, newId, nowIso, readStore } from '@/lib/calendar/store'
 import { runSync } from '@/lib/calendar/sync'
-import type { CalendarEvent, EventCreateBody, SyncLogEntry } from '@/lib/calendar/types'
+import type { CalendarEvent, EventCreateBody } from '@/lib/calendar/types'
 
 export const runtime = 'nodejs'
 
-type CreateEventResponse = CalendarEvent & { syncError?: string }
-
-function isSyncLogEntry(v: unknown): v is SyncLogEntry {
-  return typeof v === 'object' && v !== null && 'accountId' in v && 'id' in v
-}
-
-function messageFromSyncResult(log: SyncLogEntry | { error: string }): string | undefined {
-  if (isSyncLogEntry(log)) return log.error
-  return log.error
-}
+type CreateEventResponse = CalendarEvent & { syncError?: string; syncPending?: boolean }
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -110,25 +101,13 @@ export async function POST(req: NextRequest) {
     })
   })
 
-  let syncResult: SyncLogEntry | { error: string }
-  try {
-    syncResult = await runSync(cal.accountId)
-  } catch (e: unknown) {
-    syncResult = { error: e instanceof Error ? e.message : String(e) }
-  }
-
   const after = await readStore()
   const ev = after.events.find(e => e.id === evId)
-  if (!ev) {
-    const syncError = messageFromSyncResult(syncResult)
-    return ok({ error: 'sync_removed_event', syncError })
-  }
+  if (!ev) return badRequest('event not created')
 
-  const acc = after.accounts.find(a => a.id === cal.accountId)
-  const syncError =
-    messageFromSyncResult(syncResult) ??
-    (ev.syncState === 'local_new' ? acc?.lastSyncError : undefined)
+  // Push to CalDAV in background — UI stays responsive.
+  void runSync(cal.accountId).catch(() => undefined)
 
-  const payload: CreateEventResponse = syncError ? { ...ev, syncError } : ev
+  const payload: CreateEventResponse = { ...ev, syncPending: true }
   return ok(payload)
 }

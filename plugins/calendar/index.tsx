@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus } from 'lucide-react'
+import { Plus, List, LayoutGrid } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
@@ -45,7 +45,7 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Kalender',
   description: 'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …',
-  version: '1.1.0',
+  version: '1.2.0',
   author: 'SelfDashboard Community',
   category: 'productivity',
   icon: '📅',
@@ -130,6 +130,36 @@ const toInputDateTime = (iso: string): string => {
 
 const fromInputDateTime = (val: string): string => new Date(val).toISOString()
 
+type TileView = 'compact' | 'month'
+const TILE_VIEW_STORAGE_KEY = 'sd-cal-tile-view'
+
+function pickDefaultWritableCalendar(cals: CalendarView[]): CalendarView | undefined {
+  const writable = cals.filter(c => !c.readOnly)
+  if (!writable.length) return undefined
+  const score = (c: CalendarView) => {
+    const n = c.name.toLowerCase()
+    if (/geburt|birth/.test(n)) return 0
+    if (/mein|standard|privat|home|kalender/.test(n)) return 3
+    return 1
+  }
+  return [...writable].sort((a, b) => score(b) - score(a))[0]
+}
+
+function loadHiddenCalendarIds(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem('sd-cal-hidden') || '[]')) }
+  catch { return new Set() }
+}
+
+const widgetNavBtnStyle = {
+  all: 'unset',
+  cursor: 'pointer',
+  padding: '2px 8px',
+  border: '1px solid var(--border)',
+  borderRadius: '4px',
+  fontSize: '12px',
+  color: 'var(--text-muted)',
+}
+
 // ===========================================================================
 // Widget — compact dashboard tile
 // ===========================================================================
@@ -146,9 +176,16 @@ function Widget({ config }: PluginWidgetProps) {
   const [modalInitialView, setModalInitialView] = useState<ModalView>('month')
   const [calendars, setCalendars] = useState<CalendarView[]>([])
   const [eventDialog, setEventDialog] = useState<Partial<EventView> | null>(null)
+  const [tileView, setTileView] = useState<TileView>('month')
+  const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); return d })
+  const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
+  const [monthEvents, setMonthEvents] = useState<EventView[]>([])
+  const [flash, setFlash] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const writableCalendars = useMemo(() => calendars.filter(c => !c.readOnly), [calendars])
+  const hiddenCalendars = useMemo(() => loadHiddenCalendarIds(), [calendars.length])
 
   const loadCalendars = useCallback(async () => {
     const cals = await api.listCalendars()
@@ -170,10 +207,11 @@ function Widget({ config }: PluginWidgetProps) {
         setModalOpen(true)
         return
       }
+      const pick = pickDefaultWritableCalendar(writable)
       setEventDialog({
-        calendarId: writable[0].id,
+        calendarId: pick?.id ?? writable[0].id,
         allDay: false,
-        dtstart: new Date().toISOString(),
+        dtstart: (tileView === 'month' ? selectedDay : new Date()).toISOString(),
       })
     } catch (e: any) {
       setStatus('error')
@@ -228,7 +266,44 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     loadCalendars().catch(() => undefined)
+    try {
+      const saved = localStorage.getItem(TILE_VIEW_STORAGE_KEY) as TileView | null
+      if (saved === 'compact' || saved === 'month') setTileView(saved)
+    } catch { /* ignore */ }
   }, [loadCalendars])
+
+  const monthRange = useMemo(() => {
+    const start = new Date(monthCursor)
+    start.setDate(1)
+    start.setDate(1 - ((start.getDay() + 6) % 7))
+    const end = new Date(start)
+    end.setDate(end.getDate() + 42)
+    return { start, end }
+  }, [monthCursor])
+
+  const refreshMonthEvents = useCallback(async () => {
+    try {
+      const evs = await api.listEvents(monthRange.start.toISOString(), monthRange.end.toISOString())
+      setMonthEvents(evs.filter(e => !hiddenCalendars.has(e.calendarId)))
+    } catch {
+      setMonthEvents([])
+    }
+  }, [monthRange, hiddenCalendars])
+
+  useEffect(() => {
+    if (tileView === 'month') refreshMonthEvents()
+  }, [tileView, refreshMonthEvents])
+
+  const showFlash = useCallback((msg: string) => {
+    setFlash(msg)
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    flashTimerRef.current = setTimeout(() => setFlash(null), 4500)
+  }, [])
+
+  const setTileViewPersist = (v: TileView) => {
+    setTileView(v)
+    try { localStorage.setItem(TILE_VIEW_STORAGE_KEY, v) } catch { /* ignore */ }
+  }
 
   const triggerSyncAll = async () => {
     setStatus('syncing')
@@ -236,10 +311,53 @@ function Widget({ config }: PluginWidgetProps) {
       const accounts = await api.listAccounts()
       await Promise.all(accounts.filter(a => a.enabled).map(a => api.syncAccount(a.id).catch(() => undefined)))
       await refresh()
+      if (tileView === 'month') await refreshMonthEvents()
     } catch (e: any) {
       setStatus('error')
       setErrorMsg(e?.message ?? String(e))
     }
+  }
+
+  const monthEventsByDay = useMemo(() => {
+    const map: Record<string, EventView[]> = {}
+    for (const ev of monthEvents) {
+      const key = dateKeyFromIso(ev.dtstart)
+      ;(map[key] = map[key] || []).push(ev)
+    }
+    for (const k of Object.keys(map)) map[k].sort((a, b) => a.dtstart.localeCompare(b.dtstart))
+    return map
+  }, [monthEvents])
+
+  const selectedDayEvents = monthEventsByDay[dateKeyLocal(selectedDay)] ?? []
+  const upcomingForDay = useMemo(() => {
+    const now = Date.now()
+    return selectedDayEvents.filter(ev => {
+      const endMs = ev.dtend
+        ? new Date(ev.dtend).getTime()
+        : new Date(ev.dtstart).getTime() + (ev.allDay ? 86_400_000 : 0)
+      return endMs >= now
+    })
+  }, [selectedDayEvents])
+
+  const monthLabel = monthCursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
+
+  const openEventFromMonth = (ev: EventView) => {
+    loadCalendars().catch(() => undefined)
+    setEventDialog(ev)
+  }
+
+  const shiftMonth = (delta: number) => {
+    setMonthCursor(prev => {
+      const d = new Date(prev)
+      d.setMonth(d.getMonth() + delta)
+      return d
+    })
+  }
+
+  const goToday = () => {
+    const t = startOfLocalDay(new Date())
+    setSelectedDay(t)
+    setMonthCursor(new Date(t.getFullYear(), t.getMonth(), 1))
   }
 
   const statusDotColor =
@@ -270,6 +388,12 @@ function Widget({ config }: PluginWidgetProps) {
             {t('calendar')}
           </div>
           <div style={{ display: 'flex', gap: '4px' }}>
+            <IconButton title={t('viewMonth')} active={tileView === 'month'} onClick={() => setTileViewPersist('month')}>
+              <LayoutGrid size={14} />
+            </IconButton>
+            <IconButton title={t('viewCompact')} active={tileView === 'compact'} onClick={() => setTileViewPersist('compact')}>
+              <List size={14} />
+            </IconButton>
             {writableCalendars.length > 0 && (
               <IconButton title={t('addEvent')} onClick={openNewEvent}>
                 <Plus size={14} />
@@ -281,11 +405,19 @@ function Widget({ config }: PluginWidgetProps) {
           </div>
         </div>
 
-        {/* stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <StatBox label={t('today')} value={summary ? String(summary.todayCount) : '–'} />
-          <StatBox label={t('conflicts')} value={summary ? String(summary.conflicts) : '–'} valueColor={conflictColor} />
-        </div>
+        {flash && (
+          <div style={{
+            padding: '8px 10px', borderRadius: '6px', fontSize: '12px',
+            background: 'rgba(74,222,128,0.12)', border: '1px solid #4ade80', color: 'var(--text)',
+          }}>{flash}</div>
+        )}
+
+        {tileView === 'compact' ? (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <StatBox label={t('today')} value={summary ? String(summary.todayCount) : '–'} />
+              <StatBox label={t('conflicts')} value={summary ? String(summary.conflicts) : '–'} valueColor={conflictColor} />
+            </div>
 
         {/* upcoming list */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
@@ -319,6 +451,66 @@ function Widget({ config }: PluginWidgetProps) {
             </button>
           ))}
         </div>
+          </>
+        ) : (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+              <button type="button" onClick={() => shiftMonth(-1)} style={widgetNavBtnStyle}>‹</button>
+              <div style={{ flex: 1, textAlign: 'center', fontSize: '13px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+                {monthLabel}
+              </div>
+              <button type="button" onClick={() => shiftMonth(1)} style={widgetNavBtnStyle}>›</button>
+            </div>
+            <button type="button" onClick={goToday} style={{
+              ...widgetNavBtnStyle, alignSelf: 'center', fontSize: '11px', padding: '2px 10px',
+            }}>{t('todayBtn')}</button>
+            <div style={{ overflow: 'auto', flex: '0 0 auto', border: '1px solid var(--border)', borderRadius: '6px' }}>
+              <MonthView
+                locale={locale}
+                compact
+                cursor={monthCursor}
+                range={monthRange}
+                selectedDay={selectedDay}
+                eventsByDay={monthEventsByDay}
+                onSelectDay={d => setSelectedDay(startOfLocalDay(d))}
+                onClickDay={d => setSelectedDay(startOfLocalDay(d))}
+                onClickEvent={openEventFromMonth}
+              />
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
+              <div style={{
+                fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)',
+                textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}>{t('upcomingOnly')}</div>
+              {upcomingForDay.length === 0 && (
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>
+                  {locale === 'de' ? 'Keine Einträge.' : 'No entries.'}
+                </div>
+              )}
+              {upcomingForDay.map(ev => (
+                <button
+                  key={ev.id}
+                  onClick={() => openEventFromMonth(ev)}
+                  style={{
+                    all: 'unset', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '6px 8px', background: 'var(--surface-2)',
+                    border: '1px solid var(--border)', borderRadius: '4px',
+                    borderLeft: `3px solid ${ev.calendarColor ?? '#5a9bd4'}`,
+                    fontSize: '12px', minWidth: 0,
+                  }}
+                >
+                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: 'var(--text-muted)', minWidth: '48px' }}>
+                    {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
+                  </span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ev.summary || t('untitled')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* footer */}
         <div style={{
@@ -366,9 +558,13 @@ function Widget({ config }: PluginWidgetProps) {
         <EventDialog
           locale={locale}
           event={eventDialog}
-          calendars={writableCalendars.length > 0 ? writableCalendars : calendars}
+          calendars={writableCalendars}
           onClose={() => setEventDialog(null)}
-          onSaved={() => { setEventDialog(null); refresh() }}
+          onSaved={msg => {
+            setEventDialog(null)
+            if (msg) showFlash(msg)
+            void refresh().then(() => { if (tileView === 'month') return refreshMonthEvents() })
+          }}
         />
       )}
     </>
@@ -379,16 +575,18 @@ function Widget({ config }: PluginWidgetProps) {
 // Small reusable UI bits
 // ---------------------------------------------------------------------------
 
-function IconButton({ children, onClick, title, busy }: {
-  children: React.ReactNode; onClick: () => void; title: string; busy?: boolean
+function IconButton({ children, onClick, title, busy, active }: {
+  children: React.ReactNode; onClick: () => void; title: string; busy?: boolean; active?: boolean
 }) {
   return (
     <button onClick={onClick} title={title} style={{
       all: 'unset', cursor: 'pointer',
       width: '24px', height: '24px',
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      borderRadius: '4px', color: 'var(--text-muted)',
-      border: '1px solid transparent',
+      borderRadius: '4px',
+      color: active ? 'var(--accent)' : 'var(--text-muted)',
+      border: active ? '1px solid var(--accent)' : '1px solid transparent',
+      background: active ? 'var(--accent)14' : undefined,
     }}
       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent' }}
@@ -1090,14 +1288,15 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
   calendars: CalendarView[]
   locale: 'de' | 'en'
   onClose: () => void
-  onSaved: () => void
+  onSaved: (msg?: string) => void
 }) {
   const t = (k: string) => tr(k, locale)
   const isNew = !event?.id
   const isConflict = event?.syncState === 'conflict'
+  const defaultCal = pickDefaultWritableCalendar(calendars) ?? calendars[0]
 
   const [form, setForm] = useState({
-    calendarId: event?.calendarId ?? calendars[0]?.id ?? '',
+    calendarId: event?.calendarId ?? defaultCal?.id ?? '',
     summary: event?.summary ?? '',
     description: event?.description ?? '',
     location: event?.location ?? '',
@@ -1107,6 +1306,11 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
     rrule: event?.rrule ?? '',
   })
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const selectedCal = calendars.find(c => c.id === form.calendarId)
+  const calendarReadOnly = Boolean(selectedCal?.readOnly)
 
   const inp: React.CSSProperties = {
     background: 'var(--surface)', border: '1px solid var(--border)',
@@ -1115,7 +1319,13 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
   }
 
   const save = async () => {
+    if (!form.calendarId || calendarReadOnly) {
+      setError(t('pickWritableCalendar'))
+      return
+    }
     setError(null)
+    setSuccess(null)
+    setSaving(true)
     try {
       const payload = {
         calendarId: form.calendarId,
@@ -1132,20 +1342,24 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
       const res = isNew
         ? await api.createEvent(payload)
         : await api.updateEvent(event!.id!, payload)
-      const syncErr = (res as EventView & { syncError?: string; error?: string })?.syncError
+      const syncErr = (res as EventView & { syncError?: string })?.syncError
+      const syncPending = (res as EventView & { syncPending?: boolean })?.syncPending
       const fatal = (res as { error?: string })?.error
       if (fatal) {
         setError(fatal)
         return
       }
-      if (syncErr) {
-        setError(`${t('syncFailed')}: ${syncErr}`)
-        onSaved()
-        return
-      }
-      onSaved()
+      const msg = syncErr
+        ? `${t('syncFailed')}: ${syncErr}`
+        : syncPending
+          ? t('eventSavedSyncing')
+          : t('eventSaved')
+      setSuccess(msg)
+      window.setTimeout(() => onSaved(syncErr ? undefined : msg), syncErr ? 2200 : 1100)
     } catch (e: any) {
       setError(e?.message ?? String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1197,14 +1411,23 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
               {error}
             </div>
           )}
+          {success && (
+            <div style={{ padding: '10px 12px', fontSize: '12px',
+              background: 'rgba(74,222,128,0.12)', border: '1px solid #4ade80', borderRadius: '4px', color: 'var(--text)' }}>
+              {success}
+            </div>
+          )}
 
           <Field label={t('title')}>
             <input style={inp} value={form.summary} onChange={e => setForm({ ...form, summary: e.target.value })} />
           </Field>
           <Field label={t('selectCalendar')}>
             <select style={inp} value={form.calendarId} onChange={e => setForm({ ...form, calendarId: e.target.value })}>
-              {calendars.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {calendars.map(c => <option key={c.id} value={c.id}>{c.name}{c.readOnly ? ` (${t('readOnly')})` : ''}</option>)}
             </select>
+            {calendarReadOnly && (
+              <div style={{ fontSize: '11px', color: '#fbbf24', marginTop: '4px' }}>{t('readOnlyCalendarHint')}</div>
+            )}
           </Field>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
             <input type="checkbox" checked={form.allDay} onChange={e => setForm({ ...form, allDay: e.target.checked })} />
@@ -1253,8 +1476,10 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
             </>
           ) : (
             <>
-              <ModalBtn onClick={onClose}>{t('cancel')}</ModalBtn>
-              <ModalBtn primary onClick={save}>{isNew ? t('add') : t('save')}</ModalBtn>
+              <ModalBtn onClick={onClose} disabled={saving}>{t('cancel')}</ModalBtn>
+              <ModalBtn primary onClick={save} disabled={saving || calendarReadOnly}>
+                {saving ? t('saving') : (isNew ? t('add') : t('save'))}
+              </ModalBtn>
             </>
           )}
         </div>
