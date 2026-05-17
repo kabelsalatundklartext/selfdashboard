@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { reportPluginCatch } from '@/lib/pluginLog'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
 export const meta: PluginMeta = {
@@ -128,6 +129,7 @@ function Widget({ config }: PluginWidgetProps) {
       setSessions(list)
       setError(null)
     } catch (e: unknown) {
+      reportPluginCatch('emby', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)

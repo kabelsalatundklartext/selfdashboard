@@ -12,6 +12,7 @@
  * the mutex and only enters it to merge results back into the store.
  */
 
+import { logPluginApiFailure } from '@/lib/pluginLog'
 import { mutateStore, newId, nowIso, readStore } from './store'
 import {
   discoverCaldavCalendars,
@@ -91,7 +92,9 @@ export async function runSync(accountId: string): Promise<SyncLogEntry> {
     })
   } catch (e: any) {
     errors.push(`discover: ${e?.message ?? e}`)
-    const log = makeLogEntry(accountId, errors.join('; '), { added: 0, updated: 0, deleted: 0, conflicts: 0 })
+    const errText = errors.join('; ')
+    void logPluginApiFailure('calendar', 'discover', errText, { accountId, provider: account.provider })
+    const log = makeLogEntry(accountId, errText, { added: 0, updated: 0, deleted: 0, conflicts: 0 })
     await mutateStore(s => {
       s.syncLog.unshift(log)
       s.syncLog = s.syncLog.slice(0, 50)
@@ -143,6 +146,14 @@ export async function runSync(accountId: string): Promise<SyncLogEntry> {
       acc.lastSyncError = errors.length ? errors.join('; ') : undefined
     }
   })
+  if (errors.length) {
+    void logPluginApiFailure('calendar', 'sync', errors.join('; '), {
+      accountId,
+      provider: account.provider,
+      added: totalAdded,
+      updated: totalUpdated,
+    })
+  }
   return log
 }
 

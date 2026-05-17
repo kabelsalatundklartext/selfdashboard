@@ -3,6 +3,8 @@
  * Kept as a separate file so the giant index.tsx can stay readable.
  */
 
+import { reportPluginError } from '@/lib/pluginLog'
+
 export interface AccountView {
   id: string
   name: string
@@ -73,7 +75,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
-    try { msg = (await res.json()).error ?? msg } catch {}
+    let detail: string | undefined
+    try {
+      const j = (await res.json()) as { error?: string; message?: string; syncError?: string }
+      msg = j.error ?? j.message ?? j.syncError ?? msg
+      detail = JSON.stringify(j).slice(0, 500)
+    } catch { /* ignore */ }
+    reportPluginError('calendar', msg, { category: `api${path.split('?')[0]}`, detail })
     throw new Error(msg)
   }
   if (res.status === 204) return undefined as T

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'unraid',
@@ -589,6 +590,7 @@ function Widget({ config }: PluginWidgetProps) {
       setData(mapResponse(json.data))
       setError(null)
     } catch (e: unknown) {
+      reportPluginCatch('unraid', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)

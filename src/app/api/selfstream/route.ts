@@ -29,7 +29,7 @@ type SelfstreamCatchupRow = {
 }
 
 import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
-import { logApiFailure } from '@/lib/errorLog'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 
 export type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
 
@@ -196,16 +196,16 @@ export async function POST(req: Request) {
             : res.status === 404
               ? 'api_not_found'
               : 'selfstream_error'
-      void logApiFailure('selfstream', error, { upstreamStatus: res.status, detail })
+      void logPluginApiFailure('selfstream', 'upstream', error, { upstreamStatus: res.status, detail })
       return NextResponse.json({ error, detail }, { status: res.status === 401 ? 401 : 502 })
     }
     return NextResponse.json(normalizeStats(json))
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      void logApiFailure('selfstream', 'timeout')
+      void logPluginApiFailure('selfstream', 'request', 'timeout')
       return NextResponse.json({ error: 'timeout' }, { status: 504 })
     }
-    void logApiFailure('selfstream', 'network_error', {
+    void logPluginApiFailure('selfstream', 'request', 'network_error', {
       message: e instanceof Error ? e.message : String(e),
     })
     return NextResponse.json({ error: 'network_error' }, { status: 502 })

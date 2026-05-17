@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ChevronRight, Globe, Hand, List, PieChart, Shield, ShieldOff, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
+import { reportPluginCatch } from '@/lib/pluginLog'
 import { useDashboardStore } from '@/lib/store'
 
 export const meta: PluginMeta = {
@@ -251,6 +252,7 @@ function Widget({ config }: PluginWidgetProps) {
       })
       setError(null)
     } catch (e) {
+      reportPluginCatch('pihole', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
       setData(null)
     } finally {

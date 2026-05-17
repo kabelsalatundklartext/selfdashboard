@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 import {
   CONTAINER_ID_RE,
   dockerGet,
@@ -33,8 +34,10 @@ export async function GET(req: Request) {
   try {
     const r = await dockerGet(`/containers/json?all=${all}`)
     if (!r.ok) {
+      const err = r.body?.slice(0, 400) || `Docker HTTP ${r.status}`
+      void logPluginApiFailure('docker', 'list', err, { status: r.status })
       return NextResponse.json(
-        { error: r.body?.slice(0, 400) || `Docker HTTP ${r.status}` },
+        { error: err },
         { status: r.status >= 400 && r.status < 600 ? r.status : 502 },
       )
     }
@@ -69,6 +72,7 @@ export async function GET(req: Request) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/EACCES|permission denied/i.test(msg)) {
+      void logPluginApiFailure('docker', 'list', 'docker_socket_eacces')
       return NextResponse.json(
         {
           error:
@@ -81,6 +85,7 @@ export async function GET(req: Request) {
       msg.includes('ENOENT') || msg.includes('ENOTDIR')
         ? 'Docker-Socket nicht gefunden — z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container.'
         : msg
+    void logPluginApiFailure('docker', 'list', hint)
     return NextResponse.json({ error: hint }, { status: 503 })
   }
 }
@@ -127,12 +132,14 @@ export async function POST(req: Request) {
         /* use slice */
       }
       const status = r.status >= 400 && r.status < 600 ? r.status : 502
+      void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id, status: r.status })
       return NextResponse.json({ error: msg }, { status })
     }
     return NextResponse.json({ ok: true, action: parsed.action, id: parsed.id })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/EACCES|permission denied/i.test(msg)) {
+      void logPluginApiFailure('docker', parsed.action, 'docker_socket_eacces', { id: parsed.id })
       return NextResponse.json(
         {
           error:
@@ -141,6 +148,7 @@ export async function POST(req: Request) {
         { status: 503 },
       )
     }
+    void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id })
     return NextResponse.json({ error: msg }, { status: 503 })
   }
 }

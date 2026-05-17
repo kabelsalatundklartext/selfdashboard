@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'docker',
@@ -1273,6 +1274,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setLastFetchOk(Date.now())
     } catch (e: unknown) {
       if (latestFetch.current === id) {
+        reportPluginCatch('docker', e, 'fetch')
         setError(e instanceof Error ? e.message : String(e))
       }
     } finally {

@@ -7,6 +7,7 @@ import type { Locale } from '@/lib/i18n'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'unraid-docker',
@@ -897,6 +898,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       setLastFetchOk(Date.now())
     } catch (e: unknown) {
       if (latest.current === id) {
+        reportPluginCatch('unraid-docker', e, 'fetch')
         setError(e instanceof Error ? e.message : String(e))
       }
     } finally {

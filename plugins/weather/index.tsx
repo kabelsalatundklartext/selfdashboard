@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
+import { reportPluginCatch } from '@/lib/pluginLog'
 import { useDashboardStore } from '@/lib/store'
 
 export const meta: PluginMeta = {
@@ -342,6 +343,7 @@ function Widget({ config }: PluginWidgetProps) {
         setUpdatedAt(new Date())
       } catch (e) {
         if (cancelled || (e as Error).name === 'AbortError') return
+        reportPluginCatch('weather', e, 'open-meteo')
         setError(de ? 'Netzwerk- oder API-Fehler.' : 'Network or API error.')
         setCurrent(null)
         setDaily([])

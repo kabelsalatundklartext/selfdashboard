@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
+import { reportPluginError } from '@/lib/pluginLog'
 import type { ThemeId } from '@/types'
 import { CrowdsecLogo } from './CrowdsecLogo'
 import type { CrowdsecDashboardData, CrowdsecFeedItem } from '@/lib/crowdsecMetrics'
@@ -169,7 +170,12 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
       const res = await fetch(`/api/crowdsec?${params}`)
       const json = await res.json()
       if (!res.ok) {
-        setError(typeof json.error === 'string' ? json.error : 'crowdsec_error')
+        const code = typeof json.error === 'string' ? json.error : 'crowdsec_error'
+        reportPluginError('crowdsec', code, {
+          category: 'fetch',
+          detail: JSON.stringify(json).slice(0, 500),
+        })
+        setError(code)
         setData(null)
         return
       }

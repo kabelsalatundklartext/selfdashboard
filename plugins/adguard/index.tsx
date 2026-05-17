@@ -5,6 +5,7 @@ import { Activity, Ban, Network, Percent, Shield, ShieldOff, type LucideIcon } f
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'adguard',
@@ -203,6 +204,7 @@ function Widget({ config }: PluginWidgetProps) {
       })
       setError(null)
     } catch (e) {
+      reportPluginCatch('adguard', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
       setData(null)
     } finally {
@@ -231,6 +233,7 @@ function Widget({ config }: PluginWidgetProps) {
       }
       await fetch_()
     } catch (e) {
+      reportPluginCatch('adguard', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setProtBusy(false)

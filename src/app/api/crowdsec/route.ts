@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadCrowdsecDashboard, resolveCrowdsecDbPath } from '@/lib/crowdsecDb'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
           : msg === 'db_schema_unsupported'
             ? 422
             : 502
+    void logPluginApiFailure('crowdsec', 'dashboard', msg, { dbPath, status })
     return NextResponse.json({ error: msg }, { status })
   }
 }

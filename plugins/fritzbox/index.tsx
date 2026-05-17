@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 /** Plot-Höhe: 0 = Standardhöhe; 1–FB_PLOT_H_MAX = exakte Pixelhöhe. */
 const FB_PLOT_H_DEFAULT = 168
@@ -1017,6 +1018,7 @@ function Widget({ config }: PluginWidgetProps) {
       setError(null)
       setData(j as Summary)
     } catch (e) {
+      reportPluginCatch('fritzbox', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
       setData(null)
     } finally {

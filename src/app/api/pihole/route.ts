@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -222,6 +223,9 @@ export async function POST(req: Request) {
       const detail = piHoleErrorDetail(summaryRes.json, summaryRes.text.slice(0, 240))
       const st =
         summaryRes.status === 401 || summaryRes.status === 403 ? summaryRes.status : 502
+      void logPluginApiFailure('pihole', 'summary', detail || 'summary_failed', {
+        status: summaryRes.status,
+      })
       return NextResponse.json(
         { error: 'summary_failed', status: summaryRes.status, detail: detail || summaryRes.text.slice(0, 240) },
         { status: st },
@@ -242,6 +246,10 @@ export async function POST(req: Request) {
   } catch (e) {
     const err = e as Error & { status?: number; detail?: string }
     if (err.message === 'auth_failed' || err.message === 'auth_invalid') {
+      void logPluginApiFailure('pihole', 'auth', err.message, {
+        status: err.status,
+        detail: err.detail,
+      })
       return NextResponse.json(
         { error: err.message, status: err.status ?? 401, detail: err.detail ?? '' },
         { status: err.status === 401 || err.status === 403 ? err.status : 502 },
@@ -249,6 +257,7 @@ export async function POST(req: Request) {
     }
     const msg = e instanceof Error ? e.message : String(e)
     const aborted = e instanceof Error && e.name === 'AbortError'
+    void logPluginApiFailure('pihole', 'request', aborted ? 'timeout' : msg)
     return NextResponse.json(
       { error: aborted ? 'timeout' : 'fetch_failed', detail: msg },
       { status: aborted ? 504 : 502 },

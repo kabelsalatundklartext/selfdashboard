@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 import {
   fetchFritzBoxByteCountersOnly,
   fetchFritzBoxSummary,
@@ -71,11 +72,14 @@ export async function POST(req: Request) {
     const name = e instanceof Error ? e.name : ''
     const msg = e instanceof Error ? e.message : String(e)
     if (name === 'AbortError') {
+      void logPluginApiFailure('fritzbox', 'request', 'timeout', { lite })
       return NextResponse.json({ ok: false, error: 'timeout' }, { status: 504 })
     }
     if (msg === 'unauthorized') {
+      void logPluginApiFailure('fritzbox', 'auth', 'unauthorized', { lite })
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
     }
+    void logPluginApiFailure('fritzbox', 'request', msg, { lite })
     return NextResponse.json({ ok: false, error: 'fetch_failed', message: msg }, { status: 502 })
   } finally {
     clearTimeout(to)

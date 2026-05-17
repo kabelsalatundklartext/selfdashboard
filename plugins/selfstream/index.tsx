@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
+import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'selfstream',
@@ -116,6 +117,7 @@ function Widget({ config }: PluginWidgetProps) {
       setData(j)
       setError(null)
     } catch (e: unknown) {
+      reportPluginCatch('selfstream', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
       setData(null)
     } finally {

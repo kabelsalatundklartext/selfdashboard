@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logPluginApiFailure } from '@/lib/pluginLog'
 
 export const dynamic = 'force-dynamic'
 
@@ -226,6 +227,10 @@ export async function POST(req: Request) {
     const statsBundle = await fetchStatsBundle(base, headers, ac.signal)
     if ('error' in statsBundle) {
       const st = statsBundle.status === 401 || statsBundle.status === 403 ? statsBundle.status : 502
+      void logPluginApiFailure('adguard', 'stats', statsBundle.error, {
+        status: statsBundle.status,
+        detail: statsBundle.detail,
+      })
       return NextResponse.json(
         { error: statsBundle.error, status: statsBundle.status, detail: statsBundle.detail },
         { status: st },
@@ -249,6 +254,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     const aborted = e instanceof Error && e.name === 'AbortError'
+    void logPluginApiFailure('adguard', 'request', aborted ? 'timeout' : msg)
     return NextResponse.json(
       { error: aborted ? 'timeout' : 'fetch_failed', detail: msg },
       { status: aborted ? 504 : 502 },
