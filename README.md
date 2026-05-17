@@ -49,6 +49,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | Plugin | Category | Description | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | ✅ Included |
+| 📅 Calendar | Productivity | CalDAV two-way + ICS feeds; accounts in `/api/calendar`, data in `data/calendar/` | ✅ Included |
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | ✅ Included |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
@@ -208,6 +209,20 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 
 ---
 
+## Calendar plugin
+
+| Feature | Description |
+|---|---|
+| CalDAV | Two-way sync (iCloud, Nextcloud, Fastmail, WEB.DE with app password, …) |
+| ICS | Read-only subscription URLs (WEB.DE share link, Google, …) |
+| Storage | `data/calendar/store.json` on the server; credentials encrypted (AES-256-GCM) |
+| UI | Compact tile + full-screen month/agenda; account setup in the modal |
+| Sync | Background sync every 5 min (env `CALENDAR_SYNC_INTERVAL_SECONDS`) |
+
+Accounts are configured in the calendar modal (cog on the tile), not in the old widget JSON config.
+
+---
+
 ## FRITZ!Box WAN throughput plugin
 
 | Topic | Details |
@@ -255,7 +270,7 @@ Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and t
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Calendar, Clock, Docker, Emby, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, Unraid, Unraid Docker, Weather, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -356,6 +371,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | ✅ Enthalten |
+| 📅 Kalender | Productivity | CalDAV Zwei-Wege + ICS-Feeds; Konten über `/api/calendar`, Daten unter `data/calendar/` | ✅ Enthalten |
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
 | 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | ✅ Enthalten |
 | 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
@@ -517,6 +533,18 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
+## Kalender-Plugin
+
+| Feature | Beschreibung |
+|---|---|
+| CalDAV | Zwei-Wege-Sync (iCloud, Nextcloud, WEB.DE mit App-Passwort, …) |
+| ICS | Nur lesen — z. B. WEB.DE „Kalender-URL zum Einbinden“ |
+| Speicher | `data/calendar/store.json` serverseitig; Zugangsdaten verschlüsselt |
+| UI | Kachel + Vollbild (Monat/Agenda); Konten im Modal (Zahnrad) |
+| Sync | Hintergrund-Sync alle 5 Min (`CALENDAR_SYNC_INTERVAL_SECONDS`) |
+
+---
+
 ## Fritzbox-Plugin (Internet-Verlauf)
 
 | Thema | Details |
@@ -564,7 +592,7 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Docker, Emby, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, Unraid, Unraid Docker, Wetter, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
