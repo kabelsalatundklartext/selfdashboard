@@ -137,9 +137,11 @@ function pickDefaultWritableCalendar(cals: CalendarView[]): CalendarView | undef
   const writable = cals.filter(c => !c.readOnly)
   if (!writable.length) return undefined
   const score = (c: CalendarView) => {
-    const n = c.name.toLowerCase()
+    const n = c.name.toLowerCase().trim()
     if (/geburt|birth/.test(n)) return 0
-    if (/mein|standard|privat|home|kalender/.test(n)) return 3
+    if (n === 'web' || n === 'web.de') return 0
+    if (/mein kalender|mein|standard|privat|home/.test(n)) return 5
+    if (/kalender/.test(n)) return 3
     return 1
   }
   return [...writable].sort((a, b) => score(b) - score(a))[0]

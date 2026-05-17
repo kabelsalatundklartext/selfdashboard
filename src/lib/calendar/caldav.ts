@@ -31,6 +31,10 @@
 
 import { createDAVClient } from 'tsdav'
 
+import {
+  formatCalDavPushError,
+  resolveCalendarReadOnly,
+} from './caldav-privileges'
 import { caldavObjectFilename, joinCollectionUrl, normalizeCaldavServerUrl } from './caldav-url'
 import { decrypt } from './crypto'
 import { buildVcalendar, parseVcalendar } from './ical'
@@ -109,17 +113,18 @@ function caldavDisplayName(cal: { url: string; displayName?: unknown }): string 
 export async function discoverCaldavCalendars(account: Account): Promise<DiscoveredCalendar[]> {
   const client = await buildClient(account)
   const calendars = await client.fetchCalendars()
-  return calendars.map(c => ({
-    remoteId: c.url,
-    name: caldavDisplayName(c),
-    // tsdav exposes calendar color via `calendarColor` when the server returns it
-    color: (c as { calendarColor?: string }).calendarColor ?? undefined,
-    readOnly: (() => {
-      const privs = (c as { privileges?: string[] }).privileges
-      if (!privs?.length) return false
-      return !privs.some(p => /write/i.test(p))
-    })(),
-  }))
+  const out: DiscoveredCalendar[] = []
+  for (const c of calendars) {
+    const name = caldavDisplayName(c)
+    const readOnly = await resolveCalendarReadOnly(client, name, c.url)
+    out.push({
+      remoteId: c.url,
+      name,
+      color: (c as { calendarColor?: string }).calendarColor ?? undefined,
+      readOnly,
+    })
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +328,11 @@ async function pushCaldav(
         ev.syncState = 'conflict'
         result.conflicts++
       } else {
-        result.errors.push(`push ${ev.uid}: ${msg}`)
+        if (msg.includes('403')) {
+          const calRow = store.calendars.find(c => c.id === calendar.id)
+          if (calRow) calRow.readOnly = true
+        }
+        result.errors.push(formatCalDavPushError(calendar.name, ev.uid, msg))
       }
     }
   }
