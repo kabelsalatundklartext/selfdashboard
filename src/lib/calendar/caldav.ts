@@ -31,6 +31,7 @@
 
 import { createDAVClient } from 'tsdav'
 
+import { caldavObjectFilename, joinCollectionUrl, normalizeCaldavServerUrl } from './caldav-url'
 import { decrypt } from './crypto'
 import { buildVcalendar, parseVcalendar } from './ical'
 import { nowIso } from './store'
@@ -70,8 +71,9 @@ function mergeResult(a: SyncResult, b: SyncResult): SyncResult {
 async function buildClient(account: Account) {
   const cfg = account.config as CalDAVConfig
   const password = decrypt(cfg.passwordEncrypted)
+  const serverUrl = normalizeCaldavServerUrl(cfg.url)
   return createDAVClient({
-    serverUrl: cfg.url,
+    serverUrl,
     credentials: { username: cfg.username, password },
     authMethod: 'Basic',
     defaultAccountType: 'caldav',
@@ -138,6 +140,8 @@ export async function syncCaldavCalendar(
   }
 
   const pull = await pullCaldav(client, davCal, calendar, store)
+  if (calendar.readOnly) return pull
+
   const push = await pushCaldav(client, davCal, calendar, store)
   return mergeResult(pull, push)
 }
@@ -259,14 +263,22 @@ async function pushCaldav(
           rrule: ev.rrule,
           lastModifiedIso: ev.localModifiedAt,
         })
+        const filename = caldavObjectFilename(ev.uid)
+        const objectUrl = joinCollectionUrl(davCal.url, filename)
         const res = await client.createCalendarObject({
           calendar: davCal,
           iCalString: ical,
-          filename: `${ev.uid}.ics`,
+          filename,
         })
+        const httpRes = res as Response
+        if (httpRes && typeof httpRes.ok === 'boolean' && !httpRes.ok) {
+          const body = await httpRes.text().catch(() => '')
+          throw new Error(`HTTP ${httpRes.status} ${httpRes.statusText}${body ? `: ${body.slice(0, 120)}` : ''}`)
+        }
+        const loc = httpRes?.headers?.get?.('location')
         ev.icalData = ical
-        ev.remoteHref = (res as any).url ?? `${davCal.url}${ev.uid}.ics`
-        ev.remoteEtag = (res as any).etag ?? ''
+        ev.remoteHref = loc ? new URL(loc, davCal.url).href : objectUrl
+        ev.remoteEtag = httpRes?.headers?.get?.('etag')?.replace(/^"|"$/g, '') ?? ''
         ev.syncState = 'synced'
         result.added++
       } else if (ev.syncState === 'local_modified') {

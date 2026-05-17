@@ -25,6 +25,20 @@ export function newUid(): string {
   return `${randomUUID()}@selfdashboard`
 }
 
+/** Normalize stored dtstart/dtend for all-day events (YYYY-MM-DD). */
+export function normalizeEventTimes(body: {
+  dtstart: string
+  dtend?: string
+  allDay?: boolean
+}): { dtstart: string; dtend?: string } {
+  if (!body.allDay) return { dtstart: body.dtstart, dtend: body.dtend }
+  const day = (s: string) => (s.length >= 10 ? s.slice(0, 10) : s)
+  return {
+    dtstart: day(body.dtstart),
+    dtend: body.dtend ? day(body.dtend) : undefined,
+  }
+}
+
 /** Normalise any datetime input to UTC ISO; date-only stays YYYY-MM-DD. */
 export function toIso(value: Date | string): string {
   if (typeof value === 'string') {

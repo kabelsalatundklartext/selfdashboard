@@ -45,6 +45,12 @@ export async function testAccount(account: Account) {
 
 // ---------------------------------------------------------------------------
 
+/** Run sync after create/update/delete; returns user-visible error text if push/pull failed. */
+export async function syncAfterMutation(accountId: string): Promise<string | undefined> {
+  const log = await runSync(accountId)
+  return log.error ?? undefined
+}
+
 export async function runSync(accountId: string): Promise<SyncLogEntry> {
   // snapshot — read once, do all network work without holding the mutex
   const store = await readStore()

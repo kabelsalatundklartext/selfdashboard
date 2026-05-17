@@ -13,9 +13,9 @@
 import { NextRequest } from 'next/server'
 
 import { badRequest, ok } from '@/lib/calendar/api-helpers'
-import { buildVcalendar, expandRecurrences, newUid } from '@/lib/calendar/ical'
+import { buildVcalendar, expandRecurrences, newUid, normalizeEventTimes } from '@/lib/calendar/ical'
 import { mutateStore, newId, nowIso, readStore } from '@/lib/calendar/store'
-import { runSync } from '@/lib/calendar/sync'
+import { syncAfterMutation } from '@/lib/calendar/sync'
 import type { CalendarEvent, EventCreateBody } from '@/lib/calendar/types'
 
 export const runtime = 'nodejs'
@@ -69,6 +69,11 @@ export async function POST(req: NextRequest) {
   if (!cal) return badRequest('calendar not found')
   if (cal.readOnly) return badRequest('calendar is read-only')
 
+  const times = normalizeEventTimes({
+    dtstart: body.dtstart,
+    dtend: body.dtend,
+    allDay: body.allDay,
+  })
   const uid = newUid()
   const evId = newId('evt')
   const ical = buildVcalendar({
@@ -76,8 +81,8 @@ export async function POST(req: NextRequest) {
     summary: body.summary ?? '',
     description: body.description,
     location: body.location,
-    dtstart: body.dtstart,
-    dtend: body.dtend,
+    dtstart: times.dtstart,
+    dtend: times.dtend,
     allDay: body.allDay ?? false,
     rrule: body.rrule,
     lastModifiedIso: nowIso(),
@@ -92,8 +97,8 @@ export async function POST(req: NextRequest) {
       summary: body.summary ?? '',
       description: body.description ?? '',
       location: body.location ?? '',
-      dtstart: body.dtstart,
-      dtend: body.dtend,
+      dtstart: times.dtstart,
+      dtend: times.dtend,
       allDay: body.allDay ?? false,
       rrule: body.rrule,
       localModifiedAt: nowIso(),
@@ -101,13 +106,16 @@ export async function POST(req: NextRequest) {
     })
   })
 
+  const syncError = await syncAfterMutation(cal.accountId)
+
   const after = await readStore()
   const ev = after.events.find(e => e.id === evId)
   if (!ev) return badRequest('event not created')
 
-  // Push to CalDAV in background — UI stays responsive.
-  void runSync(cal.accountId).catch(() => undefined)
-
-  const payload: CreateEventResponse = { ...ev, syncPending: true }
+  const payload: CreateEventResponse = {
+    ...ev,
+    syncError,
+    syncPending: ev.syncState !== 'synced' && !syncError,
+  }
   return ok(payload)
 }

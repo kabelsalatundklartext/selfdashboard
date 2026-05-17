@@ -10,9 +10,9 @@
 import { NextRequest } from 'next/server'
 
 import { badRequest, notFound, ok } from '@/lib/calendar/api-helpers'
-import { buildVcalendar } from '@/lib/calendar/ical'
+import { buildVcalendar, normalizeEventTimes } from '@/lib/calendar/ical'
 import { mutateStore, nowIso, readStore } from '@/lib/calendar/store'
-import { runSync } from '@/lib/calendar/sync'
+import { syncAfterMutation } from '@/lib/calendar/sync'
 import type { CalendarEvent, EventUpdateBody } from '@/lib/calendar/types'
 
 export const runtime = 'nodejs'
@@ -44,8 +44,13 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     if (body.summary !== undefined) ev.summary = body.summary
     if (body.description !== undefined) ev.description = body.description
     if (body.location !== undefined) ev.location = body.location
-    if (body.dtstart !== undefined) ev.dtstart = body.dtstart
-    if (body.dtend !== undefined) ev.dtend = body.dtend
+    const times = normalizeEventTimes({
+      dtstart: body.dtstart ?? ev.dtstart,
+      dtend: body.dtend ?? ev.dtend,
+      allDay: body.allDay ?? ev.allDay,
+    })
+    if (body.dtstart !== undefined) ev.dtstart = times.dtstart
+    if (body.dtend !== undefined) ev.dtend = times.dtend
     if (body.allDay !== undefined) ev.allDay = body.allDay
     if (body.rrule !== undefined) ev.rrule = body.rrule
     ev.localModifiedAt = nowIso()
@@ -66,13 +71,17 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
   if (!found) return notFound('event not found or its calendar is read-only')
 
-  if (calendarAccountId) void runSync(calendarAccountId).catch(() => undefined)
+  const syncError = calendarAccountId ? await syncAfterMutation(calendarAccountId) : undefined
 
   const after = await readStore()
   const ev = after.events.find(e => e.id === id)
   if (!ev) return notFound('event not found')
 
-  const payload: UpdateEventResponse = { ...ev, syncPending: true }
+  const payload: UpdateEventResponse = {
+    ...ev,
+    syncError,
+    syncPending: ev.syncState !== 'synced' && !syncError,
+  }
   return ok(payload)
 }
 
@@ -98,6 +107,6 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   })
 
   if (!found) return notFound('event not found or its calendar is read-only')
-  if (triggerAccountId) runSync(triggerAccountId).catch(() => undefined)
-  return ok({ ok: true })
+  const syncError = triggerAccountId ? await syncAfterMutation(triggerAccountId) : undefined
+  return ok({ ok: true, syncError })
 }
