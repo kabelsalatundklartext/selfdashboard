@@ -12,7 +12,7 @@ export const meta: PluginMeta = {
   name: 'Docker',
   description:
     'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.9',
+  version: '1.8.10',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -1232,13 +1232,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     [displayList, instanceId, updatePluginConfig],
   )
 
+  const fetchBusyRef = useRef(false)
+
   const fetch_ = useCallback(async () => {
+    if (fetchBusyRef.current) return
+    fetchBusyRef.current = true
     const id = ++latestFetch.current
-    let trimmed: DockerContainer[] = []
     const q = showAll ? 'all=1' : 'all=0'
+    const url = fetchStats ? `/api/docker-containers?${q}&stats=1` : `/api/docker-containers?${q}`
 
     try {
-      const res = await fetch(`/api/docker-containers?${q}`, { method: 'GET', cache: 'no-store' })
+      const res = await fetch(url, { method: 'GET', cache: 'no-store' })
       const raw = await res.text()
       let data: unknown
       try {
@@ -1254,22 +1258,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       if (latestFetch.current !== id) return
 
       const sorted = buildOrderedDockerList(data as DockerContainer[], listSort, customOrder)
-      trimmed = sorted.slice(0, maxRows)
-      /** Phase-1 liefert keine sdStats — alte Werte kurz behalten, sonst flackern CPU/RAM bei jedem Poll */
-      setList((prev) => {
-        const keep = new Map<string, SdContainerStats | null>()
-        for (const p of prev) {
-          const pid = dockerContainerId(p)
-          if (!pid || !isDockerRunning(p)) continue
-          if (p.sdStats !== undefined) keep.set(pid, p.sdStats ?? null)
-        }
-        return trimmed.map((c) => {
-          if (!isDockerRunning(c)) return { ...c, sdStats: null }
-          const cid = dockerContainerId(c)
-          if (cid && keep.has(cid)) return { ...c, sdStats: keep.get(cid)! }
-          return { ...c }
-        })
-      })
+      setList(sorted.slice(0, maxRows))
       setError(null)
       setLastFetchOk(Date.now())
     } catch (e: unknown) {
@@ -1278,87 +1267,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         setError(e instanceof Error ? e.message : String(e))
       }
     } finally {
+      fetchBusyRef.current = false
       if (latestFetch.current === id) setLoading(false)
-    }
-
-    const mergeStatsFromGet = async () => {
-      const res = await fetch(`/api/docker-containers?${q}&stats=1`, { method: 'GET', cache: 'no-store' })
-      const raw = await res.text()
-      if (latestFetch.current !== id) return
-      let data: unknown
-      try {
-        data = JSON.parse(raw) as unknown
-      } catch {
-        return
-      }
-      if (!res.ok || !Array.isArray(data)) return
-      const sorted = buildOrderedDockerList(data as DockerContainer[], listSort, customOrder)
-      setList(sorted.slice(0, maxRows))
-      setLastFetchOk(Date.now())
-    }
-
-    if (latestFetch.current !== id || !fetchStats || trimmed.length === 0) return
-
-    const runningIds = [
-      ...new Set(
-        trimmed
-          .filter((c) => isDockerRunning(c) && CONTAINER_ID_RE.test(dockerContainerId(c)))
-          .map((c) => dockerContainerId(c)),
-      ),
-    ]
-    if (runningIds.length === 0) return
-
-    try {
-      const res2 = await fetch('/api/docker-container-stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: runningIds }),
-        cache: 'no-store',
-      })
-      const raw2 = await res2.text()
-      if (latestFetch.current !== id) return
-
-      let data2: unknown
-      try {
-        data2 = raw2 ? (JSON.parse(raw2) as unknown) : null
-      } catch {
-        await mergeStatsFromGet()
-        return
-      }
-
-      const statsMap = (data2 as { stats?: Record<string, SdContainerStats | null> }).stats
-      const statsKeys =
-        statsMap && typeof statsMap === 'object' ? Object.keys(statsMap as Record<string, unknown>) : []
-      if (!res2.ok || statsKeys.length === 0) {
-        await mergeStatsFromGet()
-        return
-      }
-
-      setList((prev) =>
-        buildOrderedDockerList(
-          prev.map((c) => {
-            const cid = dockerContainerId(c)
-            if (!isDockerRunning(c) || !CONTAINER_ID_RE.test(cid)) {
-              return { ...c, sdStats: null }
-            }
-            const statsRecord = statsMap as Record<string, SdContainerStats | null>
-            let v: SdContainerStats | null | undefined = statsRecord[cid]
-            if (v === undefined) {
-              const hit = statsKeys.find((k) => k === cid || k.toLowerCase() === cid.toLowerCase())
-              if (hit !== undefined) v = statsRecord[hit]
-            }
-            if (v !== undefined) {
-              return { ...c, sdStats: v ?? null }
-            }
-            return c
-          }),
-          listSort,
-          customOrder,
-        ),
-      )
-      setLastFetchOk(Date.now())
-    } catch {
-      if (latestFetch.current === id) await mergeStatsFromGet()
     }
   }, [showAll, maxRows, fetchStats, listSort, customOrderKey])
 
