@@ -3,6 +3,10 @@
  * Geburtstage / "web" as read-only but omits DAV privileges in discovery).
  */
 
+import { createDAVClient } from 'tsdav'
+
+type CaldavClient = Awaited<ReturnType<typeof createDAVClient>>
+
 export function heuristicCalendarReadOnly(name: string, url: string): boolean {
   const n = name.toLowerCase().trim()
   const u = url.toLowerCase()
@@ -17,17 +21,9 @@ export function heuristicCalendarReadOnly(name: string, url: string): boolean {
   return false
 }
 
-type PropfindClient = {
-  propfind: (params: {
-    url: string
-    props: Record<string, unknown>
-    depth?: string
-  }) => Promise<Array<{ href?: string; props?: Record<string, unknown> }>>
-}
-
 /** PROPFIND current-user-privilege-set — returns false when only read is granted. */
 export async function caldavHasWritePrivilege(
-  client: PropfindClient,
+  client: CaldavClient,
   calendarUrl: string,
 ): Promise<boolean> {
   try {
@@ -56,7 +52,7 @@ export async function caldavHasWritePrivilege(
 }
 
 export async function resolveCalendarReadOnly(
-  client: PropfindClient,
+  client: CaldavClient,
   name: string,
   url: string,
 ): Promise<boolean> {
