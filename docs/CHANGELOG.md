@@ -29,6 +29,16 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ---
 
+### Selfstream plugin **1.0.x**
+
+| Topic | Description |
+|--------|-------------|
+| **Data** | Active IPTV sessions from Selfstream admin via **`POST /api/selfstream`**. |
+| **Widget** | Lists live streams (user, channel/program, duration); optional client IP; configurable refresh interval. |
+| **Auth** | Admin password in plugin settings; proxied server-side (not stored in the central error log). |
+
+---
+
 ### FRITZ!Box WAN throughput plugin **2.3.x**
 
 | Topic | Description |
@@ -66,6 +76,16 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **CalDAV** | **`POST /api/calendar-caldav`**: Basic-Auth; zuerst **GET** (ICS-Export), sonst **REPORT** `calendar-query` (z. B. Nextcloud, Synology). |
 | **Gemeinsame Logik** | URL/Zeitfenster u. a. zwischen ICS- und CalDAV-Route geteilt. |
 | **Widget** | Monat/Woche, lokale Termine, Aktualisierungsintervall für externe Feeds. |
+
+---
+
+### Selfstream-Plugin **1.0.x**
+
+| Thema | Beschreibung |
+|--------|----------------|
+| **Daten** | Aktive IPTV-Sessions aus dem Selfstream-Admin über **`POST /api/selfstream`**. |
+| **Widget** | Liste laufender Streams (Nutzer, Sender/Sendung, Laufzeit); optional Client-IP; Aktualisierungsintervall einstellbar. |
+| **Auth** | Admin-Passwort in den Plugin-Einstellungen; serverseitiger Proxy (nicht im zentralen Protokoll gespeichert). |
 
 ---
 
