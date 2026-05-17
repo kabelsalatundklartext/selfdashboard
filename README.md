@@ -679,3 +679,4 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 ## Lizenz
 
 **MIT** — kostenlos nutzbar, veränderbar und weiterzugeben.
+
