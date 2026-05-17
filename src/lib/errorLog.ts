@@ -171,12 +171,32 @@ export async function appendErrorLog(input: AppendLogInput): Promise<LogEntry> {
   return entry
 }
 
-export async function listErrorLogs(opts?: { limit?: number; level?: LogLevel }): Promise<LogEntry[]> {
+export async function listErrorLogs(opts?: {
+  limit?: number
+  level?: LogLevel
+  source?: LogSource
+  pluginId?: string
+  q?: string
+}): Promise<LogEntry[]> {
   const settings = await readLogSettings()
   await purgeExpiredLogs(settings.retentionDays)
   const limit = Math.min(500, Math.max(1, opts?.limit ?? 200))
   let entries = await readAllEntries()
   if (opts?.level) entries = entries.filter((e) => e.level === opts.level)
+  if (opts?.source) entries = entries.filter((e) => e.source === opts.source)
+  if (opts?.pluginId?.trim()) {
+    const pid = opts.pluginId.trim().toLowerCase()
+    entries = entries.filter((e) => e.pluginId?.toLowerCase().includes(pid))
+  }
+  if (opts?.q?.trim()) {
+    const q = opts.q.trim().toLowerCase()
+    entries = entries.filter(
+      (e) =>
+        e.message.toLowerCase().includes(q) ||
+        (e.detail?.toLowerCase().includes(q) ?? false) ||
+        (e.category?.toLowerCase().includes(q) ?? false),
+    )
+  }
   entries.sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))
   return entries.slice(0, limit)
 }

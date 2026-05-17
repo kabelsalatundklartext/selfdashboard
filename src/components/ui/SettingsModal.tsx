@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil, Download, RefreshCw } from 'lucide-react'
-import type { LogEntry, LogRetentionDays } from '@/lib/errorLogTypes'
+import type { LogEntry, LogLevel, LogRetentionDays, LogSource } from '@/lib/errorLogTypes'
 import { useDashboardStore } from '@/lib/store'
 import { themes } from '@/lib/themes'
 import { t } from '@/lib/i18n'
@@ -88,6 +88,10 @@ export function SettingsModal({ open, onClose }: Props) {
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsBusy, setLogsBusy] = useState(false)
+  const [logFilterLevel, setLogFilterLevel] = useState<LogLevel | ''>('')
+  const [logFilterSource, setLogFilterSource] = useState<LogSource | ''>('')
+  const [logFilterPlugin, setLogFilterPlugin] = useState('')
+  const [logSearch, setLogSearch] = useState('')
   const logoInputRef = useRef<HTMLInputElement>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
   const newIconInputRef = useRef<HTMLInputElement>(null)
@@ -95,9 +99,14 @@ export function SettingsModal({ open, onClose }: Props) {
   const refreshLogs = useCallback(async () => {
     setLogsLoading(true)
     try {
+      const params = new URLSearchParams({ limit: '300' })
+      if (logFilterLevel) params.set('level', logFilterLevel)
+      if (logFilterSource) params.set('source', logFilterSource)
+      if (logFilterPlugin.trim()) params.set('pluginId', logFilterPlugin.trim())
+      if (logSearch.trim()) params.set('q', logSearch.trim())
       const [settingsRes, logsRes] = await Promise.all([
         fetch('/api/logs/settings', { cache: 'no-store' }),
-        fetch('/api/logs?limit=120', { cache: 'no-store' }),
+        fetch(`/api/logs?${params}`, { cache: 'no-store' }),
       ])
       if (settingsRes.ok) {
         const s = (await settingsRes.json()) as { retentionDays?: LogRetentionDays }
@@ -114,10 +123,16 @@ export function SettingsModal({ open, onClose }: Props) {
     } finally {
       setLogsLoading(false)
     }
-  }, [])
+  }, [logFilterLevel, logFilterSource, logFilterPlugin, logSearch])
 
   useEffect(() => {
     if (open && tab === 'logs') void refreshLogs()
+  }, [open, tab, refreshLogs])
+
+  useEffect(() => {
+    if (!open || tab !== 'logs') return
+    const id = window.setInterval(() => void refreshLogs(), 15_000)
+    return () => window.clearInterval(id)
   }, [open, tab, refreshLogs])
 
   const setRetention = async (days: LogRetentionDays) => {
@@ -207,7 +222,7 @@ export function SettingsModal({ open, onClose }: Props) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} onClick={onClose} />
         <div className="animate-fade-in" style={{
-          position: 'relative', width: '100%', maxWidth: tab === 'logs' ? '560px' : '520px', background: 'var(--surface)',
+          position: 'relative', width: '100%', maxWidth: tab === 'logs' ? '720px' : '520px', background: 'var(--surface)',
           border: '1px solid var(--border)', borderRadius: '18px', display: 'flex',
           flexDirection: 'column', maxHeight: '88vh', boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
@@ -828,8 +843,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </label>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.45 }}>
                   {locale === 'de'
-                    ? 'Fehler von SelfDashboard, API-Proxys und Plugins werden auf dem Server gespeichert (Passwörter werden nicht mitgeloggt).'
-                    : 'Errors from SelfDashboard, API proxies, and plugins are stored on the server (passwords are never logged).'}
+                    ? 'Zentrales Fehlerprotokoll: Browser-Fehler, fehlgeschlagene API-Aufrufe, Plugin-Widgets und Server-Routen. Aktualisiert sich alle 15 s. Passwörter werden nicht gespeichert.'
+                    : 'Central error log: browser errors, failed API calls, plugin widgets, and server routes. Refreshes every 15 s. Passwords are never stored.'}
                 </p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {RETENTION_OPTIONS.map((opt) => (
@@ -854,6 +869,41 @@ export function SettingsModal({ open, onClose }: Props) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                <select
+                  value={logFilterLevel}
+                  onChange={(e) => setLogFilterLevel(e.target.value as LogLevel | '')}
+                  style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}
+                >
+                  <option value="">{locale === 'de' ? 'Alle Stufen' : 'All levels'}</option>
+                  <option value="error">Error</option>
+                  <option value="warn">Warn</option>
+                  <option value="info">Info</option>
+                </select>
+                <select
+                  value={logFilterSource}
+                  onChange={(e) => setLogFilterSource(e.target.value as LogSource | '')}
+                  style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}
+                >
+                  <option value="">{locale === 'de' ? 'Alle Quellen' : 'All sources'}</option>
+                  <option value="app">App</option>
+                  <option value="plugin">Plugin</option>
+                  <option value="api">API</option>
+                </select>
+                <input
+                  style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}
+                  value={logFilterPlugin}
+                  onChange={(e) => setLogFilterPlugin(e.target.value)}
+                  placeholder={locale === 'de' ? 'Plugin (z. B. calendar)' : 'Plugin (e.g. calendar)'}
+                />
+                <input
+                  style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
+                  placeholder={locale === 'de' ? 'Textsuche…' : 'Search text…'}
+                />
               </div>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -899,7 +949,7 @@ export function SettingsModal({ open, onClose }: Props) {
                   {logsLoading ? ' …' : ` (${logEntries.length})`}
                 </label>
                 <div style={{
-                  maxHeight: '280px',
+                  maxHeight: '360px',
                   overflowY: 'auto',
                   borderRadius: '10px',
                   border: '1px solid var(--border)',

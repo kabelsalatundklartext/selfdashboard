@@ -1,5 +1,6 @@
 // Registers built-in plugins at app startup (compiled into the image — not bind-mounted on Unraid).
-// To add a plugin: import + registerPlugin() below, then rebuild the Docker image. See README and docs/PLUGIN_DEV.md.
+// To add a plugin: copy plugins/_template, import + registerPlugin() below, rebuild the image.
+// See docs/PLUGIN_DEV.md and docs/LOGGING.md (automatic error log per meta.id).
 
 import { registerPlugin } from '@/lib/pluginRegistry'
 

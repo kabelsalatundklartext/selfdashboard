@@ -5,7 +5,7 @@ import {
   listErrorLogs,
   purgeExpiredLogs,
 } from '@/lib/errorLog'
-import { isLogLevel, isLogSource, type LogLevel } from '@/lib/errorLogTypes'
+import { isLogLevel, isLogSource, type LogLevel, type LogSource } from '@/lib/errorLogTypes'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,12 +19,17 @@ function clampStr(v: unknown, max: number): string {
 /** GET: recent log entries. POST: append client/plugin log. DELETE: clear all logs. */
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const limit = Number(url.searchParams.get('limit') || 200)
+  const limit = Number(url.searchParams.get('limit') || 300)
   const levelParam = url.searchParams.get('level')
+  const sourceParam = url.searchParams.get('source')
   const level: LogLevel | undefined =
     levelParam && isLogLevel(levelParam) ? levelParam : undefined
+  const source: LogSource | undefined =
+    sourceParam && isLogSource(sourceParam) ? sourceParam : undefined
+  const pluginId = url.searchParams.get('pluginId') ?? undefined
+  const q = url.searchParams.get('q') ?? undefined
   try {
-    const entries = await listErrorLogs({ limit, level })
+    const entries = await listErrorLogs({ limit, level, source, pluginId, q })
     return NextResponse.json({ ok: true, entries })
   } catch {
     return NextResponse.json({ ok: false, error: 'read_failed' }, { status: 500 })

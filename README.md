@@ -40,6 +40,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🔗 **Navbar Options** | Show icon only, text only, or both — toggle dashboard tabs |
 | 📱 **Responsive layout** | **Phone / tablet / desktop** grid based on dashboard width; optional per-widget overrides in **⚙️ → Layout: phone & tablet**; compact **navbar search** (full-width row) on narrow viewports |
 | 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
+| 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
 ---
@@ -251,6 +252,8 @@ Accounts are configured in the calendar modal (cog on the tile), not in the old 
 
 **Design** — Grid spacing (widget gap + outer padding), Logo upload, Color theme, Custom color overrides per color
 
+**Logs (Protokoll)** — Central error log for support and debugging: filter by level, source, plugin; download `.txt` / JSONL; retention 3 / 7 / 30 days. Every plugin registered via `registerPlugin` logs render failures and failed `/api/*` calls automatically. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
+
 ---
 
 ## Building Your Own Plugin
@@ -265,8 +268,11 @@ Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and t
 | One-time **import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, then **`next build` / new Docker image** | **Widget chrome** in edit mode: drag handle, per-widget zoom / padding / height, ⚙️ opens your `Settings` when exported, remove button |
 | Optional **`src/app/api/...`** route if the browser must call a service **without CORS** (same pattern as Docker, FRITZ!Box, …) | **`Widget` props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — persist user settings via existing store / `dashboard.json` |
 | Responsive UI yourself (CSS variables, `minWidth: 0`, optional `layoutMode`) | Initial tile size from **`meta.defaultLayout`** and phone stack hint **`stackedExtraH`** |
+| Optional **`reportPluginCatch`** in `catch` blocks; server route with **`logPluginApiFailure`** | **Error log**: widget render errors + failed **`fetch('/api/…')`** under **Settings → Logs** (`meta.id` = plugin id) |
 
 **Not automatic:** copying TypeScript into Unraid **Custom Plugins** (`/app/plugins/custom`) **does not** register plugins in the **stock** image — the loader is compiled at build time. Use a **custom image** or fork with `pluginLoader.ts` updated, then rebuild.
+
+**Starter:** copy **`plugins/_template/`** → **`plugins/<id>/`**, register in **`pluginLoader.ts`**. See **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** and **[docs/LOGGING.md](docs/LOGGING.md)**.
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
@@ -362,6 +368,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🔗 **Navbar-Optionen** | Nur Icon, nur Text oder beides — Dashboard-Tabs ein/ausblendbar |
 | 📱 **Responsives Layout** | **Handy / Tablet / Desktop**-Raster je nach Dashboard-Breite; optionale Widget-Overrides unter **⚙️ → Layout: Handy & Tablet**; **Navbar-Suche** auf schmalen Viewports in **eigener voller Zeile** |
 | 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
+| 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
 ---
@@ -573,6 +580,8 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 **Design** — Grid-Abstände (Widget-Gap + Außenrand), Logo hochladen, Farbthema, Farben einzeln anpassen
 
+**Protokoll** — Zentrales Fehlerprotokoll für Support und Fehlersuche: Filter nach Stufe, Quelle, Plugin; Download `.txt` / JSONL; Aufbewahrung 3 / 7 / 30 Tage. Jedes per `registerPlugin` eingebundene Plugin loggt Render-Fehler und fehlgeschlagene `/api/*`-Aufrufe automatisch. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
+
 ---
 
 ## Eigenes Plugin entwickeln
@@ -587,8 +596,11 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | **Import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, danach **`next build` / neues Docker-Image** | **Widget-Chrome** im Bearbeiten-Modus: Griff, Zoom / Innenabstand / Höhe, ⚙️ öffnet dein `Settings` (falls exportiert), Entfernen |
 | Optional **`src/app/api/...`**, wenn der Browser einen Dienst **ohne CORS** ansprechen soll (wie Docker, Fritzbox, …) | **`Widget`-Props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — Konfiguration läuft über Store / `dashboard.json` |
 | Responsives Layout selbst (CSS-Variablen, `minWidth: 0`, optional `layoutMode`) | Start-Layout aus **`meta.defaultLayout`** und Stapel-Hinweis **`stackedExtraH`** |
+| Optional **`reportPluginCatch`** in `catch`; Server-Route mit **`logPluginApiFailure`** | **Protokoll**: Render-Fehler + fehlgeschlagene **`fetch('/api/…')`** unter **Einstellungen → Protokoll** (`meta.id` = Plugin-ID) |
 
 **Nicht automatisch:** TypeScript-Dateien nur nach **`/app/plugins/custom`** legen **registriert** im **Standard-Image** **keine** neuen Plugins — der Loader wird beim **Build** eingebunden. Dafür **eigenes Image** / Fork mit angepasstem `pluginLoader.ts` bauen.
+
+**Vorlage:** **`plugins/_template/`** nach **`plugins/<id>/`** kopieren, in **`pluginLoader.ts`** registrieren. Siehe **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** und **[docs/LOGGING.md](docs/LOGGING.md)**.
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 

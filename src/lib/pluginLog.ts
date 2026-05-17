@@ -26,7 +26,10 @@ export type PluginLogOptions = {
   instanceId?: string
 }
 
-/** Browser / plugin widget → server log (Settings → Protokoll). */
+/**
+ * Browser / plugin widget → server log (Settings → Protokoll).
+ * Failed /api/* fetch calls are also logged automatically via installGlobalFetchLogger().
+ */
 export function reportPluginError(
   pluginId: string,
   message: string,

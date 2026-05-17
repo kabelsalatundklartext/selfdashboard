@@ -1,22 +1,28 @@
 'use client'
 
 import { useEffect } from 'react'
+import { installGlobalFetchLogger } from '@/lib/clientFetchLog'
+import { formatErrorDetail } from '@/lib/pluginLog'
 import { reportClientLog } from '@/lib/reportLog'
 
 /**
- * Captures uncaught browser errors and unhandled promise rejections into the server log.
+ * Captures uncaught browser errors, unhandled rejections, and failed /api/* fetches
+ * into the central server log (Settings → Protokoll).
  */
 export function LogCapture() {
   useEffect(() => {
+    installGlobalFetchLogger()
+
     const onError = (ev: ErrorEvent) => {
       const msg = ev.message || 'Unknown error'
-      const loc = ev.filename ? `${ev.filename}:${ev.lineno ?? 0}` : undefined
+      const loc = ev.filename ? `${ev.filename}:${ev.lineno ?? 0}:${ev.colno ?? 0}` : undefined
+      const stack = ev.error instanceof Error ? ev.error.stack : undefined
       reportClientLog({
         level: 'error',
         source: 'app',
         category: 'window.onerror',
         message: msg,
-        detail: loc,
+        detail: [loc, stack].filter(Boolean).join('\n').slice(0, 4000) || undefined,
       })
     }
 
@@ -28,13 +34,12 @@ export function LogCapture() {
           : typeof reason === 'string'
             ? reason
             : 'Unhandled promise rejection'
-      const detail = reason instanceof Error ? reason.stack?.slice(0, 2000) : undefined
       reportClientLog({
         level: 'error',
         source: 'app',
         category: 'unhandledrejection',
         message,
-        detail,
+        detail: formatErrorDetail(reason),
       })
     }
 

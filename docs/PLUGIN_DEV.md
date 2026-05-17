@@ -92,6 +92,7 @@ export function loadBuiltinPlugins() {
 | **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** werden an **`Widget`** übergeben |
 | **Speichern** | Nutzer-**`config`** und Layout hängen am Dashboard und landen in **`dashboard.json`** (wenn `/app/data` gemountet) bzw. im lokalen Cache |
 | **Start-Layout** | **`meta.defaultLayout`** / **`stackedExtraH`** werden beim Hinzufügen mit Defaults gemischt |
+| **Fehlerprotokoll** | Nach **`registerPlugin`**: Render-Fehler in der Kachel + fehlgeschlagene **`fetch('/api/…')`** landen unter **Einstellungen → Protokoll** (Plugin-ID = **`meta.id`**) — siehe **[docs/LOGGING.md](LOGGING.md)** |
 
 ### Passiert nicht „von alleine“
 
@@ -100,6 +101,49 @@ export function loadBuiltinPlugins() {
 | **Custom-Pfad Unraid** | Dateien nur unter **`/app/plugins/custom`** legen **registriert** im **offiziellen Image** **kein** neues TypeScript-Plugin — der Code muss beim **Build** in `pluginLoader.ts` stecken |
 | **Eigene Server-API** | Es gibt keinen generischen Proxy; **serverseitige** Logik = **eigene** `src/app/api/...`-Route (oder bestehende wiederverwenden) |
 | **`configSchema` in `meta`** | Feld ist im Typ vorgesehen; die UI generiert daraus aktuell **kein** Formular automatisch — Einstellungen bleiben bei **`Settings`-Komponente** |
+| **Externe URLs direkt im Browser** | `fetch('https://fremd.example')` wird **nicht** automatisch ins Protokoll geschrieben — dafür eine **`/api/<dein-plugin>/`**-Route im Hauptprojekt |
+
+---
+
+## Fehlerprotokoll (für Nutzer & Entwickler)
+
+Vollständige Referenz: **[docs/LOGGING.md](LOGGING.md)**.
+
+### Was du als Autor tun musst
+
+1. **`meta.id`** stabil und eindeutig wählen (wird als **`pluginId`** im Protokoll verwendet).
+2. In **`pluginLoader.ts`** registrieren — danach ist das **Widget** automatisch abgesichert.
+3. Server-Zugriff: Route unter **`src/app/api/<meta.id>/`** (oder Unterpfad wie `calendar`) und im Widget **`fetch('/api/…')`** oder **`pluginApiJson`** aus **`@/lib/pluginDev`**.
+4. In **`catch`**: optional **`reportPluginCatch('deine-id', e, 'kategorie')`** für Kontext (z. B. Sync-Schritt).
+
+### Starter-Vorlage
+
+Ordner **`plugins/_template/`** kopieren nach **`plugins/<id>/`**, `meta.id` anpassen, in **`pluginLoader.ts`** eintragen.
+
+### Server-API-Route (Beispiel)
+
+```ts
+import { NextResponse } from 'next/server'
+import { withApiRouteLog } from '@/lib/apiRouteLog'
+import { logPluginApiFailure } from '@/lib/pluginLogServer'
+
+export const dynamic = 'force-dynamic'
+
+export async function POST(req: Request) {
+  return withApiRouteLog(req, 'POST', async () => {
+    try {
+      // … deine Logik …
+      return NextResponse.json({ ok: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      await logPluginApiFailure('meinplugin', 'POST', msg)
+      return NextResponse.json({ error: msg }, { status: 502 })
+    }
+  }, 'meinplugin')
+}
+```
+
+**Niemals** `@/lib/pluginLogServer` oder `@/lib/errorLog` in **`plugins/**/index.tsx`** importieren (bricht den Webpack-Build).
 
 ---
 
@@ -191,6 +235,7 @@ export const component: PluginComponent = { Widget, Settings }
 
 import { useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { reportPluginCatch } from '@/lib/pluginDev'
 
 export const meta: PluginMeta = {
   id: 'mein-api-plugin',
@@ -222,8 +267,9 @@ function Widget({ config }: PluginWidgetProps) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setData(await res.json())
         setError(null)
-      } catch (e: any) {
-        setError(e.message)
+      } catch (e: unknown) {
+        reportPluginCatch('mein-api-plugin', e, 'fetch')
+        setError(e instanceof Error ? e.message : String(e))
       } finally {
         setLoading(false)
       }
@@ -454,6 +500,7 @@ export function loadBuiltinPlugins() {
 | **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** are passed to **`Widget`** |
 | **Persistence** | User **`config`** and layout are tied to the dashboard and saved to **`dashboard.json`** (when `/app/data` is mounted) plus local cache |
 | **Initial layout** | **`meta.defaultLayout`** / **`stackedExtraH`** are merged with defaults when the user adds a widget |
+| **Error log** | After **`registerPlugin`**: render errors in the tile + failed **`fetch('/api/…')`** go to **Settings → Logs** (`pluginId` = **`meta.id`**) — see **[docs/LOGGING.md](LOGGING.md)** |
 
 ### Not automatic
 
@@ -462,6 +509,30 @@ export function loadBuiltinPlugins() {
 | **Unraid custom path** | Dropping TS sources into **`/app/plugins/custom`** **does not** register a new plugin in the **stock** image — code must be linked in **`pluginLoader.ts`** at **build** time |
 | **Server API** | There is no generic proxy; **server-side** work means your own **`src/app/api/...`** route (or reuse an existing one) |
 | **`configSchema` on `meta`** | The field exists on the type; the UI **does not** auto-generate a form from it today — use a **`Settings`** component |
+| **Direct browser fetch to third-party URLs** | Not auto-logged — add a **`/api/your-plugin/`** route in the main app instead |
+
+---
+
+## Error log (for users & developers)
+
+Full reference: **[docs/LOGGING.md](LOGGING.md)**.
+
+### What you must do as an author
+
+1. Choose a stable **`meta.id`** (used as **`pluginId`** in the log).
+2. Register in **`pluginLoader.ts`** — the **Widget** is then wrapped automatically.
+3. Server access: **`src/app/api/<meta.id>/`** and call **`fetch('/api/…')`** or **`pluginApiJson`** from **`@/lib/pluginDev`** in the widget.
+4. In **`catch`**: optionally **`reportPluginCatch('your-id', e, 'category')`** for extra context.
+
+### Starter template
+
+Copy **`plugins/_template/`** to **`plugins/<id>/`**, set **`meta.id`**, register in **`pluginLoader.ts`**.
+
+### Server API route (example)
+
+Same pattern as the German section above — use **`withApiRouteLog`** and **`logPluginApiFailure`** from **`@/lib/pluginLogServer`** only in **`src/app/api/**`**.
+
+**Never** import server log modules in **`plugins/**/index.tsx`**.
 
 ---
 
