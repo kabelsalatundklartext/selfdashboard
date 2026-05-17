@@ -47,23 +47,25 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 ## Available Plugins
 
+Icons match the assets in the app under [`public/plugin-logos/`](public/plugin-logos/) (same as in the plugin store). Plugins without a dedicated file still use emoji in the table below.
+
 | Plugin | Category | Description | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | ✅ Included |
 | 📅 Calendar | Productivity | CalDAV two-way + ICS feeds; accounts in `/api/calendar`, data in `data/calendar/` | ✅ Included |
 | 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
 | 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | ✅ Included |
-| 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
-| 🎬 Emby | Media | Active sessions — who is watching what | ✅ Included |
-| 📺 Selfstream | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | ✅ Included |
-| 🐳 Docker | System | Container list via Engine API (socket mount) | ✅ Included |
-| 🧱 Unraid Docker | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
-| 🛡️ AdGuard Home | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
-| 🕳️ Pi-hole | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | ✅ Included |
-| 📈 FRITZ!Box Internet | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
+| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
+| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Active sessions — who is watching what | ✅ Included |
+| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | ✅ Included |
+| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container list via Engine API (socket mount) | ✅ Included |
+| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
+| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | ✅ Included |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ!Box Internet** | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
-| 🛡️ CrowdSec | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
+| <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
 
 ## Quick Start
 
@@ -387,23 +389,25 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 ## Verfügbare Plugins
 
+Die Icons entsprechen den Dateien in [`public/plugin-logos/`](public/plugin-logos/) (wie im Plugin-Store). Plugins ohne eigene Logo-Datei nutzen weiterhin ein Emoji in der Tabelle.
+
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
 | 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | ✅ Enthalten |
 | 📅 Kalender | Productivity | CalDAV Zwei-Wege + ICS-Feeds; Konten über `/api/calendar`, Daten unter `data/calendar/` | ✅ Enthalten |
 | 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
 | 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | ✅ Enthalten |
-| 🖥️ Unraid | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
-| 🎬 Emby | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
-| 📺 Selfstream | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | ✅ Enthalten |
-| 🐳 Docker | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
-| 🧱 Unraid Docker | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
-| 🛡️ AdGuard Home | Netzwerk | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
-| 🕳️ Pi-hole | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | ✅ Enthalten |
-| 📈 Fritzbox Internet Verlauf | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
+| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
+| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
+| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | ✅ Enthalten |
+| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
+| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
+| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | ✅ Enthalten |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **Fritzbox Internet Verlauf** | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
-| 🛡️ CrowdSec | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
+| <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
 
 ---
 
