@@ -29,7 +29,7 @@ type SelfstreamCatchupRow = {
 }
 
 import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
-import { logPluginApiFailure } from '@/lib/pluginLog'
+import { logPluginApiFailure } from '@/lib/pluginLogServer'
 
 export type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
 

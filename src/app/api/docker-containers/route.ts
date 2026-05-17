@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { logPluginApiFailure } from '@/lib/pluginLog'
+import { logPluginApiFailure } from '@/lib/pluginLogServer'
 import {
   CONTAINER_ID_RE,
   dockerGet,

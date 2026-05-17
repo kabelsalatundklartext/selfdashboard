@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadCrowdsecDashboard, resolveCrowdsecDbPath } from '@/lib/crowdsecDb'
-import { logPluginApiFailure } from '@/lib/pluginLog'
+import { logPluginApiFailure } from '@/lib/pluginLogServer'
 
 export const dynamic = 'force-dynamic'
 
