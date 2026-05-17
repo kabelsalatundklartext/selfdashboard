@@ -284,18 +284,18 @@
   flex: 1 1 auto;
   overflow: auto;
   min-height: 0;
-  padding: 8px 10px 10px;
+  padding: 6px 8px 8px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .cs-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -329,56 +329,58 @@
 .cs-card-body {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cs-card-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .cs-card-ip {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+  flex-shrink: 0;
 }
 
 .cs-scenario-tag {
   font-size: 9px;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 1px 5px;
   border-radius: 4px;
   background: var(--surface);
   color: var(--text-muted);
   border: 1px solid var(--border);
-  max-width: 140px;
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.cs-card-bottom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  flex-wrap: wrap;
-}
-
 .cs-card-time {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .cs-status {
-  font-size: 9px;
+  flex-shrink: 0;
+  font-size: 8px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
+  letter-spacing: 0.03em;
+  padding: 2px 5px;
   border-radius: 4px;
+  align-self: center;
 }
 
 .cs-status-ban {
@@ -387,8 +389,9 @@
 }
 
 .cs-status-free {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border: 1px solid var(--border);
 }
 
 .cs-card-actions {
@@ -399,8 +402,8 @@
 }
 
 .cs-icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   border-radius: 8px;
@@ -419,8 +422,8 @@
 }
 
 .cs-unban-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   display: inline-flex;
   align-items: center;

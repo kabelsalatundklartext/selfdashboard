@@ -415,22 +415,29 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
                   role="button"
                   tabIndex={0}
                 >
-                  <CountryFlag code={cc || item.country} size={28} title={COUNTRY_NAME[cc] || cc} />
+                  <CountryFlag code={cc || item.country} size={20} title={COUNTRY_NAME[cc] || cc} />
                   <section className="cs-card-body">
                     <header className="cs-card-top">
                       <span className="cs-card-ip">{item.ip}</span>
                       <span className="cs-scenario-tag" title={item.scenario}>
                         {item.scenario}
                       </span>
-                    </header>
-                    <footer className="cs-card-bottom">
                       <span className="cs-card-time">{formatRelative(item.time_iso, locale)}</span>
-                      <span
-                        className={`cs-status ${item.active_ban ? 'cs-status-ban' : 'cs-status-free'}`}
-                      >
-                        {item.active_ban ? (de ? 'Gebannt' : 'Banned') : de ? 'Entsperrt' : 'Unblocked'}
-                      </span>
-                    </footer>
+                    </header>
+                    <span
+                      className={`cs-status ${item.active_ban ? 'cs-status-ban' : 'cs-status-free'}`}
+                      title={
+                        item.active_ban
+                          ? de
+                            ? 'Zu diesem Alert existiert ein Ban-Eintrag in der CrowdSec-Datenbank (decisions).'
+                            : 'This alert has a linked ban record in the CrowdSec database (decisions).'
+                          : de
+                            ? 'Nur Alert — kein Ban zu diesem Alert (abgelaufen, nie gesperrt, oder anderer Vorfall). Das ist kein manuelles Entsperren in SelfDashboard.'
+                            : 'Alert only — no ban linked to this alert (expired, never banned, or a separate incident). Not a manual unban in SelfDashboard.'
+                      }
+                    >
+                      {item.active_ban ? (de ? 'Ban aktiv' : 'Ban active') : de ? 'Nur Alert' : 'Alert only'}
+                    </span>
                   </section>
                   <nav className="cs-card-actions" onClick={(e) => e.stopPropagation()}>
                     {lookupServices.length > 0 && (
