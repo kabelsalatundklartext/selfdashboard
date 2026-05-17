@@ -150,6 +150,17 @@ function loadHiddenCalendarIds(): Set<string> {
   catch { return new Set() }
 }
 
+type TileEventRef = Pick<EventView, 'id' | 'calendarId' | 'dtstart' | 'allDay'> & {
+  summary?: string
+  description?: string
+  location?: string
+  dtend?: string
+  syncState?: EventView['syncState']
+  calendarColor?: string
+  calendarName?: string
+  instanceStart?: string
+}
+
 function eventRowKey(ev: { id: string; dtstart: string; instanceStart?: string }): string {
   return `${ev.id}:${ev.instanceStart ?? ev.dtstart}`
 }
@@ -244,7 +255,7 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }
 
-  const openEventFromTile = async (ev: SummaryView['upcoming'][number]) => {
+  const openEventFromTile = async (ev: TileEventRef) => {
     try {
       await loadCalendars()
       setEventDialog({
@@ -468,7 +479,7 @@ function Widget({ config }: PluginWidgetProps) {
           )}
           {compactUpcoming.length === 0 && summary && (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1,
               color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic',
             }}>{t('noUpcoming')}</div>
           )}
@@ -489,7 +500,7 @@ function Widget({ config }: PluginWidgetProps) {
                 color: 'var(--text-muted)', minWidth: '58px' }}>
                 {fmtDay(ev.dtstart, locale)}{!ev.allDay && ` ${fmtTime(ev.dtstart, false, locale)}`}
               </span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ flexGrow: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {ev.summary || t('untitled')}
               </span>
             </button>
