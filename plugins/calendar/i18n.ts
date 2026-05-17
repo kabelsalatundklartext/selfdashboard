@@ -3,7 +3,11 @@
  * host app. Returns the key unchanged if not found — that's a fine fallback.
  */
 
-type Locale = 'de' | 'en'
+export type Locale = 'de' | 'en'
+
+export function localeToBcp47(locale: Locale): string {
+  return locale === 'en' ? 'en-US' : 'de-DE'
+}
 
 const dict: Record<Locale, Record<string, string>> = {
   de: {
@@ -67,6 +71,11 @@ const dict: Record<Locale, Record<string, string>> = {
     prev: 'zurück',
     todayBtn: 'Heute',
     close: 'Schließen',
+    agendaTitle: 'Agenda (nächste 30 Tage)',
+    moreEvents: 'weitere',
+    noWritableCalendar: 'Kein beschreibbarer Kalender — zuerst ein CalDAV-Konto anlegen.',
+    monthView: 'Monatsansicht',
+    addEvent: 'Termin hinzufügen',
   },
   en: {
     calendar: 'Calendar',
@@ -129,6 +138,11 @@ const dict: Record<Locale, Record<string, string>> = {
     prev: 'previous',
     todayBtn: 'Today',
     close: 'Close',
+    agendaTitle: 'Agenda (next 30 days)',
+    moreEvents: 'more',
+    noWritableCalendar: 'No writable calendar — add a CalDAV account first.',
+    monthView: 'Month view',
+    addEvent: 'Add event',
   },
 }
 

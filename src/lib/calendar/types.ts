@@ -174,12 +174,16 @@ export interface SummaryResponse {
   todayCount: number
   upcoming: Array<{
     id: string
+    calendarId: string
     summary: string
     dtstart: string
+    dtend?: string
     allDay: boolean
+    syncState?: SyncState
     calendarColor?: string
     calendarName?: string
     location?: string
+    description?: string
   }>
   pendingChanges: number
   conflicts: number

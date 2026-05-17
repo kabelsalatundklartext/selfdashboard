@@ -23,7 +23,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Plus } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
+import { usePluginLocale } from '@/lib/pluginLocale'
 
 import {
   api,
@@ -32,7 +34,7 @@ import {
   type EventView,
   type SummaryView,
 } from './api-client'
-import { detectLocale, t as tr } from './i18n'
+import { localeToBcp47, t as tr, type Locale } from './i18n'
 
 // ---------------------------------------------------------------------------
 // Plugin meta — shown in the Plugin Store
@@ -42,11 +44,11 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Kalender',
   description: 'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'SelfDashboard Community',
   category: 'productivity',
   icon: '📅',
-  defaultLayout: { w: 4, h: 8, minW: 3, minH: 6 },
+  defaultLayout: { w: 6, h: 8, minW: 3, minH: 6 },
   stackedExtraH: 2,
 }
 
@@ -72,17 +74,28 @@ const ICONS = {
   </svg>,
 }
 
-const fmtTime = (iso: string, allDay: boolean) => {
+const fmtTime = (iso: string, allDay: boolean, locale: Locale) => {
   if (allDay) return ''
   const d = new Date(iso)
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleTimeString(localeToBcp47(locale), { hour: '2-digit', minute: '2-digit' })
 }
 
-const fmtDay = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short' })
+const fmtDay = (iso: string, locale: Locale) =>
+  new Date(iso).toLocaleDateString(localeToBcp47(locale), { weekday: 'short', day: '2-digit', month: 'short' })
 
-const fmtFullDay = (d: Date) =>
-  d.toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+const fmtFullDay = (d: Date, locale: Locale) =>
+  d.toLocaleDateString(localeToBcp47(locale), { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+
+function weekdayShortLabels(locale: Locale): string[] {
+  const tag = localeToBcp47(locale)
+  const fmt = new Intl.DateTimeFormat(tag, { weekday: 'short' })
+  const monday = new Date(2024, 0, 1)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday)
+    d.setDate(monday.getDate() + i)
+    return fmt.format(d)
+  })
+}
 
 const toInputDateTime = (iso: string): string => {
   const d = new Date(iso)
@@ -97,7 +110,7 @@ const fromInputDateTime = (val: string): string => new Date(val).toISOString()
 // ===========================================================================
 
 function Widget({ config }: PluginWidgetProps) {
-  const locale = detectLocale()
+  const { locale } = usePluginLocale()
   const t = (k: string) => tr(k, locale)
   const refreshInterval = Math.max(15, ((config.refreshInterval as number) ?? 60)) * 1000
 
@@ -105,7 +118,64 @@ function Widget({ config }: PluginWidgetProps) {
   const [status, setStatus] = useState<'loading' | 'ok' | 'error' | 'syncing'>('loading')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [modalInitialView, setModalInitialView] = useState<ModalView>('month')
+  const [calendars, setCalendars] = useState<CalendarView[]>([])
+  const [eventDialog, setEventDialog] = useState<Partial<EventView> | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const writableCalendars = useMemo(() => calendars.filter(c => !c.readOnly), [calendars])
+
+  const loadCalendars = useCallback(async () => {
+    const cals = await api.listCalendars()
+    setCalendars(cals)
+    return cals
+  }, [])
+
+  const openMonthModal = () => {
+    setModalInitialView('month')
+    setModalOpen(true)
+  }
+
+  const openNewEvent = async () => {
+    try {
+      const cals = await loadCalendars()
+      const writable = cals.filter(c => !c.readOnly)
+      if (writable.length === 0) {
+        setModalInitialView('accounts')
+        setModalOpen(true)
+        return
+      }
+      setEventDialog({
+        calendarId: writable[0].id,
+        allDay: false,
+        dtstart: new Date().toISOString(),
+      })
+    } catch (e: any) {
+      setStatus('error')
+      setErrorMsg(e?.message ?? String(e))
+    }
+  }
+
+  const openEventFromTile = async (ev: SummaryView['upcoming'][number]) => {
+    try {
+      await loadCalendars()
+      setEventDialog({
+        id: ev.id,
+        calendarId: ev.calendarId,
+        summary: ev.summary,
+        description: ev.description,
+        location: ev.location,
+        dtstart: ev.dtstart,
+        dtend: ev.dtend,
+        allDay: ev.allDay,
+        syncState: ev.syncState,
+        calendarColor: ev.calendarColor,
+        calendarName: ev.calendarName,
+      })
+    } catch {
+      openMonthModal()
+    }
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -130,6 +200,10 @@ function Widget({ config }: PluginWidgetProps) {
     loop()
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [refresh, refreshInterval])
+
+  useEffect(() => {
+    loadCalendars().catch(() => undefined)
+  }, [loadCalendars])
 
   const triggerSyncAll = async () => {
     setStatus('syncing')
@@ -171,8 +245,14 @@ function Widget({ config }: PluginWidgetProps) {
             {t('calendar')}
           </div>
           <div style={{ display: 'flex', gap: '4px' }}>
+            {writableCalendars.length > 0 && (
+              <IconButton title={t('addEvent')} onClick={openNewEvent}>
+                <Plus size={14} />
+              </IconButton>
+            )}
+            <IconButton title={t('monthView')} onClick={openMonthModal}>{ICONS.calendar}</IconButton>
             <IconButton title={t('sync')} onClick={triggerSyncAll} busy={status === 'syncing'}>{ICONS.sync}</IconButton>
-            <IconButton title={t('accounts')} onClick={() => setModalOpen(true)}>{ICONS.cog}</IconButton>
+            <IconButton title={t('accounts')} onClick={() => { setModalInitialView('accounts'); setModalOpen(true) }}>{ICONS.cog}</IconButton>
           </div>
         </div>
 
@@ -194,7 +274,7 @@ function Widget({ config }: PluginWidgetProps) {
           {summary?.upcoming.map(ev => (
             <button
               key={ev.id}
-              onClick={() => setModalOpen(true)}
+              onClick={() => openEventFromTile(ev)}
               style={{
                 all: 'unset', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '8px',
@@ -206,7 +286,7 @@ function Widget({ config }: PluginWidgetProps) {
             >
               <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '11px',
                 color: 'var(--text-muted)', minWidth: '58px' }}>
-                {fmtDay(ev.dtstart)}{!ev.allDay && ` ${fmtTime(ev.dtstart, false)}`}
+                {fmtDay(ev.dtstart, locale)}{!ev.allDay && ` ${fmtTime(ev.dtstart, false, locale)}`}
               </span>
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {ev.summary || t('untitled')}
@@ -233,7 +313,7 @@ function Widget({ config }: PluginWidgetProps) {
             {status === 'loading' && '…'}
           </span>
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={openMonthModal}
             style={{
               all: 'unset', cursor: 'pointer',
               padding: '2px 8px', border: '1px solid var(--border)', borderRadius: '4px',
@@ -249,7 +329,23 @@ function Widget({ config }: PluginWidgetProps) {
         @keyframes sd-cal-spin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {modalOpen && <CalendarModal locale={locale} onClose={() => { setModalOpen(false); refresh() }} />}
+      {modalOpen && (
+        <CalendarModal
+          key={modalInitialView}
+          locale={locale}
+          initialView={modalInitialView}
+          onClose={() => { setModalOpen(false); refresh() }}
+        />
+      )}
+      {eventDialog && (
+        <EventDialog
+          locale={locale}
+          event={eventDialog}
+          calendars={writableCalendars.length > 0 ? writableCalendars : calendars}
+          onClose={() => setEventDialog(null)}
+          onSaved={() => { setEventDialog(null); refresh() }}
+        />
+      )}
     </>
   )
 }
@@ -300,7 +396,7 @@ function StatBox({ label, value, valueColor }: { label: string; value: string; v
 // ===========================================================================
 
 function Settings({ config, onChange }: PluginSettingsProps) {
-  const locale = detectLocale()
+  const { locale } = usePluginLocale()
   const t = (k: string) => tr(k, locale)
   const inp: React.CSSProperties = {
     background: 'var(--surface)', border: '1px solid var(--border)',
@@ -336,9 +432,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
 type ModalView = 'month' | 'agenda' | 'accounts'
 
-function CalendarModal({ locale, onClose }: { locale: 'de' | 'en'; onClose: () => void }) {
+function CalendarModal({ locale, onClose, initialView = 'month' }: {
+  locale: Locale; onClose: () => void; initialView?: ModalView
+}) {
   const t = (k: string) => tr(k, locale)
-  const [view, setView] = useState<ModalView>('month')
+  const [view, setView] = useState<ModalView>(initialView)
   const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); return d })
   const [calendars, setCalendars] = useState<CalendarView[]>([])
   const [accounts, setAccounts] = useState<AccountView[]>([])
@@ -399,9 +497,9 @@ function CalendarModal({ locale, onClose }: { locale: 'de' | 'en'; onClose: () =
 
   // ----- title -----
   const title = view === 'agenda'
-    ? (locale === 'de' ? 'Agenda (nächste 30 Tage)' : 'Agenda (next 30 days)')
+    ? t('agendaTitle')
     : view === 'accounts' ? t('accounts')
-    : cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    : cursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
 
   return (
     <div
@@ -507,6 +605,7 @@ function CalendarModal({ locale, onClose }: { locale: 'de' | 'en'; onClose: () =
           <main style={{ overflow: 'auto', background: 'var(--background)', minWidth: 0 }}>
             {view === 'month' && (
               <MonthView
+                locale={locale}
                 cursor={cursor}
                 range={range}
                 eventsByDay={eventsByDay}
@@ -582,13 +681,16 @@ function ModalBtn({ children, onClick, active, primary, ghost, disabled }: {
 // Month grid
 // ===========================================================================
 
-function MonthView({ cursor, range, eventsByDay, onClickDay, onClickEvent }: {
+function MonthView({ locale, cursor, range, eventsByDay, onClickDay, onClickEvent }: {
+  locale: Locale
   cursor: Date
   range: { start: Date; end: Date }
   eventsByDay: Record<string, EventView[]>
   onClickDay: (d: Date) => void
   onClickEvent: (ev: EventView) => void
 }) {
+  const t = (k: string) => tr(k, locale)
+  const weekdays = useMemo(() => weekdayShortLabels(locale), [locale])
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const month = cursor.getMonth()
   const cells: Date[] = []
@@ -602,7 +704,7 @@ function MonthView({ cursor, range, eventsByDay, onClickDay, onClickEvent }: {
       display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
       gridAutoRows: 'minmax(96px, 1fr)', minHeight: '600px', height: '100%',
     }}>
-      {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(w => (
+      {weekdays.map(w => (
         <div key={w} style={{
           fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em',
           color: 'var(--text-muted)', padding: '6px 8px', textAlign: 'right',
@@ -661,13 +763,13 @@ function MonthView({ cursor, range, eventsByDay, onClickDay, onClickEvent }: {
                       ...(isConflict ? { animation: 'sd-cal-pulse 1.5s ease-in-out infinite' } : {}),
                     }}
                   >
-                    {ev.allDay ? ev.summary : `${fmtTime(ev.dtstart, false)} ${ev.summary ?? ''}`}
+                    {ev.allDay ? ev.summary : `${fmtTime(ev.dtstart, false, locale)} ${ev.summary ?? ''}`}
                   </button>
                 )
               })}
               {more > 0 && (
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', textAlign: 'right', padding: '0 4px' }}>
-                  + {more}
+                  +{more} {t('moreEvents')}
                 </div>
               )}
             </div>
@@ -706,7 +808,7 @@ function AgendaView({ eventsByDay, locale, onClickEvent }: {
           <div style={{
             fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em',
             color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', paddingBottom: '4px',
-          }}>{fmtFullDay(new Date(k))}</div>
+          }}>{fmtFullDay(new Date(k), locale)}</div>
           {eventsByDay[k].map(ev => (
             <button
               key={ev.id}
@@ -720,7 +822,7 @@ function AgendaView({ eventsByDay, locale, onClickEvent }: {
               }}
             >
               <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '12px', color: 'var(--text-muted)' }}>
-                {ev.allDay ? (locale === 'de' ? 'ganztägig' : 'all day') : fmtTime(ev.dtstart, false)}
+                {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
               </span>
               <span style={{ background: ev.calendarColor ?? '#5a9bd4', width: '4px', height: '100%', borderRadius: '2px' }} />
               <div>

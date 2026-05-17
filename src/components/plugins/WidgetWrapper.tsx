@@ -1,13 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { X, GripVertical, Settings, ZoomIn, ZoomOut } from 'lucide-react'
+import { X, GripVertical, Settings, ZoomIn, ZoomOut, Box } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
 import type { PluginInstance } from '@/types'
 
 export type WidgetLayoutMode = 'phone' | 'tablet' | 'desktop'
+
+const GRID_COLS = 12
 
 interface Props {
   instance: PluginInstance
@@ -45,6 +47,7 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
   const setPluginPadding = (p: number) =>
     updatePluginConfig(instance.instanceId, { __padding: coercePadding(p) })
   const base = instance.layout
+  const metaLayout = registered?.meta.defaultLayout
   const toolbarH =
     layoutMode === 'phone'
       ? (instance.layoutPhone?.h ?? base.h ?? 4)
@@ -56,13 +59,28 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
       ? Math.max(1, instance.layoutPhone?.minH ?? base.minH ?? 1)
       : layoutMode === 'tablet'
         ? Math.max(1, instance.layoutTablet?.minH ?? base.minH ?? 1)
-        : Math.max(1, base.minH ?? 1)
+        : Math.max(1, metaLayout?.minH ?? base.minH ?? 1)
+  const toolbarW =
+    layoutMode === 'phone'
+      ? 1
+      : layoutMode === 'tablet'
+        ? (instance.layoutTablet?.w ?? base.w ?? 4)
+        : (base.w ?? 4)
+  const minToolbarW = Math.max(1, metaLayout?.minW ?? base.minW ?? 1)
+  const maxToolbarW = Math.min(GRID_COLS, metaLayout?.maxW ?? base.maxW ?? GRID_COLS)
 
   const changeHeight = (delta: number) => {
     const h = Math.max(minToolbarH, toolbarH + delta)
     if (layoutMode === 'phone') updatePluginLayoutPhone(instance.instanceId, { h })
     else if (layoutMode === 'tablet') updatePluginLayoutTablet(instance.instanceId, { h })
     else updatePluginLayout(instance.instanceId, { ...instance.layout, h })
+  }
+
+  const changeWidth = (delta: number) => {
+    if (layoutMode === 'phone') return
+    const w = Math.max(minToolbarW, Math.min(maxToolbarW, toolbarW + delta))
+    if (layoutMode === 'tablet') updatePluginLayoutTablet(instance.instanceId, { w })
+    else updatePluginLayout(instance.instanceId, { ...instance.layout, w })
   }
 
   if (!registered) {
@@ -155,16 +173,26 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
               </button>
             </div>
 
-            {/* Padding (horizontal spacing) */}
-            <div style={ctrlBox}>
+            {/* Grid width (columns) — not on phone stack */}
+            {layoutMode !== 'phone' && (
+              <div style={ctrlBox} title="Breite (Spalten)">
+                <button style={ctrlBtn(toolbarW > minToolbarW)} onClick={() => changeWidth(-1)}>−</button>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1 }}>↔</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{toolbarW}</span>
+                <button style={ctrlBtn(toolbarW < maxToolbarW)} onClick={() => changeWidth(1)}>+</button>
+              </div>
+            )}
+
+            {/* Inner padding (px) */}
+            <div style={ctrlBox} title="Innenabstand (px)">
               <button style={ctrlBtn(pluginPadding > 0)} onClick={() => setPluginPadding(pluginPadding - 4)}>−</button>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1 }}>↔</span>
+              <Box size={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{pluginPadding}</span>
               <button style={ctrlBtn(pluginPadding < 48)} onClick={() => setPluginPadding(pluginPadding + 4)}>+</button>
             </div>
 
             {/* Height */}
-            <div style={ctrlBox}>
+            <div style={ctrlBox} title="Höhe (Zeilen)">
               <button style={ctrlBtn(toolbarH > minToolbarH)} onClick={() => changeHeight(-1)}>−</button>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1 }}>↕</span>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '16px', textAlign: 'center', fontWeight: 600 }}>{toolbarH}</span>
