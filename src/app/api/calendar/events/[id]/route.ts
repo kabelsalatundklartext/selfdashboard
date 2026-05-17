@@ -61,10 +61,14 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   })
 
   if (!found) return notFound('event not found or its calendar is read-only')
-  if (calendarAccountId) runSync(calendarAccountId).catch(() => undefined)
+  if (calendarAccountId) await runSync(calendarAccountId).catch(() => undefined)
 
   const after = await readStore()
-  return ok(after.events.find(e => e.id === id))
+  const ev = after.events.find(e => e.id === id)
+  if (!ev) return notFound('event not found after sync')
+  const acc = calendarAccountId ? after.accounts.find(a => a.id === calendarAccountId) : undefined
+  const syncError = ev.syncState !== 'synced' && ev.syncState !== 'local_new' ? acc?.lastSyncError : ev.syncState === 'local_new' ? acc?.lastSyncError : undefined
+  return ok(syncError ? { ...ev, syncError } : ev)
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {

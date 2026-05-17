@@ -76,6 +76,10 @@ const dict: Record<Locale, Record<string, string>> = {
     noWritableCalendar: 'Kein beschreibbarer Kalender — zuerst ein CalDAV-Konto anlegen.',
     monthView: 'Monatsansicht',
     addEvent: 'Termin hinzufügen',
+    dayEvents: 'Termine am',
+    noEventsThisDay: 'Keine Termine an diesem Tag',
+    syncFailed: 'Speichern ok, aber Upload zu CalDAV fehlgeschlagen',
+    syncPending: 'Wird beim nächsten Sync hochgeladen',
   },
   en: {
     calendar: 'Calendar',
@@ -143,6 +147,10 @@ const dict: Record<Locale, Record<string, string>> = {
     noWritableCalendar: 'No writable calendar — add a CalDAV account first.',
     monthView: 'Month view',
     addEvent: 'Add event',
+    dayEvents: 'Events on',
+    noEventsThisDay: 'No events on this day',
+    syncFailed: 'Saved locally, but CalDAV upload failed',
+    syncPending: 'Will upload on next sync',
   },
 }
 

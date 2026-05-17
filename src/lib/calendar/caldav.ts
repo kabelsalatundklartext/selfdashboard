@@ -112,7 +112,11 @@ export async function discoverCaldavCalendars(account: Account): Promise<Discove
     name: caldavDisplayName(c),
     // tsdav exposes calendar color via `calendarColor` when the server returns it
     color: (c as { calendarColor?: string }).calendarColor ?? undefined,
-    readOnly: !((c as { privileges?: string[] }).privileges?.some(p => /write/i.test(p)) ?? true),
+    readOnly: (() => {
+      const privs = (c as { privileges?: string[] }).privileges
+      if (!privs?.length) return false
+      return !privs.some(p => /write/i.test(p))
+    })(),
   }))
 }
 
@@ -222,21 +226,9 @@ async function pullCaldav(
     }
   }
 
-  // detect server-side deletions
-  for (let i = store.events.length - 1; i >= 0; i--) {
-    const ev = store.events[i]
-    if (ev.calendarId !== calendar.id) continue
-    if (seenUids.has(ev.uid)) continue
-    if (ev.syncState === 'local_new') continue        // not pushed yet
-    if (ev.syncState === 'synced') {
-      store.events.splice(i, 1)
-      result.deleted++
-    } else if (ev.syncState === 'local_modified') {
-      ev.syncState = 'conflict'
-      ev.conflictRemoteIcal = ''                       // empty = remote deleted
-      result.conflicts++
-    }
-  }
+  // Do not auto-delete local rows when missing from a full listing — WEB.DE and
+  // other servers may omit freshly created objects until the next fetch cycle.
+  // Explicit deletes are handled via push (local_deleted) or conflict resolution.
 
   return result
 }

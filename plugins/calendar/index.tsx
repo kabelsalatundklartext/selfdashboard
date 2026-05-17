@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -85,6 +86,30 @@ const fmtDay = (iso: string, locale: Locale) =>
 
 const fmtFullDay = (d: Date, locale: Locale) =>
   d.toLocaleDateString(localeToBcp47(locale), { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+
+function dateKeyLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function dateKeyFromIso(iso: string): string {
+  return dateKeyLocal(new Date(iso))
+}
+
+function startOfLocalDay(d: Date): Date {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function ModalPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted || typeof document === 'undefined') return null
+  return createPortal(children, document.body)
+}
 
 function weekdayShortLabels(locale: Locale): string[] {
   const tag = localeToBcp47(locale)
@@ -448,6 +473,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
   const [eventDialog, setEventDialog] = useState<{ event: Partial<EventView> | null } | null>(null)
   const [accountDialog, setAccountDialog] = useState<'caldav' | 'ics' | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
 
   const range = useMemo(() => {
     if (view === 'agenda') {
@@ -486,12 +512,14 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
   const eventsByDay = useMemo(() => {
     const map: Record<string, EventView[]> = {}
     for (const ev of events) {
-      const key = ev.dtstart.slice(0, 10)
+      const key = dateKeyFromIso(ev.dtstart)
       ;(map[key] = map[key] || []).push(ev)
     }
     for (const k of Object.keys(map)) map[k].sort((a, b) => a.dtstart.localeCompare(b.dtstart))
     return map
   }, [events])
+
+  const selectedDayEvents = eventsByDay[dateKeyLocal(selectedDay)] ?? []
 
   const writableCalendars = calendars.filter(c => !c.readOnly)
 
@@ -501,21 +529,37 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
     : view === 'accounts' ? t('accounts')
     : cursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
 
+  const openNewOnDay = (day: Date) => {
+    if (!writableCalendars[0]) return
+    setEventDialog({
+      event: {
+        calendarId: writableCalendars[0].id,
+        allDay: false,
+        dtstart: startOfLocalDay(day).toISOString(),
+      },
+    })
+  }
+
   return (
+    <ModalPortal>
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(4px)', zIndex: 9999,
-        display: 'flex', alignItems: 'stretch', justifyContent: 'stretch',
+        backdropFilter: 'blur(4px)', zIndex: 20000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '16px', boxSizing: 'border-box',
       }}
     >
-      <div style={{
-        flex: 1, margin: '24px', background: 'var(--background)',
-        border: '1px solid var(--border)', borderRadius: '8px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.35)', overflow: 'hidden',
-        display: 'grid', gridTemplateRows: 'auto 1fr',
-      }}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(1100px, 100%)', height: 'min(88vh, 920px)',
+          background: 'var(--background)', border: '1px solid var(--border)',
+          borderRadius: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+          overflow: 'hidden', display: 'grid', gridTemplateRows: 'auto 1fr',
+        }}
+      >
         {/* toolbar */}
         <header style={{
           display: 'flex', alignItems: 'center', gap: '12px',
@@ -526,7 +570,11 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
           {view !== 'accounts' && (
             <div style={{ display: 'inline-flex' }}>
               <ModalBtn onClick={() => view === 'month' ? setCursor(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n }) : null} disabled={view === 'agenda'}>‹</ModalBtn>
-              <ModalBtn onClick={() => setCursor(() => { const d = new Date(); d.setDate(1); return d })}>{t('todayBtn')}</ModalBtn>
+              <ModalBtn onClick={() => {
+                const d = new Date(); d.setDate(1)
+                setCursor(d)
+                setSelectedDay(startOfLocalDay(new Date()))
+              }}>{t('todayBtn')}</ModalBtn>
               <ModalBtn onClick={() => view === 'month' ? setCursor(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n }) : null} disabled={view === 'agenda'}>›</ModalBtn>
             </div>
           )}
@@ -545,8 +593,11 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
         </header>
 
         {/* body */}
-        <div style={{ display: 'grid', gridTemplateColumns: view === 'accounts' ? '1fr' : '240px 1fr', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           {view !== 'accounts' && (
+            <CalendarFilterBar accounts={accounts} calendars={calendars} hidden={hidden} onToggle={toggleCalendar} t={t} />
+          )}
+          {false && view !== 'accounts' && (
             <aside style={{
               background: 'var(--surface)', borderRight: '1px solid var(--border)',
               overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px',
@@ -602,16 +653,29 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
             </aside>
           )}
 
-          <main style={{ overflow: 'auto', background: 'var(--background)', minWidth: 0 }}>
+          <main style={{ flex: 1, overflow: 'auto', background: 'var(--background)', minWidth: 0, minHeight: 0 }}>
             {view === 'month' && (
-              <MonthView
-                locale={locale}
-                cursor={cursor}
-                range={range}
-                eventsByDay={eventsByDay}
-                onClickDay={day => writableCalendars[0] && setEventDialog({ event: { calendarId: writableCalendars[0].id, allDay: true, dtstart: day.toISOString() } })}
-                onClickEvent={ev => setEventDialog({ event: ev })}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                <MonthView
+                  locale={locale}
+                  compact
+                  cursor={cursor}
+                  range={range}
+                  selectedDay={selectedDay}
+                  eventsByDay={eventsByDay}
+                  onSelectDay={day => setSelectedDay(startOfLocalDay(day))}
+                  onClickDay={day => setSelectedDay(startOfLocalDay(day))}
+                  onClickEvent={ev => setEventDialog({ event: ev })}
+                />
+                <DayEventsPanel
+                  locale={locale}
+                  day={selectedDay}
+                  events={selectedDayEvents}
+                  canAdd={writableCalendars.length > 0}
+                  onAdd={() => openNewOnDay(selectedDay)}
+                  onClickEvent={ev => setEventDialog({ event: ev })}
+                />
+              </div>
             )}
             {view === 'agenda' && (
               <AgendaView
@@ -652,6 +716,90 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
         />
       )}
     </div>
+    </ModalPortal>
+  )
+}
+
+function CalendarFilterBar({ accounts, calendars, hidden, onToggle, t }: {
+  accounts: AccountView[]
+  calendars: CalendarView[]
+  hidden: Set<string>
+  onToggle: (id: string) => void
+  t: (k: string) => string
+}) {
+  if (!calendars.length) return null
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '8px 12px',
+      borderBottom: '1px solid var(--border)', background: 'var(--surface)',
+    }}>
+      <span style={{ fontSize: '10px', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '4px' }}>{t('calendars')}:</span>
+      {accounts.flatMap(a => calendars.filter(c => c.accountId === a.id).map(c => (
+        <button
+          key={c.id}
+          onClick={() => onToggle(c.id)}
+          style={{
+            all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '4px 10px', borderRadius: '999px', fontSize: '12px',
+            border: `1px solid ${hidden.has(c.id) ? 'var(--border)' : c.color}`,
+            opacity: hidden.has(c.id) ? 0.45 : 1, color: 'var(--text)',
+            background: hidden.has(c.id) ? 'transparent' : `${c.color}22`,
+          }}
+        >
+          <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: c.color }} />
+          {c.name}
+        </button>
+      )))}
+    </div>
+  )
+}
+
+function DayEventsPanel({ locale, day, events, canAdd, onAdd, onClickEvent }: {
+  locale: Locale
+  day: Date
+  events: EventView[]
+  canAdd: boolean
+  onAdd: () => void
+  onClickEvent: (ev: EventView) => void
+}) {
+  const t = (k: string) => tr(k, locale)
+  return (
+    <div style={{
+      borderTop: '1px solid var(--border)', background: 'var(--surface)',
+      padding: '12px 16px', flex: '1 1 40%', minHeight: '140px', overflowY: 'auto',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+          {t('dayEvents')} {fmtFullDay(day, locale)}
+        </div>
+        {canAdd && <ModalBtn primary onClick={onAdd}>{t('newEvent')}</ModalBtn>}
+      </div>
+      {!events.length && (
+        <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>{t('noEventsThisDay')}</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {events.map(ev => (
+          <button
+            key={ev.id}
+            onClick={() => onClickEvent(ev)}
+            style={{
+              all: 'unset', cursor: 'pointer', textAlign: 'left',
+              display: 'grid', gridTemplateColumns: '72px 4px 1fr', gap: '10px', alignItems: 'center',
+              padding: '8px 10px', background: 'var(--background)', borderRadius: '6px',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
+            </span>
+            <span style={{ background: ev.calendarColor ?? '#5a9bd4', width: '4px', height: '100%', borderRadius: '2px' }} />
+            <span style={{ fontSize: '14px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {ev.summary || t('untitled')}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -681,18 +829,22 @@ function ModalBtn({ children, onClick, active, primary, ghost, disabled }: {
 // Month grid
 // ===========================================================================
 
-function MonthView({ locale, cursor, range, eventsByDay, onClickDay, onClickEvent }: {
+function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, onSelectDay, onClickDay, onClickEvent }: {
   locale: Locale
   cursor: Date
   range: { start: Date; end: Date }
   eventsByDay: Record<string, EventView[]>
+  selectedDay: Date
+  compact?: boolean
+  onSelectDay: (d: Date) => void
   onClickDay: (d: Date) => void
   onClickEvent: (ev: EventView) => void
 }) {
   const t = (k: string) => tr(k, locale)
   const weekdays = useMemo(() => weekdayShortLabels(locale), [locale])
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const today = startOfLocalDay(new Date())
   const month = cursor.getMonth()
+  const selectedKey = dateKeyLocal(selectedDay)
   const cells: Date[] = []
   for (let i = 0; i < 42; i++) {
     const d = new Date(range.start); d.setDate(range.start.getDate() + i)
@@ -702,7 +854,9 @@ function MonthView({ locale, cursor, range, eventsByDay, onClickDay, onClickEven
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
-      gridAutoRows: 'minmax(96px, 1fr)', minHeight: '600px', height: '100%',
+      gridAutoRows: compact ? 'minmax(52px, auto)' : 'minmax(96px, 1fr)',
+      flex: compact ? '0 0 auto' : undefined,
+      minHeight: compact ? undefined : '360px',
     }}>
       {weekdays.map(w => (
         <div key={w} style={{
@@ -714,24 +868,27 @@ function MonthView({ locale, cursor, range, eventsByDay, onClickDay, onClickEven
       ))}
 
       {cells.map((day, i) => {
-        const key = day.toISOString().slice(0, 10)
+        const key = dateKeyLocal(day)
         const dayEvents = eventsByDay[key] || []
-        const visible = dayEvents.slice(0, 3)
+        const visible = dayEvents.slice(0, compact ? 2 : 3)
         const more = dayEvents.length - visible.length
         const isOther = day.getMonth() !== month
-        const isToday = day.getTime() === today.getTime()
+        const isToday = dateKeyLocal(day) === dateKeyLocal(today)
+        const isSelected = key === selectedKey
 
         return (
           <div
             key={i}
-            onClick={() => onClickDay(day)}
+            onClick={() => { onSelectDay(day); onClickDay(day) }}
             style={{
               borderRight: '1px solid var(--border)',
               borderBottom: '1px solid var(--border)',
               padding: '4px 4px 4px 6px',
               display: 'flex', flexDirection: 'column', gap: '2px',
               cursor: 'pointer',
-              background: isOther ? 'rgba(0,0,0,0.10)' : undefined,
+              background: isSelected ? 'var(--accent)14' : isOther ? 'rgba(0,0,0,0.10)' : undefined,
+              outline: isSelected ? '2px solid var(--accent)' : undefined,
+              outlineOffset: '-2px',
               overflow: 'hidden', minWidth: 0,
             }}
           >
@@ -972,8 +1129,20 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
           : undefined,
         rrule: form.rrule || undefined,
       }
-      if (isNew) await api.createEvent(payload)
-      else await api.updateEvent(event!.id!, payload)
+      const res = isNew
+        ? await api.createEvent(payload)
+        : await api.updateEvent(event!.id!, payload)
+      const syncErr = (res as EventView & { syncError?: string; error?: string })?.syncError
+      const fatal = (res as { error?: string })?.error
+      if (fatal) {
+        setError(fatal)
+        return
+      }
+      if (syncErr) {
+        setError(`${t('syncFailed')}: ${syncErr}`)
+        onSaved()
+        return
+      }
       onSaved()
     } catch (e: any) {
       setError(e?.message ?? String(e))
@@ -992,11 +1161,12 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
   }
 
   return (
+    <ModalPortal>
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
       }}
     >
       <div style={{
@@ -1090,6 +1260,7 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }
 
@@ -1143,11 +1314,12 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
   }
 
   return (
+    <ModalPortal>
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
       }}
     >
       <div style={{
@@ -1226,6 +1398,7 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }
 

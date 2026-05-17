@@ -97,8 +97,20 @@ export async function POST(req: NextRequest) {
     })
   })
 
-  runSync(cal.accountId).catch(() => undefined)
+  const log = await runSync(cal.accountId).catch((e: unknown) => ({
+    error: e instanceof Error ? e.message : String(e),
+  }))
 
   const after = await readStore()
-  return ok(after.events.find(e => e.id === evId))
-}
+  const ev = after.events.find(e => e.id === evId)
+  if (!ev) {
+    return ok({
+      error: 'sync_removed_event',
+      syncError: typeof log === 'object' && log && 'error' in log ? String((log as { error?: string }).error) : undefined,
+    })
+  }
+  const acc = after.accounts.find(a => a.id === cal.accountId)
+  const syncError =
+    (typeof log === 'object' && log && 'error' in log ? (log as { error?: string }).error : undefined) ??
+    (ev.syncState === 'local_new' ? acc?.lastSyncError : undefined)
+  return ok(syncError ? { ...ev, syncError } : ev)
