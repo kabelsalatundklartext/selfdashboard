@@ -135,8 +135,17 @@ export interface AccountCreateBody {
 export interface AccountUpdateBody {
   name?: string
   enabled?: boolean
-  caldav?: AccountCreateBody['caldav']
-  ics?: AccountCreateBody['ics']
+  caldav?: {
+    url?: string
+    username?: string
+    password?: string
+    verifySsl?: boolean
+  }
+  ics?: {
+    url?: string
+    username?: string
+    password?: string
+  }
 }
 
 export interface EventCreateBody {
@@ -184,6 +193,8 @@ export interface SummaryResponse {
     calendarName?: string
     location?: string
     description?: string
+    /** Set for recurrence instances — use with id for React keys */
+    instanceStart?: string
   }>
   pendingChanges: number
   conflicts: number

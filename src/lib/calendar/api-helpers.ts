@@ -38,6 +38,8 @@ export interface AccountView {
   calendarCount: number
   /** Only the host part of the URL, for display */
   endpoint?: string
+  /** Full URL for edit forms */
+  url?: string
   username?: string
 }
 
@@ -56,6 +58,7 @@ export function toAccountView(a: Account, calendars: Calendar[]): AccountView {
     lastSyncError: a.lastSyncError,
     calendarCount: calendars.filter(c => c.accountId === a.id).length,
     endpoint,
+    url: cfg.url,
     username: (cfg as CalDAVConfig).username,
   }
 }
@@ -103,18 +106,24 @@ export function applyAccountUpdate(a: Account, body: AccountUpdateBody): void {
   if (body.name !== undefined) a.name = body.name
   if (body.enabled !== undefined) a.enabled = body.enabled
   if (a.provider === 'caldav' && body.caldav) {
+    const cfg = a.config as CalDAVConfig
     a.config = {
-      url: body.caldav.url,
-      username: body.caldav.username,
-      passwordEncrypted: encrypt(body.caldav.password),
-      verifySsl: body.caldav.verifySsl,
+      url: body.caldav.url ?? cfg.url,
+      username: body.caldav.username ?? cfg.username,
+      passwordEncrypted: body.caldav.password
+        ? encrypt(body.caldav.password)
+        : cfg.passwordEncrypted,
+      verifySsl: body.caldav.verifySsl ?? cfg.verifySsl,
     } satisfies CalDAVConfig
   }
   if (a.provider === 'ics' && body.ics) {
+    const cfg = a.config as ICSConfig
     a.config = {
-      url: body.ics.url,
-      username: body.ics.username,
-      passwordEncrypted: body.ics.password ? encrypt(body.ics.password) : '',
+      url: body.ics.url ?? cfg.url,
+      username: body.ics.username ?? cfg.username,
+      passwordEncrypted: body.ics.password
+        ? encrypt(body.ics.password)
+        : (cfg.passwordEncrypted ?? ''),
     } satisfies ICSConfig
   }
 }
@@ -123,14 +132,59 @@ export function applyAccountUpdate(a: Account, body: AccountUpdateBody): void {
 // Summary card payload (next 7 days)
 // ---------------------------------------------------------------------------
 
+function eventEndMs(e: ExpandedEvent): number {
+  if (e.dtend) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(e.dtend)) return new Date(e.dtend + 'T23:59:59').getTime()
+    return new Date(e.dtend).getTime()
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(e.dtstart)) return new Date(e.dtstart + 'T23:59:59').getTime()
+  return new Date(e.dtstart).getTime()
+}
+
+function localDateKey(iso: string): string {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + 'T12:00:00') : new Date(iso)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function syncPriority(e: ExpandedEvent): number {
+  if (e.syncState === 'local_new' || e.syncState === 'local_modified') return 0
+  if (e.syncState === 'conflict') return 1
+  return 2
+}
+
 export function buildSummary(expanded: ExpandedEvent[], pending: number, conflicts: number): SummaryResponse {
   const now = new Date()
-  const today = now.toISOString().slice(0, 10)
-  const sorted = [...expanded].sort((a, b) => a.dtstart.localeCompare(b.dtstart))
+  const nowMs = now.getTime()
+  const todayKey = localDateKey(now.toISOString())
+
+  const stillRelevant = expanded.filter(e => eventEndMs(e) >= nowMs)
+  const sorted = [...stillRelevant].sort((a, b) => {
+    const pd = syncPriority(a) - syncPriority(b)
+    if (pd !== 0) return pd
+    return a.dtstart.localeCompare(b.dtstart)
+  })
+
+  const seenMasters = new Set<string>()
+  const upcomingDeduped: ExpandedEvent[] = []
+  for (const e of sorted) {
+    if (seenMasters.has(e.id)) continue
+    seenMasters.add(e.id)
+    upcomingDeduped.push(e)
+    if (upcomingDeduped.length >= 20) break
+  }
+
+  const todayIds = new Set<string>()
+  for (const e of expanded) {
+    if (localDateKey(e.dtstart) === todayKey) todayIds.add(e.id)
+  }
+
   return {
     now: now.toISOString(),
-    todayCount: sorted.filter(e => e.dtstart.slice(0, 10) === today).length,
-    upcoming: sorted.slice(0, 10).map(e => ({
+    todayCount: todayIds.size,
+    upcoming: upcomingDeduped.slice(0, 15).map(e => ({
       id: e.id,
       calendarId: e.calendarId,
       summary: e.summary || '(ohne Titel)',
@@ -142,6 +196,7 @@ export function buildSummary(expanded: ExpandedEvent[], pending: number, conflic
       calendarName: e.calendarName,
       location: e.location,
       description: e.description,
+      instanceStart: e.isRecurrenceInstance ? e.dtstart : undefined,
     })),
     pendingChanges: pending,
     conflicts,

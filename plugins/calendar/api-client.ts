@@ -14,6 +14,7 @@ export interface AccountView {
   lastSyncError?: string
   calendarCount: number
   endpoint?: string
+  url?: string
   username?: string
 }
 
@@ -59,6 +60,7 @@ export interface SummaryView {
     calendarName?: string
     location?: string
     description?: string
+    instanceStart?: string
   }>
   pendingChanges: number
   conflicts: number

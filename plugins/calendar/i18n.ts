@@ -88,6 +88,11 @@ const dict: Record<Locale, Record<string, string>> = {
     eventSavedSyncing: 'Termin gespeichert — wird zu WEB.DE synchronisiert…',
     readOnlyCalendarHint: '„Geburtstage“ und ICS-Feeds sind nur lesbar. Bitte „Mein Kalender“ wählen.',
     pickWritableCalendar: 'Bitte einen beschreibbaren Kalender wählen (z. B. Mein Kalender).',
+    editAccount: 'Bearbeiten',
+    editAccountTitle: 'Konto bearbeiten',
+    passwordLeaveBlank: 'Leer lassen = Passwort unverändert',
+    eventCount: 'Termine',
+    openDay: 'Tag öffnen',
   },
   en: {
     calendar: 'Calendar',
@@ -167,6 +172,11 @@ const dict: Record<Locale, Record<string, string>> = {
     eventSavedSyncing: 'Event saved — syncing to CalDAV…',
     readOnlyCalendarHint: 'Birthdays and ICS feeds are read-only. Choose “My calendar” instead.',
     pickWritableCalendar: 'Choose a writable calendar (e.g. My calendar).',
+    editAccount: 'Edit',
+    editAccountTitle: 'Edit account',
+    passwordLeaveBlank: 'Leave blank to keep current password',
+    eventCount: 'events',
+    openDay: 'Open day',
   },
 }
 

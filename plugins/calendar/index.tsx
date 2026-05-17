@@ -150,6 +150,26 @@ function loadHiddenCalendarIds(): Set<string> {
   catch { return new Set() }
 }
 
+function eventRowKey(ev: { id: string; dtstart: string; instanceStart?: string }): string {
+  return `${ev.id}:${ev.instanceStart ?? ev.dtstart}`
+}
+
+function filterUpcomingEvents<T extends { dtstart: string; dtend?: string; allDay: boolean }>(events: T[]): T[] {
+  const now = Date.now()
+  return events
+    .filter(ev => {
+      const endMs = ev.dtend
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(ev.dtend)
+          ? new Date(ev.dtend + 'T23:59:59').getTime()
+          : new Date(ev.dtend).getTime())
+        : (/^\d{4}-\d{2}-\d{2}$/.test(ev.dtstart)
+          ? new Date(ev.dtstart + 'T23:59:59').getTime()
+          : new Date(ev.dtstart).getTime())
+      return endMs >= now
+    })
+    .sort((a, b) => a.dtstart.localeCompare(b.dtstart))
+}
+
 const widgetNavBtnStyle: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: '4px',
@@ -183,6 +203,8 @@ function Widget({ config }: PluginWidgetProps) {
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); return d })
   const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
   const [monthEvents, setMonthEvents] = useState<EventView[]>([])
+  const [listEvents, setListEvents] = useState<EventView[]>([])
+  const [dayPopup, setDayPopup] = useState<Date | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -293,9 +315,24 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }, [monthRange, hiddenCalendars])
 
+  const refreshListEvents = useCallback(async () => {
+    const start = new Date()
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+    try {
+      const evs = await api.listEvents(start.toISOString(), end.toISOString())
+      setListEvents(evs.filter(e => !hiddenCalendars.has(e.calendarId)))
+    } catch {
+      setListEvents([])
+    }
+  }, [hiddenCalendars])
+
   useEffect(() => {
     if (tileView === 'month') refreshMonthEvents()
-  }, [tileView, refreshMonthEvents])
+    if (tileView === 'compact') refreshListEvents()
+  }, [tileView, refreshMonthEvents, refreshListEvents])
+
+  const compactUpcoming = useMemo(() => filterUpcomingEvents(listEvents), [listEvents])
 
   const showFlash = useCallback((msg: string) => {
     setFlash(msg)
@@ -314,12 +351,19 @@ function Widget({ config }: PluginWidgetProps) {
       const accounts = await api.listAccounts()
       await Promise.all(accounts.filter(a => a.enabled).map(a => api.syncAccount(a.id).catch(() => undefined)))
       await refresh()
+      await refreshListEvents()
       if (tileView === 'month') await refreshMonthEvents()
     } catch (e: any) {
       setStatus('error')
       setErrorMsg(e?.message ?? String(e))
     }
   }
+
+  const refreshAllEvents = useCallback(async () => {
+    await refresh()
+    await refreshListEvents()
+    if (tileView === 'month') await refreshMonthEvents()
+  }, [refresh, refreshListEvents, refreshMonthEvents, tileView])
 
   const monthEventsByDay = useMemo(() => {
     const map: Record<string, EventView[]> = {}
@@ -331,22 +375,17 @@ function Widget({ config }: PluginWidgetProps) {
     return map
   }, [monthEvents])
 
-  const selectedDayEvents = monthEventsByDay[dateKeyLocal(selectedDay)] ?? []
-  const upcomingForDay = useMemo(() => {
-    const now = Date.now()
-    return selectedDayEvents.filter(ev => {
-      const endMs = ev.dtend
-        ? new Date(ev.dtend).getTime()
-        : new Date(ev.dtstart).getTime() + (ev.allDay ? 86_400_000 : 0)
-      return endMs >= now
-    })
-  }, [selectedDayEvents])
-
   const monthLabel = monthCursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
 
   const openEventFromMonth = (ev: EventView) => {
     loadCalendars().catch(() => undefined)
     setEventDialog(ev)
+  }
+
+  const openDayPopup = (day: Date) => {
+    const d = startOfLocalDay(day)
+    setSelectedDay(d)
+    setDayPopup(d)
   }
 
   const shiftMonth = (delta: number) => {
@@ -424,16 +463,18 @@ function Widget({ config }: PluginWidgetProps) {
 
         {/* upcoming list */}
         <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
-          {!summary && <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>…</div>}
-          {summary && summary.upcoming.length === 0 && (
+          {!summary && listEvents.length === 0 && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>…</div>
+          )}
+          {compactUpcoming.length === 0 && summary && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1,
               color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic',
             }}>{t('noUpcoming')}</div>
           )}
-          {summary?.upcoming.map(ev => (
+          {compactUpcoming.map(ev => (
             <button
-              key={ev.id}
+              key={eventRowKey(ev)}
               onClick={() => openEventFromTile(ev)}
               style={{
                 all: 'unset', cursor: 'pointer',
@@ -478,46 +519,18 @@ function Widget({ config }: PluginWidgetProps) {
               <MonthView
                 locale={locale}
                 compact
+                countOnly
                 cursor={monthCursor}
                 range={monthRange}
                 selectedDay={selectedDay}
                 eventsByDay={monthEventsByDay}
                 onSelectDay={d => setSelectedDay(startOfLocalDay(d))}
-                onClickDay={d => setSelectedDay(startOfLocalDay(d))}
+                onClickDay={openDayPopup}
                 onClickEvent={openEventFromMonth}
               />
             </div>
-            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden', minHeight: 0 }}>
-              <div style={{
-                fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)',
-                textTransform: 'uppercase', letterSpacing: '0.04em',
-              }}>{t('upcomingOnly')}</div>
-              {upcomingForDay.length === 0 && (
-                <div style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>
-                  {locale === 'de' ? 'Keine Einträge.' : 'No entries.'}
-                </div>
-              )}
-              {upcomingForDay.map(ev => (
-                <button
-                  key={ev.id}
-                  onClick={() => openEventFromMonth(ev)}
-                  style={{
-                    all: 'unset', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '8px',
-                    padding: '6px 8px', background: 'var(--surface-2)',
-                    border: '1px solid var(--border)', borderRadius: '4px',
-                    borderLeft: `3px solid ${ev.calendarColor ?? '#5a9bd4'}`,
-                    fontSize: '12px', minWidth: 0,
-                  }}
-                >
-                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '11px', color: 'var(--text-muted)', minWidth: '48px' }}>
-                    {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
-                  </span>
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ev.summary || t('untitled')}
-                  </span>
-                </button>
-              ))}
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
+              {t('openDay')}
             </div>
           </div>
         )}
@@ -573,8 +586,26 @@ function Widget({ config }: PluginWidgetProps) {
           onSaved={msg => {
             setEventDialog(null)
             if (msg) showFlash(msg)
-            void refresh().then(() => { if (tileView === 'month') return refreshMonthEvents() })
+            void refreshAllEvents()
           }}
+        />
+      )}
+      {dayPopup && (
+        <DayEventsPopup
+          locale={locale}
+          day={dayPopup}
+          events={monthEventsByDay[dateKeyLocal(dayPopup)] ?? []}
+          canAdd={writableCalendars.length > 0}
+          onClose={() => setDayPopup(null)}
+          onAdd={() => {
+            setDayPopup(null)
+            setEventDialog({
+              calendarId: pickDefaultWritableCalendar(writableCalendars)?.id ?? writableCalendars[0]?.id,
+              allDay: false,
+              dtstart: selectedDay.toISOString(),
+            })
+          }}
+          onClickEvent={ev => { setDayPopup(null); openEventFromMonth(ev) }}
         />
       )}
     </>
@@ -679,7 +710,11 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
     catch { return new Set() }
   })
   const [eventDialog, setEventDialog] = useState<{ event: Partial<EventView> | null } | null>(null)
-  const [accountDialog, setAccountDialog] = useState<'caldav' | 'ics' | null>(null)
+  const [accountDialog, setAccountDialog] = useState<
+    | { mode: 'create'; provider: 'caldav' | 'ics' }
+    | { mode: 'edit'; account: AccountView }
+    | null
+  >(null)
   const [loading, setLoading] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
 
@@ -897,8 +932,9 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
                 accounts={accounts}
                 calendars={calendars}
                 locale={locale}
-                onAddCaldav={() => setAccountDialog('caldav')}
-                onAddIcs={() => setAccountDialog('ics')}
+                onAddCaldav={() => setAccountDialog({ mode: 'create', provider: 'caldav' })}
+                onAddIcs={() => setAccountDialog({ mode: 'create', provider: 'ics' })}
+                onEditAccount={a => setAccountDialog({ mode: 'edit', account: a })}
                 onRefresh={refresh}
               />
             )}
@@ -918,7 +954,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
       {accountDialog && (
         <AccountDialog
           locale={locale}
-          provider={accountDialog}
+          target={accountDialog}
           onClose={() => setAccountDialog(null)}
           onSaved={() => { setAccountDialog(null); refresh() }}
         />
@@ -959,6 +995,89 @@ function CalendarFilterBar({ accounts, calendars, hidden, onToggle, t }: {
         </button>
       )))}
     </div>
+  )
+}
+
+function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEvent }: {
+  locale: Locale
+  day: Date
+  events: EventView[]
+  canAdd: boolean
+  onClose: () => void
+  onAdd: () => void
+  onClickEvent: (ev: EventView) => void
+}) {
+  const t = (k: string) => tr(k, locale)
+  const sorted = useMemo(
+    () => [...events].sort((a, b) => a.dtstart.localeCompare(b.dtstart)),
+    [events],
+  )
+  return (
+    <ModalPortal>
+      <div
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        }}
+      >
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: '8px', width: 'min(420px, 92vw)', maxHeight: '80vh',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+        }}>
+          <div style={{
+            padding: '14px 18px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+              {fmtFullDay(day, locale)}
+              {sorted.length > 0 && (
+                <span style={{ marginLeft: '8px', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 400 }}>
+                  ({sorted.length} {t('eventCount')})
+                </span>
+              )}
+            </div>
+            <button onClick={onClose} style={{ all: 'unset', cursor: 'pointer', color: 'var(--text-muted)' }}>{ICONS.close}</button>
+          </div>
+          <div style={{ padding: '12px 16px', overflowY: 'auto', flex: 1 }}>
+            {!sorted.length && (
+              <div style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>{t('noEventsThisDay')}</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {sorted.map(ev => (
+                <button
+                  key={eventRowKey(ev)}
+                  onClick={() => onClickEvent(ev)}
+                  style={{
+                    all: 'unset', cursor: 'pointer', textAlign: 'left',
+                    display: 'grid', gridTemplateColumns: '72px 4px 1fr', gap: '10px', alignItems: 'center',
+                    padding: '8px 10px', background: 'var(--background)', borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
+                  </span>
+                  <span style={{ background: ev.calendarColor ?? '#5a9bd4', width: '4px', height: '100%', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '14px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ev.summary || t('untitled')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{
+            padding: '12px 18px', borderTop: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'flex-end', gap: '8px',
+          }}>
+            <ModalBtn onClick={onClose}>{t('close')}</ModalBtn>
+            {canAdd && <ModalBtn primary onClick={onAdd}>{t('newEvent')}</ModalBtn>}
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
   )
 }
 
@@ -1037,13 +1156,14 @@ function ModalBtn({ children, onClick, active, primary, ghost, disabled }: {
 // Month grid
 // ===========================================================================
 
-function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, onSelectDay, onClickDay, onClickEvent }: {
+function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, countOnly, onSelectDay, onClickDay, onClickEvent }: {
   locale: Locale
   cursor: Date
   range: { start: Date; end: Date }
   eventsByDay: Record<string, EventView[]>
   selectedDay: Date
   compact?: boolean
+  countOnly?: boolean
   onSelectDay: (d: Date) => void
   onClickDay: (d: Date) => void
   onClickEvent: (ev: EventView) => void
@@ -1062,7 +1182,7 @@ function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, o
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
-      gridAutoRows: compact ? 'minmax(52px, auto)' : 'minmax(96px, 1fr)',
+      gridAutoRows: countOnly ? 'minmax(40px, auto)' : compact ? 'minmax(52px, auto)' : 'minmax(96px, 1fr)',
       flex: compact ? '0 0 auto' : undefined,
       minHeight: compact ? undefined : '360px',
     }}>
@@ -1109,35 +1229,47 @@ function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, o
                 alignItems: 'center', justifyContent: 'center',
               } : {}),
             }}>{day.getDate()}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
-              {visible.map(ev => {
-                const isConflict = ev.syncState === 'conflict'
-                const isPending = ev.syncState !== 'synced' && ev.syncState !== 'local_new'
-                return (
-                  <button
-                    key={ev.id}
-                    onClick={e => { e.stopPropagation(); onClickEvent(ev) }}
-                    style={{
-                      all: 'unset', cursor: 'pointer',
-                      fontSize: '10px', padding: '2px 5px', borderRadius: '3px',
-                      background: isConflict ? '#f87171' : (ev.calendarColor ?? '#5a9bd4'),
-                      color: '#fff', whiteSpace: 'nowrap',
-                      overflow: 'hidden', textOverflow: 'ellipsis',
-                      borderLeft: '2px solid rgba(0,0,0,0.25)',
-                      opacity: isPending ? 0.7 : 1,
-                      ...(isConflict ? { animation: 'sd-cal-pulse 1.5s ease-in-out infinite' } : {}),
-                    }}
-                  >
-                    {ev.allDay ? ev.summary : `${fmtTime(ev.dtstart, false, locale)} ${ev.summary ?? ''}`}
-                  </button>
-                )
-              })}
-              {more > 0 && (
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)', textAlign: 'right', padding: '0 4px' }}>
-                  +{more} {t('moreEvents')}
+            {countOnly ? (
+              dayEvents.length > 0 && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: '2px' }}>
+                  <span style={{
+                    fontSize: '10px', fontWeight: 700, lineHeight: 1,
+                    background: 'var(--accent)', color: '#fff',
+                    borderRadius: '10px', minWidth: '18px', padding: '2px 6px', textAlign: 'center',
+                  }}>{dayEvents.length}</span>
                 </div>
-              )}
-            </div>
+              )
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                {visible.map(ev => {
+                  const isConflict = ev.syncState === 'conflict'
+                  const isPending = ev.syncState !== 'synced' && ev.syncState !== 'local_new'
+                  return (
+                    <button
+                      key={eventRowKey(ev)}
+                      onClick={e => { e.stopPropagation(); onClickEvent(ev) }}
+                      style={{
+                        all: 'unset', cursor: 'pointer',
+                        fontSize: '10px', padding: '2px 5px', borderRadius: '3px',
+                        background: isConflict ? '#f87171' : (ev.calendarColor ?? '#5a9bd4'),
+                        color: '#fff', whiteSpace: 'nowrap',
+                        overflow: 'hidden', textOverflow: 'ellipsis',
+                        borderLeft: '2px solid rgba(0,0,0,0.25)',
+                        opacity: isPending ? 0.7 : 1,
+                        ...(isConflict ? { animation: 'sd-cal-pulse 1.5s ease-in-out infinite' } : {}),
+                      }}
+                    >
+                      {ev.allDay ? ev.summary : `${fmtTime(ev.dtstart, false, locale)} ${ev.summary ?? ''}`}
+                    </button>
+                  )
+                })}
+                {more > 0 && (
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textAlign: 'right', padding: '0 4px' }}>
+                    +{more} {t('moreEvents')}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )
       })}
@@ -1209,12 +1341,13 @@ function AgendaView({ eventsByDay, locale, onClickEvent }: {
 // Accounts view
 // ===========================================================================
 
-function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onRefresh }: {
+function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onEditAccount, onRefresh }: {
   accounts: AccountView[]
   calendars: CalendarView[]
   locale: 'de' | 'en'
   onAddCaldav: () => void
   onAddIcs: () => void
+  onEditAccount: (account: AccountView) => void
   onRefresh: () => void
 }) {
   const t = (k: string) => tr(k, locale)
@@ -1258,6 +1391,7 @@ function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onRe
                 </span>
               )}
               <span style={{ flex: 1 }} />
+              <ModalBtn onClick={() => onEditAccount(a)}>{t('editAccount')}</ModalBtn>
               <ModalBtn onClick={async () => { await api.syncAccount(a.id); onRefresh() }}>{t('sync')}</ModalBtn>
               <ModalBtn onClick={async () => {
                 if (!confirm(t('confirmDeleteAccount'))) return
@@ -1515,14 +1649,31 @@ function Field({ label, children, flex }: { label: string; children: React.React
 // Account dialog
 // ===========================================================================
 
-function AccountDialog({ provider, locale, onClose, onSaved }: {
-  provider: 'caldav' | 'ics'
+type AccountDialogTarget =
+  | { mode: 'create'; provider: 'caldav' | 'ics' }
+  | { mode: 'edit'; account: AccountView }
+
+function AccountDialog({ target, locale, onClose, onSaved }: {
+  target: AccountDialogTarget
   locale: 'de' | 'en'
   onClose: () => void
   onSaved: () => void
 }) {
   const t = (k: string) => tr(k, locale)
-  const [form, setForm] = useState({ name: '', url: '', username: '', password: '', verifySsl: true })
+  const isEdit = target.mode === 'edit'
+  const provider = isEdit ? target.account.provider : target.provider
+  const [form, setForm] = useState(() => {
+    if (isEdit) {
+      return {
+        name: target.account.name,
+        url: target.account.url ?? '',
+        username: target.account.username ?? '',
+        password: '',
+        verifySsl: true,
+      }
+    }
+    return { name: '', url: '', username: '', password: '', verifySsl: true }
+  })
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -1535,11 +1686,30 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
   const save = async () => {
     setError(null); setSaving(true)
     try {
-      const body =
-        provider === 'caldav'
-          ? { name: form.name || form.url, provider, caldav: { url: form.url, username: form.username, password: form.password, verifySsl: form.verifySsl } }
-          : { name: form.name || form.url, provider, ics: { url: form.url, username: form.username || undefined, password: form.password || undefined } }
-      await api.createAccount(body)
+      if (isEdit) {
+        const body: Record<string, unknown> = { name: form.name || target.account.name }
+        if (provider === 'caldav') {
+          body.caldav = {
+            url: form.url,
+            username: form.username,
+            verifySsl: form.verifySsl,
+            ...(form.password ? { password: form.password } : {}),
+          }
+        } else {
+          body.ics = {
+            url: form.url,
+            username: form.username || undefined,
+            ...(form.password ? { password: form.password } : {}),
+          }
+        }
+        await api.updateAccount(target.account.id, body)
+      } else {
+        const body =
+          provider === 'caldav'
+            ? { name: form.name || form.url, provider, caldav: { url: form.url, username: form.username, password: form.password, verifySsl: form.verifySsl } }
+            : { name: form.name || form.url, provider, ics: { url: form.url, username: form.username || undefined, password: form.password || undefined } }
+        await api.createAccount(body)
+      }
       onSaved()
     } catch (e: any) {
       setError(e?.message ?? String(e))
@@ -1567,7 +1737,7 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
-            {provider === 'caldav' ? t('addCaldav') : t('addIcs')}
+            {isEdit ? t('editAccountTitle') : (provider === 'caldav' ? t('addCaldav') : t('addIcs'))}
           </div>
           <button onClick={onClose} style={{ all: 'unset', cursor: 'pointer', color: 'var(--text-muted)' }}>{ICONS.close}</button>
         </div>
@@ -1589,7 +1759,8 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
                 <input style={inp} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
               </Field>
               <Field label={t('appPassword')}>
-                <input style={inp} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                <input style={inp} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                  placeholder={isEdit ? t('passwordLeaveBlank') : undefined} />
               </Field>
               <label style={{ display: 'inline-flex', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
                 <input type="checkbox" checked={form.verifySsl} onChange={e => setForm({ ...form, verifySsl: e.target.checked })} />
@@ -1629,7 +1800,7 @@ function AccountDialog({ provider, locale, onClose, onSaved }: {
           display: 'flex', justifyContent: 'flex-end', gap: '8px',
         }}>
           <ModalBtn onClick={onClose}>{t('cancel')}</ModalBtn>
-          <ModalBtn primary onClick={save}>{saving ? '…' : t('add')}</ModalBtn>
+          <ModalBtn primary onClick={save}>{saving ? '…' : (isEdit ? t('save') : t('add'))}</ModalBtn>
         </div>
       </div>
     </div>
