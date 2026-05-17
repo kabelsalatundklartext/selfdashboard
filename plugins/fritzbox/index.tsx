@@ -9,7 +9,6 @@ import {
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
-import { reportPluginCatch } from '@/lib/pluginLog'
 
 /** Plot-Höhe: 0 = Standardhöhe; 1–FB_PLOT_H_MAX = exakte Pixelhöhe. */
 const FB_PLOT_H_DEFAULT = 168
@@ -27,7 +26,7 @@ export const meta: PluginMeta = {
   category: 'network',
   icon: '📈',
   iconUrl: '/plugin-logos/fritzbox.svg',
-  defaultLayout: { w: 4, h: 8, minW: 3, minH: 6 },
+  defaultLayout: { w: 4, h: 6, minW: 3, minH: 3 },
   configSchema: [
     {
       key: 'baseUrl',
@@ -475,13 +474,19 @@ function ThroughputHistoryChart({
   const yAxisColW = pillTight ? 48 : 52
   const chartRowGap = 4
 
+  const panelPadY = compact ? 16 : 22
+  const stackGap = compact ? 6 : 8
+
   let hPx = baseHPx
   if (layout === 'horizontal') {
-    hPx = Math.min(baseHPx, Math.max(96, statsBlockH - chartFooterH))
+    if (panelSize.h > 0) {
+      const availRow = Math.floor(panelSize.h - headerEst - panelPadY - stackGap) - chartFooterH
+      hPx = Math.min(baseHPx, Math.max(96, availRow))
+    } else {
+      hPx = Math.min(baseHPx, Math.max(96, statsBlockH - chartFooterH))
+    }
   } else if (panelSize.h > 0) {
     /** Senkrecht: konservativ rechnen — untere Karten bleiben sichtbar (u. a. 3×H-Kacheln). */
-    const panelPadY = compact ? 16 : 22
-    const stackGap = compact ? 6 : 8
     const afterChart = showChart ? (compact ? 8 : 12) : 0
     const statsSafety = 24
     const avail = Math.floor(
@@ -1018,7 +1023,6 @@ function Widget({ config }: PluginWidgetProps) {
       setError(null)
       setData(j as Summary)
     } catch (e) {
-      reportPluginCatch('fritzbox', e, 'fetch')
       setError(e instanceof Error ? e.message : String(e))
       setData(null)
     } finally {
