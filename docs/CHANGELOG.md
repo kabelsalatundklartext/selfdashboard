@@ -22,10 +22,11 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 | Topic | Description |
 |--------|-------------|
-| **ICS / Webcal** | Server-side fetch via **`POST /api/calendar-ics`** (no browser CORS; LAN URLs work). |
-| **CalDAV** | **`POST /api/calendar-caldav`**: Basic auth; tries **GET** (ICS export) then **REPORT** `calendar-query` where needed (e.g. Nextcloud, Synology). |
-| **Shared code** | URL/window handling shared between ICS and CalDAV routes where applicable. |
-| **Widget** | Month/week views, local events, configurable refresh interval for remote feeds. |
+| **API** | Unified under **`/api/calendar/*`**: `accounts`, `events`, `calendars`, `sync`, `status`, `summary`, `conflicts` (no separate `calendar-ics` / `calendar-caldav` routes). |
+| **ICS / Webcal** | Read-only feeds via account type **ICS**; server-side fetch (no browser CORS; LAN URLs work). |
+| **CalDAV** | Two-way accounts: Basic auth; sync via **`POST /api/calendar/accounts/[id]/sync`** (GET/REPORT as needed, e.g. Nextcloud, Synology). |
+| **Storage** | `data/calendar/` on the server; credentials encrypted (AES-256-GCM). |
+| **Widget** | Month/week views, day panel, local events; background sync (`CALENDAR_SYNC_INTERVAL_SECONDS`, default 5 min). |
 
 ---
 
@@ -72,10 +73,11 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 | Thema | Beschreibung |
 |--------|----------------|
-| **ICS / Webcal** | Serverseitig über **`POST /api/calendar-ics`** (kein CORS im Browser; LAN-URLs möglich). |
-| **CalDAV** | **`POST /api/calendar-caldav`**: Basic-Auth; zuerst **GET** (ICS-Export), sonst **REPORT** `calendar-query` (z. B. Nextcloud, Synology). |
-| **Gemeinsame Logik** | URL/Zeitfenster u. a. zwischen ICS- und CalDAV-Route geteilt. |
-| **Widget** | Monat/Woche, lokale Termine, Aktualisierungsintervall für externe Feeds. |
+| **API** | Einheitlich unter **`/api/calendar/*`**: `accounts`, `events`, `calendars`, `sync`, `status`, `summary`, `conflicts` (keine separaten Routen `calendar-ics` / `calendar-caldav`). |
+| **ICS / Webcal** | Nur-Lese-Feeds über Kontotyp **ICS**; serverseitiger Abruf (kein CORS im Browser; LAN-URLs möglich). |
+| **CalDAV** | Zwei-Wege-Konten: Basic-Auth; Sync über **`POST /api/calendar/accounts/[id]/sync`** (GET/REPORT je nach Server, z. B. Nextcloud, Synology). |
+| **Speicher** | `data/calendar/` auf dem Server; Zugangsdaten verschlüsselt (AES-256-GCM). |
+| **Widget** | Monat/Woche, Tagespanel, lokale Termine; Hintergrund-Sync (`CALENDAR_SYNC_INTERVAL_SECONDS`, Standard 5 min). |
 
 ---
 
