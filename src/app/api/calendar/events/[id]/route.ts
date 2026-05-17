@@ -13,9 +13,22 @@ import { badRequest, notFound, ok } from '@/lib/calendar/api-helpers'
 import { buildVcalendar } from '@/lib/calendar/ical'
 import { mutateStore, nowIso, readStore } from '@/lib/calendar/store'
 import { runSync } from '@/lib/calendar/sync'
-import type { EventUpdateBody } from '@/lib/calendar/types'
+import type { CalendarEvent, EventUpdateBody, SyncLogEntry } from '@/lib/calendar/types'
+
+export const runtime = 'nodejs'
 
 interface Ctx { params: Promise<{ id: string }> }
+
+type UpdateEventResponse = CalendarEvent & { syncError?: string }
+
+function isSyncLogEntry(v: unknown): v is SyncLogEntry {
+  return typeof v === 'object' && v !== null && 'accountId' in v && 'id' in v
+}
+
+function messageFromSyncResult(log: SyncLogEntry | { error: string }): string | undefined {
+  if (isSyncLogEntry(log)) return log.error
+  return log.error
+}
 
 export async function PUT(req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params
@@ -61,14 +74,27 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   })
 
   if (!found) return notFound('event not found or its calendar is read-only')
-  if (calendarAccountId) await runSync(calendarAccountId).catch(() => undefined)
+
+  let syncResult: SyncLogEntry | { error: string } | undefined
+  if (calendarAccountId) {
+    try {
+      syncResult = await runSync(calendarAccountId)
+    } catch (e: unknown) {
+      syncResult = { error: e instanceof Error ? e.message : String(e) }
+    }
+  }
 
   const after = await readStore()
   const ev = after.events.find(e => e.id === id)
   if (!ev) return notFound('event not found after sync')
+
   const acc = calendarAccountId ? after.accounts.find(a => a.id === calendarAccountId) : undefined
-  const syncError = ev.syncState !== 'synced' && ev.syncState !== 'local_new' ? acc?.lastSyncError : ev.syncState === 'local_new' ? acc?.lastSyncError : undefined
-  return ok(syncError ? { ...ev, syncError } : ev)
+  const syncError =
+    (syncResult ? messageFromSyncResult(syncResult) : undefined) ??
+    (ev.syncState === 'local_new' || ev.syncState === 'local_modified' ? acc?.lastSyncError : undefined)
+
+  const payload: UpdateEventResponse = syncError ? { ...ev, syncError } : ev
+  return ok(payload)
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {

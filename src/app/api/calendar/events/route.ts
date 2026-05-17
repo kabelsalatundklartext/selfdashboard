@@ -6,8 +6,8 @@
  * because expanding the entire database on every request would be wasteful;
  * the UI knows its viewport and asks for exactly what it needs.
  *
- * POST writes the event with `syncState = 'local_new'` and kicks off a
- * background sync for the owning account so the push happens promptly.
+ * POST writes the event with `syncState = 'local_new'` and runs sync for the
+ * owning account so the push happens promptly.
  */
 
 import { NextRequest } from 'next/server'
@@ -16,7 +16,20 @@ import { badRequest, ok } from '@/lib/calendar/api-helpers'
 import { buildVcalendar, expandRecurrences, newUid } from '@/lib/calendar/ical'
 import { mutateStore, newId, nowIso, readStore } from '@/lib/calendar/store'
 import { runSync } from '@/lib/calendar/sync'
-import type { EventCreateBody } from '@/lib/calendar/types'
+import type { CalendarEvent, EventCreateBody, SyncLogEntry } from '@/lib/calendar/types'
+
+export const runtime = 'nodejs'
+
+type CreateEventResponse = CalendarEvent & { syncError?: string }
+
+function isSyncLogEntry(v: unknown): v is SyncLogEntry {
+  return typeof v === 'object' && v !== null && 'accountId' in v && 'id' in v
+}
+
+function messageFromSyncResult(log: SyncLogEntry | { error: string }): string | undefined {
+  if (isSyncLogEntry(log)) return log.error
+  return log.error
+}
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
@@ -69,12 +82,12 @@ export async function POST(req: NextRequest) {
   const evId = newId('evt')
   const ical = buildVcalendar({
     uid,
-    summary: body.summary,
+    summary: body.summary ?? '',
     description: body.description,
     location: body.location,
     dtstart: body.dtstart,
     dtend: body.dtend,
-    allDay: body.allDay,
+    allDay: body.allDay ?? false,
     rrule: body.rrule,
     lastModifiedIso: nowIso(),
   })
@@ -85,32 +98,37 @@ export async function POST(req: NextRequest) {
       calendarId: body.calendarId,
       uid,
       icalData: ical,
-      summary: body.summary,
+      summary: body.summary ?? '',
       description: body.description ?? '',
       location: body.location ?? '',
       dtstart: body.dtstart,
       dtend: body.dtend,
-      allDay: body.allDay,
+      allDay: body.allDay ?? false,
       rrule: body.rrule,
       localModifiedAt: nowIso(),
       syncState: 'local_new',
     })
   })
 
-  const log = await runSync(cal.accountId).catch((e: unknown) => ({
-    error: e instanceof Error ? e.message : String(e),
-  }))
+  let syncResult: SyncLogEntry | { error: string }
+  try {
+    syncResult = await runSync(cal.accountId)
+  } catch (e: unknown) {
+    syncResult = { error: e instanceof Error ? e.message : String(e) }
+  }
 
   const after = await readStore()
   const ev = after.events.find(e => e.id === evId)
   if (!ev) {
-    return ok({
-      error: 'sync_removed_event',
-      syncError: typeof log === 'object' && log && 'error' in log ? String((log as { error?: string }).error) : undefined,
-    })
+    const syncError = messageFromSyncResult(syncResult)
+    return ok({ error: 'sync_removed_event', syncError })
   }
+
   const acc = after.accounts.find(a => a.id === cal.accountId)
   const syncError =
-    (typeof log === 'object' && log && 'error' in log ? (log as { error?: string }).error : undefined) ??
+    messageFromSyncResult(syncResult) ??
     (ev.syncState === 'local_new' ? acc?.lastSyncError : undefined)
-  return ok(syncError ? { ...ev, syncError } : ev)
+
+  const payload: CreateEventResponse = syncError ? { ...ev, syncError } : ev
+  return ok(payload)
+}

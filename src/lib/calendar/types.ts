@@ -141,12 +141,12 @@ export interface AccountUpdateBody {
 
 export interface EventCreateBody {
   calendarId: string
-  summary: string
+  summary?: string
   description?: string
   location?: string
   dtstart: string
   dtend?: string
-  allDay: boolean
+  allDay?: boolean
   rrule?: string
 }
 
