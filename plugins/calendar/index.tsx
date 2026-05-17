@@ -46,7 +46,7 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Kalender',
   description: 'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …',
-  version: '1.2.0',
+  version: '1.2.1',
   author: 'SelfDashboard Community',
   category: 'productivity',
   icon: '📅',

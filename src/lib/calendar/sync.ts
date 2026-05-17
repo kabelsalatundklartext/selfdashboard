@@ -69,10 +69,10 @@ export async function runSync(accountId: string): Promise<SyncLogEntry> {
   // step 1: discover calendars and upsert
   try {
     const discovered = await discoverAccountCalendars(account)
+    const discoveredIds = new Set(discovered.map(d => d.remoteId))
     await mutateStore(s => {
-      const existing = s.calendars.filter(c => c.accountId === account.id)
       for (const d of discovered) {
-        let cal = existing.find(c => c.remoteId === d.remoteId)
+        let cal = s.calendars.find(c => c.accountId === account.id && c.remoteId === d.remoteId)
         if (!cal) {
           cal = {
             id: newId('cal'),
@@ -87,7 +87,15 @@ export async function runSync(accountId: string): Promise<SyncLogEntry> {
         } else {
           cal.name = d.name
           cal.readOnly = d.readOnly
+          if (d.color) cal.color = d.color
         }
+      }
+      // Drop calendars removed on the server (e.g. deleted in Synology Calendar).
+      const stale = s.calendars.filter(c => c.accountId === account.id && !discoveredIds.has(c.remoteId))
+      if (stale.length) {
+        const staleIds = new Set(stale.map(c => c.id))
+        s.calendars = s.calendars.filter(c => !staleIds.has(c.id))
+        s.events = s.events.filter(e => !staleIds.has(e.calendarId))
       }
     })
   } catch (e: any) {
