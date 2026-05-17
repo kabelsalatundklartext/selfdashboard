@@ -561,9 +561,15 @@ function Widget({ config }: PluginWidgetProps) {
                 onClickEvent={openEventFromMonth}
               />
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic' }}>
-              {t('openDay')}
-            </div>
+            <WidgetDayEventsPanel
+              locale={locale}
+              day={selectedDay}
+              events={selectedDayEvents}
+              canAdd={writableCalendars.length > 0}
+              onAdd={openNewEvent}
+              onClickEvent={openEventFromMonth}
+              onOpenDayPopup={() => openDayPopup(selectedDay)}
+            />
           </div>
         )}
 
@@ -1134,7 +1140,7 @@ function WidgetDayEventsPanel({ locale, day, events, canAdd, onAdd, onClickEvent
   })
   return (
     <div style={{
-      flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+      flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '6px',
       border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)',
       overflow: 'hidden',
     }}>
@@ -1150,56 +1156,48 @@ function WidgetDayEventsPanel({ locale, day, events, canAdd, onAdd, onClickEvent
             </span>
           )}
         </div>
-        {canAdd && (
-          <button type="button" onClick={onAdd} title={t('addEvent')} style={widgetMiniBtnStyle}>
-            <Plus size={12} />
+        <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+          {canAdd && (
+            <button type="button" onClick={onAdd} title={t('addEvent')} style={widgetMiniBtnStyle}>
+              <Plus size={12} />
+            </button>
+          )}
+          <button type="button" onClick={onOpenDayPopup} title={t('openDay')} style={widgetMiniBtnStyle}>
+            {ICONS.calendar}
           </button>
-        )}
+        </div>
       </div>
-      <div style={{ flexGrow: 1, overflowY: 'auto', padding: '4px 8px', minHeight: 0 }}>
+      <div style={{ flexGrow: 1, overflowY: 'auto', padding: '4px 8px 8px', minHeight: 0 }}>
         {!sorted.length ? (
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic', padding: '4px 2px' }}>
             {t('noEventsThisDay')}
           </div>
         ) : (
           sorted.map(ev => (
-            <button
-              key={eventRowKey(ev)}
-              onClick={() => onClickEvent(ev)}
-              style={{
-                all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                width: '100%', padding: '5px 6px', marginBottom: '4px',
-                background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px',
-                borderLeft: `3px solid ${ev.calendarColor ?? '#5a9bd4'}`,
-                fontSize: '11px', minWidth: 0, boxSizing: 'border-box',
-              }}
-            >
-              <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: 'var(--text-muted)', minWidth: '44px', flexShrink: 0 }}>
-                {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
-              </span>
-              <span style={{ flexGrow: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
-                {ev.summary || t('untitled')}
-              </span>
-            </button>
+          <button
+            key={eventRowKey(ev)}
+            onClick={() => onClickEvent(ev)}
+            style={{
+              all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '5px 6px', marginBottom: '4px',
+              background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px',
+              borderLeft: `3px solid ${ev.calendarColor ?? '#5a9bd4'}`,
+              fontSize: '11px', minWidth: 0, boxSizing: 'border-box',
+            }}
+          >
+            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '10px', color: 'var(--text-muted)', minWidth: '44px', flexShrink: 0 }}>
+              {ev.allDay ? t('allDay') : fmtTime(ev.dtstart, false, locale)}
+            </span>
+            <span style={{ flexGrow: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+              {ev.summary || t('untitled')}
+            </span>
+          </button>
           ))
         )}
       </div>
-      <button
-        type="button"
-        onClick={onOpenDayPopup}
-        style={{
-          all: 'unset', cursor: 'pointer', flexShrink: 0,
-          padding: '6px 10px', borderTop: '1px solid var(--border)',
-          fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', fontStyle: 'italic',
-          width: '100%', boxSizing: 'border-box',
-        }}
-      >
-        {t('openDay')}
-      </button>
     </div>
   )
 }
-
 
 function DayEventsPanel({ locale, day, events, canAdd, onAdd, onClickEvent }: {
   locale: Locale
