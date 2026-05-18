@@ -70,7 +70,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         }
       }
       prevUnread.current = unread
-      setData({ ...j, unread, hasNew: hadNew && Boolean(j.enabled ?? j.navbarEnabled ?? true) })
+      setData({ ...j, unread, hasNew: hadNew && Boolean(j.enabled ?? true) })
     } catch {
       /* offline */
     }
