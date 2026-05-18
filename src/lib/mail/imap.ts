@@ -87,6 +87,14 @@ function accountFoldersUnderInbox(paths: string[], inboxRoot: string): string[] 
   })
 }
 
+/** Übergeordnete MailPlus-Ordner weglassen, wenn Unterordner existieren (vermeidet veralteten STATUS-Zähler). */
+function preferLeafMailboxPaths(paths: string[]): string[] {
+  const leaves = paths.filter(
+    p => !paths.some(other => other !== p && (other.startsWith(`${p}/`) || other.startsWith(`${p}.`))),
+  )
+  return leaves.length > 0 ? leaves : paths
+}
+
 function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[]; mode: MailUnreadResult['mode'] } {
   if (isMailplusAccountsOnly(mailbox)) {
     const synology = synologyDotAccounts(boxes)
@@ -109,22 +117,24 @@ function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[
   return { paths: all, mode: 'all-except-trash' }
 }
 
+/** Zählt echte ungelesene Nachrichten (SEARCH) — STATUS allein ist auf Synology oft veraltet. */
 async function countUnreadInMailbox(client: ImapFlow, path: string): Promise<number> {
   try {
-    const status = await client.status(path, { unseen: true })
-    if (typeof status.unseen === 'number') return status.unseen
+    const lock = await client.getMailboxLock(path)
+    try {
+      const uids = await client.search({ seen: false }, { uid: true })
+      return Array.isArray(uids) ? uids.length : 0
+    } finally {
+      lock.release()
+    }
   } catch {
-    /* SELECT + SEARCH */
-  }
-
-  const lock = await client.getMailboxLock(path)
-  try {
-    const uids = await client.search({ seen: false }, { uid: true })
-    return Array.isArray(uids) ? uids.length : 0
-  } catch {
+    try {
+      const status = await client.status(path, { unseen: true })
+      if (typeof status.unseen === 'number') return status.unseen
+    } catch {
+      /* ignore */
+    }
     return 0
-  } finally {
-    lock.release()
   }
 }
 
@@ -133,7 +143,11 @@ async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<M
     .filter(b => !b.flags?.has('\\Noselect'))
     .map(b => ({ path: b.path, flags: b.flags }))
 
-  const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
+  const { paths: resolved, mode } = resolveScanPaths(boxes, mailbox)
+  const toScan =
+    mode === 'all-except-trash' || mode === 'synology-accounts' || mode === 'accounts'
+      ? preferLeafMailboxPaths(resolved)
+      : resolved
 
   const folders: MailFolderUnread[] = []
   let total = 0
