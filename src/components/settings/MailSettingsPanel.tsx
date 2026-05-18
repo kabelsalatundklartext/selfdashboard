@@ -10,6 +10,7 @@ import {
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_POLL_INTERVAL_MAX,
   MAIL_POLL_INTERVAL_MIN,
+  type MailAggregateStatus,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
 
@@ -27,19 +28,7 @@ interface MailAccountPublic {
   verifyTls: boolean
 }
 
-interface MailAccountStatus {
-  id: string
-  label: string
-  unread: number
-  lastError?: string
-}
-
-interface MailStatus {
-  unread: number
-  lastSyncAt?: string
-  lastError?: string
-  accounts?: MailAccountStatus[]
-}
+type MailStatus = MailAggregateStatus
 
 const inp: React.CSSProperties = {
   background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -70,6 +59,7 @@ export function MailSettingsPanel({
   const de = locale === 'de'
   const [navbarEnabled, setNavbarEnabled] = useState(false)
   const [pollIntervalSeconds, setPollIntervalSeconds] = useState(MAIL_POLL_INTERVAL_DEFAULT)
+  const [pollDraft, setPollDraft] = useState(String(MAIL_POLL_INTERVAL_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -109,7 +99,9 @@ export function MailSettingsPanel({
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
       if (typeof j.pollIntervalSeconds === 'number') {
-        setPollIntervalSeconds(clampPollIntervalSeconds(j.pollIntervalSeconds))
+        const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
+        setPollIntervalSeconds(sec)
+        setPollDraft(String(sec))
       }
       const list = j.accounts ?? []
       setAccounts(list)
@@ -136,6 +128,40 @@ export function MailSettingsPanel({
     setErr(null)
   }
 
+  const resolvePollInterval = () => {
+    const parsed = parseInt(pollDraft.trim(), 10)
+    return clampPollIntervalSeconds(Number.isFinite(parsed) ? parsed : pollIntervalSeconds)
+  }
+
+  const savePollInterval = async () => {
+    const sec = resolvePollInterval()
+    setPollIntervalSeconds(sec)
+    setPollDraft(String(sec))
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pollIntervalSeconds: sec }),
+      })
+      const j = await res.json() as { error?: string; pollIntervalSeconds?: number }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (typeof j.pollIntervalSeconds === 'number') {
+        const saved = clampPollIntervalSeconds(j.pollIntervalSeconds)
+        setPollIntervalSeconds(saved)
+        setPollDraft(String(saved))
+      }
+      setMsg(de ? `Intervall gespeichert (${sec} s)` : `Interval saved (${sec} s)`)
+      dispatchMailConfigChanged()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const accountBody = () => ({
     id: selected?.id,
     label: form.label,
@@ -158,14 +184,24 @@ export function MailSettingsPanel({
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pollIntervalSeconds,
+          pollIntervalSeconds: resolvePollInterval(),
           account: accountBody(),
         }),
       })
-      const j = await res.json() as { error?: string; status?: MailStatus; accounts?: MailAccountPublic[] }
+      const j = await res.json() as {
+        error?: string
+        status?: MailStatus
+        accounts?: MailAccountPublic[]
+        pollIntervalSeconds?: number
+      }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       if (j.accounts) setAccounts(j.accounts)
       setStatus(j.status ?? null)
+      if (typeof j.pollIntervalSeconds === 'number') {
+        const saved = clampPollIntervalSeconds(j.pollIntervalSeconds)
+        setPollIntervalSeconds(saved)
+        setPollDraft(String(saved))
+      }
       setHasPassword(hasPassword || Boolean(form.password))
       setForm(f => ({ ...f, password: '' }))
       setMsg(de ? 'Gespeichert' : 'Saved')
@@ -460,19 +496,29 @@ export function MailSettingsPanel({
       <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
         {de ? 'Abfrage-Intervall (alle Konten)' : 'Poll interval (all accounts)'}
       </label>
-      <input
-        style={inp}
-        type="number"
-        min={MAIL_POLL_INTERVAL_MIN}
-        max={MAIL_POLL_INTERVAL_MAX}
-        step={1}
-        value={pollIntervalSeconds}
-        onChange={e => setPollIntervalSeconds(clampPollIntervalSeconds(parseInt(e.target.value, 10)))}
-      />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+        <input
+          style={{ ...inp, flex: '1 1 120px', minWidth: '80px' }}
+          type="number"
+          min={MAIL_POLL_INTERVAL_MIN}
+          max={MAIL_POLL_INTERVAL_MAX}
+          step={1}
+          value={pollDraft}
+          onChange={e => setPollDraft(e.target.value)}
+          onBlur={() => {
+            const n = resolvePollInterval()
+            setPollIntervalSeconds(n)
+            setPollDraft(String(n))
+          }}
+        />
+        <button type="button" className="btn-ghost" style={{ fontSize: '12px' }} disabled={busy} onClick={() => void savePollInterval()}>
+          {de ? 'Intervall speichern' : 'Save interval'}
+        </button>
+      </div>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
         {de
-          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} Sekunden (nach Änderung „Speichern“).`
-          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} seconds (click Save after changing).`}
+          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} Sekunden — „Intervall speichern“ oder mit „Speichern“ beim Konto.`
+          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} seconds — “Save interval” or account “Save”.`}
       </p>
 
       {status ? (
@@ -495,8 +541,8 @@ export function MailSettingsPanel({
           ) : null}
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
             {de
-              ? 'Nach Docker-Neustart: Passwort neu eintragen und „Speichern“. Roter/gelber Punkt in der Navbar = Fehler — im Protokoll (Filter mail) oder Tooltip auf dem Mail-Symbol. Optional festen Schlüssel setzen: Umgebungsvariable SELFDASHBOARD_CALENDAR_KEY im Container.'
-              : 'After Docker restart: re-enter password and Save. Red/yellow navbar dot = error — see log (filter mail) or mail icon tooltip. Optional: set SELFDASHBOARD_CALENDAR_KEY in the container.'}
+              ? 'Protokoll: Einstellungen → Protokoll, Filter „mail“. Nach Container-Neustart Passwort erneut speichern (Verschlüsselungsschlüssel).'
+              : 'Logs: Settings → Logs, filter “mail”. Re-save password after container restart (encryption key).'}
           </p>
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>

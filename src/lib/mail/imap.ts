@@ -4,7 +4,7 @@ import { ImapFlow } from 'imapflow'
 
 import { decrypt } from '@/lib/secretCrypto'
 import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
-import type { MailConfig } from './types'
+import type { MailImapConfig } from './types'
 
 export type MailFolderUnread = { path: string; unread: number }
 
@@ -46,7 +46,7 @@ function isMailplusExcluded(path: string, flags?: Set<string>): boolean {
   return MAILPLUS_SKIP_SUFFIX.has(leaf.toLowerCase())
 }
 
-function createClient(config: MailConfig): ImapFlow {
+function createClient(config: MailImapConfig): ImapFlow {
   const { host, port } = normalizeMailConnection(config.host, config.port)
   if (!host || !config.username || !config.passwordEncrypted) {
     throw new Error('IMAP host, username and password required')
@@ -151,7 +151,7 @@ async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<M
   return { total, folders, mode }
 }
 
-export async function fetchUnreadBreakdown(config: MailConfig): Promise<MailUnreadResult> {
+export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<MailUnreadResult> {
   const client = createClient(config)
   await client.connect()
   try {
@@ -170,13 +170,13 @@ export async function fetchUnreadBreakdown(config: MailConfig): Promise<MailUnre
   }
 }
 
-export async function fetchUnreadCount(config: MailConfig): Promise<number> {
+export async function fetchUnreadCount(config: MailImapConfig): Promise<number> {
   const result = await fetchUnreadBreakdown(config)
   return result.total
 }
 
 export async function testImapConnection(
-  config: MailConfig,
+  config: MailImapConfig,
 ): Promise<
   | { ok: true; unread: number; folders: MailFolderUnread[]; mode: MailUnreadResult['mode'] }
   | { ok: false; error: string }

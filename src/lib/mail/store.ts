@@ -7,8 +7,10 @@ import { dataDir } from '@/lib/dataDir'
 import { encrypt } from '@/lib/secretCrypto'
 import { normalizeMailConnection, resolveWebmailUrl } from './normalize'
 import {
+  clampPollIntervalSeconds,
   DEFAULT_ACCOUNT_FIELDS,
   EMPTY_MAIL_STATUS,
+  MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_STORE_VERSION,
   newAccountId,
   type MailAccount,
@@ -67,7 +69,7 @@ function migrateFromV1(parsed: Record<string, unknown>): MailStoreFile {
   return {
     version: MAIL_STORE_VERSION,
     navbarEnabled: Boolean(c.enabled),
-    pollIntervalSeconds: c.pollIntervalSeconds ?? 120,
+    pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     accounts: [account],
     status: {
       unread: st?.unread ?? 0,
@@ -96,8 +98,8 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
       ),
       pollIntervalSeconds:
         typeof parsed.pollIntervalSeconds === 'number'
-          ? Math.max(60, Math.min(3600, Math.round(parsed.pollIntervalSeconds)))
-          : 120,
+          ? clampPollIntervalSeconds(parsed.pollIntervalSeconds)
+          : MAIL_POLL_INTERVAL_DEFAULT,
       accounts,
       status: {
         unread: status?.unread ?? 0,

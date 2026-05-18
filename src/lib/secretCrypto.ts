@@ -1,6 +1,6 @@
 /**
  * Shared AES-256-GCM for stored secrets (calendar, mail, …).
- * Key: SELFDASHBOARD_CALENDAR_KEY env or `<dataDir>/.calendar-key`
+ * Key: env `SELFDASHBOARD_CALENDAR_KEY` or `<dataDir>/.calendar-key` (calendar + mail passwords)
  */
 
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from 'node:crypto'

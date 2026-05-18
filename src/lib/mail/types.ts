@@ -86,17 +86,25 @@ export function newAccountId(): string {
   return `acc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-export function accountToImapConfig(account: MailAccount): MailConfig {
+/** Felder für IMAP-Verbindung (ohne Store-Metadaten) */
+export interface MailImapConfig {
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  passwordEncrypted: string
+  mailbox: string
+  verifyTls: boolean
+}
+
+export function accountToImapConfig(account: MailAccount): MailImapConfig {
   return {
-    enabled: account.enabled,
     host: account.host,
     port: account.port,
     secure: account.secure,
     username: account.username,
     passwordEncrypted: account.passwordEncrypted,
     mailbox: account.mailbox,
-    openUrl: account.openUrl,
-    pollIntervalSeconds: 120,
     verifyTls: account.verifyTls,
   }
 }

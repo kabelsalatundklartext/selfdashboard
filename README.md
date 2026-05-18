@@ -41,6 +41,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 📱 **Responsive layout** | **Phone / tablet / desktop** grid based on dashboard width; optional per-widget overrides in **⚙️ → Layout: phone & tablet**; compact **navbar search** (full-width row) on narrow viewports |
 | 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
+| ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
 ---
@@ -227,6 +228,27 @@ Accounts are configured in the calendar modal (cog on the tile), not in the old 
 
 ---
 
+## Navbar mail (IMAP)
+
+Built-in feature (not a dashboard widget). Configure under **Settings → Email**; toggle the icon under **Settings → General → Navbar email**.
+
+| Topic | Details |
+|---|---|
+| **Purpose** | Poll one or more IMAP accounts and show **total unread** as a badge on the mail icon in the navbar; click opens your **webmail URL** |
+| **API** | `GET /api/mail/status` (read cache), `?refresh=1` (force sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
+| **Storage** | `data/mail/mail.json` (or `MAIL_DATA_DIR`); passwords encrypted with **AES-256-GCM** (same key as calendar — see env below) |
+| **Accounts** | Multiple accounts; per account: host, port, SSL, user, password, mailbox folder, webmail URL |
+| **Mailbox `*`** | All IMAP folders with unread mail, **trash excluded** (includes Sent, subfolders — can be a high number) |
+| **Mailbox `@accounts`** | Synology MailPlus style: only `INBOX.AccountName` folders (closer to the MailPlus sidebar) |
+| **Poll interval** | **1–900 seconds** for all accounts (save after changing) |
+| **Logs** | Filter **Settings → Logs** by plugin **`mail`** (`mail/sync`, `mail/test`, …) |
+
+**Synology example:** host `192.168.1.15`, port **993**, SSL on, webmail `http://192.168.1.15:5000/mail/#inbox` (webmail port **not** in the IMAP host field).
+
+**After Docker restart:** re-enter the mailbox password and click **Save** — otherwise background sync cannot decrypt stored credentials (navbar may show a yellow dot).
+
+---
+
 ## Selfstream plugin
 
 | Topic | Details |
@@ -266,7 +288,9 @@ Accounts are configured in the calendar modal (cog on the tile), not in the old 
 
 **Design** — Grid spacing (widget gap + outer padding), Logo upload, Color theme, Custom color overrides per color
 
-**Logs (Protokoll)** — Central error log for support and debugging: filter by level, source, plugin; download `.txt` / JSONL; retention 3 / 7 / 30 days. Every plugin registered via `registerPlugin` logs render failures and failed `/api/*` calls automatically. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
+**Email** — IMAP accounts, navbar badge, poll interval, connection test
+
+**Logs (Protokoll)** — Central error log for support and debugging: filter by level, source, plugin; download `.txt` / JSONL; retention 3 / 7 / 30 days. Every plugin registered via `registerPlugin` logs render failures and failed `/api/*` calls automatically. Mail uses the same log with plugin id **`mail`**. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
 
 ---
 
@@ -317,6 +341,8 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | `TZ` | `Europe/Berlin` | Timezone |
 | `NODE_ENV` | `production` | Node.js environment |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (in the official image) | Directory inside the container where **`dashboard.json`** is stored. Must match your **`/app/data`** bind-mount unless you intentionally use another path. |
+| `SELFDASHBOARD_CALENDAR_KEY` | auto-generated file in data dir | **Stable secret** for encrypting calendar and **mail** passwords. Set explicitly in Docker so credentials survive container recreation. |
+| `MAIL_DATA_DIR` | `<dataDir>/mail` | Directory for **`mail.json`** (optional override) |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Allowed root for DB paths (CrowdSec widget only; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
 | `CROWDSEC_DB_PATH` | — | Default DB file if widget path is empty (optional) |
@@ -336,6 +362,9 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | CrowdSec widget: `crowdsec.db not found` | Set **CrowdSec Data (optional)** in the Unraid template (host folder with `crowdsec.db` → `/crowdsec-data:ro`), or remove the widget if you do not use CrowdSec |
 | CrowdSec: no country flags / all `??` | Ensure **GeoLite2-City.mmdb** (or Country) is in the mounted CrowdSec data folder, or set `CROWDSEC_GEOIP_PATH` |
 | CrowdSec: unban fails | Mount **Docker Socket**, check container name in plugin settings, enable unban there |
+| Mail badge red/yellow, count 0 | **Settings → Email** → re-enter password → **Save**. Set fixed `SELFDASHBOARD_CALENDAR_KEY` in Docker. Check **Logs** filter `mail` |
+| Mail: `ENOTFOUND host:5000` | IMAP host must be IP/hostname only (e.g. `192.168.1.15`), port **993** separate; webmail URL goes in **Webmail URL** field |
+| Mail test OK, navbar empty | Enable **Navbar email** (General or Email tab); save account; badge needs unread &gt; 0 |
 
 ---
 
@@ -383,6 +412,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 📱 **Responsives Layout** | **Handy / Tablet / Desktop**-Raster je nach Dashboard-Breite; optionale Widget-Overrides unter **⚙️ → Layout: Handy & Tablet**; **Navbar-Suche** auf schmalen Viewports in **eigener voller Zeile** |
 | 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
+| ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
 ---
@@ -569,6 +599,27 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
+## Navbar E-Mail (IMAP)
+
+Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen → E-Mail**; Schalter für das Symbol unter **Einstellungen → Allgemein → Navbar E-Mail**.
+
+| Thema | Details |
+|---|---|
+| **Zweck** | Ein oder mehrere IMAP-Konten abfragen, **Summe ungelesen** als Badge am Mail-Symbol; Klick öffnet die **Webmail-URL** |
+| **API** | `GET /api/mail/status` (Cache), `?refresh=1` (Sync erzwingen), `PUT /api/mail/settings`, `POST /api/mail/test` |
+| **Speicher** | `data/mail/mail.json` (oder `MAIL_DATA_DIR`); Passwörter **AES-256-GCM** (gleicher Schlüssel wie Kalender — siehe Env) |
+| **Konten** | Mehrere Konten: Host, Port, SSL, Benutzer, Passwort, Ordner, Webmail-URL |
+| **Ordner `*`** | Alle IMAP-Ordner mit Ungelesen, **ohne Papierkorb** (inkl. Gesendet, Unterordner — kann hoch sein) |
+| **Ordner `@accounts`** | Wie MailPlus-Sidebar: nur `INBOX.Kontoname` |
+| **Abfrage-Intervall** | **1–900 Sekunden** (nach Änderung **Speichern**) |
+| **Protokoll** | **Einstellungen → Protokoll**, Filter **`mail`** |
+
+**Synology-Beispiel:** Host `192.168.1.15`, Port **993**, SSL an, Webmail `http://192.168.1.15:5000/mail/#inbox` (Port **5000** nicht ins IMAP-Host-Feld).
+
+**Nach Docker-Neustart:** Passwort erneut eintragen und **Speichern** — sonst kann der Hintergrund-Sync das Passwort nicht entschlüsseln (gelber Punkt in der Navbar).
+
+---
+
 ## Selfstream-Plugin
 
 | Thema | Details |
@@ -608,7 +659,9 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 **Design** — Grid-Abstände (Widget-Gap + Außenrand), Logo hochladen, Farbthema, Farben einzeln anpassen
 
-**Protokoll** — Zentrales Fehlerprotokoll für Support und Fehlersuche: Filter nach Stufe, Quelle, Plugin; Download `.txt` / JSONL; Aufbewahrung 3 / 7 / 30 Tage. Jedes per `registerPlugin` eingebundene Plugin loggt Render-Fehler und fehlgeschlagene `/api/*`-Aufrufe automatisch. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
+**E-Mail** — IMAP-Konten, Navbar-Badge, Abfrage-Intervall, Verbindung testen
+
+**Protokoll** — Zentrales Fehlerprotokoll für Support und Fehlersuche: Filter nach Stufe, Quelle, Plugin; Download `.txt` / JSONL; Aufbewahrung 3 / 7 / 30 Tage. Jedes per `registerPlugin` eingebundene Plugin loggt Render-Fehler und fehlgeschlagene `/api/*`-Aufrufe automatisch. E-Mail nutzt dasselbe Protokoll mit Plugin-ID **`mail`**. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
 
 ---
 
@@ -644,6 +697,8 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | `TZ` | `Europe/Berlin` | Zeitzone |
 | `NODE_ENV` | `production` | Node.js Umgebung |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (im offiziellen Image) | Verzeichnis **im** Container für **`dashboard.json`**. Muss zum **`/app/data`-Bind-Mount** passen, außer du nutzt bewusst einen anderen Pfad. |
+| `SELFDASHBOARD_CALENDAR_KEY` | Datei im Data-Ordner | **Fester Schlüssel** für Kalender- und **E-Mail**-Passwörter. In Docker setzen, damit Zugangsdaten Container-Neustarts überleben. |
+| `MAIL_DATA_DIR` | `<dataDir>/mail` | Verzeichnis für **`mail.json`** (optional) |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Erlaubtes Wurzelverzeichnis für DB-Pfade (nur CrowdSec-Widget; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
 | `CROWDSEC_DB_PATH` | — | Standard-DB-Datei, wenn im Widget kein Pfad gesetzt ist (optional) |
@@ -663,6 +718,9 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | Port bereits belegt | Host-Port ändern: `-p 3001:3000` |
 | Widgets im Bearbeitungsmodus unsichtbar | Seite neu laden |
 | Theme wird nicht übernommen | Browser-Cache leeren: Strg+Shift+R |
+| E-Mail: roter/gelber Punkt, 0 Mails | **Einstellungen → E-Mail** → Passwort neu → **Speichern**. Feste `SELFDASHBOARD_CALENDAR_KEY` im Container. **Protokoll** Filter `mail` |
+| E-Mail: `ENOTFOUND host:5000` | IMAP-Host nur IP/Name (z. B. `192.168.1.15`), Port **993** extra; Webmail-URL ins Feld **Webmail-URL** |
+| Test OK, Navbar leer | **Navbar E-Mail** einschalten; Konto speichern; Badge nur bei Ungelesen &gt; 0 |
 
 ---
 

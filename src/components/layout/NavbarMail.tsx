@@ -5,14 +5,8 @@ import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
 import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
+import type { MailAccountStatus } from '@/lib/mail/types'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
-
-interface MailAccountStatus {
-  id: string
-  label: string
-  unread: number
-  lastError?: string
-}
 
 interface MailStatusResponse {
   ok?: boolean
@@ -134,15 +128,15 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         ? breakdown.length > 1
           ? `${unread} ungelesen (${breakdown.map(a => `${a.label}: ${a.unread}`).join(', ')})`
           : `${unread} ungelesene E-Mail${unread === 1 ? '' : 's'}`
-        : data.lastError
-          ? `E-Mail: Fehler — ${data.lastError}`
+        : lastError
+          ? `E-Mail: ${lastError}`
           : 'E-Mail: keine neuen Nachrichten'
       : hasNew
         ? breakdown.length > 1
           ? `${unread} unread (${breakdown.map(a => `${a.label}: ${a.unread}`).join(', ')})`
           : `${unread} unread email${unread === 1 ? '' : 's'}`
-        : data.lastError
-          ? `Mail: error — ${data.lastError}`
+        : lastError
+          ? `Mail: ${lastError}`
           : 'Mail: no new messages'
 
   const open = () => {
@@ -162,7 +156,8 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         alert ? 'navbar-mail-btn--alert' : '',
         pulsing ? 'navbar-mail-btn--pulse' : '',
         phone ? 'navbar-mail-btn--phone' : '',
-        data.lastError && !hasUnread ? 'navbar-mail-btn--error' : '',
+        lastError && !hasUnread && !configError ? 'navbar-mail-btn--error' : '',
+        lastError && !hasUnread && configError ? 'navbar-mail-btn--warn' : '',
       ].filter(Boolean).join(' ')}
       onClick={open}
       title={data.openUrl ? title : (locale === 'de' ? `${title} — Webmail-URL in Einstellungen speichern` : `${title} — save webmail URL in settings`)}
