@@ -10,6 +10,7 @@ import {
   clampPollIntervalSeconds,
   DEFAULT_ACCOUNT_FIELDS,
   EMPTY_MAIL_STATUS,
+  isMailAccountFetchable,
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_STORE_VERSION,
   newAccountId,
@@ -230,6 +231,54 @@ export function pickOpenUrl(store: MailStoreFile): string | null {
   }
   const preferred = withLink.find(a => a.enabled) ?? withLink[0]
   return preferred ? resolveWebmailUrl(preferred) : null
+}
+
+/** Nach erfolgreichem IMAP-Test: Konto + Status dauerhaft speichern (inkl. Passwort aus Test). */
+export function persistAccountFromImapTest(
+  store: MailStoreFile,
+  merged: MailAccount,
+  unread: number,
+): void {
+  const idx = store.accounts.findIndex(a => a.id === merged.id)
+  const saved: MailAccount = { ...merged, id: idx >= 0 ? store.accounts[idx].id : merged.id }
+  if (idx >= 0) {
+    store.accounts[idx] = saved
+  } else {
+    store.accounts.push(saved)
+  }
+
+  const label = saved.label || saved.username || saved.id
+  const others = store.status.accounts.filter(a => a.id !== saved.id)
+  const nextAccounts = [...others, { id: saved.id, label, unread }]
+  store.status.accounts = nextAccounts
+  store.status.unread = nextAccounts.reduce((sum, a) => sum + a.unread, 0)
+  store.status.lastSyncAt = new Date().toISOString()
+  store.status.lastError = undefined
+}
+
+export function describeMailSyncBlocker(store: MailStoreFile): string {
+  if (store.accounts.length === 0) {
+    return 'Kein Konto konfiguriert — IMAP-Daten anlegen und speichern.'
+  }
+  const enabled = store.accounts.filter(a => a.enabled)
+  if (enabled.length === 0) {
+    return 'Kein aktives Konto — „Dieses Konto abfragen“ aktivieren.'
+  }
+  const missingPassword = enabled.filter(a => !String(a.passwordEncrypted ?? '').trim())
+  if (missingPassword.length === enabled.length) {
+    return 'Passwort fehlt im Speicher — Passwort eintragen und „Speichern“ oder „Testen“ klicken.'
+  }
+  const incomplete = enabled.filter(
+    a => !String(a.host ?? '').trim() || !String(a.username ?? '').trim(),
+  )
+  if (incomplete.length > 0) {
+    return 'Host oder Benutzername fehlt beim aktiven Konto.'
+  }
+  const fetchable = store.accounts.filter(isMailAccountFetchable)
+  if (fetchable.length === 0) {
+    return 'Kein abrufbares Konto — Einstellungen prüfen und erneut speichern.'
+  }
+  return 'Synchronisation nicht möglich.'
 }
 
 export async function updateMailStatus(status: Partial<MailAggregateStatus>) {

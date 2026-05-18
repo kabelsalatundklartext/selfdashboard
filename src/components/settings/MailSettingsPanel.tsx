@@ -150,6 +150,7 @@ export function MailSettingsPanel({
         error?: string
         pollIntervalSeconds?: number
         status?: MailStatus
+        accounts?: MailAccountPublic[]
       }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       if (typeof j.pollIntervalSeconds === 'number') {
@@ -158,6 +159,7 @@ export function MailSettingsPanel({
         setPollDraft(String(saved))
       }
       if (j.status) setStatus(j.status)
+      if (j.accounts) setAccounts(j.accounts)
       setMsg(de ? `Intervall gespeichert (${sec} s)` : `Interval saved (${sec} s)`)
       dispatchMailConfigChanged({ unread: j.status?.unread })
     } catch (e: unknown) {
@@ -549,7 +551,7 @@ export function MailSettingsPanel({
               ? 'Protokoll: Einstellungen → Protokoll, Filter „mail“. Nach Container-Neustart Passwort erneut speichern (Verschlüsselungsschlüssel).'
               : 'Logs: Settings → Logs, filter “mail”. Re-save password after container restart (encryption key).'}
           </p>
-          {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
+          {status.lastError ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
           ) : null}
           {(status.lastError || err) && onOpenProtocol ? (

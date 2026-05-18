@@ -2,9 +2,14 @@ import 'server-only'
 
 import { formatMailError } from '@/lib/mail/errors'
 import { logMailEvent } from '@/lib/mail/log'
-import { accountToImapConfig, clampPollIntervalSeconds, MAIL_POLL_INTERVAL_DEFAULT } from './types'
+import {
+  accountToImapConfig,
+  clampPollIntervalSeconds,
+  isMailAccountFetchable,
+  MAIL_POLL_INTERVAL_DEFAULT,
+} from './types'
 import { fetchUnreadCount } from './imap'
-import { mutateMailStore, readMailStore } from './store'
+import { describeMailSyncBlocker, mutateMailStore, readMailStore } from './store'
 
 let schedulerStarted = false
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null
@@ -24,19 +29,17 @@ export async function runMailSync(): Promise<void> {
       return
     }
 
-    const active = store.accounts.filter(
-      a => a.enabled && a.host && a.username && a.passwordEncrypted,
-    )
+    const active = store.accounts.filter(isMailAccountFetchable)
 
     if (active.length === 0) {
+      const blocker = describeMailSyncBlocker(store)
       await mutateMailStore(s => {
         if (store.accounts.length === 0) {
           s.status.unread = 0
           s.status.accounts = []
           s.status.lastError = undefined
         } else {
-          s.status.lastError =
-            'Kein abrufbares Konto (Passwort speichern, Host/Benutzer prüfen, „Dieses Konto abfragen“ an)'
+          s.status.lastError = blocker
         }
       })
       return

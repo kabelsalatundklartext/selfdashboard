@@ -14,6 +14,15 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
+  if (body.account && typeof body.account === 'object') return true
+  if (typeof body.deleteAccountId === 'string') return true
+  if (typeof body.navbarEnabled === 'boolean') return true
+  if (typeof body.enabled === 'boolean') return true
+  if (typeof body.host === 'string' || typeof body.username === 'string') return true
+  return false
+}
+
 export async function GET() {
   try {
     const store = await readMailStore()
@@ -62,9 +71,9 @@ export async function PUT(req: Request) {
       }
     })
 
-    if (store.navbarEnabled) {
+    if (store.navbarEnabled && shouldSyncAfterSettingsPut(body)) {
       await runMailSync()
-    } else {
+    } else if (!store.navbarEnabled) {
       await mutateMailStore(s => {
         s.status.unread = 0
         s.status.lastError = undefined

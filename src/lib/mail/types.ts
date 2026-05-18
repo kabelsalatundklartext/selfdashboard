@@ -97,6 +97,16 @@ export interface MailImapConfig {
   verifyTls: boolean
 }
 
+/** Konto kann per IMAP abgefragt werden (Navbar-Sync) */
+export function isMailAccountFetchable(account: MailAccount): boolean {
+  return Boolean(
+    account.enabled &&
+    String(account.host ?? '').trim() &&
+    String(account.username ?? '').trim() &&
+    String(account.passwordEncrypted ?? '').trim(),
+  )
+}
+
 export function accountToImapConfig(account: MailAccount): MailImapConfig {
   return {
     host: account.host,
