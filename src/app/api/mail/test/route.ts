@@ -31,7 +31,12 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 400 })
     }
-    return NextResponse.json({ ok: true, unread: result.unread })
+    return NextResponse.json({
+      ok: true,
+      unread: result.unread,
+      folders: result.folders,
+      mode: result.mode,
+    })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })

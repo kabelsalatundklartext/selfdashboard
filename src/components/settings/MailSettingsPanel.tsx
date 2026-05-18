@@ -235,9 +235,29 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
       })
-      const j = await res.json() as { error?: string; unread?: number }
+      const j = await res.json() as {
+        error?: string
+        unread?: number
+        folders?: { path: string; unread: number }[]
+        mode?: string
+      }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
-      setMsg(de ? `„${form.label}" OK — ${j.unread ?? 0} ungelesen` : `"${form.label}" OK — ${j.unread ?? 0} unread`)
+      const unread = j.unread ?? 0
+      const withMail = (j.folders ?? []).filter(f => f.unread > 0)
+      const hint =
+        j.mode === 'accounts'
+          ? (de ? ' (Konten unter Posteingang, wie MailPlus)' : ' (accounts under inbox, like MailPlus)')
+          : ''
+      setStatus({
+        unread,
+        accounts: [{ id: selected.id, label: form.label || selected.label, unread }],
+        lastSyncAt: new Date().toISOString(),
+      })
+      setMsg(
+        de
+          ? `„${form.label}" OK — ${unread} ungelesen${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}`
+          : `"${form.label}" OK — ${unread} unread${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}`,
+      )
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -358,7 +378,12 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
             autoComplete="new-password" />
 
           <input style={inp} value={form.mailbox} onChange={e => setForm({ ...form, mailbox: e.target.value })}
-            placeholder={de ? '* = alle Ordner' : '* = all folders'} />
+            placeholder={de ? '* = Konten unter Posteingang' : '* = inbox accounts'} />
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 4px', lineHeight: 1.45 }}>
+            {de
+              ? '„*“ entspricht der MailPlus-Leiste (Svensen Google, SvensenDE, …), nicht jedem Unterordner wie „Kinguin“ oder „DATEV“.'
+              : '“*” matches MailPlus account rows under Inbox, not every nested folder.'}
+          </p>
 
           <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
             placeholder="http://192.168.1.15:5000/mail/#inbox" />
@@ -399,7 +424,7 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
               <span> · Sync: {new Date(status.lastSyncAt).toLocaleString(de ? 'de-DE' : 'en-US')}</span>
             ) : null}
           </div>
-          {status.accounts && status.accounts.length > 1 ? (
+          {status.accounts && status.accounts.length > 0 ? (
             <ul style={{ margin: '8px 0 0', paddingLeft: '18px' }}>
               {status.accounts.map(a => (
                 <li key={a.id} style={{ marginBottom: '4px' }}>
@@ -409,6 +434,11 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
               ))}
             </ul>
           ) : null}
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
+            {de
+              ? 'Nach „Testen“: Werte oben sind Vorschau — „Speichern“ und „Alle Konten aktualisieren“ übernehmen sie für die Navbar.'
+              : 'After “Test”: numbers above are a preview — “Save” and “Refresh all accounts” apply them to the navbar.'}
+          </p>
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
           ) : null}
