@@ -69,10 +69,6 @@ export async function POST(req: Request) {
         s.status.lastSyncAt = new Date().toISOString()
         if (s.status.accounts.every(a => !a.lastError)) s.status.lastError = undefined
       })
-      const storeAfter = await readMailStore()
-      if (storeAfter.navbarEnabled) {
-        await runMailSync()
-      }
       const fresh = await readMailStore()
       status = fresh.status
       openUrl = pickOpenUrl(fresh)
