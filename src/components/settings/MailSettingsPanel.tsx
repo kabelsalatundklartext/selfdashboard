@@ -153,6 +153,30 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
           : 'Uses IMAP to read the unread count (INBOX) only. Messages stay on the server; mark read in webmail or on your phone as usual.'}
       </p>
 
+      {de ? (
+        <div style={{
+          padding: '12px 14px', borderRadius: '10px', fontSize: '12px', lineHeight: 1.55,
+          background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)',
+        }}>
+          <p style={{ margin: '0 0 8px', fontWeight: 600, color: 'var(--text)' }}>Synology Mail (lokal im LAN)</p>
+          <ol style={{ margin: 0, paddingLeft: '18px' }}>
+            <li>DSM → <strong>Mail Server</strong> (oder MailPlus) → Tab <strong>Protokoll</strong> → <strong>IMAP aktivieren</strong> (Port meist <strong>993</strong> mit SSL).</li>
+            <li>SelfDashboard und NAS im gleichen Netz (z. B. <code style={{ fontSize: '11px' }}>192.168.1.15</code>).</li>
+            <li>Unten eintragen: Host <code style={{ fontSize: '11px' }}>192.168.1.15</code>, Port <strong>993</strong>, SSL an, Benutzer = DSM-Mail-Konto.</li>
+            <li>Webmail-Link: <code style={{ fontSize: '11px' }}>http://192.168.1.15:5000/mail/#inbox</code></li>
+            <li>Verbindung schlägt fehl? <strong>TLS-Zertifikat prüfen</strong> einmal ausschalten (IP statt Hostname).</li>
+          </ol>
+        </div>
+      ) : (
+        <div style={{
+          padding: '12px 14px', borderRadius: '10px', fontSize: '12px', lineHeight: 1.55,
+          background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)',
+        }}>
+          <p style={{ margin: 0, fontWeight: 600, color: 'var(--text)' }}>Synology Mail (local LAN)</p>
+          <p style={{ margin: '6px 0 0' }}>Enable IMAP on port 993 in Mail Server → Protocol. Use your NAS LAN IP as host and the DSM mail account. Webmail: <code style={{ fontSize: '11px' }}>http://192.168.1.15:5000/mail/#inbox</code>. Disable TLS verify if using a raw IP.</p>
+        </div>
+      )}
+
       <MailNavbarToggle
         locale={locale}
         enabled={form.enabled}
@@ -179,7 +203,7 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
         IMAP {de ? 'Server' : 'server'}
       </label>
       <input style={inp} value={form.host} onChange={e => setForm({ ...form, host: e.target.value })}
-        placeholder={de ? 'z. B. mail.example.de' : 'e.g. mail.example.com'} />
+        placeholder={de ? 'z. B. 192.168.1.15' : 'e.g. 192.168.1.15'} />
       <div style={{ display: 'flex', gap: '8px' }}>
         <input style={{ ...inp, flex: 1 }} type="number" value={form.port}
           onChange={e => setForm({ ...form, port: parseInt(e.target.value, 10) || 993 })} />
@@ -202,7 +226,7 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
         {de ? 'Webmail-Link (Klick auf Symbol)' : 'Webmail link (icon click)'}
       </label>
       <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
-        placeholder="https://…" />
+        placeholder={de ? 'http://192.168.1.15:5000/mail/#inbox' : 'http://192.168.1.15:5000/mail/#inbox'} />
 
       <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
         {de ? 'Abfrage-Intervall (Sekunden)' : 'Poll interval (seconds)'}
