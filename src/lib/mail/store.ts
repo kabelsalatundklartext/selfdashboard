@@ -91,7 +91,9 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
     const status = parsed.status as MailAggregateStatus | undefined
     return {
       version: MAIL_STORE_VERSION,
-      navbarEnabled: Boolean(parsed.navbarEnabled ?? parsed.config && (parsed.config as MailConfig).enabled),
+      navbarEnabled: Boolean(
+        parsed.navbarEnabled ?? (parsed.config ? (parsed.config as MailConfig).enabled : false),
+      ),
       pollIntervalSeconds:
         typeof parsed.pollIntervalSeconds === 'number'
           ? Math.max(60, Math.min(3600, Math.round(parsed.pollIntervalSeconds)))

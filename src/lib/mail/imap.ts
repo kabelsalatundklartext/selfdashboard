@@ -29,13 +29,8 @@ function createClient(config: MailConfig): ImapFlow {
 async function countUnseenInMailbox(client: ImapFlow, path: string): Promise<number> {
   const lock = await client.getMailboxLock(path)
   try {
-    const uids = await client.search({ unseen: true }, { uid: true })
-    if (Array.isArray(uids) && uids.length > 0) return uids.length
-
-    const alt = await client.search({ seen: false }, { uid: true })
-    if (Array.isArray(alt)) return alt.length
-
-    return 0
+    const uids = await client.search({ seen: false }, { uid: true })
+    return Array.isArray(uids) ? uids.length : 0
   } catch {
     try {
       const status = await client.status(path, { unseen: true })
