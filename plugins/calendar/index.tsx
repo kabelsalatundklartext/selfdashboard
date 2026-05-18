@@ -46,7 +46,7 @@ export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Kalender',
   description: 'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …',
-  version: '1.2.1',
+  version: '1.2.2',
   author: 'SelfDashboard Community',
   category: 'productivity',
   icon: '📅',
@@ -133,10 +133,30 @@ const fromInputDateTime = (val: string): string => new Date(val).toISOString()
 
 type TileView = 'compact' | 'month'
 const TILE_VIEW_STORAGE_KEY = 'sd-cal-tile-view'
+const DEFAULT_CALENDAR_STORAGE_KEY = 'sd-cal-default-calendar-id'
+
+function isCalendarVisible(c: CalendarView): boolean {
+  return c.visible !== false
+}
+
+function loadDefaultCalendarId(): string | null {
+  try { return localStorage.getItem(DEFAULT_CALENDAR_STORAGE_KEY) }
+  catch { return null }
+}
+
+function saveDefaultCalendarId(id: string): void {
+  try { localStorage.setItem(DEFAULT_CALENDAR_STORAGE_KEY, id) }
+  catch { /* ignore */ }
+}
 
 function pickDefaultWritableCalendar(cals: CalendarView[]): CalendarView | undefined {
-  const writable = cals.filter(c => !c.readOnly)
+  const writable = cals.filter(c => !c.readOnly && isCalendarVisible(c))
   if (!writable.length) return undefined
+  const savedId = loadDefaultCalendarId()
+  if (savedId) {
+    const saved = writable.find(c => c.id === savedId)
+    if (saved) return saved
+  }
   const score = (c: CalendarView) => {
     const n = c.name.toLowerCase().trim()
     if (/geburt|birth/.test(n)) return 0
@@ -146,11 +166,6 @@ function pickDefaultWritableCalendar(cals: CalendarView[]): CalendarView | undef
     return 1
   }
   return [...writable].sort((a, b) => score(b) - score(a))[0]
-}
-
-function loadHiddenCalendarIds(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem('sd-cal-hidden') || '[]')) }
-  catch { return new Set() }
 }
 
 type TileEventRef = Pick<EventView, 'id' | 'calendarId' | 'dtstart' | 'allDay'> & {
@@ -235,8 +250,14 @@ function Widget({ config }: PluginWidgetProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const writableCalendars = useMemo(() => calendars.filter(c => !c.readOnly), [calendars])
-  const hiddenCalendars = useMemo(() => loadHiddenCalendarIds(), [calendars.length])
+  const writableCalendars = useMemo(
+    () => calendars.filter(c => !c.readOnly && isCalendarVisible(c)),
+    [calendars],
+  )
+  const visibleCalendarIds = useMemo(
+    () => new Set(calendars.filter(isCalendarVisible).map(c => c.id)),
+    [calendars],
+  )
 
   const loadCalendars = useCallback(async () => {
     const cals = await api.listCalendars()
@@ -340,7 +361,7 @@ function Widget({ config }: PluginWidgetProps) {
     } catch {
       setMonthEvents([])
     }
-  }, [monthRange, hiddenCalendars])
+  }, [monthRange, visibleCalendarIds])
 
   const refreshListEvents = useCallback(async () => {
     const start = new Date()
@@ -348,11 +369,11 @@ function Widget({ config }: PluginWidgetProps) {
     end.setDate(end.getDate() + 7)
     try {
       const evs = await api.listEvents(start.toISOString(), end.toISOString())
-      setListEvents(evs.filter(e => !hiddenCalendars.has(e.calendarId)))
+      setListEvents(evs.filter(e => visibleCalendarIds.has(e.calendarId)))
     } catch {
       setListEvents([])
     }
-  }, [hiddenCalendars])
+  }, [visibleCalendarIds])
 
   useEffect(() => {
     if (tileView === 'month') refreshMonthEvents()
@@ -612,7 +633,10 @@ function Widget({ config }: PluginWidgetProps) {
           key={modalInitialView}
           locale={locale}
           initialView={modalInitialView}
-          onClose={() => { setModalOpen(false); refresh() }}
+          onClose={() => {
+            setModalOpen(false)
+            void refreshAllEvents()
+          }}
         />
       )}
       {eventDialog && (
@@ -744,10 +768,6 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
   const [calendars, setCalendars] = useState<CalendarView[]>([])
   const [accounts, setAccounts] = useState<AccountView[]>([])
   const [events, setEvents] = useState<EventView[]>([])
-  const [hidden, setHidden] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('sd-cal-hidden') || '[]')) }
-    catch { return new Set() }
-  })
   const [eventDialog, setEventDialog] = useState<{ event: Partial<EventView> | null } | null>(null)
   const [accountDialog, setAccountDialog] = useState<
     | { mode: 'create'; provider: 'caldav' | 'ics' }
@@ -777,18 +797,23 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
       setAccounts(accs)
       if (view !== 'accounts') {
         const evs = await api.listEvents(range.start.toISOString(), range.end.toISOString())
-        setEvents(evs.filter(e => !hidden.has(e.calendarId)))
+        setEvents(evs)
       }
     } finally { setLoading(false) }
-  }, [view, range, hidden])
+  }, [view, range])
 
   useEffect(() => { refresh() }, [refresh])
 
-  const toggleCalendar = (id: string) => {
-    const next = new Set(hidden)
-    if (next.has(id)) next.delete(id); else next.add(id)
-    setHidden(next)
-    localStorage.setItem('sd-cal-hidden', JSON.stringify([...next]))
+  const toggleCalendar = async (id: string) => {
+    const cal = calendars.find(c => c.id === id)
+    if (!cal) return
+    const visible = !isCalendarVisible(cal)
+    await api.updateCalendar(id, { visible })
+    setCalendars(prev => prev.map(c => (c.id === id ? { ...c, visible } : c)))
+    if (view !== 'accounts') {
+      const evs = await api.listEvents(range.start.toISOString(), range.end.toISOString())
+      setEvents(evs)
+    }
   }
 
   const eventsByDay = useMemo(() => {
@@ -803,7 +828,8 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
 
   const selectedDayEvents = eventsByDay[dateKeyLocal(selectedDay)] ?? []
 
-  const writableCalendars = calendars.filter(c => !c.readOnly)
+  const writableCalendars = calendars.filter(c => !c.readOnly && isCalendarVisible(c))
+  const allWritableCalendars = calendars.filter(c => !c.readOnly)
 
   // ----- title -----
   const title = view === 'agenda'
@@ -877,7 +903,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
         {/* body */}
         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           {view !== 'accounts' && (
-            <CalendarFilterBar accounts={accounts} calendars={calendars} hidden={hidden} onToggle={toggleCalendar} t={t} />
+            <CalendarFilterBar accounts={accounts} calendars={calendars} onToggle={toggleCalendar} t={t} />
           )}
           {false && view !== 'accounts' && (
             <aside style={{
@@ -985,7 +1011,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
         <EventDialog
           locale={locale}
           event={eventDialog.event}
-          calendars={writableCalendars}
+          calendars={allWritableCalendars}
           onClose={() => setEventDialog(null)}
           onSaved={() => { setEventDialog(null); refresh() }}
         />
@@ -1003,10 +1029,9 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
   )
 }
 
-function CalendarFilterBar({ accounts, calendars, hidden, onToggle, t }: {
+function CalendarFilterBar({ accounts, calendars, onToggle, t }: {
   accounts: AccountView[]
   calendars: CalendarView[]
-  hidden: Set<string>
   onToggle: (id: string) => void
   t: (k: string) => string
 }) {
@@ -1024,9 +1049,9 @@ function CalendarFilterBar({ accounts, calendars, hidden, onToggle, t }: {
           style={{
             all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px',
             padding: '4px 10px', borderRadius: '999px', fontSize: '12px',
-            border: `1px solid ${hidden.has(c.id) ? 'var(--border)' : c.color}`,
-            opacity: hidden.has(c.id) ? 0.45 : 1, color: 'var(--text)',
-            background: hidden.has(c.id) ? 'transparent' : `${c.color}22`,
+            border: `1px solid ${!isCalendarVisible(c) ? 'var(--border)' : c.color}`,
+            opacity: !isCalendarVisible(c) ? 0.45 : 1, color: 'var(--text)',
+            background: !isCalendarVisible(c) ? 'transparent' : `${c.color}22`,
           }}
         >
           <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: c.color }} />
@@ -1469,6 +1494,19 @@ function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onEd
   onRefresh: () => void
 }) {
   const t = (k: string) => tr(k, locale)
+  const [defaultCalId, setDefaultCalId] = useState<string | null>(() => loadDefaultCalendarId())
+
+  const toggleVisible = async (c: CalendarView) => {
+    const visible = !isCalendarVisible(c)
+    await api.updateCalendar(c.id, { visible })
+    onRefresh()
+  }
+
+  const setDefault = (id: string) => {
+    saveDefaultCalendarId(id)
+    setDefaultCalId(id)
+  }
+
   return (
     <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
@@ -1526,12 +1564,38 @@ function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onEd
                 padding: '6px 0', borderTop: '1px solid var(--border)',
               }}>
                 <input
+                  type="checkbox"
+                  checked={isCalendarVisible(c)}
+                  title={isCalendarVisible(c) ? t('calendarInactive') : t('calendarActive')}
+                  onChange={() => { void toggleVisible(c) }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+                />
+                <input
                   type="color" value={c.color}
                   onChange={async e => { await api.updateCalendar(c.id, { color: e.target.value }); onRefresh() }}
                   style={{ width: '32px', height: '24px', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}
                 />
-                <span style={{ flex: 1, fontSize: '13px', color: 'var(--text)' }}>{c.name}</span>
+                <span style={{
+                  flex: 1, fontSize: '13px', color: 'var(--text)',
+                  opacity: isCalendarVisible(c) ? 1 : 0.45,
+                }}>{c.name}</span>
+                {!c.readOnly && (
+                  <button
+                    type="button"
+                    title={t('setDefaultCalendar')}
+                    onClick={() => setDefault(c.id)}
+                    style={{
+                      all: 'unset', cursor: 'pointer', fontSize: '15px', lineHeight: 1,
+                      color: defaultCalId === c.id ? 'var(--accent)' : 'var(--text-muted)',
+                    }}
+                  >
+                    {defaultCalId === c.id ? '★' : '☆'}
+                  </button>
+                )}
                 {c.readOnly && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>🔒 {t('readOnly')}</span>}
+                {defaultCalId === c.id && !c.readOnly && (
+                  <span style={{ fontSize: '10px', color: 'var(--accent)', textTransform: 'uppercase' }}>{t('defaultCalendar')}</span>
+                )}
               </div>
             ))}
           </div>

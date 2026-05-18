@@ -93,6 +93,10 @@ const dict: Record<Locale, Record<string, string>> = {
     passwordLeaveBlank: 'Leer lassen = Passwort unverändert',
     eventCount: 'Termine',
     openDay: 'Tag öffnen',
+    calendarActive: 'Kalender einblenden',
+    calendarInactive: 'Kalender ausblenden',
+    defaultCalendar: 'Standard',
+    setDefaultCalendar: 'Als Standard für neue Termine',
   },
   en: {
     calendar: 'Calendar',
@@ -177,6 +181,10 @@ const dict: Record<Locale, Record<string, string>> = {
     passwordLeaveBlank: 'Leave blank to keep current password',
     eventCount: 'events',
     openDay: 'Open day',
+    calendarActive: 'Show calendar',
+    calendarInactive: 'Hide calendar',
+    defaultCalendar: 'Default',
+    setDefaultCalendar: 'Default for new events',
   },
 }
 
