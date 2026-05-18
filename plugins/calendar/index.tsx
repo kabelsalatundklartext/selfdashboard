@@ -357,7 +357,7 @@ function Widget({ config }: PluginWidgetProps) {
   const refreshMonthEvents = useCallback(async () => {
     try {
       const evs = await api.listEvents(monthRange.start.toISOString(), monthRange.end.toISOString())
-      setMonthEvents(evs.filter(e => !hiddenCalendars.has(e.calendarId)))
+      setMonthEvents(evs.filter(e => visibleCalendarIds.has(e.calendarId)))
     } catch {
       setMonthEvents([])
     }
