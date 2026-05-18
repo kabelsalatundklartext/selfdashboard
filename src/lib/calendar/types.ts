@@ -82,6 +82,12 @@ export interface CalendarEvent {
   syncState: SyncState
   /** When in conflict, holds the remote-side iCal blob for resolution UI */
   conflictRemoteIcal?: string
+  /** After moving to another calendar, delete the old remote object on next push to that collection */
+  pendingRemoteDelete?: {
+    calendarId: string
+    remoteHref: string
+    remoteEtag: string
+  }
 }
 
 export interface SyncLogEntry {
@@ -160,6 +166,7 @@ export interface EventCreateBody {
 }
 
 export interface EventUpdateBody {
+  calendarId?: string
   summary?: string
   description?: string
   location?: string

@@ -31,15 +31,48 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   }
 
   let calendarAccountId: string | null = null
-  let found = false
+  let calendarIdsToSync: string[] = []
+  let failReason: 'not_found' | 'read_only' | 'bad_calendar' | null = null
 
   await mutateStore(s => {
     const ev = s.events.find(e => e.id === id)
-    if (!ev) return
+    if (!ev) {
+      failReason = 'not_found'
+      return
+    }
     const cal = s.calendars.find(c => c.id === ev.calendarId)
-    if (!cal || cal.readOnly) return
-    found = true
+    if (!cal || cal.readOnly) {
+      failReason = 'read_only'
+      return
+    }
     calendarAccountId = cal.accountId
+
+    const oldCalendarId = ev.calendarId
+    if (body.calendarId !== undefined && body.calendarId !== ev.calendarId) {
+      const newCal = s.calendars.find(c => c.id === body.calendarId)
+      if (!newCal) {
+        failReason = 'bad_calendar'
+        return
+      }
+      if (newCal.readOnly) {
+        failReason = 'bad_calendar'
+        return
+      }
+      if (ev.remoteHref && ev.syncState !== 'local_new') {
+        ev.pendingRemoteDelete = {
+          calendarId: oldCalendarId,
+          remoteHref: ev.remoteHref,
+          remoteEtag: ev.remoteEtag ?? '',
+        }
+      }
+      ev.calendarId = body.calendarId
+      ev.remoteHref = undefined
+      ev.remoteEtag = undefined
+      ev.syncState = 'local_new'
+      calendarIdsToSync = [oldCalendarId, body.calendarId]
+    } else {
+      calendarIdsToSync = [ev.calendarId]
+    }
 
     if (body.summary !== undefined) ev.summary = body.summary
     if (body.description !== undefined) ev.description = body.description
@@ -66,12 +99,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       lastModifiedIso: ev.localModifiedAt,
     })
     if (ev.syncState === 'synced') ev.syncState = 'local_modified'
-    // if local_new — keep that, the next push creates it remote-side
+    // local_new (incl. after calendar move) — next push creates in the target collection
   })
 
-  if (!found) return notFound('event not found or its calendar is read-only')
+  if (failReason === 'not_found') return notFound('event not found')
+  if (failReason === 'read_only') return notFound('event not found or its calendar is read-only')
+  if (failReason === 'bad_calendar') return badRequest('target calendar not found or read-only')
 
-  const syncError = calendarAccountId ? await syncAfterMutation(calendarAccountId) : undefined
+  const syncError = calendarAccountId
+    ? await syncAfterMutation(calendarAccountId, { calendarIds: calendarIdsToSync })
+    : undefined
 
   const after = await readStore()
   const ev = after.events.find(e => e.id === id)
@@ -88,6 +125,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const { id } = await ctx.params
   let triggerAccountId: string | null = null
+  let calendarIdToSync: string | null = null
   let found = false
 
   await mutateStore(s => {
@@ -98,6 +136,7 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
     if (!cal || cal.readOnly) return
     found = true
     triggerAccountId = cal.accountId
+    calendarIdToSync = ev.calendarId
     if (ev.syncState === 'local_new') {
       s.events.splice(idx, 1)
     } else {
@@ -107,6 +146,10 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   })
 
   if (!found) return notFound('event not found or its calendar is read-only')
-  const syncError = triggerAccountId ? await syncAfterMutation(triggerAccountId) : undefined
+  const syncError = triggerAccountId
+    ? await syncAfterMutation(triggerAccountId, {
+        calendarIds: calendarIdToSync ? [calendarIdToSync] : undefined,
+      })
+    : undefined
   return ok({ ok: true, syncError })
 }

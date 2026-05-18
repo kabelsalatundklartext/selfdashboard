@@ -131,14 +131,25 @@ export async function discoverCaldavCalendars(account: Account): Promise<Discove
 // sync
 // ---------------------------------------------------------------------------
 
+export type CaldavClientCache = {
+  client: Awaited<ReturnType<typeof createDAVClient>>
+  davCalendars: Awaited<ReturnType<Awaited<ReturnType<typeof createDAVClient>>['fetchCalendars']>>
+}
+
+export async function getCaldavClientCache(account: Account): Promise<CaldavClientCache> {
+  const client = await buildClient(account)
+  const davCalendars = await client.fetchCalendars()
+  return { client, davCalendars }
+}
+
 export async function syncCaldavCalendar(
   account: Account,
   calendar: Calendar,
   store: CalendarStore,
+  cache?: CaldavClientCache,
 ): Promise<SyncResult> {
-  const client = await buildClient(account)
-  // tsdav needs the actual DAVCalendar object — reconstruct it from our stored data
-  const davCalendars = await client.fetchCalendars()
+  const client = cache?.client ?? await buildClient(account)
+  const davCalendars = cache?.davCalendars ?? await client.fetchCalendars()
   const davCal = davCalendars.find(c => c.url === calendar.remoteId)
   if (!davCal) {
     return { ...emptyResult(), errors: [`remote calendar not found: ${calendar.remoteId}`] }
@@ -147,8 +158,30 @@ export async function syncCaldavCalendar(
   const pull = await pullCaldav(client, davCal, calendar, store)
   if (calendar.readOnly) return pull
 
+  const pendingDeletes = await pushPendingRemoteDeletes(client, calendar, store)
   const push = await pushCaldav(client, davCal, calendar, store)
-  return mergeResult(pull, push)
+  return mergeResult(mergeResult(pull, pendingDeletes), push)
+}
+
+/** Push local changes only — skips pull (used after create/update/delete for fast response). */
+export async function syncCaldavCalendarPushOnly(
+  account: Account,
+  calendar: Calendar,
+  store: CalendarStore,
+  cache?: CaldavClientCache,
+): Promise<SyncResult> {
+  if (calendar.readOnly) return emptyResult()
+
+  const client = cache?.client ?? await buildClient(account)
+  const davCalendars = cache?.davCalendars ?? await client.fetchCalendars()
+  const davCal = davCalendars.find(c => c.url === calendar.remoteId)
+  if (!davCal) {
+    return { ...emptyResult(), errors: [`remote calendar not found: ${calendar.remoteId}`] }
+  }
+
+  const pendingDeletes = await pushPendingRemoteDeletes(client, calendar, store)
+  const push = await pushCaldav(client, davCal, calendar, store)
+  return mergeResult(pendingDeletes, push)
 }
 
 async function pullCaldav(
@@ -239,6 +272,34 @@ async function pullCaldav(
   // other servers may omit freshly created objects until the next fetch cycle.
   // Explicit deletes are handled via push (local_deleted) or conflict resolution.
 
+  return result
+}
+
+async function pushPendingRemoteDeletes(
+  client: Awaited<ReturnType<typeof createDAVClient>>,
+  calendar: Calendar,
+  store: CalendarStore,
+): Promise<SyncResult> {
+  const result = emptyResult()
+  for (const ev of store.events) {
+    const pd = ev.pendingRemoteDelete
+    if (!pd || pd.calendarId !== calendar.id) continue
+    try {
+      await client.deleteCalendarObject({
+        calendarObject: { url: pd.remoteHref, etag: pd.remoteEtag, data: '' },
+      })
+      delete ev.pendingRemoteDelete
+      result.deleted++
+    } catch (e: any) {
+      const msg = String(e?.message ?? e)
+      if (msg.includes('404')) {
+        delete ev.pendingRemoteDelete
+        result.deleted++
+      } else {
+        result.errors.push(formatCalDavPushError(calendar.name, ev.uid, `move delete: ${msg}`))
+      }
+    }
+  }
   return result
 }
 

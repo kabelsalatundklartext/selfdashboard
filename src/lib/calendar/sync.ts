@@ -16,8 +16,11 @@ import { logPluginApiFailure } from '@/lib/pluginLogServer'
 import { mutateStore, newId, nowIso, readStore } from './store'
 import {
   discoverCaldavCalendars,
+  getCaldavClientCache,
   syncCaldavCalendar,
+  syncCaldavCalendarPushOnly,
   testCaldav,
+  type CaldavClientCache,
 } from './caldav'
 import { discoverIcsCalendars, syncIcsCalendar, testIcs } from './ics'
 import type { Account, CalendarStore, SyncLogEntry, SyncStatus } from './types'
@@ -46,13 +49,29 @@ export async function testAccount(account: Account) {
 
 // ---------------------------------------------------------------------------
 
+export interface RunSyncOptions {
+  /** Only sync these calendar rows (default: all calendars on the account). */
+  calendarIds?: string[]
+  /** Skip remote calendar discovery (faster after local edits). */
+  skipDiscover?: boolean
+  /** Push pending local changes only; skip pull (much faster for save/create/delete). */
+  pushOnly?: boolean
+}
+
 /** Run sync after create/update/delete; returns user-visible error text if push/pull failed. */
-export async function syncAfterMutation(accountId: string): Promise<string | undefined> {
-  const log = await runSync(accountId)
+export async function syncAfterMutation(
+  accountId: string,
+  opts?: Pick<RunSyncOptions, 'calendarIds'>,
+): Promise<string | undefined> {
+  const log = await runSync(accountId, {
+    calendarIds: opts?.calendarIds,
+    skipDiscover: true,
+    pushOnly: true,
+  })
   return log.error ?? undefined
 }
 
-export async function runSync(accountId: string): Promise<SyncLogEntry> {
+export async function runSync(accountId: string, opts?: RunSyncOptions): Promise<SyncLogEntry> {
   // snapshot — read once, do all network work without holding the mutex
   const store = await readStore()
   const account = store.accounts.find(a => a.id === accountId)
@@ -67,65 +86,85 @@ export async function runSync(accountId: string): Promise<SyncLogEntry> {
   const errors: string[] = []
 
   // step 1: discover calendars and upsert
-  try {
-    const discovered = await discoverAccountCalendars(account)
-    const discoveredIds = new Set(discovered.map(d => d.remoteId))
-    await mutateStore(s => {
-      for (const d of discovered) {
-        let cal = s.calendars.find(c => c.accountId === account.id && c.remoteId === d.remoteId)
-        if (!cal) {
-          cal = {
-            id: newId('cal'),
-            accountId: account.id,
-            remoteId: d.remoteId,
-            name: d.name,
-            color: d.color ?? randomColor(d.name),
-            readOnly: d.readOnly,
-            visible: true,
+  if (!opts?.skipDiscover) {
+    try {
+      const discovered = await discoverAccountCalendars(account)
+      const discoveredIds = new Set(discovered.map(d => d.remoteId))
+      await mutateStore(s => {
+        for (const d of discovered) {
+          let cal = s.calendars.find(c => c.accountId === account.id && c.remoteId === d.remoteId)
+          if (!cal) {
+            cal = {
+              id: newId('cal'),
+              accountId: account.id,
+              remoteId: d.remoteId,
+              name: d.name,
+              color: d.color ?? randomColor(d.name),
+              readOnly: d.readOnly,
+              visible: true,
+            }
+            s.calendars.push(cal)
+          } else {
+            cal.name = d.name
+            cal.readOnly = d.readOnly
+            if (d.color) cal.color = d.color
           }
-          s.calendars.push(cal)
-        } else {
-          cal.name = d.name
-          cal.readOnly = d.readOnly
-          if (d.color) cal.color = d.color
         }
-      }
-      // Drop calendars removed on the server (e.g. deleted in Synology Calendar).
-      const stale = s.calendars.filter(c => c.accountId === account.id && !discoveredIds.has(c.remoteId))
-      if (stale.length) {
-        const staleIds = new Set(stale.map(c => c.id))
-        s.calendars = s.calendars.filter(c => !staleIds.has(c.id))
-        s.events = s.events.filter(e => !staleIds.has(e.calendarId))
-      }
-    })
-  } catch (e: any) {
-    errors.push(`discover: ${e?.message ?? e}`)
-    const errText = errors.join('; ')
-    void logPluginApiFailure('calendar', 'discover', errText, { accountId, provider: account.provider })
-    const log = makeLogEntry(accountId, errText, { added: 0, updated: 0, deleted: 0, conflicts: 0 })
-    await mutateStore(s => {
-      s.syncLog.unshift(log)
-      s.syncLog = s.syncLog.slice(0, 50)
-      const acc = s.accounts.find(a => a.id === accountId)
-      if (acc) {
-        acc.lastSyncAt = nowIso()
-        acc.lastSyncStatus = 'error'
-        acc.lastSyncError = errors.join('; ')
-      }
-    })
-    return log
+        // Drop calendars removed on the server (e.g. deleted in Synology Calendar).
+        const stale = s.calendars.filter(c => c.accountId === account.id && !discoveredIds.has(c.remoteId))
+        if (stale.length) {
+          const staleIds = new Set(stale.map(c => c.id))
+          s.calendars = s.calendars.filter(c => !staleIds.has(c.id))
+          s.events = s.events.filter(e => !staleIds.has(e.calendarId))
+        }
+      })
+    } catch (e: any) {
+      errors.push(`discover: ${e?.message ?? e}`)
+      const errText = errors.join('; ')
+      void logPluginApiFailure('calendar', 'discover', errText, { accountId, provider: account.provider })
+      const log = makeLogEntry(accountId, errText, { added: 0, updated: 0, deleted: 0, conflicts: 0 })
+      await mutateStore(s => {
+        s.syncLog.unshift(log)
+        s.syncLog = s.syncLog.slice(0, 50)
+        const acc = s.accounts.find(a => a.id === accountId)
+        if (acc) {
+          acc.lastSyncAt = nowIso()
+          acc.lastSyncStatus = 'error'
+          acc.lastSyncError = errors.join('; ')
+        }
+      })
+      return log
+    }
   }
 
   // step 2: sync each calendar (network heavy → done with a fresh snapshot per cal)
-  const calendars = (await readStore()).calendars.filter(c => c.accountId === account.id)
+  let calendars = (await readStore()).calendars.filter(c => c.accountId === account.id)
+  if (opts?.calendarIds?.length) {
+    const want = new Set(opts.calendarIds)
+    calendars = calendars.filter(c => want.has(c.id))
+  }
+
+  let caldavCache: CaldavClientCache | undefined
+  if (account.provider === 'caldav' && calendars.length > 0) {
+    try {
+      caldavCache = await getCaldavClientCache(account)
+    } catch (e: any) {
+      errors.push(`caldav client: ${e?.message ?? e}`)
+    }
+  }
+
   for (const calendar of calendars) {
     try {
       await mutateStore(async s => {
         const live = s.calendars.find(c => c.id === calendar.id)!
         const acc = s.accounts.find(a => a.id === accountId)!
         const r = account.provider === 'caldav'
-          ? await syncCaldavCalendar(acc, live, s)
-          : await syncIcsCalendar(acc, live, s)
+          ? opts?.pushOnly
+            ? await syncCaldavCalendarPushOnly(acc, live, s, caldavCache)
+            : await syncCaldavCalendar(acc, live, s, caldavCache)
+          : opts?.pushOnly
+            ? { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [] as string[] }
+            : await syncIcsCalendar(acc, live, s)
         totalAdded += r.added
         totalUpdated += r.updated
         totalDeleted += r.deleted

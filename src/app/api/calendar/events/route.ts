@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     })
   })
 
-  const syncError = await syncAfterMutation(cal.accountId)
+  const syncError = await syncAfterMutation(cal.accountId, { calendarIds: [body.calendarId] })
 
   const after = await readStore()
   const ev = after.events.find(e => e.id === evId)
