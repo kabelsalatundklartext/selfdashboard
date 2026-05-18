@@ -850,7 +850,16 @@ export function SettingsModal({ open, onClose }: Props) {
               </div>
             </>)}
 
-            {tab === 'mail' && <MailSettingsPanel locale={locale} />}
+            {tab === 'mail' && (
+              <MailSettingsPanel
+                locale={locale}
+                onOpenProtocol={() => {
+                  setLogFilterPlugin('mail')
+                  setLogFilterSource('api')
+                  setTab('logs')
+                }}
+              />
+            )}
 
             {tab === 'logs' && (<>
               <div>
@@ -912,7 +921,7 @@ export function SettingsModal({ open, onClose }: Props) {
                   style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}
                   value={logFilterPlugin}
                   onChange={(e) => setLogFilterPlugin(e.target.value)}
-                  placeholder={locale === 'de' ? 'Plugin (z. B. calendar)' : 'Plugin (e.g. calendar)'}
+                  placeholder={locale === 'de' ? 'Plugin (z. B. calendar, mail)' : 'Plugin (e.g. calendar, mail)'}
                 />
                 <input
                   style={{ ...inp, padding: '6px 8px', fontSize: '12px' }}

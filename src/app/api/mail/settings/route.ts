@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+import { logMailEvent } from '@/lib/mail/log'
 import { runMailSync } from '@/lib/mail/sync'
 import {
   applyAccountUpdate,
@@ -81,6 +82,7 @@ export async function PUT(req: Request) {
     })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
+    void logMailEvent('settings', msg)
     return NextResponse.json({ ok: false, error: msg }, { status: 400 })
   }
 }

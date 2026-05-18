@@ -26,8 +26,14 @@ export function normalizeMailConnection(
   return { host: host.trim(), port: Math.max(1, Math.min(65535, port)) }
 }
 
-/** * / ALL / leer = alle IMAP-Ordner summieren */
+/** * / ALL / leer = alle Ordner außer Papierkorb */
 export function isAllMailboxes(mailbox: string | undefined): boolean {
   const m = (mailbox ?? '').trim().toUpperCase()
   return !m || m === '*' || m === 'ALL' || m === 'ALLE' || m === 'ALL_FOLDERS'
+}
+
+/** Nur MailPlus-Konten (INBOX.Name) — optional statt * */
+export function isMailplusAccountsOnly(mailbox: string | undefined): boolean {
+  const m = (mailbox ?? '').trim().toLowerCase()
+  return m === '@accounts' || m === 'accounts' || m === 'mailplus' || m === 'konten'
 }

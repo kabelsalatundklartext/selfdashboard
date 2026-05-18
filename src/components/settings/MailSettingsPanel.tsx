@@ -5,6 +5,7 @@ import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MailNavbarToggle, saveMailNavbarEnabled } from '@/components/settings/MailNavbarToggle'
 import { dispatchMailConfigChanged } from '@/lib/mail/events'
+import { reportPluginError } from '@/lib/pluginLog'
 
 interface MailAccountPublic {
   id: string
@@ -53,7 +54,13 @@ const emptyForm = () => ({
   verifyTls: true,
 })
 
-export function MailSettingsPanel({ locale }: { locale: Locale }) {
+export function MailSettingsPanel({
+  locale,
+  onOpenProtocol,
+}: {
+  locale: Locale
+  onOpenProtocol?: () => void
+}) {
   const de = locale === 'de'
   const [navbarEnabled, setNavbarEnabled] = useState(false)
   const [pollIntervalSeconds, setPollIntervalSeconds] = useState(120)
@@ -156,7 +163,9 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
       setMsg(de ? 'Gespeichert' : 'Saved')
       dispatchMailConfigChanged()
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e))
+      const m = e instanceof Error ? e.message : String(e)
+      setErr(m)
+      reportPluginError('mail', m, { category: 'settings/save' })
     } finally {
       setBusy(false)
     }
@@ -245,9 +254,11 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
       const unread = j.unread ?? 0
       const withMail = (j.folders ?? []).filter(f => f.unread > 0)
       const hint =
-        j.mode === 'accounts'
-          ? (de ? ' (Konten unter Posteingang, wie MailPlus)' : ' (accounts under inbox, like MailPlus)')
-          : ''
+        j.mode === 'all-except-trash'
+          ? (de ? ' (alle Ordner, ohne Papierkorb)' : ' (all folders, except trash)')
+          : j.mode === 'synology-accounts' || j.mode === 'accounts'
+            ? (de ? ' (nur MailPlus-Konten)' : ' (MailPlus accounts only)')
+            : ''
       setStatus({
         unread,
         accounts: [{ id: selected.id, label: form.label || selected.label, unread }],
@@ -259,7 +270,9 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
           : `"${form.label}" OK — ${unread} unread${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}`,
       )
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : String(e))
+      const m = e instanceof Error ? e.message : String(e)
+      setErr(m)
+      reportPluginError('mail', m, { category: 'settings/test' })
     } finally {
       setBusy(false)
     }
@@ -378,11 +391,11 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
             autoComplete="new-password" />
 
           <input style={inp} value={form.mailbox} onChange={e => setForm({ ...form, mailbox: e.target.value })}
-            placeholder={de ? '* = Konten unter Posteingang' : '* = inbox accounts'} />
+            placeholder={de ? '* = alle Ordner' : '* = all folders'} />
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 4px', lineHeight: 1.45 }}>
             {de
-              ? '„*“ entspricht der MailPlus-Leiste (Svensen Google, SvensenDE, …), nicht jedem Unterordner wie „Kinguin“ oder „DATEV“.'
-              : '“*” matches MailPlus account rows under Inbox, not every nested folder.'}
+              ? '„*“ = alle IMAP-Ordner mit ungelesenen Mails, nur Papierkorb wird ausgelassen (inkl. Gesendet, Unterordner, …). Optional nur MailPlus-Konten: @accounts'
+              : '“*” = all IMAP folders with unread mail, trash excluded only. MailPlus sidebar only: @accounts'}
           </p>
 
           <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
@@ -442,11 +455,30 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
           ) : null}
+          {(status.lastError || err) && onOpenProtocol ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ marginTop: '10px', fontSize: '12px', width: '100%' }}
+              onClick={onOpenProtocol}
+            >
+              {de ? 'Fehler im Protokoll (mail)' : 'Open log (mail)'}
+            </button>
+          ) : null}
         </div>
       ) : null}
 
       {msg ? <div style={{ fontSize: '12px', color: '#4ade80' }}>{msg}</div> : null}
-      {err ? <div style={{ fontSize: '12px', color: '#f87171' }}>{err}</div> : null}
+      {err ? (
+        <div style={{ fontSize: '12px', color: '#f87171' }}>
+          {err}
+          {onOpenProtocol ? (
+            <button type="button" className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={onOpenProtocol}>
+              {de ? 'Im Protokoll anzeigen' : 'Show in log'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()} style={{ alignSelf: 'flex-start' }}>
         <RefreshCw size={14} /> {de ? 'Alle Konten aktualisieren' : 'Refresh all accounts'}

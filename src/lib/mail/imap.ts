@@ -3,7 +3,7 @@ import 'server-only'
 import { ImapFlow } from 'imapflow'
 
 import { decrypt } from '@/lib/secretCrypto'
-import { isAllMailboxes, normalizeMailConnection } from './normalize'
+import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
 import type { MailConfig } from './types'
 
 export type MailFolderUnread = { path: string; unread: number }
@@ -11,7 +11,39 @@ export type MailFolderUnread = { path: string; unread: number }
 export type MailUnreadResult = {
   total: number
   folders: MailFolderUnread[]
-  mode: 'accounts' | 'parents' | 'single'
+  mode: 'all-except-trash' | 'synology-accounts' | 'accounts' | 'single'
+}
+
+type ListedBox = { path: string; flags?: Set<string> }
+
+/** Papierkorb / Trash — bei * alles andere zählen */
+function isTrashMailbox(path: string, flags?: Set<string>): boolean {
+  if (flags?.has('\\Trash')) return true
+  const lower = path.toLowerCase()
+  const leaf = (path.includes('/') ? path.split('/').pop() : path) ?? path
+  const leafLower = leaf.toLowerCase()
+  const trashNames = ['trash', 'papierkorb', 'deleted', 'gelöscht', 'geloescht']
+  return trashNames.includes(lower) || trashNames.includes(leafLower)
+}
+
+const MAILPLUS_SKIP_SUFFIX = new Set([
+  'sent', 'gesendet', 'drafts', 'entwürfe', 'entwurfe', 'trash', 'papierkorb',
+  'junk', 'spam', 'archive', 'archiv',
+])
+
+function isMailplusExcluded(path: string, flags?: Set<string>): boolean {
+  if (isTrashMailbox(path, flags)) return true
+  if (flags) {
+    if (flags.has('\\Sent') || flags.has('\\Junk') || flags.has('\\Drafts') || flags.has('\\Archive')) {
+      return true
+    }
+  }
+  const lower = path.toLowerCase()
+  if (lower === 'sent' || lower === 'inbox') return true
+  const dot = path.match(/^INBOX\.(.+)$/i)
+  if (dot && MAILPLUS_SKIP_SUFFIX.has(dot[1].toLowerCase())) return true
+  const leaf = (path.includes('/') ? path.split('/').pop() : path) ?? path
+  return MAILPLUS_SKIP_SUFFIX.has(leaf.toLowerCase())
 }
 
 function createClient(config: MailConfig): ImapFlow {
@@ -39,7 +71,13 @@ function isInboxRoot(path: string): boolean {
   return n === 'inbox' || n === 'posteingang'
 }
 
-/** Wie MailPlus-Sidebar: direkte Kinder von Posteingang/INBOX (Svensen Google, …). */
+function synologyDotAccounts(boxes: ListedBox[]): string[] {
+  return boxes
+    .filter(b => /^INBOX\./i.test(b.path))
+    .filter(b => !isMailplusExcluded(b.path, b.flags))
+    .map(b => b.path)
+}
+
 function accountFoldersUnderInbox(paths: string[], inboxRoot: string): string[] {
   const prefix = inboxRoot.endsWith('/') ? inboxRoot : `${inboxRoot}/`
   return paths.filter(p => {
@@ -49,28 +87,28 @@ function accountFoldersUnderInbox(paths: string[], inboxRoot: string): string[] 
   })
 }
 
-/** Ordner ohne Unterordner in der LISTE (keine tiefen Blätter summieren). */
-function parentOnlyPaths(paths: string[]): string[] {
-  return paths.filter(p => !paths.some(other => other !== p && other.startsWith(`${p}/`)))
-}
-
-function resolveScanPaths(paths: string[]): { paths: string[]; mode: MailUnreadResult['mode'] } {
-  for (const root of paths.filter(isInboxRoot)) {
-    const accounts = accountFoldersUnderInbox(paths, root)
-    if (accounts.length > 0) {
-      return { paths: accounts, mode: 'accounts' }
+function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[]; mode: MailUnreadResult['mode'] } {
+  if (isMailplusAccountsOnly(mailbox)) {
+    const synology = synologyDotAccounts(boxes)
+    if (synology.length > 0) {
+      return { paths: synology, mode: 'synology-accounts' }
+    }
+    const paths = boxes.map(b => b.path)
+    for (const root of paths.filter(isInboxRoot)) {
+      const accounts = accountFoldersUnderInbox(paths, root).filter(
+        p => !isMailplusExcluded(p, boxes.find(b => b.path === p)?.flags),
+      )
+      if (accounts.length > 0) {
+        return { paths: accounts, mode: 'accounts' }
+      }
     }
   }
 
-  const parents = parentOnlyPaths(paths)
-  if (parents.length > 0) {
-    return { paths: parents, mode: 'parents' }
-  }
-
-  return { paths, mode: 'parents' }
+  // Standard bei *: jeder IMAP-Ordner, nur Papierkorb ausnehmen
+  const all = boxes.filter(b => !isTrashMailbox(b.path, b.flags)).map(b => b.path)
+  return { paths: all, mode: 'all-except-trash' }
 }
 
-/** STATUS unseen — entspricht meist der Zahl in der Synology-Mail-Oberfläche. */
 async function countUnreadInMailbox(client: ImapFlow, path: string): Promise<number> {
   try {
     const status = await client.status(path, { unseen: true })
@@ -90,10 +128,12 @@ async function countUnreadInMailbox(client: ImapFlow, path: string): Promise<num
   }
 }
 
-async function sumUnreadAllFolders(client: ImapFlow): Promise<MailUnreadResult> {
-  const boxes = await client.list()
-  const paths = boxes.filter(b => !b.flags?.has('\\Noselect')).map(b => b.path)
-  const { paths: toScan, mode } = resolveScanPaths(paths)
+async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<MailUnreadResult> {
+  const boxes: ListedBox[] = (await client.list())
+    .filter(b => !b.flags?.has('\\Noselect'))
+    .map(b => ({ path: b.path, flags: b.flags }))
+
+  const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
 
   const folders: MailFolderUnread[] = []
   let total = 0
@@ -116,7 +156,7 @@ export async function fetchUnreadBreakdown(config: MailConfig): Promise<MailUnre
   await client.connect()
   try {
     if (isAllMailboxes(config.mailbox)) {
-      return await sumUnreadAllFolders(client)
+      return await sumUnreadAllFolders(client, config.mailbox)
     }
     const mailbox = config.mailbox.trim() || 'INBOX'
     const unread = await countUnreadInMailbox(client, mailbox)

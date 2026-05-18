@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { logMailEvent } from '@/lib/mail/log'
 import { accountToImapConfig } from './types'
 import { fetchUnreadCount } from './imap'
 import { mutateMailStore, readMailStore } from './store'
@@ -49,7 +49,7 @@ export async function runMailSync(): Promise<void> {
         const msg = e instanceof Error ? e.message : String(e)
         errors.push(`${account.label}: ${msg}`)
         perAccount.push({ id: account.id, label: account.label, unread: 0, lastError: msg })
-        void logPluginApiFailure('mail', 'sync', msg, { host: account.host, accountId: account.id })
+        void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label } })
       }
     }
 
@@ -59,6 +59,14 @@ export async function runMailSync(): Promise<void> {
       s.status.lastError = errors.length > 0 ? errors.join(' · ') : undefined
       s.status.accounts = perAccount
     })
+
+    if (errors.length > 0) {
+      void logMailEvent(
+        'sync/partial',
+        `${errors.length} Konto/Konten mit Fehler`,
+        { level: 'warn', detail: { errors: errors.join(' · ').slice(0, 500), totalUnread: total } },
+      )
+    }
   } finally {
     syncInFlight = false
   }
