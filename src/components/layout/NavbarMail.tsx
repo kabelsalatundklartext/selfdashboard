@@ -105,7 +105,13 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const open = () => {
     if (data.openUrl) {
       window.open(data.openUrl, '_blank', 'noopener,noreferrer')
+      return
     }
+    window.alert(
+      locale === 'de'
+        ? 'Keine Webmail-URL gespeichert. Einstellungen → E-Mail → Webmail-URL eintragen und „Speichern“.'
+        : 'No webmail URL saved. Settings → Email → enter webmail URL and Save.',
+    )
   }
 
   const alert = hasNew || pulsing
@@ -120,8 +126,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         data.lastError && !hasNew ? 'navbar-mail-btn--error' : '',
       ].filter(Boolean).join(' ')}
       onClick={open}
-      disabled={!data.openUrl}
-      title={title}
+      title={data.openUrl ? title : (locale === 'de' ? `${title} — Webmail-URL in Einstellungen speichern` : `${title} — save webmail URL in settings`)}
       aria-label={title}
     >
       <span className="navbar-mail-icon-wrap">

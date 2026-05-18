@@ -249,9 +249,12 @@ export function MailSettingsPanel({
         unread?: number
         folders?: { path: string; unread: number }[]
         mode?: string
+        status?: MailStatus
+        navbarUpdated?: boolean
       }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       const unread = j.unread ?? 0
+      if (j.status) setStatus(j.status)
       const withMail = (j.folders ?? []).filter(f => f.unread > 0)
       const hint =
         j.mode === 'all-except-trash'
@@ -259,15 +262,23 @@ export function MailSettingsPanel({
           : j.mode === 'synology-accounts' || j.mode === 'accounts'
             ? (de ? ' (nur MailPlus-Konten)' : ' (MailPlus accounts only)')
             : ''
-      setStatus({
-        unread,
-        accounts: [{ id: selected.id, label: form.label || selected.label, unread }],
-        lastSyncAt: new Date().toISOString(),
-      })
+      if (!j.status) {
+        setStatus({
+          unread,
+          accounts: [{ id: selected.id, label: form.label || selected.label, unread }],
+          lastSyncAt: new Date().toISOString(),
+        })
+      }
+      const navbarHint = !navbarEnabled
+        ? (de ? ' Navbar-Symbol ist aus — oben einschalten.' : ' Navbar icon is off — enable it above.')
+        : j.navbarUpdated
+          ? (de ? ' Navbar wurde aktualisiert.' : ' Navbar updated.')
+          : (de ? ' „Speichern“ für dauerhafte Navbar-Daten.' : ' Use “Save” for persistent navbar data.')
+      if (navbarEnabled && j.navbarUpdated) dispatchMailConfigChanged()
       setMsg(
         de
-          ? `„${form.label}" OK — ${unread} ungelesen${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}`
-          : `"${form.label}" OK — ${unread} unread${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}`,
+          ? `„${form.label}" OK — ${unread} ungelesen${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}.${navbarHint}`
+          : `"${form.label}" OK — ${unread} unread${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}.${navbarHint}`,
       )
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
@@ -449,8 +460,8 @@ export function MailSettingsPanel({
           ) : null}
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
             {de
-              ? 'Nach „Testen“: Werte oben sind Vorschau — „Speichern“ und „Alle Konten aktualisieren“ übernehmen sie für die Navbar.'
-              : 'After “Test”: numbers above are a preview — “Save” and “Refresh all accounts” apply them to the navbar.'}
+              ? '„Testen“ schreibt die Zahl für gespeicherte Konten auch in die Navbar (wenn „E-Mail-Symbol in der Navbar“ an ist). „Speichern“ übernimmt Passwort, Ordner und Webmail-URL dauerhaft.'
+              : '“Test” also updates the navbar count for saved accounts (when the navbar mail icon is on). “Save” persists password, folder, and webmail URL.'}
           </p>
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
