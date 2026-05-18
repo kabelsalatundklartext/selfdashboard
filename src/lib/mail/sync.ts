@@ -56,7 +56,6 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
     const errors: string[] = []
 
     for (const account of active) {
-      const prevUnread = store.status.accounts.find(a => a.id === account.id)?.unread ?? 0
       try {
         const unread = await fetchUnreadCount(accountToImapConfig(account))
         total += unread
@@ -65,8 +64,7 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
         const raw = e instanceof Error ? e.message : String(e)
         const msg = formatMailError(raw)
         errors.push(`${account.label}: ${msg}`)
-        total += prevUnread
-        perAccount.push({ id: account.id, label: account.label, unread: prevUnread, lastError: msg })
+        perAccount.push({ id: account.id, label: account.label, unread: 0, lastError: msg })
         void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label, raw } })
       }
     }
@@ -107,7 +105,7 @@ export function startMailScheduler() {
       if (store.navbarEnabled) {
         delayMs = clampPollIntervalSeconds(store.pollIntervalSeconds) * 1000
         const last = store.status.lastSyncAt ? new Date(store.status.lastSyncAt).getTime() : 0
-        if (!last || Date.now() - last >= delayMs) {
+        if (!last || Date.now() - last >= delayMs - 500) {
           await runMailSync()
         }
       }

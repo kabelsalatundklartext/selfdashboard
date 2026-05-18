@@ -119,10 +119,10 @@ export function MailSettingsPanel({
 
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Statuszeile (Sync-Zeit, Zähler) — liest Server-Cache, kein IMAP vom Browser */
+  /** Frische IMAP-Abfrage — Zähler wird komplett ersetzt (kein Merken alter Werte) */
   const refreshStatusOnly = useCallback(async () => {
     try {
-      const res = await fetch('/api/mail/status', { cache: 'no-store' })
+      const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
       if (!res.ok) return
       const j = await res.json() as MailStatus & { pollIntervalSeconds?: number }
       setStatus({
@@ -578,8 +578,8 @@ export function MailSettingsPanel({
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
         {de
-          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — nach „Intervall speichern“ läuft der Server-Hintergrundsync; diese Anzeige und die Navbar folgen dem Intervall. Sehr kurze Werte (z. B. 5 s) können bei langsamer IMAP-Verbindung hinterherhinken.`
-          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — after “Save interval”, the server background sync and this display use the interval. Very low values (e.g. 5 s) may lag if IMAP is slow.`}
+          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — jede Abfrage holt die aktuelle Zahl per IMAP und ersetzt die Anzeige (kein Tracking gelöschter Mails). Nach „Intervall speichern“ aktiv.`
+          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — each poll fetches the current IMAP count and replaces the display (no delete tracking). Save the interval to apply.`}
       </p>
 
       {status ? (

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
-import { MAIL_CONFIG_CHANGED, type MailConfigChangedDetail } from '@/lib/mail/events'
+import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
 import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
 import {
   clampPollIntervalSeconds,
@@ -32,9 +32,6 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const [pulsing, setPulsing] = useState(false)
   const prevUnread = useRef<number | null>(null)
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Nur bei kurzem IMAP-0 nach hohem Stand (max. 1 Poll), nie beim Runterzählen */
-  const stickyUnread = useRef(0)
-  const zeroHoldPolls = useRef(0)
 
   const triggerPulse = useCallback(() => {
     setPulsing(true)
@@ -48,25 +45,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
       const res = await fetch(`/api/mail/status${q}`, { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as MailStatusResponse
-      const serverUnread = j.unread ?? 0
-      let unread = serverUnread
-      if (serverUnread > stickyUnread.current) {
-        stickyUnread.current = serverUnread
-        zeroHoldPolls.current = 0
-      } else if (serverUnread < stickyUnread.current) {
-        stickyUnread.current = serverUnread
-        zeroHoldPolls.current = 0
-        unread = serverUnread
-      } else if (serverUnread === 0 && stickyUnread.current > 0) {
-        zeroHoldPolls.current += 1
-        if (zeroHoldPolls.current < 2) {
-          unread = stickyUnread.current
-        } else {
-          stickyUnread.current = 0
-          zeroHoldPolls.current = 0
-        }
-      }
-
+      const unread = j.unread ?? 0
       const hadNew = unread > 0
       if (hadNew) {
         const prev = prevUnread.current
@@ -82,34 +61,8 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   }, [triggerPulse])
 
   useEffect(() => {
-    void load()
-    const onConfig = (e: Event) => {
-      const detail = (e as CustomEvent<MailConfigChangedDetail>).detail
-      if (typeof detail?.pollIntervalSeconds === 'number') {
-        const sec = clampPollIntervalSeconds(detail.pollIntervalSeconds)
-        setData(prev => ({ ...(prev ?? { enabled: true }), pollIntervalSeconds: sec }))
-      }
-      if (typeof detail?.unread === 'number' && detail.unread > 0) {
-        stickyUnread.current = detail.unread
-        zeroHoldPolls.current = 0
-        prevUnread.current = detail.unread
-        setData(prev => ({
-          ...(prev ?? { enabled: true }),
-          ...(detail.openUrl ? { openUrl: detail.openUrl } : {}),
-          ...(typeof detail.pollIntervalSeconds === 'number'
-            ? { pollIntervalSeconds: clampPollIntervalSeconds(detail.pollIntervalSeconds) }
-            : {}),
-          unread: detail.unread,
-          hasNew: true,
-          enabled: prev?.enabled ?? true,
-        }))
-        window.setTimeout(() => void load({ refresh: true }), 2500)
-        return
-      }
-      prevUnread.current = null
-      if (detail?.openUrl) {
-        setData(prev => (prev ? { ...prev, openUrl: detail.openUrl! } : prev))
-      }
+    void load({ refresh: true })
+    const onConfig = () => {
       void load({ refresh: true })
     }
     window.addEventListener(MAIL_CONFIG_CHANGED, onConfig)
