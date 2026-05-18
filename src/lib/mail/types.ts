@@ -42,11 +42,18 @@ export interface MailAccount {
   verifyTls: boolean
 }
 
+export interface MailFolderUnread {
+  path: string
+  unread: number
+}
+
 export interface MailAccountStatus {
   id: string
   label: string
   unread: number
   lastError?: string
+  /** Ordner mit ungelesen (letzte Sync-Abfrage) */
+  unreadFolders?: MailFolderUnread[]
 }
 
 export interface MailAggregateStatus {

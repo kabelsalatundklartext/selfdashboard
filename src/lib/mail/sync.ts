@@ -8,7 +8,7 @@ import {
   isMailAccountFetchable,
   MAIL_POLL_INTERVAL_DEFAULT,
 } from './types'
-import { fetchUnreadCount } from './imap'
+import { fetchUnreadBreakdown } from './imap'
 import { describeMailSyncBlocker, mutateMailStore, readMailStore } from './store'
 
 let schedulerStarted = false
@@ -52,14 +52,26 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
     }
 
     let total = 0
-    const perAccount: { id: string; label: string; unread: number; lastError?: string }[] = []
+    const perAccount: {
+      id: string
+      label: string
+      unread: number
+      lastError?: string
+      unreadFolders?: { path: string; unread: number }[]
+    }[] = []
     const errors: string[] = []
 
     for (const account of active) {
       try {
-        const unread = await fetchUnreadCount(accountToImapConfig(account))
-        total += unread
-        perAccount.push({ id: account.id, label: account.label, unread })
+        const result = await fetchUnreadBreakdown(accountToImapConfig(account))
+        total += result.total
+        const unreadFolders = result.folders.filter(f => f.unread > 0).slice(0, 12)
+        perAccount.push({
+          id: account.id,
+          label: account.label,
+          unread: result.total,
+          unreadFolders,
+        })
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : String(e)
         const msg = formatMailError(raw)

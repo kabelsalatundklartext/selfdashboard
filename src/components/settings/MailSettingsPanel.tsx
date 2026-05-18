@@ -10,6 +10,7 @@ import {
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_POLL_INTERVAL_MAX,
   MAIL_POLL_INTERVAL_MIN,
+  type MailAccountStatus,
   type MailAggregateStatus,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
@@ -34,6 +35,15 @@ const inp: React.CSSProperties = {
   background: 'var(--surface-2)', border: '1px solid var(--border)',
   color: 'var(--text)', borderRadius: '8px', padding: '8px 12px',
   fontSize: '13px', outline: 'none', width: '100%',
+}
+
+function folderDisplayName(path: string): string {
+  if (path.includes('.')) {
+    const parts = path.split('.')
+    return parts[parts.length - 1] || path
+  }
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
 }
 
 const emptyForm = () => ({
@@ -593,9 +603,18 @@ export function MailSettingsPanel({
           {status.accounts && status.accounts.length > 0 ? (
             <ul style={{ margin: '8px 0 0', paddingLeft: '18px' }}>
               {status.accounts.map(a => (
-                <li key={a.id} style={{ marginBottom: '4px' }}>
+                <li key={a.id} style={{ marginBottom: '6px' }}>
                   {a.label}: <strong style={{ color: 'var(--text)' }}>{a.unread}</strong>
                   {a.lastError ? <span style={{ color: '#f87171' }}> — {a.lastError}</span> : null}
+                  {a.unread > 0 && a.unreadFolders?.length ? (
+                    <ul style={{ margin: '4px 0 0', paddingLeft: '16px', fontSize: '11px' }}>
+                      {a.unreadFolders.map(f => (
+                        <li key={f.path}>
+                          {folderDisplayName(f.path)}: <strong style={{ color: 'var(--text)' }}>{f.unread}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
               ))}
             </ul>
