@@ -355,6 +355,7 @@ export function MailSettingsPanel({
       const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
       const j = await res.json() as MailStatus & { openUrl?: string | null }
       setStatus(j)
+      await load()
       setMsg(de ? 'Aktualisiert' : 'Refreshed')
       dispatchMailConfigChanged({
         openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
@@ -442,9 +443,23 @@ export function MailSettingsPanel({
           <input style={inp} value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
             placeholder={de ? 'Anzeigename' : 'Display name'} />
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px',
+              color: !form.enabled ? '#fbbf24' : 'var(--text)',
+              padding: !form.enabled ? '8px 10px' : undefined,
+              borderRadius: !form.enabled ? '8px' : undefined,
+              background: !form.enabled ? 'color-mix(in srgb, #fbbf24 12%, transparent)' : undefined,
+              border: !form.enabled ? '1px solid color-mix(in srgb, #fbbf24 35%, var(--border))' : undefined,
+            }}
+          >
             <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
             {de ? 'Dieses Konto abfragen' : 'Poll this account'}
+            {!form.enabled ? (
+              <span style={{ fontSize: '11px', color: '#fbbf24' }}>
+                {de ? '(aus — Navbar zählt dieses Konto nicht)' : '(off — excluded from navbar poll)'}
+              </span>
+            ) : null}
           </label>
 
           <input style={inp} value={form.host} onChange={e => setForm({ ...form, host: e.target.value })}
@@ -551,6 +566,13 @@ export function MailSettingsPanel({
               ? 'Protokoll: Einstellungen → Protokoll, Filter „mail“. Nach Container-Neustart Passwort erneut speichern (Verschlüsselungsschlüssel).'
               : 'Logs: Settings → Logs, filter “mail”. Re-save password after container restart (encryption key).'}
           </p>
+          {status.lastError && status.unread > 0 ? (
+            <p style={{ fontSize: '11px', color: '#fbbf24', margin: '6px 0 0', lineHeight: 1.45 }}>
+              {de
+                ? 'Die Zahl oben kann ein älterer Stand sein, solange die Abfrage blockiert ist.'
+                : 'The count above may be stale while polling is blocked.'}
+            </p>
+          ) : null}
           {status.lastError ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
           ) : null}

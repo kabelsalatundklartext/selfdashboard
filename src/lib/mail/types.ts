@@ -86,6 +86,12 @@ export function newAccountId(): string {
   return `acc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`
 }
 
+/** Robust: fehlendes/ungültiges `enabled` gilt als aktiv (true). */
+export function parseAccountEnabled(value: unknown): boolean {
+  if (value === false || value === 0 || value === '0' || value === 'false') return false
+  return true
+}
+
 /** Felder für IMAP-Verbindung (ohne Store-Metadaten) */
 export interface MailImapConfig {
   host: string
@@ -100,7 +106,7 @@ export interface MailImapConfig {
 /** Konto kann per IMAP abgefragt werden (Navbar-Sync) */
 export function isMailAccountFetchable(account: MailAccount): boolean {
   return Boolean(
-    account.enabled &&
+    parseAccountEnabled(account.enabled) &&
     String(account.host ?? '').trim() &&
     String(account.username ?? '').trim() &&
     String(account.passwordEncrypted ?? '').trim(),

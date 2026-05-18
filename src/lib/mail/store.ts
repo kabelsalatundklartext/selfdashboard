@@ -14,6 +14,7 @@ import {
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_STORE_VERSION,
   newAccountId,
+  parseAccountEnabled,
   type MailAccount,
   type MailAggregateStatus,
   type MailConfig,
@@ -89,6 +90,7 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
       ...DEFAULT_ACCOUNT_FIELDS,
       ...a,
       mailbox: (a.mailbox as string)?.trim() || '*',
+      enabled: parseAccountEnabled(a.enabled),
     })) as MailAccount[]
 
     const status = parsed.status as MailAggregateStatus | undefined
@@ -175,6 +177,7 @@ export function applyAccountUpdate(current: MailAccount, body: Record<string, un
   const next = { ...current }
   if (typeof body.label === 'string') next.label = body.label.trim() || current.label
   if (typeof body.enabled === 'boolean') next.enabled = body.enabled
+  else if (body.enabled !== undefined) next.enabled = parseAccountEnabled(body.enabled)
   if (typeof body.port === 'number' && Number.isFinite(body.port)) {
     next.port = Math.max(1, Math.min(65535, Math.round(body.port)))
   }
@@ -229,7 +232,7 @@ export function pickOpenUrl(store: MailStoreFile): string | null {
       if (url) return url
     }
   }
-  const preferred = withLink.find(a => a.enabled) ?? withLink[0]
+  const preferred = withLink.find(a => parseAccountEnabled(a.enabled)) ?? withLink[0]
   return preferred ? resolveWebmailUrl(preferred) : null
 }
 
@@ -240,7 +243,11 @@ export function persistAccountFromImapTest(
   unread: number,
 ): void {
   const idx = store.accounts.findIndex(a => a.id === merged.id)
-  const saved: MailAccount = { ...merged, id: idx >= 0 ? store.accounts[idx].id : merged.id }
+  const saved: MailAccount = {
+    ...merged,
+    id: idx >= 0 ? store.accounts[idx].id : merged.id,
+    enabled: true,
+  }
   if (idx >= 0) {
     store.accounts[idx] = saved
   } else {
@@ -260,9 +267,12 @@ export function describeMailSyncBlocker(store: MailStoreFile): string {
   if (store.accounts.length === 0) {
     return 'Kein Konto konfiguriert — IMAP-Daten anlegen und speichern.'
   }
-  const enabled = store.accounts.filter(a => a.enabled)
+  const enabled = store.accounts.filter(a => parseAccountEnabled(a.enabled))
   if (enabled.length === 0) {
-    return 'Kein aktives Konto — „Dieses Konto abfragen“ aktivieren.'
+    const names = store.accounts.map(a => a.label || a.username || a.id).join(', ')
+    return names
+      ? `Konto deaktiviert (${names}) — „Dieses Konto abfragen“ aktivieren und „Speichern“.`
+      : 'Kein aktives Konto — „Dieses Konto abfragen“ aktivieren und speichern.'
   }
   const missingPassword = enabled.filter(a => !String(a.passwordEncrypted ?? '').trim())
   if (missingPassword.length === enabled.length) {
