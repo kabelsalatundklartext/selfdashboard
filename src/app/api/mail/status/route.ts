@@ -14,7 +14,6 @@ export async function GET(req: Request) {
     const store = await readMailStore()
     return NextResponse.json({
       ok: true,
-      enabled: store.navbarEnabled,
       navbarEnabled: store.navbarEnabled,
       pollIntervalSeconds: store.pollIntervalSeconds,
       unread: store.status.unread,

@@ -4,9 +4,7 @@ import { ImapFlow } from 'imapflow'
 
 import { decrypt } from '@/lib/secretCrypto'
 import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
-import type { MailImapConfig } from './types'
-
-export type MailFolderUnread = { path: string; unread: number }
+import type { MailFolderUnread, MailImapConfig } from './types'
 
 export type MailUnreadResult = {
   total: number
@@ -182,11 +180,6 @@ export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<Mail
       /* connection may already be closed */
     }
   }
-}
-
-export async function fetchUnreadCount(config: MailImapConfig): Promise<number> {
-  const result = await fetchUnreadBreakdown(config)
-  return result.total
 }
 
 export async function testImapConnection(

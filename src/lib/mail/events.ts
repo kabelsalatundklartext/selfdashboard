@@ -5,6 +5,8 @@ export type MailConfigChangedDetail = {
   openUrl?: string | null
   unread?: number
   pollIntervalSeconds?: number
+  /** Nach Speichern/Test: einmal IMAP-Sync statt nur Cache lesen */
+  forceRefresh?: boolean
 }
 
 export function dispatchMailConfigChanged(detail?: MailConfigChangedDetail): void {

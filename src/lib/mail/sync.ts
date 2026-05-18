@@ -7,6 +7,8 @@ import {
   clampPollIntervalSeconds,
   isMailAccountFetchable,
   MAIL_POLL_INTERVAL_DEFAULT,
+  MAIL_STATUS_MAX_FOLDERS,
+  type MailAccountStatus,
 } from './types'
 import { fetchUnreadBreakdown } from './imap'
 import { describeMailSyncBlocker, mutateMailStore, readMailStore } from './store'
@@ -52,25 +54,18 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
     }
 
     let total = 0
-    const perAccount: {
-      id: string
-      label: string
-      unread: number
-      lastError?: string
-      unreadFolders?: { path: string; unread: number }[]
-    }[] = []
+    const perAccount: MailAccountStatus[] = []
     const errors: string[] = []
 
     for (const account of active) {
       try {
         const result = await fetchUnreadBreakdown(accountToImapConfig(account))
         total += result.total
-        const unreadFolders = result.folders.filter(f => f.unread > 0).slice(0, 12)
         perAccount.push({
           id: account.id,
           label: account.label,
           unread: result.total,
-          unreadFolders,
+          unreadFolders: result.folders.filter(f => f.unread > 0).slice(0, MAIL_STATUS_MAX_FOLDERS),
         })
       } catch (e: unknown) {
         const raw = e instanceof Error ? e.message : String(e)
@@ -85,13 +80,7 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
       s.status.unread = total
       s.status.lastSyncAt = new Date().toISOString()
       s.status.accounts = perAccount
-      if (errors.length === 0) {
-        s.status.lastError = undefined
-      } else if (total > 0) {
-        s.status.lastError = undefined
-      } else {
-        s.status.lastError = errors.join(' · ')
-      }
+      s.status.lastError = errors.length > 0 && total === 0 ? errors.join(' · ') : undefined
     })
 
     if (errors.length > 0) {

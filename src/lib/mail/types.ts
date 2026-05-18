@@ -5,6 +5,9 @@ export const MAIL_POLL_INTERVAL_MIN = 1
 export const MAIL_POLL_INTERVAL_MAX = 900
 export const MAIL_POLL_INTERVAL_DEFAULT = 120
 
+/** Max. Ordner mit Ungelesen pro Konto in der Status-Anzeige */
+export const MAIL_STATUS_MAX_FOLDERS = 12
+
 export function clampPollIntervalSeconds(seconds: number): number {
   if (!Number.isFinite(seconds)) return MAIL_POLL_INTERVAL_DEFAULT
   return Math.max(
@@ -45,6 +48,30 @@ export interface MailAccount {
 export interface MailFolderUnread {
   path: string
   unread: number
+}
+
+/** API/UI — Konto ohne Passwort im Klartext */
+export type MailAccountPublic = {
+  id: string
+  label: string
+  enabled: boolean
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  hasPassword: boolean
+  mailbox: string
+  openUrl: string
+  verifyTls: boolean
+}
+
+export function formatMailFolderLabel(path: string): string {
+  if (path.includes('.')) {
+    const parts = path.split('.')
+    return parts[parts.length - 1] || path
+  }
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
 }
 
 export interface MailAccountStatus {

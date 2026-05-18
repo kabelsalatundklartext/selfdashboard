@@ -234,18 +234,24 @@ Built-in feature (not a dashboard widget). Configure under **Settings → Email*
 
 | Topic | Details |
 |---|---|
-| **Purpose** | Poll one or more IMAP accounts and show **total unread** as a badge on the mail icon in the navbar; click opens your **webmail URL** |
-| **API** | `GET /api/mail/status` (read cache), `?refresh=1` (force sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Storage** | `data/mail/mail.json` (or `MAIL_DATA_DIR`); passwords encrypted with **AES-256-GCM** (same key as calendar — see env below) |
-| **Accounts** | Multiple accounts; per account: host, port, SSL, user, password, mailbox folder, webmail URL |
-| **Mailbox `*`** | All IMAP folders with unread mail, **trash excluded** (includes Sent, subfolders — can be a high number) |
-| **Mailbox `@accounts`** | Synology MailPlus style: only `INBOX.AccountName` folders (closer to the MailPlus sidebar) |
-| **Poll interval** | **1–900 seconds** for all accounts (save after changing) |
-| **Logs** | Filter **Settings → Logs** by plugin **`mail`** (`mail/sync`, `mail/test`, …) |
+| **Purpose** | Poll one or more IMAP accounts and show **total unread** as a badge on the mail icon; click opens your **webmail URL** |
+| **API** | `GET /api/mail/status` (read cache), `?refresh=1` (run IMAP sync now), `PUT /api/mail/settings`, `POST /api/mail/test` |
+| **Storage** | `data/mail/mail.json` (or `MAIL_DATA_DIR`); passwords **AES-256-GCM** (same key as calendar — `SELFDASHBOARD_CALENDAR_KEY`) |
+| **Accounts** | Multiple accounts; per account: label, host, port, SSL, user, password, mailbox mode, webmail URL, **Poll this account** (enabled) |
+| **How counts work** | Each sync runs a **fresh IMAP query** and **replaces** the stored total (no tracking of deleted mail). Unread = `SEARCH` unseen messages per folder; `STATUS` is only a fallback if search fails (important on Synology — parent folders can show stale STATUS) |
+| **Mailbox `*`** | All folders with unread mail, **trash excluded** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Leaf folders preferred when a parent has subfolders (avoids double-count / ghost unread on `INBOX.Account`) |
+| **Mailbox `@accounts`** | MailPlus-style: only `INBOX.AccountName` (`@accounts`, `accounts`, `mailplus`, `konten`) — closer to the MailPlus sidebar |
+| **Single folder** | Any other name (e.g. `INBOX`) counts only that mailbox |
+| **Poll interval** | **1–900 s** (default **120 s**); save with **Save interval**. Server scheduler syncs in the background; navbar and email settings UI read the cache on each tick |
+| **Manual refresh** | **Refresh all accounts** or **Test** → `?refresh=1` / test endpoint (immediate IMAP) |
+| **Status UI** | Total unread, last sync time, per-account breakdown, and **which folders** still have unread (up to 12 per account) |
+| **Logs** | **Settings → Logs**, filter plugin **`mail`** |
 
-**Synology example:** host `192.168.1.15`, port **993**, SSL on, webmail `http://192.168.1.15:5000/mail/#inbox` (webmail port **not** in the IMAP host field).
+**Synology example:** host `192.168.1.15`, port **993**, SSL on, webmail `http://192.168.1.15:5000/mail/#inbox` — do **not** put `:5000` in the IMAP host field.
 
-**After Docker restart:** re-enter the mailbox password and click **Save** — otherwise background sync cannot decrypt stored credentials (navbar may show a yellow dot).
+**After Docker restart:** re-enter the password and click **Save** — otherwise sync cannot decrypt credentials (yellow dot in navbar).
+
+**If the badge does not match MailPlus:** MailPlus may show per-account sidebar counts while `*` sums many IMAP folders; use `@accounts` or mark mail read in the folder shown in the status breakdown (e.g. `Web Mail SSchmidt`).
 
 ---
 
@@ -601,22 +607,28 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ## Navbar E-Mail (IMAP)
 
-Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen → E-Mail**; Schalter für das Symbol unter **Einstellungen → Allgemein → Navbar E-Mail**.
+Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen → E-Mail**; Schalter unter **Einstellungen → Allgemein → Navbar E-Mail**.
 
 | Thema | Details |
 |---|---|
-| **Zweck** | Ein oder mehrere IMAP-Konten abfragen, **Summe ungelesen** als Badge am Mail-Symbol; Klick öffnet die **Webmail-URL** |
-| **API** | `GET /api/mail/status` (Cache), `?refresh=1` (Sync erzwingen), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Speicher** | `data/mail/mail.json` (oder `MAIL_DATA_DIR`); Passwörter **AES-256-GCM** (gleicher Schlüssel wie Kalender — siehe Env) |
-| **Konten** | Mehrere Konten: Host, Port, SSL, Benutzer, Passwort, Ordner, Webmail-URL |
-| **Ordner `*`** | Alle IMAP-Ordner mit Ungelesen, **ohne Papierkorb** (inkl. Gesendet, Unterordner — kann hoch sein) |
-| **Ordner `@accounts`** | Wie MailPlus-Sidebar: nur `INBOX.Kontoname` |
-| **Abfrage-Intervall** | **1–900 Sekunden** (nach Änderung **Speichern**) |
+| **Zweck** | IMAP-Konten abfragen, **Summe ungelesen** als Badge; Klick öffnet die **Webmail-URL** |
+| **API** | `GET /api/mail/status` (Cache), `?refresh=1` (sofort IMAP-Sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
+| **Speicher** | `data/mail/mail.json` (oder `MAIL_DATA_DIR`); Passwörter **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`, wie Kalender) |
+| **Konten** | Mehrere Konten: Name, Host, Port, SSL, Benutzer, Passwort, Ordner-Modus, Webmail-URL, **Dieses Konto abfragen** |
+| **Zählweise** | Jeder Sync = **neue IMAP-Abfrage**, Anzeige wird **ersetzt** (kein Tracking gelöschter Mails). Ungelesen per **SEARCH**; **STATUS** nur als Fallback (Synology: veralteter STATUS auf übergeordneten Ordnern) |
+| **Ordner `*`** | Alle Ordner mit Ungelesen, **ohne Papierkorb** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Unterordner statt übergeordnetem Ordner, wenn vorhanden |
+| **Ordner `@accounts`** | Wie MailPlus-Sidebar: nur `INBOX.Kontoname` (`@accounts`, `accounts`, `mailplus`, `konten`) |
+| **Einzelordner** | Anderer Name (z. B. `INBOX`) zählt nur diesen Ordner |
+| **Abfrage-Intervall** | **1–900 s** (Standard **120 s**); **Intervall speichern**. Server synct im Hintergrund; Navbar und E-Mail-Tab lesen den Cache |
+| **Sofort aktualisieren** | **Alle Konten aktualisieren** oder **Testen** |
+| **Status-Anzeige** | Gesamt, Sync-Zeit, pro Konto, **welche Ordner** noch Ungelesen (max. 12) |
 | **Protokoll** | **Einstellungen → Protokoll**, Filter **`mail`** |
 
-**Synology-Beispiel:** Host `192.168.1.15`, Port **993**, SSL an, Webmail `http://192.168.1.15:5000/mail/#inbox` (Port **5000** nicht ins IMAP-Host-Feld).
+**Synology-Beispiel:** Host `192.168.1.15`, Port **993**, SSL an, Webmail `http://192.168.1.15:5000/mail/#inbox` — **:5000** nicht ins IMAP-Host-Feld.
 
-**Nach Docker-Neustart:** Passwort erneut eintragen und **Speichern** — sonst kann der Hintergrund-Sync das Passwort nicht entschlüsseln (gelber Punkt in der Navbar).
+**Nach Docker-Neustart:** Passwort erneut **Speichern** (sonst Entschlüsselungsfehler, gelber Punkt).
+
+**Badge ≠ MailPlus:** MailPlus zeigt oft pro Sidebar-Konto; `*` summiert viele IMAP-Ordner. Bei Abweichung `@accounts` testen oder im angezeigten Ordner (z. B. `Web Mail SSchmidt`) als gelesen markieren.
 
 ---
 

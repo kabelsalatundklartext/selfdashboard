@@ -10,24 +10,11 @@ import {
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_POLL_INTERVAL_MAX,
   MAIL_POLL_INTERVAL_MIN,
-  type MailAccountStatus,
+  type MailAccountPublic,
   type MailAggregateStatus,
+  formatMailFolderLabel,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
-
-interface MailAccountPublic {
-  id: string
-  label: string
-  enabled: boolean
-  host: string
-  port: number
-  secure: boolean
-  username: string
-  hasPassword: boolean
-  mailbox: string
-  openUrl: string
-  verifyTls: boolean
-}
 
 type MailStatus = MailAggregateStatus
 
@@ -35,15 +22,6 @@ const inp: React.CSSProperties = {
   background: 'var(--surface-2)', border: '1px solid var(--border)',
   color: 'var(--text)', borderRadius: '8px', padding: '8px 12px',
   fontSize: '13px', outline: 'none', width: '100%',
-}
-
-function folderDisplayName(path: string): string {
-  if (path.includes('.')) {
-    const parts = path.split('.')
-    return parts[parts.length - 1] || path
-  }
-  const parts = path.split('/')
-  return parts[parts.length - 1] || path
 }
 
 const emptyForm = () => ({
@@ -152,10 +130,10 @@ export function MailSettingsPanel({
   useEffect(() => {
     if (!navbarEnabled) return
     const ms = clampPollIntervalSeconds(pollIntervalSeconds) * 1000
-    void refreshStatusOnly()
-    const id = window.setInterval(() => void refreshStatusOnly(), ms)
+    void refreshStatusFromCache()
+    const id = window.setInterval(() => void refreshStatusFromCache(), ms)
     return () => window.clearInterval(id)
-  }, [navbarEnabled, pollIntervalSeconds, refreshStatusOnly])
+  }, [navbarEnabled, pollIntervalSeconds, refreshStatusFromCache])
 
   const selectAccount = (id: string) => {
     const a = accounts.find(x => x.id === id)
@@ -203,14 +181,6 @@ export function MailSettingsPanel({
         unread: j.status?.unread,
         pollIntervalSeconds: sec,
       })
-      void (async () => {
-        try {
-          const r = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
-          if (!r.ok) return
-          const st = await r.json() as MailStatus
-          setStatus(st)
-        } catch { /* ignore */ }
-      })()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -264,6 +234,7 @@ export function MailSettingsPanel({
       dispatchMailConfigChanged({
         openUrl: form.openUrl.trim() || null,
         unread: j.status?.unread,
+        forceRefresh: true,
       })
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
@@ -382,6 +353,7 @@ export function MailSettingsPanel({
         dispatchMailConfigChanged({
           openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
           unread: j.status?.unread ?? unread,
+          forceRefresh: true,
         })
       }
       setMsg(
@@ -409,6 +381,7 @@ export function MailSettingsPanel({
       dispatchMailConfigChanged({
         openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
         unread: j.unread,
+        forceRefresh: true,
       })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -588,8 +561,8 @@ export function MailSettingsPanel({
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
         {de
-          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — jede Abfrage holt die aktuelle Zahl per IMAP und ersetzt die Anzeige (kein Tracking gelöschter Mails). Nach „Intervall speichern“ aktiv.`
-          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — each poll fetches the current IMAP count and replaces the display (no delete tracking). Save the interval to apply.`}
+          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s (Standard ${MAIL_POLL_INTERVAL_DEFAULT}). Server synct per IMAP im Hintergrund; Anzeige liest den Cache. „Alle Konten aktualisieren“ = sofort neuer IMAP-Lauf.`
+          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s (default ${MAIL_POLL_INTERVAL_DEFAULT}). Server syncs via IMAP in the background; UI reads cache. “Refresh all accounts” forces IMAP now.`}
       </p>
 
       {status ? (
@@ -610,7 +583,7 @@ export function MailSettingsPanel({
                     <ul style={{ margin: '4px 0 0', paddingLeft: '16px', fontSize: '11px' }}>
                       {a.unreadFolders.map(f => (
                         <li key={f.path}>
-                          {folderDisplayName(f.path)}: <strong style={{ color: 'var(--text)' }}>{f.unread}</strong>
+                          {formatMailFolderLabel(f.path)}: <strong style={{ color: 'var(--text)' }}>{f.unread}</strong>
                         </li>
                       ))}
                     </ul>

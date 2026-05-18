@@ -16,6 +16,7 @@ import {
   newAccountId,
   parseAccountEnabled,
   type MailAccount,
+  type MailAccountPublic,
   type MailAggregateStatus,
   type MailConfig,
   type MailStoreFile,
@@ -157,7 +158,7 @@ export async function mutateMailStore(fn: (s: MailStoreFile) => void): Promise<M
   })
 }
 
-export function toPublicAccount(account: MailAccount) {
+export function toPublicAccount(account: MailAccount): MailAccountPublic {
   return {
     id: account.id,
     label: account.label,

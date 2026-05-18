@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
-import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
+import { MAIL_CONFIG_CHANGED, type MailConfigChangedDetail } from '@/lib/mail/events'
 import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
 import {
   clampPollIntervalSeconds,
@@ -14,6 +14,8 @@ import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 
 interface MailStatusResponse {
   ok?: boolean
+  navbarEnabled?: boolean
+  /** Gesetzt aus navbarEnabled für interne Prüfungen */
   enabled?: boolean
   pollIntervalSeconds?: number
   unread?: number
@@ -54,7 +56,12 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         }
       }
       prevUnread.current = unread
-      setData({ ...j, unread, hasNew: hadNew && Boolean(j.enabled ?? true) })
+      setData({
+        ...j,
+        unread,
+        enabled: j.navbarEnabled,
+        hasNew: hadNew && Boolean(j.navbarEnabled),
+      })
     } catch {
       /* offline */
     }
@@ -62,8 +69,9 @@ export function NavbarMail({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     void load({ refresh: true })
-    const onConfig = () => {
-      void load({ refresh: true })
+    const onConfig = (e: Event) => {
+      const forceRefresh = (e as CustomEvent<MailConfigChangedDetail>).detail?.forceRefresh
+      void load(forceRefresh ? { refresh: true } : undefined)
     }
     window.addEventListener(MAIL_CONFIG_CHANGED, onConfig)
     return () => {
@@ -79,7 +87,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         ? data.pollIntervalSeconds
         : MAIL_POLL_INTERVAL_DEFAULT
     const pollMs = clampPollIntervalSeconds(sec) * 1000
-    const id = window.setInterval(() => void load({ refresh: true }), pollMs)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => window.clearInterval(id)
   }, [load, data?.enabled, data?.pollIntervalSeconds])
 
