@@ -16,6 +16,7 @@ interface MailAccountStatus {
 interface MailStatusResponse {
   ok?: boolean
   enabled?: boolean
+  pollIntervalSeconds?: number
   unread?: number
   hasNew?: boolean
   lastError?: string
@@ -24,7 +25,7 @@ interface MailStatusResponse {
   accounts?: MailAccountStatus[]
 }
 
-const PULSE_MS = 6500
+const PULSE_MS = 12_000
 
 export function NavbarMail({ locale }: { locale: Locale }) {
   const { compact, phone } = useNavbarCompact()
@@ -64,9 +65,17 @@ export function NavbarMail({ locale }: { locale: Locale }) {
     void load()
     const onConfig = (e: Event) => {
       prevUnread.current = null
-      const url = (e as CustomEvent<{ openUrl?: string | null }>).detail?.openUrl
-      if (url) {
-        setData(prev => (prev ? { ...prev, openUrl: url } : prev))
+      const detail = (e as CustomEvent<{ openUrl?: string | null; unread?: number }>).detail
+      if (detail?.openUrl || typeof detail?.unread === 'number') {
+        setData(prev => {
+          if (!prev) return prev
+          const unread = typeof detail.unread === 'number' ? detail.unread : prev.unread
+          return {
+            ...prev,
+            ...(detail.openUrl ? { openUrl: detail.openUrl } : {}),
+            ...(typeof detail.unread === 'number' ? { unread: detail.unread, hasNew: detail.unread > 0 } : {}),
+          }
+        })
       }
       void load()
     }
@@ -79,14 +88,20 @@ export function NavbarMail({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!data?.enabled) return
-    const id = window.setInterval(() => void load(), 60_000)
+    const sec = data.pollIntervalSeconds
+    const pollMs =
+      typeof sec === 'number' && sec > 0
+        ? Math.max(15, Math.min(120, sec)) * 1000
+        : 30_000
+    const id = window.setInterval(() => void load(), pollMs)
     return () => window.clearInterval(id)
-  }, [load, data?.enabled])
+  }, [load, data?.enabled, data?.pollIntervalSeconds])
 
   if (!data?.enabled) return null
 
   const unread = data.unread ?? 0
-  const hasNew = Boolean(data.hasNew)
+  const hasUnread = unread > 0
+  const hasNew = Boolean(data.hasNew) || hasUnread
   const iconSize = phone ? 18 : compact ? 17 : 16
   const breakdown = (data.accounts ?? []).filter(a => a.unread > 0)
   const title =
@@ -113,7 +128,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
     }
   }
 
-  const alert = hasNew || pulsing
+  const alert = hasUnread || pulsing
 
   return (
     <button
@@ -122,7 +137,8 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         'navbar-mail-btn',
         alert ? 'navbar-mail-btn--alert' : '',
         pulsing ? 'navbar-mail-btn--pulse' : '',
-        data.lastError && !hasNew ? 'navbar-mail-btn--error' : '',
+        phone ? 'navbar-mail-btn--phone' : '',
+        data.lastError && !hasUnread ? 'navbar-mail-btn--error' : '',
       ].filter(Boolean).join(' ')}
       onClick={open}
       title={data.openUrl ? title : (locale === 'de' ? `${title} — Webmail-URL in Einstellungen speichern` : `${title} — save webmail URL in settings`)}
@@ -131,8 +147,8 @@ export function NavbarMail({ locale }: { locale: Locale }) {
       <span className="navbar-mail-icon-wrap">
         <Mail size={iconSize} strokeWidth={hasNew ? 2.25 : 2} />
       </span>
-      {hasNew ? (
-        <span className="navbar-mail-badge">
+      {hasUnread ? (
+        <span className="navbar-mail-badge" aria-hidden>
           {unread > 99 ? '99+' : unread}
         </span>
       ) : data.lastError ? (

@@ -230,6 +230,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
   padding: 7px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -280,8 +281,8 @@ html, body {
 
 .navbar-mail-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: -5px;
+  right: -9px;
   min-width: 17px;
   height: 17px;
   padding: 0 4px;
@@ -292,7 +293,15 @@ html, body {
   font-weight: 700;
   line-height: 17px;
   text-align: center;
+  pointer-events: none;
   box-shadow: 0 0 0 2px var(--surface);
+  z-index: 1;
+}
+
+.navbar-mail-btn--phone .navbar-mail-badge,
+.navbar-root--phone .navbar-mail-badge {
+  top: -4px;
+  right: -8px;
 }
 
 .navbar-mail-btn--pulse .navbar-mail-badge {

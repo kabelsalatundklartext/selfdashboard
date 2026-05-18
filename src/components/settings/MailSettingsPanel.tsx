@@ -5,6 +5,12 @@ import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MailNavbarToggle, saveMailNavbarEnabled } from '@/components/settings/MailNavbarToggle'
 import { dispatchMailConfigChanged } from '@/lib/mail/events'
+import {
+  clampPollIntervalSeconds,
+  MAIL_POLL_INTERVAL_DEFAULT,
+  MAIL_POLL_INTERVAL_MAX,
+  MAIL_POLL_INTERVAL_MIN,
+} from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
 
 interface MailAccountPublic {
@@ -63,7 +69,7 @@ export function MailSettingsPanel({
 }) {
   const de = locale === 'de'
   const [navbarEnabled, setNavbarEnabled] = useState(false)
-  const [pollIntervalSeconds, setPollIntervalSeconds] = useState(120)
+  const [pollIntervalSeconds, setPollIntervalSeconds] = useState(MAIL_POLL_INTERVAL_DEFAULT)
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -102,7 +108,9 @@ export function MailSettingsPanel({
         status?: MailStatus
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
-      if (typeof j.pollIntervalSeconds === 'number') setPollIntervalSeconds(j.pollIntervalSeconds)
+      if (typeof j.pollIntervalSeconds === 'number') {
+        setPollIntervalSeconds(clampPollIntervalSeconds(j.pollIntervalSeconds))
+      }
       const list = j.accounts ?? []
       setAccounts(list)
       if (list.length > 0) {
@@ -161,7 +169,10 @@ export function MailSettingsPanel({
       setHasPassword(hasPassword || Boolean(form.password))
       setForm(f => ({ ...f, password: '' }))
       setMsg(de ? 'Gespeichert' : 'Saved')
-      dispatchMailConfigChanged({ openUrl: form.openUrl.trim() || null })
+      dispatchMailConfigChanged({
+        openUrl: form.openUrl.trim() || null,
+        unread: j.status?.unread,
+      })
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
       setErr(m)
@@ -276,7 +287,10 @@ export function MailSettingsPanel({
           ? (de ? ' Navbar wurde aktualisiert.' : ' Navbar updated.')
           : (de ? ' „Speichern“ für dauerhafte Navbar-Daten.' : ' Use “Save” for persistent navbar data.')
       if (navbarEnabled && j.navbarUpdated) {
-        dispatchMailConfigChanged({ openUrl: (j.openUrl ?? form.openUrl.trim()) || null })
+        dispatchMailConfigChanged({
+          openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
+          unread: j.status?.unread ?? unread,
+        })
       }
       setMsg(
         de
@@ -299,7 +313,10 @@ export function MailSettingsPanel({
       const j = await res.json() as MailStatus & { openUrl?: string | null }
       setStatus(j)
       setMsg(de ? 'Aktualisiert' : 'Refreshed')
-      dispatchMailConfigChanged({ openUrl: (j.openUrl ?? form.openUrl.trim()) || null })
+      dispatchMailConfigChanged({
+        openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
+        unread: j.unread,
+      })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -443,8 +460,20 @@ export function MailSettingsPanel({
       <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
         {de ? 'Abfrage-Intervall (alle Konten)' : 'Poll interval (all accounts)'}
       </label>
-      <input style={inp} type="number" min={60} max={3600} value={pollIntervalSeconds}
-        onChange={e => setPollIntervalSeconds(parseInt(e.target.value, 10) || 120)} />
+      <input
+        style={inp}
+        type="number"
+        min={MAIL_POLL_INTERVAL_MIN}
+        max={MAIL_POLL_INTERVAL_MAX}
+        step={1}
+        value={pollIntervalSeconds}
+        onChange={e => setPollIntervalSeconds(clampPollIntervalSeconds(parseInt(e.target.value, 10)))}
+      />
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
+        {de
+          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} Sekunden (nach Änderung „Speichern“).`
+          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} seconds (click Save after changing).`}
+      </p>
 
       {status ? (
         <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>

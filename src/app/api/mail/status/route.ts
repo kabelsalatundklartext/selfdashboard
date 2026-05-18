@@ -16,6 +16,7 @@ export async function GET(req: Request) {
       ok: true,
       enabled: store.navbarEnabled,
       navbarEnabled: store.navbarEnabled,
+      pollIntervalSeconds: store.pollIntervalSeconds,
       unread: store.status.unread,
       hasNew: store.navbarEnabled && store.status.unread > 0,
       lastSyncAt: store.status.lastSyncAt,

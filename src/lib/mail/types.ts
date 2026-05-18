@@ -1,5 +1,18 @@
 export const MAIL_STORE_VERSION = 2
 
+/** IMAP-Abfrage-Intervall (Sekunden) für alle Konten */
+export const MAIL_POLL_INTERVAL_MIN = 1
+export const MAIL_POLL_INTERVAL_MAX = 900
+export const MAIL_POLL_INTERVAL_DEFAULT = 120
+
+export function clampPollIntervalSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return MAIL_POLL_INTERVAL_DEFAULT
+  return Math.max(
+    MAIL_POLL_INTERVAL_MIN,
+    Math.min(MAIL_POLL_INTERVAL_MAX, Math.round(seconds)),
+  )
+}
+
 /** Legacy single-account shape (v1) — migration only */
 export interface MailConfig {
   enabled: boolean

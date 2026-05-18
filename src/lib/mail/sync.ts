@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { logMailEvent } from '@/lib/mail/log'
-import { accountToImapConfig } from './types'
+import { accountToImapConfig, clampPollIntervalSeconds, MAIL_POLL_INTERVAL_DEFAULT } from './types'
 import { fetchUnreadCount } from './imap'
 import { mutateMailStore, readMailStore } from './store'
 
@@ -41,6 +41,7 @@ export async function runMailSync(): Promise<void> {
     const errors: string[] = []
 
     for (const account of active) {
+      const prevUnread = store.status.accounts.find(a => a.id === account.id)?.unread ?? 0
       try {
         const unread = await fetchUnreadCount(accountToImapConfig(account))
         total += unread
@@ -48,7 +49,8 @@ export async function runMailSync(): Promise<void> {
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         errors.push(`${account.label}: ${msg}`)
-        perAccount.push({ id: account.id, label: account.label, unread: 0, lastError: msg })
+        total += prevUnread
+        perAccount.push({ id: account.id, label: account.label, unread: prevUnread, lastError: msg })
         void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label } })
       }
     }
@@ -77,11 +79,11 @@ export function startMailScheduler() {
   schedulerStarted = true
 
   const tick = async () => {
-    let delayMs = 120_000
+    let delayMs = MAIL_POLL_INTERVAL_DEFAULT * 1000
     try {
       const store = await readMailStore()
       if (store.navbarEnabled) {
-        delayMs = Math.max(60, store.pollIntervalSeconds) * 1000
+        delayMs = clampPollIntervalSeconds(store.pollIntervalSeconds) * 1000
         const last = store.status.lastSyncAt ? new Date(store.status.lastSyncAt).getTime() : 0
         const half = delayMs / 2
         if (!last || Date.now() - last >= half) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { logMailEvent } from '@/lib/mail/log'
+import { clampPollIntervalSeconds } from '@/lib/mail/types'
 import { runMailSync } from '@/lib/mail/sync'
 import {
   applyAccountUpdate,
@@ -42,7 +43,7 @@ export async function PUT(req: Request) {
       if (typeof body.navbarEnabled === 'boolean') s.navbarEnabled = body.navbarEnabled
       if (typeof body.enabled === 'boolean') s.navbarEnabled = body.enabled
       if (typeof body.pollIntervalSeconds === 'number' && Number.isFinite(body.pollIntervalSeconds)) {
-        s.pollIntervalSeconds = Math.max(60, Math.min(3600, Math.round(body.pollIntervalSeconds)))
+        s.pollIntervalSeconds = clampPollIntervalSeconds(body.pollIntervalSeconds)
       }
 
       if (typeof body.deleteAccountId === 'string') {
