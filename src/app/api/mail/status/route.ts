@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const force = url.searchParams.get('refresh') === '1'
 
   try {
-    if (force) await runMailSync()
+    if (force) await runMailSync({ wait: true })
     const store = await readMailStore()
     return NextResponse.json({
       ok: true,

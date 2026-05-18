@@ -119,6 +119,34 @@ export function MailSettingsPanel({
 
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Statuszeile (Sync-Zeit, Zähler) — liest Server-Cache, kein IMAP vom Browser */
+  const refreshStatusOnly = useCallback(async () => {
+    try {
+      const res = await fetch('/api/mail/status', { cache: 'no-store' })
+      if (!res.ok) return
+      const j = await res.json() as MailStatus & { pollIntervalSeconds?: number }
+      setStatus({
+        unread: j.unread ?? 0,
+        lastSyncAt: j.lastSyncAt,
+        lastError: j.lastError,
+        accounts: j.accounts ?? [],
+      })
+      if (typeof j.pollIntervalSeconds === 'number') {
+        const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
+        setPollIntervalSeconds(sec)
+        setPollDraft(String(sec))
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    if (!navbarEnabled) return
+    const ms = clampPollIntervalSeconds(pollIntervalSeconds) * 1000
+    void refreshStatusOnly()
+    const id = window.setInterval(() => void refreshStatusOnly(), ms)
+    return () => window.clearInterval(id)
+  }, [navbarEnabled, pollIntervalSeconds, refreshStatusOnly])
+
   const selectAccount = (id: string) => {
     const a = accounts.find(x => x.id === id)
     if (!a) return
@@ -161,7 +189,18 @@ export function MailSettingsPanel({
       if (j.status) setStatus(j.status)
       if (j.accounts) setAccounts(j.accounts)
       setMsg(de ? `Intervall gespeichert (${sec} s)` : `Interval saved (${sec} s)`)
-      dispatchMailConfigChanged({ unread: j.status?.unread })
+      dispatchMailConfigChanged({
+        unread: j.status?.unread,
+        pollIntervalSeconds: sec,
+      })
+      void (async () => {
+        try {
+          const r = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
+          if (!r.ok) return
+          const st = await r.json() as MailStatus
+          setStatus(st)
+        } catch { /* ignore */ }
+      })()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -539,8 +578,8 @@ export function MailSettingsPanel({
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
         {de
-          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} Sekunden — „Intervall speichern“ oder mit „Speichern“ beim Konto.`
-          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} seconds — “Save interval” or account “Save”.`}
+          ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — nach „Intervall speichern“ läuft der Server-Hintergrundsync; diese Anzeige und die Navbar folgen dem Intervall. Sehr kurze Werte (z. B. 5 s) können bei langsamer IMAP-Verbindung hinterherhinken.`
+          : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s — after “Save interval”, the server background sync and this display use the interval. Very low values (e.g. 5 s) may lag if IMAP is slow.`}
       </p>
 
       {status ? (

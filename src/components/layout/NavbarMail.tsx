@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
-import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
+import { MAIL_CONFIG_CHANGED, type MailConfigChangedDetail } from '@/lib/mail/events'
 import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
 import {
   clampPollIntervalSeconds,
@@ -32,9 +32,9 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const [pulsing, setPulsing] = useState(false)
   const prevUnread = useRef<number | null>(null)
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Verhindert Flackern, wenn IMAP kurz 0 liefert obwohl gerade noch ungelesen da war */
+  /** Nur bei kurzem IMAP-0 nach hohem Stand (max. 1 Poll), nie beim Runterzählen */
   const stickyUnread = useRef(0)
-  const zeroPollStreak = useRef(0)
+  const zeroHoldPolls = useRef(0)
 
   const triggerPulse = useCallback(() => {
     setPulsing(true)
@@ -48,17 +48,22 @@ export function NavbarMail({ locale }: { locale: Locale }) {
       const res = await fetch(`/api/mail/status${q}`, { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as MailStatusResponse
-      let unread = j.unread ?? 0
-      if (unread > 0) {
-        stickyUnread.current = unread
-        zeroPollStreak.current = 0
-      } else if (stickyUnread.current > 0) {
-        zeroPollStreak.current += 1
-        if (zeroPollStreak.current < 4) {
+      const serverUnread = j.unread ?? 0
+      let unread = serverUnread
+      if (serverUnread > stickyUnread.current) {
+        stickyUnread.current = serverUnread
+        zeroHoldPolls.current = 0
+      } else if (serverUnread < stickyUnread.current) {
+        stickyUnread.current = serverUnread
+        zeroHoldPolls.current = 0
+        unread = serverUnread
+      } else if (serverUnread === 0 && stickyUnread.current > 0) {
+        zeroHoldPolls.current += 1
+        if (zeroHoldPolls.current < 2) {
           unread = stickyUnread.current
         } else {
           stickyUnread.current = 0
-          zeroPollStreak.current = 0
+          zeroHoldPolls.current = 0
         }
       }
 
@@ -79,14 +84,21 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   useEffect(() => {
     void load()
     const onConfig = (e: Event) => {
-      const detail = (e as CustomEvent<{ openUrl?: string | null; unread?: number }>).detail
+      const detail = (e as CustomEvent<MailConfigChangedDetail>).detail
+      if (typeof detail?.pollIntervalSeconds === 'number') {
+        const sec = clampPollIntervalSeconds(detail.pollIntervalSeconds)
+        setData(prev => ({ ...(prev ?? { enabled: true }), pollIntervalSeconds: sec }))
+      }
       if (typeof detail?.unread === 'number' && detail.unread > 0) {
         stickyUnread.current = detail.unread
-        zeroPollStreak.current = 0
+        zeroHoldPolls.current = 0
         prevUnread.current = detail.unread
         setData(prev => ({
           ...(prev ?? { enabled: true }),
           ...(detail.openUrl ? { openUrl: detail.openUrl } : {}),
+          ...(typeof detail.pollIntervalSeconds === 'number'
+            ? { pollIntervalSeconds: clampPollIntervalSeconds(detail.pollIntervalSeconds) }
+            : {}),
           unread: detail.unread,
           hasNew: true,
           enabled: prev?.enabled ?? true,

@@ -15,8 +15,14 @@ let schedulerStarted = false
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null
 let syncInFlight = false
 
-export async function runMailSync(): Promise<void> {
-  if (syncInFlight) return
+export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
+  if (syncInFlight) {
+    if (!opts?.wait) return
+    for (let i = 0; i < 120 && syncInFlight; i++) {
+      await new Promise(r => setTimeout(r, 250))
+    }
+    if (syncInFlight) return
+  }
   syncInFlight = true
   try {
     const store = await readMailStore()
@@ -110,10 +116,11 @@ export function startMailScheduler() {
       void logMailEvent('scheduler', msg, { level: 'warn' })
     }
 
-    schedulerTimer = setTimeout(tick, delayMs)
+    const tickMs = Math.min(delayMs, Math.max(1000, Math.floor(delayMs / 2)))
+    schedulerTimer = setTimeout(tick, tickMs)
   }
 
-  schedulerTimer = setTimeout(tick, 8000)
+  schedulerTimer = setTimeout(tick, 3000)
 }
 
 export function stopMailScheduler() {
