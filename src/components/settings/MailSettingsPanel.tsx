@@ -495,8 +495,8 @@ export function MailSettingsPanel({
           ) : null}
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
             {de
-              ? 'Wichtig: Nach Docker-Neustart einmal „Speichern“ (Passwort wird sonst nicht für Hintergrund-Abfrage genutzt). Testen aktualisiert die Navbar; die Zahl bleibt bis du Mails gelesen hast oder „Alle Konten aktualisieren“ 0 meldet.'
-              : 'After a Docker restart, click Save once (otherwise background sync cannot use the password). Test updates the navbar; the count stays until mail is read or refresh reports 0.'}
+              ? 'Nach Docker-Neustart: Passwort neu eintragen und „Speichern“. Roter/gelber Punkt in der Navbar = Fehler — im Protokoll (Filter mail) oder Tooltip auf dem Mail-Symbol. Optional festen Schlüssel setzen: Umgebungsvariable SELFDASHBOARD_CALENDAR_KEY im Container.'
+              : 'After Docker restart: re-enter password and Save. Red/yellow navbar dot = error — see log (filter mail) or mail icon tooltip. Optional: set SELFDASHBOARD_CALENDAR_KEY in the container.'}
           </p>
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>

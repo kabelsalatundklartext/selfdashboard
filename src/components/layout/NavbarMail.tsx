@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
+import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 
 interface MailAccountStatus {
@@ -123,6 +124,8 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const unread = data.unread ?? 0
   const hasUnread = unread > 0
   const hasNew = Boolean(data.hasNew) || hasUnread
+  const lastError = data.lastError ? formatMailError(data.lastError) : undefined
+  const configError = isMailConfigError(lastError)
   const iconSize = phone ? 18 : compact ? 17 : 16
   const breakdown = (data.accounts ?? []).filter(a => a.unread > 0)
   const title =
@@ -172,8 +175,10 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         <span className="navbar-mail-badge" aria-hidden>
           {unread > 99 ? '99+' : unread}
         </span>
-      ) : data.lastError ? (
+      ) : lastError && !configError ? (
         <span className="navbar-mail-dot navbar-mail-dot--error" />
+      ) : lastError && configError ? (
+        <span className="navbar-mail-dot navbar-mail-dot--warn" title={lastError} />
       ) : null}
     </button>
   )

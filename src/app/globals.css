@@ -264,6 +264,16 @@ html, body {
   background: color-mix(in srgb, #f87171 10%, var(--surface-2));
 }
 
+.navbar-mail-btn--warn {
+  border-color: #fbbf24;
+  color: #fbbf24;
+  background: color-mix(in srgb, #fbbf24 10%, var(--surface-2));
+}
+
+.navbar-mail-dot--warn {
+  background: #fbbf24;
+}
+
 .navbar-mail-btn--pulse .navbar-mail-icon-wrap {
   animation: navbar-mail-icon-pulse 1.05s ease-in-out infinite;
 }

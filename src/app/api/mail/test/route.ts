@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { accountToImapConfig } from '@/lib/mail/types'
 import { testImapConnection } from '@/lib/mail/imap'
-import { runMailSync } from '@/lib/mail/sync'
+import { formatMailError } from '@/lib/mail/errors'
 import { applyAccountUpdate, findAccount, mutateMailStore, pickOpenUrl, readMailStore } from '@/lib/mail/store'
 import { logMailEvent } from '@/lib/mail/log'
 import { DEFAULT_ACCOUNT_FIELDS, newAccountId } from '@/lib/mail/types'
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       void logMailEvent('test', result.error, {
         detail: { accountId: merged.id, label: merged.label, host: merged.host },
       })
-      return NextResponse.json({ ok: false, error: result.error }, { status: 400 })
+      return NextResponse.json({ ok: false, error: formatMailError(result.error) }, { status: 400 })
     }
     let status: Awaited<ReturnType<typeof readMailStore>>['status'] | undefined
     let openUrl: string | null = null
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
       navbarUpdated: Boolean(status),
     })
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = formatMailError(e instanceof Error ? e.message : String(e))
     void logMailEvent('test', msg)
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }

@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { formatMailError } from '@/lib/mail/errors'
 import { logMailEvent } from '@/lib/mail/log'
 import { accountToImapConfig, clampPollIntervalSeconds, MAIL_POLL_INTERVAL_DEFAULT } from './types'
 import { fetchUnreadCount } from './imap'
@@ -52,19 +53,26 @@ export async function runMailSync(): Promise<void> {
         total += unread
         perAccount.push({ id: account.id, label: account.label, unread })
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = formatMailError(raw)
         errors.push(`${account.label}: ${msg}`)
         total += prevUnread
         perAccount.push({ id: account.id, label: account.label, unread: prevUnread, lastError: msg })
-        void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label } })
+        void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label, raw } })
       }
     }
 
     await mutateMailStore(s => {
       s.status.unread = total
       s.status.lastSyncAt = new Date().toISOString()
-      s.status.lastError = errors.length > 0 ? errors.join(' · ') : undefined
       s.status.accounts = perAccount
+      if (errors.length === 0) {
+        s.status.lastError = undefined
+      } else if (total > 0) {
+        s.status.lastError = undefined
+      } else {
+        s.status.lastError = errors.join(' · ')
+      }
     })
 
     if (errors.length > 0) {
