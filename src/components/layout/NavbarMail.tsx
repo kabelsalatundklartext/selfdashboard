@@ -5,7 +5,11 @@ import { Mail } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MAIL_CONFIG_CHANGED } from '@/lib/mail/events'
 import { formatMailError, isMailConfigError } from '@/lib/mail/errors'
-import type { MailAccountStatus } from '@/lib/mail/types'
+import {
+  clampPollIntervalSeconds,
+  MAIL_POLL_INTERVAL_DEFAULT,
+  type MailAccountStatus,
+} from '@/lib/mail/types'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 
 interface MailStatusResponse {
@@ -38,9 +42,10 @@ export function NavbarMail({ locale }: { locale: Locale }) {
     pulseTimer.current = setTimeout(() => setPulsing(false), PULSE_MS)
   }, [])
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { refresh?: boolean }) => {
     try {
-      const res = await fetch('/api/mail/status', { cache: 'no-store' })
+      const q = opts?.refresh ? '?refresh=1' : ''
+      const res = await fetch(`/api/mail/status${q}`, { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as MailStatusResponse
       let unread = j.unread ?? 0
@@ -86,14 +91,14 @@ export function NavbarMail({ locale }: { locale: Locale }) {
           hasNew: true,
           enabled: prev?.enabled ?? true,
         }))
-        window.setTimeout(() => void load(), 2500)
+        window.setTimeout(() => void load({ refresh: true }), 2500)
         return
       }
       prevUnread.current = null
       if (detail?.openUrl) {
         setData(prev => (prev ? { ...prev, openUrl: detail.openUrl! } : prev))
       }
-      void load()
+      void load({ refresh: true })
     }
     window.addEventListener(MAIL_CONFIG_CHANGED, onConfig)
     return () => {
@@ -104,12 +109,12 @@ export function NavbarMail({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (!data?.enabled) return
-    const sec = data.pollIntervalSeconds
-    const pollMs =
-      typeof sec === 'number' && sec > 0
-        ? Math.max(15, Math.min(120, sec)) * 1000
-        : 30_000
-    const id = window.setInterval(() => void load(), pollMs)
+    const sec =
+      typeof data.pollIntervalSeconds === 'number' && data.pollIntervalSeconds > 0
+        ? data.pollIntervalSeconds
+        : MAIL_POLL_INTERVAL_DEFAULT
+    const pollMs = clampPollIntervalSeconds(sec) * 1000
+    const id = window.setInterval(() => void load({ refresh: true }), pollMs)
     return () => window.clearInterval(id)
   }, [load, data?.enabled, data?.pollIntervalSeconds])
 

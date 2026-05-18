@@ -146,15 +146,20 @@ export function MailSettingsPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pollIntervalSeconds: sec }),
       })
-      const j = await res.json() as { error?: string; pollIntervalSeconds?: number }
+      const j = await res.json() as {
+        error?: string
+        pollIntervalSeconds?: number
+        status?: MailStatus
+      }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       if (typeof j.pollIntervalSeconds === 'number') {
         const saved = clampPollIntervalSeconds(j.pollIntervalSeconds)
         setPollIntervalSeconds(saved)
         setPollDraft(String(saved))
       }
+      if (j.status) setStatus(j.status)
       setMsg(de ? `Intervall gespeichert (${sec} s)` : `Interval saved (${sec} s)`)
-      dispatchMailConfigChanged()
+      dispatchMailConfigChanged({ unread: j.status?.unread })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {

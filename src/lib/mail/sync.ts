@@ -98,12 +98,14 @@ export function startMailScheduler() {
       if (store.navbarEnabled) {
         delayMs = clampPollIntervalSeconds(store.pollIntervalSeconds) * 1000
         const last = store.status.lastSyncAt ? new Date(store.status.lastSyncAt).getTime() : 0
-        const half = delayMs / 2
-        if (!last || Date.now() - last >= half) {
+        if (!last || Date.now() - last >= delayMs) {
           await runMailSync()
         }
       }
-    } catch { /* swallow */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      void logMailEvent('scheduler', msg, { level: 'warn' })
+    }
 
     schedulerTimer = setTimeout(tick, delayMs)
   }
