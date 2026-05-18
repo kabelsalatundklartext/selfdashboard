@@ -1,6 +1,8 @@
+import 'server-only'
+
 import { ImapFlow } from 'imapflow'
 
-import { decrypt } from '@/lib/calendar/crypto'
+import { decrypt } from '@/lib/secretCrypto'
 import { isAllMailboxes, normalizeMailConnection } from './normalize'
 import type { MailConfig } from './types'
 

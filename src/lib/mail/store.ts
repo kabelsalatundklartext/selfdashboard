@@ -1,8 +1,10 @@
+import 'server-only'
+
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { dataDir } from '@/lib/dataDir'
-import { encrypt } from '@/lib/calendar/crypto'
+import { encrypt } from '@/lib/secretCrypto'
 import { normalizeMailConnection } from './normalize'
 import {
   DEFAULT_ACCOUNT_FIELDS,

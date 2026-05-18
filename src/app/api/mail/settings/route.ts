@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server'
 import { runMailSync } from '@/lib/mail/sync'
 import {
   applyAccountUpdate,
-  findAccount,
   mutateMailStore,
   readMailStore,
   toPublicAccount,

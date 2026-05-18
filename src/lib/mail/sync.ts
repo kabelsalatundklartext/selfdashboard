@@ -1,3 +1,5 @@
+import 'server-only'
+
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
 import { accountToImapConfig } from './types'
 import { fetchUnreadCount } from './imap'

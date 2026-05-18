@@ -17,19 +17,14 @@ export async function POST(req: Request) {
 
   try {
     const store = await readMailStore()
-    let account = store.accounts[0]
-
-    if (typeof body.accountId === 'string') {
-      account = findAccount(store, body.accountId) ?? account
-    }
-
-    if (!account) {
-      account = {
+    let account =
+      (typeof body.accountId === 'string' ? findAccount(store, body.accountId) : undefined) ??
+      store.accounts[0] ??
+      {
         id: newAccountId(),
         label: 'Test',
         ...DEFAULT_ACCOUNT_FIELDS,
       }
-    }
 
     const merged = applyAccountUpdate({ ...account }, body)
     const result = await testImapConnection(accountToImapConfig(merged))
