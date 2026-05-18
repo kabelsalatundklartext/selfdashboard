@@ -29,9 +29,14 @@ export async function runMailSync(): Promise<void> {
 
     if (active.length === 0) {
       await mutateMailStore(s => {
-        s.status.unread = 0
-        s.status.lastError = undefined
-        s.status.accounts = []
+        if (store.accounts.length === 0) {
+          s.status.unread = 0
+          s.status.accounts = []
+          s.status.lastError = undefined
+        } else {
+          s.status.lastError =
+            'Kein abrufbares Konto (Passwort speichern, Host/Benutzer prüfen, „Dieses Konto abfragen“ an)'
+        }
       })
       return
     }

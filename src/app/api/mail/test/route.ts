@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { accountToImapConfig } from '@/lib/mail/types'
 import { testImapConnection } from '@/lib/mail/imap'
+import { runMailSync } from '@/lib/mail/sync'
 import { applyAccountUpdate, findAccount, mutateMailStore, pickOpenUrl, readMailStore } from '@/lib/mail/store'
 import { logMailEvent } from '@/lib/mail/log'
 import { DEFAULT_ACCOUNT_FIELDS, newAccountId } from '@/lib/mail/types'
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
       undefined
     if (accountKey && findAccount(store, accountKey)) {
       const id = accountKey
-      const updated = await mutateMailStore(s => {
+      await mutateMailStore(s => {
         const idx = s.accounts.findIndex(a => a.id === id)
         if (idx < 0) return
         s.accounts[idx] = applyAccountUpdate(s.accounts[idx], {
@@ -52,7 +53,13 @@ export async function POST(req: Request) {
           label: merged.label,
           host: merged.host,
           port: merged.port,
+          secure: merged.secure,
+          username: merged.username,
           mailbox: merged.mailbox,
+          verifyTls: merged.verifyTls,
+          ...(typeof body.password === 'string' && body.password.length > 0
+            ? { password: body.password as string }
+            : {}),
         })
         const label = merged.label || s.accounts[idx].label
         const others = s.status.accounts.filter(a => a.id !== id)
@@ -62,13 +69,18 @@ export async function POST(req: Request) {
         s.status.lastSyncAt = new Date().toISOString()
         if (s.status.accounts.every(a => !a.lastError)) s.status.lastError = undefined
       })
-      status = updated.status
-      openUrl = pickOpenUrl(updated)
+      const storeAfter = await readMailStore()
+      if (storeAfter.navbarEnabled) {
+        await runMailSync()
+      }
+      const fresh = await readMailStore()
+      status = fresh.status
+      openUrl = pickOpenUrl(fresh)
     }
 
     return NextResponse.json({
       ok: true,
-      unread: result.unread,
+      unread: status?.unread ?? result.unread,
       folders: result.folders,
       mode: result.mode,
       status,

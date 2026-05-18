@@ -33,6 +33,9 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const [pulsing, setPulsing] = useState(false)
   const prevUnread = useRef<number | null>(null)
   const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Verhindert Flackern, wenn IMAP kurz 0 liefert obwohl gerade noch ungelesen da war */
+  const stickyUnread = useRef(0)
+  const zeroPollStreak = useRef(0)
 
   const triggerPulse = useCallback(() => {
     setPulsing(true)
@@ -45,9 +48,21 @@ export function NavbarMail({ locale }: { locale: Locale }) {
       const res = await fetch('/api/mail/status', { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as MailStatusResponse
-      const unread = j.unread ?? 0
-      const hadNew = Boolean(j.hasNew)
+      let unread = j.unread ?? 0
+      if (unread > 0) {
+        stickyUnread.current = unread
+        zeroPollStreak.current = 0
+      } else if (stickyUnread.current > 0) {
+        zeroPollStreak.current += 1
+        if (zeroPollStreak.current < 4) {
+          unread = stickyUnread.current
+        } else {
+          stickyUnread.current = 0
+          zeroPollStreak.current = 0
+        }
+      }
 
+      const hadNew = unread > 0
       if (hadNew) {
         const prev = prevUnread.current
         if (prev === null || unread > prev) {
@@ -55,7 +70,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
         }
       }
       prevUnread.current = unread
-      setData(j)
+      setData({ ...j, unread, hasNew: hadNew && Boolean(j.enabled ?? j.navbarEnabled ?? true) })
     } catch {
       /* offline */
     }
@@ -64,18 +79,24 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   useEffect(() => {
     void load()
     const onConfig = (e: Event) => {
-      prevUnread.current = null
       const detail = (e as CustomEvent<{ openUrl?: string | null; unread?: number }>).detail
-      if (detail?.openUrl || typeof detail?.unread === 'number') {
-        setData(prev => {
-          if (!prev) return prev
-          const unread = typeof detail.unread === 'number' ? detail.unread : prev.unread
-          return {
-            ...prev,
-            ...(detail.openUrl ? { openUrl: detail.openUrl } : {}),
-            ...(typeof detail.unread === 'number' ? { unread: detail.unread, hasNew: detail.unread > 0 } : {}),
-          }
-        })
+      if (typeof detail?.unread === 'number' && detail.unread > 0) {
+        stickyUnread.current = detail.unread
+        zeroPollStreak.current = 0
+        prevUnread.current = detail.unread
+        setData(prev => ({
+          ...(prev ?? { enabled: true }),
+          ...(detail.openUrl ? { openUrl: detail.openUrl } : {}),
+          unread: detail.unread,
+          hasNew: true,
+          enabled: prev?.enabled ?? true,
+        }))
+        window.setTimeout(() => void load(), 2500)
+        return
+      }
+      prevUnread.current = null
+      if (detail?.openUrl) {
+        setData(prev => (prev ? { ...prev, openUrl: detail.openUrl! } : prev))
       }
       void load()
     }

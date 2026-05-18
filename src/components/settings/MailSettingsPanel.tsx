@@ -495,8 +495,8 @@ export function MailSettingsPanel({
           ) : null}
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
             {de
-              ? '„Testen“ schreibt die Zahl für gespeicherte Konten auch in die Navbar (wenn „E-Mail-Symbol in der Navbar“ an ist). „Speichern“ übernimmt Passwort, Ordner und Webmail-URL dauerhaft.'
-              : '“Test” also updates the navbar count for saved accounts (when the navbar mail icon is on). “Save” persists password, folder, and webmail URL.'}
+              ? 'Wichtig: Nach Docker-Neustart einmal „Speichern“ (Passwort wird sonst nicht für Hintergrund-Abfrage genutzt). Testen aktualisiert die Navbar; die Zahl bleibt bis du Mails gelesen hast oder „Alle Konten aktualisieren“ 0 meldet.'
+              : 'After a Docker restart, click Save once (otherwise background sync cannot use the password). Test updates the navbar; the count stays until mail is read or refresh reports 0.'}
           </p>
           {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
             <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
