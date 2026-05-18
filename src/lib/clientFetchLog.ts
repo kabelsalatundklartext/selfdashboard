@@ -35,6 +35,19 @@ export function pluginIdFromApiUrl(url: string): string | undefined {
   }
 }
 
+/** Reload / Tab-Wechsel / React-Unmount — kein echter API-Fehler */
+function isBenignFetchAbort(e: unknown, init?: RequestInit): boolean {
+  if (init?.signal?.aborted) return true
+  if (e instanceof DOMException && e.name === 'AbortError') return true
+  if (e instanceof Error) {
+    const n = e.name.toLowerCase()
+    if (n === 'aborterror') return true
+    const m = e.message.toLowerCase()
+    if (m.includes('abort') || m.includes('aborted')) return true
+  }
+  return false
+}
+
 function logFetchFailure(
   url: string,
   message: string,
@@ -101,7 +114,7 @@ export function installGlobalFetchLogger(): void {
       }
       return res
     } catch (e) {
-      if (isApi && !skip) {
+      if (isApi && !skip && !isBenignFetchAbort(e, init)) {
         logFetchFailure(url, e instanceof Error ? e.message : 'Network error', formatErrorDetail(e))
       }
       throw e
