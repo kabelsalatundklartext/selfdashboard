@@ -221,12 +221,129 @@ html, body {
     min-height: 44px;
     justify-content: center;
   }
+}
 
+/* ── Navbar mail (SelfDashboard accent) ───────────────────── */
+.navbar-mail-btn {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.navbar-mail-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+}
+
+.navbar-mail-btn:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.navbar-mail-btn--alert {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.navbar-mail-btn--error {
+  border-color: #f87171;
+  color: #f87171;
+  background: color-mix(in srgb, #f87171 10%, var(--surface-2));
+}
+
+.navbar-mail-btn--pulse .navbar-mail-icon-wrap {
+  animation: navbar-mail-icon-pulse 1.05s ease-in-out infinite;
+}
+
+.navbar-mail-btn--pulse.navbar-mail-btn--alert {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.navbar-mail-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center;
+}
+
+.navbar-mail-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.navbar-mail-btn--pulse .navbar-mail-badge {
+  animation: navbar-mail-badge-pop 1.05s ease-in-out infinite;
+}
+
+.navbar-mail-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.navbar-mail-dot--error {
+  background: #f87171;
+}
+
+@keyframes navbar-mail-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes navbar-mail-badge-pop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@media (max-width: 1023px) {
   .navbar-mail-btn {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 639px) {
+  .navbar-mail-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
     border: none;
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
   }
 
   .navbar-mail-badge {
-    box-shadow: 0 0 0 2px var(--surface);
+    top: 4px;
+    right: 4px;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    line-height: 18px;
   }
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { runMailSync } from '@/lib/mail/sync'
-import { readMailStore, toPublicConfig } from '@/lib/mail/store'
+import { pickOpenUrl, readMailStore, toPublicConfigLegacy } from '@/lib/mail/store'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,13 +14,15 @@ export async function GET(req: Request) {
     const store = await readMailStore()
     return NextResponse.json({
       ok: true,
-      enabled: store.config.enabled,
-      config: toPublicConfig(store.config),
+      enabled: store.navbarEnabled,
+      navbarEnabled: store.navbarEnabled,
       unread: store.status.unread,
-      hasNew: store.config.enabled && store.status.unread > 0,
+      hasNew: store.navbarEnabled && store.status.unread > 0,
       lastSyncAt: store.status.lastSyncAt,
       lastError: store.status.lastError,
-      openUrl: store.config.openUrl || null,
+      openUrl: pickOpenUrl(store),
+      accounts: store.status.accounts,
+      config: toPublicConfigLegacy(store),
     })
   } catch {
     return NextResponse.json({ ok: false, error: 'read_failed' }, { status: 500 })

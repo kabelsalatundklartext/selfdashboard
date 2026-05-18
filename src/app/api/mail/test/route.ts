@@ -1,23 +1,38 @@
 import { NextResponse } from 'next/server'
 
+import { accountToImapConfig } from '@/lib/mail/types'
 import { testImapConnection } from '@/lib/mail/imap'
-import { applyMailConfigUpdate, readMailStore } from '@/lib/mail/store'
+import { applyAccountUpdate, findAccount, readMailStore } from '@/lib/mail/store'
+import { DEFAULT_ACCOUNT_FIELDS, newAccountId } from '@/lib/mail/types'
 
 export const dynamic = 'force-dynamic'
 
-/** Test IMAP with optional inline credentials (before save) or stored config. */
 export async function POST(req: Request) {
   let body: Record<string, unknown> = {}
   try {
     body = (await req.json()) as Record<string, unknown>
   } catch {
-    /* use stored config only */
+    /* use stored */
   }
 
   try {
     const store = await readMailStore()
-    const config = applyMailConfigUpdate(store.config, body)
-    const result = await testImapConnection(config)
+    let account = store.accounts[0]
+
+    if (typeof body.accountId === 'string') {
+      account = findAccount(store, body.accountId) ?? account
+    }
+
+    if (!account) {
+      account = {
+        id: newAccountId(),
+        label: 'Test',
+        ...DEFAULT_ACCOUNT_FIELDS,
+      }
+    }
+
+    const merged = applyAccountUpdate({ ...account }, body)
+    const result = await testImapConnection(accountToImapConfig(merged))
     if (!result.ok) {
       return NextResponse.json({ ok: false, error: result.error }, { status: 400 })
     }

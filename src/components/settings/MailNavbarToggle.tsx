@@ -36,7 +36,7 @@ export async function saveMailNavbarEnabled(enabled: boolean): Promise<void> {
   const res = await fetch('/api/mail/settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled }),
+    body: JSON.stringify({ navbarEnabled: enabled }),
   })
   const j = (await res.json()) as { error?: string }
   if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
@@ -60,8 +60,8 @@ export function MailNavbarToggle({ locale, enabled: enabledProp, onEnabledChange
     try {
       const res = await fetch('/api/mail/settings', { cache: 'no-store' })
       if (!res.ok) return
-      const j = (await res.json()) as { config?: { enabled?: boolean } }
-      setInternalEnabled(Boolean(j.config?.enabled))
+      const j = (await res.json()) as { navbarEnabled?: boolean; config?: { enabled?: boolean } }
+      setInternalEnabled(Boolean(j.navbarEnabled ?? j.config?.enabled))
     } catch { /* ignore */ }
   }, [])
 

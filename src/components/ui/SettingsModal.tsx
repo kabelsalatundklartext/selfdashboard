@@ -292,8 +292,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 <MailNavbarToggle locale={locale} standalone />
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
                   {locale === 'de'
-                    ? 'IMAP-Zugangsdaten im Tab „E-Mail“ einrichten. Der Schalter wirkt sofort — kein Speichern nötig.'
-                    : 'Set up IMAP in the “Email” tab. This switch applies immediately — no save button needed.'}
+                    ? 'Mehrere Konten im Tab „E-Mail“ möglich. Der Schalter wirkt sofort — kein Speichern nötig.'
+                    : 'Multiple accounts in the “Email” tab. This switch applies immediately — no save needed.'}
                 </p>
 
                 <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '16px 0 8px' }}>

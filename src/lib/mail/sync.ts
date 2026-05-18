@@ -1,4 +1,5 @@
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { accountToImapConfig } from './types'
 import { fetchUnreadCount } from './imap'
 import { mutateMailStore, readMailStore } from './store'
 
@@ -11,30 +12,51 @@ export async function runMailSync(): Promise<void> {
   syncInFlight = true
   try {
     const store = await readMailStore()
-    const { config } = store
-    if (!config.enabled || !config.host || !config.username || !config.passwordEncrypted) {
+    if (!store.navbarEnabled) {
       await mutateMailStore(s => {
         s.status.unread = 0
         s.status.lastError = undefined
+        s.status.accounts = []
       })
       return
     }
 
-    try {
-      const unread = await fetchUnreadCount(config)
+    const active = store.accounts.filter(
+      a => a.enabled && a.host && a.username && a.passwordEncrypted,
+    )
+
+    if (active.length === 0) {
       await mutateMailStore(s => {
-        s.status.unread = unread
-        s.status.lastSyncAt = new Date().toISOString()
+        s.status.unread = 0
         s.status.lastError = undefined
+        s.status.accounts = []
       })
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
-      await mutateMailStore(s => {
-        s.status.lastError = msg
-        s.status.lastSyncAt = new Date().toISOString()
-      })
-      void logPluginApiFailure('mail', 'sync', msg, { host: config.host })
+      return
     }
+
+    let total = 0
+    const perAccount: { id: string; label: string; unread: number; lastError?: string }[] = []
+    const errors: string[] = []
+
+    for (const account of active) {
+      try {
+        const unread = await fetchUnreadCount(accountToImapConfig(account))
+        total += unread
+        perAccount.push({ id: account.id, label: account.label, unread })
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        errors.push(`${account.label}: ${msg}`)
+        perAccount.push({ id: account.id, label: account.label, unread: 0, lastError: msg })
+        void logPluginApiFailure('mail', 'sync', msg, { host: account.host, accountId: account.id })
+      }
+    }
+
+    await mutateMailStore(s => {
+      s.status.unread = total
+      s.status.lastSyncAt = new Date().toISOString()
+      s.status.lastError = errors.length > 0 ? errors.join(' · ') : undefined
+      s.status.accounts = perAccount
+    })
   } finally {
     syncInFlight = false
   }
@@ -48,8 +70,8 @@ export function startMailScheduler() {
     let delayMs = 120_000
     try {
       const store = await readMailStore()
-      if (store.config.enabled) {
-        delayMs = Math.max(60, store.config.pollIntervalSeconds) * 1000
+      if (store.navbarEnabled) {
+        delayMs = Math.max(60, store.pollIntervalSeconds) * 1000
         const last = store.status.lastSyncAt ? new Date(store.status.lastSyncAt).getTime() : 0
         const half = delayMs / 2
         if (!last || Date.now() - last >= half) {

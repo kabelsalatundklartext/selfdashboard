@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { MailNavbarToggle, saveMailNavbarEnabled } from '@/components/settings/MailNavbarToggle'
 import { dispatchMailConfigChanged } from '@/lib/mail/events'
 
-interface MailConfigPublic {
+interface MailAccountPublic {
+  id: string
+  label: string
   enabled: boolean
   host: string
   port: number
@@ -15,14 +17,21 @@ interface MailConfigPublic {
   hasPassword: boolean
   mailbox: string
   openUrl: string
-  pollIntervalSeconds: number
   verifyTls: boolean
+}
+
+interface MailAccountStatus {
+  id: string
+  label: string
+  unread: number
+  lastError?: string
 }
 
 interface MailStatus {
   unread: number
   lastSyncAt?: string
   lastError?: string
+  accounts?: MailAccountStatus[]
 }
 
 const inp: React.CSSProperties = {
@@ -31,54 +40,90 @@ const inp: React.CSSProperties = {
   fontSize: '13px', outline: 'none', width: '100%',
 }
 
+const emptyForm = () => ({
+  label: '',
+  enabled: true,
+  host: '',
+  port: 993,
+  secure: true,
+  username: '',
+  password: '',
+  mailbox: '*',
+  openUrl: '',
+  verifyTls: true,
+})
+
 export function MailSettingsPanel({ locale }: { locale: Locale }) {
   const de = locale === 'de'
-  const [form, setForm] = useState({
-    enabled: false,
-    host: '',
-    port: 993,
-    secure: true,
-    username: '',
-    password: '',
-    mailbox: 'INBOX',
-    openUrl: '',
-    pollIntervalSeconds: 120,
-    verifyTls: true,
-  })
+  const [navbarEnabled, setNavbarEnabled] = useState(false)
+  const [pollIntervalSeconds, setPollIntervalSeconds] = useState(120)
+  const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [form, setForm] = useState(emptyForm())
   const [hasPassword, setHasPassword] = useState(false)
   const [status, setStatus] = useState<MailStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  const selected = accounts.find(a => a.id === selectedId) ?? accounts[0]
+
+  const applyAccountToForm = (a: MailAccountPublic) => {
+    setForm({
+      label: a.label,
+      enabled: a.enabled,
+      host: a.host,
+      port: a.port,
+      secure: a.secure,
+      username: a.username,
+      password: '',
+      mailbox: a.mailbox || '*',
+      openUrl: a.openUrl,
+      verifyTls: a.verifyTls,
+    })
+    setHasPassword(Boolean(a.hasPassword))
+  }
+
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/mail/settings', { cache: 'no-store' })
       if (!res.ok) return
-      const j = await res.json() as { config?: MailConfigPublic; status?: MailStatus }
-      const c = j.config
-      if (c) {
-        setForm({
-          enabled: c.enabled,
-          host: c.host,
-          port: c.port,
-          secure: c.secure,
-          username: c.username,
-          password: '',
-          mailbox: c.mailbox || 'INBOX',
-          openUrl: c.openUrl,
-          pollIntervalSeconds: c.pollIntervalSeconds,
-          verifyTls: c.verifyTls,
-        })
-        setHasPassword(Boolean(c.hasPassword))
+      const j = await res.json() as {
+        navbarEnabled?: boolean
+        pollIntervalSeconds?: number
+        accounts?: MailAccountPublic[]
+        status?: MailStatus
+      }
+      setNavbarEnabled(Boolean(j.navbarEnabled))
+      if (typeof j.pollIntervalSeconds === 'number') setPollIntervalSeconds(j.pollIntervalSeconds)
+      const list = j.accounts ?? []
+      setAccounts(list)
+      if (list.length > 0) {
+        const pick = selectedId && list.some(a => a.id === selectedId) ? selectedId : list[0].id
+        setSelectedId(pick)
+        applyAccountToForm(list.find(a => a.id === pick)!)
+      } else {
+        setSelectedId(null)
+        setForm(emptyForm())
       }
       if (j.status) setStatus(j.status)
     } catch { /* ignore */ }
-  }, [])
+  }, [selectedId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const body = () => ({
+  const selectAccount = (id: string) => {
+    const a = accounts.find(x => x.id === id)
+    if (!a) return
+    setSelectedId(id)
+    applyAccountToForm(a)
+    setMsg(null)
+    setErr(null)
+  }
+
+  const accountBody = () => ({
+    id: selected?.id,
+    label: form.label,
     enabled: form.enabled,
     host: form.host,
     port: form.port,
@@ -86,21 +131,25 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
     username: form.username,
     mailbox: form.mailbox,
     openUrl: form.openUrl,
-    pollIntervalSeconds: form.pollIntervalSeconds,
     verifyTls: form.verifyTls,
     ...(form.password ? { password: form.password } : {}),
   })
 
   const save = async () => {
+    if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
     try {
       const res = await fetch('/api/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body()),
+        body: JSON.stringify({
+          pollIntervalSeconds,
+          account: accountBody(),
+        }),
       })
-      const j = await res.json() as { error?: string; status?: MailStatus }
+      const j = await res.json() as { error?: string; status?: MailStatus; accounts?: MailAccountPublic[] }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (j.accounts) setAccounts(j.accounts)
       setStatus(j.status ?? null)
       setHasPassword(hasPassword || Boolean(form.password))
       setForm(f => ({ ...f, password: '' }))
@@ -113,17 +162,82 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
     }
   }
 
+  const addAccount = async () => {
+    setBusy(true); setErr(null); setMsg(null)
+    try {
+      const res = await fetch('/api/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account: {
+            label: de ? `Konto ${accounts.length + 1}` : `Account ${accounts.length + 1}`,
+            host: '',
+            port: 993,
+            secure: true,
+            mailbox: '*',
+            enabled: true,
+          },
+        }),
+      })
+      const j = await res.json() as { error?: string; accounts?: MailAccountPublic[] }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      const list = j.accounts ?? []
+      setAccounts(list)
+      if (list.length > 0) {
+        const neu = list[list.length - 1]
+        setSelectedId(neu.id)
+        applyAccountToForm(neu)
+      }
+      setMsg(de ? 'Konto hinzugefügt' : 'Account added')
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteAccount = async () => {
+    if (!selected || accounts.length === 0) return
+    if (!window.confirm(de ? `„${selected.label}" wirklich löschen?` : `Delete "${selected.label}"?`)) return
+    setBusy(true); setErr(null)
+    try {
+      const res = await fetch('/api/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteAccountId: selected.id }),
+      })
+      const j = await res.json() as { error?: string; accounts?: MailAccountPublic[]; status?: MailStatus }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      const list = j.accounts ?? []
+      setAccounts(list)
+      setStatus(j.status ?? null)
+      if (list.length > 0) {
+        setSelectedId(list[0].id)
+        applyAccountToForm(list[0])
+      } else {
+        setSelectedId(null)
+        setForm(emptyForm())
+      }
+      dispatchMailConfigChanged()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const test = async () => {
+    if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
     try {
       const res = await fetch('/api/mail/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body()),
+        body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
       })
       const j = await res.json() as { error?: string; unread?: number }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
-      setMsg(de ? `Verbindung OK — ${j.unread ?? 0} ungelesen` : `Connection OK — ${j.unread ?? 0} unread`)
+      setMsg(de ? `„${form.label}" OK — ${j.unread ?? 0} ungelesen` : `"${form.label}" OK — ${j.unread ?? 0} unread`)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -135,9 +249,10 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
     setBusy(true); setErr(null)
     try {
       const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
-      const j = await res.json() as { unread?: number; lastError?: string; lastSyncAt?: string }
-      setStatus({ unread: j.unread ?? 0, lastError: j.lastError, lastSyncAt: j.lastSyncAt })
+      const j = await res.json() as MailStatus
+      setStatus(j)
       setMsg(de ? 'Aktualisiert' : 'Refreshed')
+      dispatchMailConfigChanged()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -145,127 +260,167 @@ export function MailSettingsPanel({ locale }: { locale: Locale }) {
     }
   }
 
+  const accountUnread = (id: string) => status?.accounts?.find(a => a.id === id)?.unread ?? 0
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
         {de
-          ? 'Liest per IMAP nur die Anzahl ungelesener Mails (INBOX). Mails bleiben im Postfach; gelesen markierst du wie gewohnt in Webmail oder am Handy.'
-          : 'Uses IMAP to read the unread count (INBOX) only. Messages stay on the server; mark read in webmail or on your phone as usual.'}
+          ? 'Mehrere IMAP-Konten möglich — die Navbar zeigt die Summe aller ungelesenen Mails.'
+          : 'Multiple IMAP accounts supported — the navbar badge shows the total unread count.'}
       </p>
-
-      {de ? (
-        <div style={{
-          padding: '12px 14px', borderRadius: '10px', fontSize: '12px', lineHeight: 1.55,
-          background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)',
-        }}>
-          <p style={{ margin: '0 0 8px', fontWeight: 600, color: 'var(--text)' }}>Synology Mail (lokal im LAN)</p>
-          <ol style={{ margin: 0, paddingLeft: '18px' }}>
-            <li>DSM → <strong>Mail Server</strong> (oder MailPlus) → Tab <strong>Protokoll</strong> → <strong>IMAP aktivieren</strong> (Port meist <strong>993</strong> mit SSL).</li>
-            <li>SelfDashboard und NAS im gleichen Netz (z. B. <code style={{ fontSize: '11px' }}>192.168.1.15</code>).</li>
-            <li>Unten eintragen: Host <code style={{ fontSize: '11px' }}>192.168.1.15</code>, Port <strong>993</strong>, SSL an, Benutzer = DSM-Mail-Konto.</li>
-            <li>Webmail-Link: <code style={{ fontSize: '11px' }}>http://192.168.1.15:5000/mail/#inbox</code></li>
-            <li>Verbindung schlägt fehl? <strong>TLS-Zertifikat prüfen</strong> einmal ausschalten (IP statt Hostname).</li>
-          </ol>
-        </div>
-      ) : (
-        <div style={{
-          padding: '12px 14px', borderRadius: '10px', fontSize: '12px', lineHeight: 1.55,
-          background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-muted)',
-        }}>
-          <p style={{ margin: 0, fontWeight: 600, color: 'var(--text)' }}>Synology Mail (local LAN)</p>
-          <p style={{ margin: '6px 0 0' }}>Enable IMAP on port 993 in Mail Server → Protocol. Use your NAS LAN IP as host and the DSM mail account. Webmail: <code style={{ fontSize: '11px' }}>http://192.168.1.15:5000/mail/#inbox</code>. Disable TLS verify if using a raw IP.</p>
-        </div>
-      )}
 
       <MailNavbarToggle
         locale={locale}
-        enabled={form.enabled}
+        enabled={navbarEnabled}
         onEnabledChange={async (v) => {
-          setForm(f => ({ ...f, enabled: v }))
+          setNavbarEnabled(v)
           await saveMailNavbarEnabled(v)
         }}
       />
 
-      {!form.enabled ? (
-        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-          {de
-            ? 'IMAP-Einstellungen bleiben gespeichert. Schalte oben ein, um Symbol und Abfrage zu aktivieren.'
-            : 'IMAP settings are kept. Turn on above to show the icon and start polling.'}
-        </p>
-      ) : null}
-
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '16px',
-        opacity: form.enabled ? 1 : 0.45,
-        pointerEvents: form.enabled ? 'auto' : 'none',
-      }}>
-      <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-        IMAP {de ? 'Server' : 'server'}
-      </label>
-      <input style={inp} value={form.host} onChange={e => setForm({ ...form, host: e.target.value })}
-        placeholder={de ? 'z. B. 192.168.1.15' : 'e.g. 192.168.1.15'} />
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <input style={{ ...inp, flex: 1 }} type="number" value={form.port}
-          onChange={e => setForm({ ...form, port: parseInt(e.target.value, 10) || 993 })} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text)', whiteSpace: 'nowrap' }}>
-          <input type="checkbox" checked={form.secure} onChange={e => setForm({ ...form, secure: e.target.checked })} />
-          SSL/TLS
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+          {de ? 'E-Mail-Konten' : 'Email accounts'}
         </label>
+        <button type="button" className="btn-ghost" style={{ fontSize: '12px', padding: '6px 10px' }} disabled={busy} onClick={() => void addAccount()}>
+          <Plus size={14} /> {de ? 'Konto' : 'Account'}
+        </button>
       </div>
 
-      <input style={inp} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
-        placeholder={de ? 'Benutzername / E-Mail' : 'Username / email'} autoComplete="username" />
-      <input style={inp} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-        placeholder={hasPassword ? (de ? 'Passwort (leer = unverändert)' : 'Password (blank = unchanged)') : (de ? 'Passwort' : 'Password')}
-        autoComplete="new-password" />
-
-      <input style={inp} value={form.mailbox} onChange={e => setForm({ ...form, mailbox: e.target.value })}
-        placeholder={de ? 'Postfach-Ordner' : 'Mailbox folder'} />
-
-      <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-        {de ? 'Webmail-Link (Klick auf Symbol)' : 'Webmail link (icon click)'}
-      </label>
-      <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
-        placeholder={de ? 'http://192.168.1.15:5000/mail/#inbox' : 'http://192.168.1.15:5000/mail/#inbox'} />
-
-      <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-        {de ? 'Abfrage-Intervall (Sekunden)' : 'Poll interval (seconds)'}
-      </label>
-      <input style={inp} type="number" min={60} max={3600} value={form.pollIntervalSeconds}
-        onChange={e => setForm({ ...form, pollIntervalSeconds: parseInt(e.target.value, 10) || 120 })} />
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
-        <input type="checkbox" checked={form.verifyTls} onChange={e => setForm({ ...form, verifyTls: e.target.checked })} />
-        {de ? 'TLS-Zertifikat prüfen' : 'Verify TLS certificate'}
-      </label>
-
-      {status && (
-        <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
-          {de ? 'Ungelesen' : 'Unread'}: <strong style={{ color: 'var(--text)' }}>{status.unread}</strong>
-          {status.lastSyncAt && (
-            <span> · {de ? 'Sync' : 'Sync'}: {new Date(status.lastSyncAt).toLocaleString(locale === 'de' ? 'de-DE' : 'en-US')}</span>
-          )}
-          {status.lastError && (
-            <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
-          )}
+      {accounts.length === 0 ? (
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+          {de ? 'Noch kein Konto — „Konto“ hinzufügen und IMAP-Daten eintragen.' : 'No account yet — add one and enter IMAP details.'}
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {accounts.map(a => {
+            const u = accountUnread(a.id)
+            const active = a.id === selected?.id
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => selectAccount(a.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
+                  padding: '10px 12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                  background: active ? 'color-mix(in srgb, var(--accent) 18%, var(--surface-2))' : 'var(--surface-2)',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  color: 'var(--text)',
+                }}
+              >
+                <span style={{ fontSize: '13px', fontWeight: active ? 600 : 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.label || a.username || a.id}
+                  {!a.enabled ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({de ? 'aus' : 'off'})</span> : null}
+                </span>
+                {u > 0 ? (
+                  <span style={{
+                    flexShrink: 0, minWidth: '20px', height: '20px', padding: '0 6px', borderRadius: '10px',
+                    background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 700, lineHeight: '20px', textAlign: 'center',
+                  }}>{u > 99 ? '99+' : u}</span>
+                ) : null}
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {msg && <div style={{ fontSize: '12px', color: '#4ade80' }}>{msg}</div>}
-      {err && <div style={{ fontSize: '12px', color: '#f87171' }}>{err}</div>}
+      {selected ? (
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: '14px',
+          opacity: navbarEnabled ? 1 : 0.45,
+          pointerEvents: navbarEnabled ? 'auto' : 'none',
+        }}>
+          <input style={inp} value={form.label} onChange={e => setForm({ ...form, label: e.target.value })}
+            placeholder={de ? 'Anzeigename' : 'Display name'} />
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-        <button type="button" className="btn-accent" disabled={busy} onClick={() => void save()}>
-          {de ? 'Speichern' : 'Save'}
-        </button>
-        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void test()}>
-          {de ? 'Verbindung testen' : 'Test connection'}
-        </button>
-        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()} title={de ? 'Jetzt abfragen' : 'Refresh now'}>
-          <RefreshCw size={14} />
-        </button>
-      </div>
-      </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
+            <input type="checkbox" checked={form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
+            {de ? 'Dieses Konto abfragen' : 'Poll this account'}
+          </label>
+
+          <input style={inp} value={form.host} onChange={e => setForm({ ...form, host: e.target.value })}
+            placeholder={de ? '192.168.1.15' : '192.168.1.15'} />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input style={{ ...inp, flex: 1 }} type="number" value={form.port}
+              onChange={e => setForm({ ...form, port: parseInt(e.target.value, 10) || 993 })} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text)', whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={form.secure} onChange={e => setForm({ ...form, secure: e.target.checked })} />
+              SSL/TLS
+            </label>
+          </div>
+
+          <input style={inp} value={form.username} onChange={e => setForm({ ...form, username: e.target.value })}
+            placeholder={de ? 'Benutzername' : 'Username'} autoComplete="username" />
+          <input style={inp} type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+            placeholder={hasPassword ? (de ? 'Passwort (leer = unverändert)' : 'Password (blank = unchanged)') : (de ? 'Passwort' : 'Password')}
+            autoComplete="new-password" />
+
+          <input style={inp} value={form.mailbox} onChange={e => setForm({ ...form, mailbox: e.target.value })}
+            placeholder={de ? '* = alle Ordner' : '* = all folders'} />
+
+          <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
+            placeholder="http://192.168.1.15:5000/mail/#inbox" />
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
+            <input type="checkbox" checked={form.verifyTls} onChange={e => setForm({ ...form, verifyTls: e.target.checked })} />
+            {de ? 'TLS-Zertifikat prüfen' : 'Verify TLS certificate'}
+          </label>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <button type="button" className="btn-accent" disabled={busy} onClick={() => void save()}>
+              {de ? 'Speichern' : 'Save'}
+            </button>
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => void test()}>
+              {de ? 'Testen' : 'Test'}
+            </button>
+            {accounts.length > 1 ? (
+              <button type="button" className="btn-ghost" disabled={busy} onClick={() => void deleteAccount()}
+                style={{ color: '#f87171', marginLeft: 'auto' }} title={de ? 'Konto löschen' : 'Delete account'}>
+                <Trash2 size={14} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+        {de ? 'Abfrage-Intervall (alle Konten)' : 'Poll interval (all accounts)'}
+      </label>
+      <input style={inp} type="number" min={60} max={3600} value={pollIntervalSeconds}
+        onChange={e => setPollIntervalSeconds(parseInt(e.target.value, 10) || 120)} />
+
+      {status ? (
+        <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
+          <div>
+            {de ? 'Gesamt ungelesen' : 'Total unread'}: <strong style={{ color: 'var(--text)' }}>{status.unread}</strong>
+            {status.lastSyncAt ? (
+              <span> · Sync: {new Date(status.lastSyncAt).toLocaleString(de ? 'de-DE' : 'en-US')}</span>
+            ) : null}
+          </div>
+          {status.accounts && status.accounts.length > 1 ? (
+            <ul style={{ margin: '8px 0 0', paddingLeft: '18px' }}>
+              {status.accounts.map(a => (
+                <li key={a.id} style={{ marginBottom: '4px' }}>
+                  {a.label}: <strong style={{ color: 'var(--text)' }}>{a.unread}</strong>
+                  {a.lastError ? <span style={{ color: '#f87171' }}> — {a.lastError}</span> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {status.lastError && (!status.accounts || status.accounts.length <= 1) ? (
+            <div style={{ color: '#f87171', marginTop: '6px' }}>{status.lastError}</div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {msg ? <div style={{ fontSize: '12px', color: '#4ade80' }}>{msg}</div> : null}
+      {err ? <div style={{ fontSize: '12px', color: '#f87171' }}>{err}</div> : null}
+
+      <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()} style={{ alignSelf: 'flex-start' }}>
+        <RefreshCw size={14} /> {de ? 'Alle Konten aktualisieren' : 'Refresh all accounts'}
+      </button>
     </div>
   )
 }
