@@ -4,5 +4,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { startScheduler } = await import('@/lib/calendar/sync')
     startScheduler()
+    const { startMailScheduler } = await import('@/lib/mail/sync')
+    startMailScheduler()
   }
 }

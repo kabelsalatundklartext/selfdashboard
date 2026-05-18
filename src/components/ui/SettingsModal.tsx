@@ -12,6 +12,8 @@ import type { ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
+import { MailSettingsPanel } from '@/components/settings/MailSettingsPanel'
+import { MailNavbarToggle } from '@/components/settings/MailNavbarToggle'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -32,7 +34,7 @@ const COLOR_FIELDS = [
 
 const EMOJIS = ['🏠', '🖥️', '🎬', '📊', '🌐', '🔒', '☁️', '🎮', '📱', '🔧', '⚡', '🌙', '📷', '🗂️', '🎵', '🏥']
 
-type TabId = 'general' | 'dashboards' | 'design' | 'logs'
+type TabId = 'general' | 'dashboards' | 'design' | 'mail' | 'logs'
 
 const RETENTION_OPTIONS: { days: LogRetentionDays; label: { de: string; en: string } }[] = [
   { days: 3, label: { de: '3 Tage', en: '3 days' } },
@@ -214,6 +216,7 @@ export function SettingsModal({ open, onClose }: Props) {
     { id: 'general', label: locale === 'de' ? 'Allgemein' : 'General' },
     { id: 'dashboards', label: 'Dashboards' },
     { id: 'design', label: 'Design' },
+    { id: 'mail', label: 'E-Mail' },
     { id: 'logs', label: locale === 'de' ? 'Protokoll' : 'Logs' },
   ]
 
@@ -222,7 +225,7 @@ export function SettingsModal({ open, onClose }: Props) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} onClick={onClose} />
         <div className="animate-fade-in" style={{
-          position: 'relative', width: '100%', maxWidth: tab === 'logs' ? '720px' : '520px', background: 'var(--surface)',
+          position: 'relative', width: '100%', maxWidth: tab === 'logs' ? '720px' : tab === 'mail' ? '560px' : '520px', background: 'var(--surface)',
           border: '1px solid var(--border)', borderRadius: '18px', display: 'flex',
           flexDirection: 'column', maxHeight: '88vh', boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
@@ -282,7 +285,18 @@ export function SettingsModal({ open, onClose }: Props) {
                   </div>
                   <Toggle value={navbarSearchEnabled} onChange={setNavbarSearchEnabled} />
                 </div>
-                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 8px' }}>
+
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '16px 0 8px' }}>
+                  {locale === 'de' ? 'Navbar E-Mail' : 'Navbar email'}
+                </label>
+                <MailNavbarToggle locale={locale} standalone />
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
+                  {locale === 'de'
+                    ? 'IMAP-Zugangsdaten im Tab „E-Mail“ einrichten. Der Schalter wirkt sofort — kein Speichern nötig.'
+                    : 'Set up IMAP in the “Email” tab. This switch applies immediately — no save button needed.'}
+                </p>
+
+                <p style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '16px 0 8px' }}>
                   {locale === 'de' ? 'Position' : 'Position'}
                 </p>
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
@@ -835,6 +849,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </div>
               </div>
             </>)}
+
+            {tab === 'mail' && <MailSettingsPanel locale={locale} />}
 
             {tab === 'logs' && (<>
               <div>

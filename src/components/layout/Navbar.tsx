@@ -7,6 +7,8 @@ import { useDashboardStore } from '@/lib/store'
 import { SettingsModal } from '@/components/ui/SettingsModal'
 import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
+import { NavbarMail } from '@/components/layout/NavbarMail'
+import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 import { t } from '@/lib/i18n'
 import { anySearchProviderEnabled } from '@/lib/searchProviders'
 
@@ -64,15 +66,15 @@ export function Navbar() {
   )
   const searchInTopRow = showNavbarSearch && !stackSearchBar
   const searchFullWidthRow = showNavbarSearch && stackSearchBar
+  const { compact: navbarCompact, phone: navbarPhone } = useNavbarCompact()
 
   return (
     <>
       <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className="sticky top-0 z-50 flex flex-col gap-2 px-4 py-3 min-w-0">
+        className={`sticky top-0 z-50 flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}>
 
         <div className="flex flex-wrap items-center gap-3 min-w-0 w-full">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
-        {/* Logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {showIcon && (
             dash.customLogo ? (
@@ -99,7 +101,6 @@ export function Navbar() {
           )}
         </div>
 
-        {/* Dashboard Tabs */}
         {showDashboardTabs && dashboards.length > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0', maxWidth: 'min(52vw, 560px)' }}>
             {dashboards.filter((d) => !d.hideTab).map((d) => (
@@ -130,10 +131,10 @@ export function Navbar() {
           {searchInTopRow && navbarSearchPosition === 'center' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
 
-        {/* Right: optional search, zoom, actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: navbarPhone ? '4px' : '8px', flexShrink: 0 }}>
           {searchInTopRow && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
+          <NavbarMail locale={locale} />
+          <div className="navbar-zoom" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
             <button
               onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
               style={{ padding: '4px 6px', borderRadius: '5px', background: 'none', border: 'none', cursor: canZoomOut ? 'pointer' : 'not-allowed', color: canZoomOut ? 'var(--text-muted)' : 'var(--border)', display: 'flex' }}>
@@ -148,13 +149,14 @@ export function Navbar() {
               <ZoomIn size={14} />
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-            <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setTheme(isLight ? 'dark' : 'light')}>
-              {isLight ? <Moon size={15} /> : <Sun size={15} />}
+          <div className="navbar-icon-group" style={{ display: 'flex', alignItems: 'center', gap: navbarPhone ? '4px' : '6px', flexShrink: 0 }}>
+            <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => setTheme(isLight ? 'dark' : 'light')}>
+              {isLight ? <Moon size={navbarPhone ? 16 : 15} /> : <Sun size={navbarPhone ? 16 : 15} />}
             </button>
-            <button className={editMode ? 'btn-accent' : 'btn-ghost'} style={editMode ? {} : { padding: '7px' }}
+            <button className={editMode ? 'btn-accent navbar-icon-btn' : 'btn-ghost navbar-icon-btn'}
+              style={editMode ? (navbarPhone ? { padding: '8px 10px' } : {}) : { padding: navbarPhone ? 10 : 7 }}
               onClick={() => setEditMode(!editMode)}>
-              {editMode ? <><Check size={14} />{locale === 'de' ? 'Fertig' : 'Done'}</> : <Pencil size={15} />}
+              {editMode ? <><Check size={14} />{!navbarPhone && (locale === 'de' ? 'Fertig' : 'Done')}</> : <Pencil size={navbarPhone ? 16 : 15} />}
             </button>
             {editMode && (
               <button className="btn-accent" style={{ padding: '7px 10px' }}
@@ -162,8 +164,8 @@ export function Navbar() {
                 <Plus size={17} />
               </button>
             )}
-            <button className="btn-ghost" style={{ padding: '7px' }} onClick={() => setSettingsOpen(true)}>
-              <Settings size={15} />
+            <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => setSettingsOpen(true)}>
+              <Settings size={navbarPhone ? 16 : 15} />
             </button>
           </div>
         </div>
