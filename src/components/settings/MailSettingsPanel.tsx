@@ -107,10 +107,10 @@ export function MailSettingsPanel({
 
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Frische IMAP-Abfrage — Zähler wird komplett ersetzt (kein Merken alter Werte) */
-  const refreshStatusOnly = useCallback(async () => {
+  /** Liest den vom Server-Scheduler aktualisierten Cache (kein zusätzliches IMAP pro Tick) */
+  const refreshStatusFromCache = useCallback(async () => {
     try {
-      const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
+      const res = await fetch('/api/mail/status', { cache: 'no-store' })
       if (!res.ok) return
       const j = await res.json() as MailStatus & { pollIntervalSeconds?: number }
       setStatus({
