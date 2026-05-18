@@ -943,12 +943,12 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
                           display: 'flex', alignItems: 'center', gap: '8px',
                           padding: '5px 8px 5px 18px', borderRadius: '4px',
                           fontSize: '13px', color: 'var(--text)', width: 'calc(100% - 18px)',
-                          opacity: hidden.has(c.id) ? 0.4 : 1,
+                          opacity: !isCalendarVisible(c) ? 0.4 : 1,
                         }}
                       >
                         <span style={{
                           width: '12px', height: '12px', borderRadius: '3px',
-                          background: hidden.has(c.id) ? 'transparent' : c.color,
+                          background: !isCalendarVisible(c) ? 'transparent' : c.color,
                           border: '1px solid rgba(255,255,255,0.15)', flexShrink: 0,
                         }} />
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
