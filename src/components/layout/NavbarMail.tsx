@@ -62,8 +62,12 @@ export function NavbarMail({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     void load()
-    const onConfig = () => {
+    const onConfig = (e: Event) => {
       prevUnread.current = null
+      const url = (e as CustomEvent<{ openUrl?: string | null }>).detail?.openUrl
+      if (url) {
+        setData(prev => (prev ? { ...prev, openUrl: url } : prev))
+      }
       void load()
     }
     window.addEventListener(MAIL_CONFIG_CHANGED, onConfig)
@@ -103,15 +107,10 @@ export function NavbarMail({ locale }: { locale: Locale }) {
           : 'Mail: no new messages'
 
   const open = () => {
-    if (data.openUrl) {
-      window.open(data.openUrl, '_blank', 'noopener,noreferrer')
-      return
+    const url = data.openUrl?.trim()
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer')
     }
-    window.alert(
-      locale === 'de'
-        ? 'Keine Webmail-URL gespeichert. Einstellungen → E-Mail → Webmail-URL eintragen und „Speichern“.'
-        : 'No webmail URL saved. Settings → Email → enter webmail URL and Save.',
-    )
   }
 
   const alert = hasNew || pulsing

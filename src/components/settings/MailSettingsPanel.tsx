@@ -161,7 +161,7 @@ export function MailSettingsPanel({
       setHasPassword(hasPassword || Boolean(form.password))
       setForm(f => ({ ...f, password: '' }))
       setMsg(de ? 'Gespeichert' : 'Saved')
-      dispatchMailConfigChanged()
+      dispatchMailConfigChanged({ openUrl: form.openUrl.trim() || null })
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
       setErr(m)
@@ -227,7 +227,7 @@ export function MailSettingsPanel({
         setSelectedId(null)
         setForm(emptyForm())
       }
-      dispatchMailConfigChanged()
+      dispatchMailConfigChanged({ openUrl: form.openUrl.trim() || null })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -251,6 +251,7 @@ export function MailSettingsPanel({
         mode?: string
         status?: MailStatus
         navbarUpdated?: boolean
+        openUrl?: string | null
       }
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       const unread = j.unread ?? 0
@@ -274,7 +275,9 @@ export function MailSettingsPanel({
         : j.navbarUpdated
           ? (de ? ' Navbar wurde aktualisiert.' : ' Navbar updated.')
           : (de ? ' „Speichern“ für dauerhafte Navbar-Daten.' : ' Use “Save” for persistent navbar data.')
-      if (navbarEnabled && j.navbarUpdated) dispatchMailConfigChanged()
+      if (navbarEnabled && j.navbarUpdated) {
+        dispatchMailConfigChanged({ openUrl: (j.openUrl ?? form.openUrl.trim()) || null })
+      }
       setMsg(
         de
           ? `„${form.label}" OK — ${unread} ungelesen${hint}${withMail.length ? ` · ${withMail.map(f => `${f.path.split('/').pop()}: ${f.unread}`).join(', ')}` : ''}.${navbarHint}`
@@ -293,10 +296,10 @@ export function MailSettingsPanel({
     setBusy(true); setErr(null)
     try {
       const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
-      const j = await res.json() as MailStatus
+      const j = await res.json() as MailStatus & { openUrl?: string | null }
       setStatus(j)
       setMsg(de ? 'Aktualisiert' : 'Refreshed')
-      dispatchMailConfigChanged()
+      dispatchMailConfigChanged({ openUrl: (j.openUrl ?? form.openUrl.trim()) || null })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -409,6 +412,9 @@ export function MailSettingsPanel({
               : '“*” = all IMAP folders with unread mail, trash excluded only. MailPlus sidebar only: @accounts'}
           </p>
 
+          <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+            {de ? 'Webmail-URL (Klick in Navbar)' : 'Webmail URL (navbar click)'}
+          </label>
           <input style={inp} value={form.openUrl} onChange={e => setForm({ ...form, openUrl: e.target.value })}
             placeholder="http://192.168.1.15:5000/mail/#inbox" />
 

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { dataDir } from '@/lib/dataDir'
 import { encrypt } from '@/lib/secretCrypto'
-import { normalizeMailConnection } from './normalize'
+import { normalizeMailConnection, resolveWebmailUrl } from './normalize'
 import {
   DEFAULT_ACCOUNT_FIELDS,
   EMPTY_MAIL_STATUS,
@@ -216,16 +216,18 @@ export function findAccount(store: MailStoreFile, id: string): MailAccount | und
   return store.accounts.find(a => a.id === id)
 }
 
-/** Webmail-Link: Konto mit Ungelesen, sonst erstes aktives mit URL */
+/** Webmail-Link: Konto mit Ungelesen, sonst erstes Konto mit URL/Host-Fallback */
 export function pickOpenUrl(store: MailStoreFile): string | null {
-  const active = store.accounts.filter(a => a.enabled && a.openUrl)
+  const withLink = store.accounts.filter(a => resolveWebmailUrl(a))
   for (const st of store.status.accounts) {
     if (st.unread > 0) {
-      const acc = active.find(a => a.id === st.id)
-      if (acc?.openUrl) return acc.openUrl
+      const acc = withLink.find(a => a.id === st.id)
+      const url = acc ? resolveWebmailUrl(acc) : null
+      if (url) return url
     }
   }
-  return active[0]?.openUrl ?? null
+  const preferred = withLink.find(a => a.enabled) ?? withLink[0]
+  return preferred ? resolveWebmailUrl(preferred) : null
 }
 
 export async function updateMailStatus(status: Partial<MailAggregateStatus>) {

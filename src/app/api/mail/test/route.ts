@@ -37,13 +37,24 @@ export async function POST(req: Request) {
     }
     let status: Awaited<ReturnType<typeof readMailStore>>['status'] | undefined
     let openUrl: string | null = null
-    if (typeof body.accountId === 'string' && findAccount(store, body.accountId)) {
-      const id = body.accountId
+    const accountKey =
+      (typeof body.accountId === 'string' && body.accountId) ||
+      (typeof body.id === 'string' && body.id) ||
+      undefined
+    if (accountKey && findAccount(store, accountKey)) {
+      const id = accountKey
       const updated = await mutateMailStore(s => {
-        const acc = findAccount(s, id)
-        if (!acc) return
-        if (typeof body.openUrl === 'string') acc.openUrl = body.openUrl.trim()
-        const label = merged.label || acc.label
+        const idx = s.accounts.findIndex(a => a.id === id)
+        if (idx < 0) return
+        s.accounts[idx] = applyAccountUpdate(s.accounts[idx], {
+          openUrl: merged.openUrl,
+          enabled: merged.enabled,
+          label: merged.label,
+          host: merged.host,
+          port: merged.port,
+          mailbox: merged.mailbox,
+        })
+        const label = merged.label || s.accounts[idx].label
         const others = s.status.accounts.filter(a => a.id !== id)
         const nextAccounts = [...others, { id, label, unread: result.unread }]
         s.status.accounts = nextAccounts

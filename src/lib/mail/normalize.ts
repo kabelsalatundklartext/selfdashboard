@@ -37,3 +37,16 @@ export function isMailplusAccountsOnly(mailbox: string | undefined): boolean {
   const m = (mailbox ?? '').trim().toLowerCase()
   return m === '@accounts' || m === 'accounts' || m === 'mailplus' || m === 'konten'
 }
+
+/** Gespeicherte Webmail-URL oder Synology-Standard (Port 5000) aus IMAP-Host. */
+export function resolveWebmailUrl(
+  account: { openUrl?: string; host?: string; port?: number },
+): string | null {
+  const direct = account.openUrl?.trim()
+  if (direct) return direct
+  const hostRaw = account.host?.trim()
+  if (!hostRaw) return null
+  const { host } = normalizeMailConnection(hostRaw, account.port ?? 993)
+  if (!host) return null
+  return `http://${host}:5000/mail/#inbox`
+}
