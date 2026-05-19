@@ -85,6 +85,12 @@ function accountFoldersUnderInbox(paths: string[], inboxRoot: string): string[] 
   })
 }
 
+/** MailPlus: Unterordner per Punkt (INBOX.Konto.alias) oder Schrägstrich. */
+function isDescendantMailboxPath(parent: string, child: string): boolean {
+  if (parent === child) return false
+  return child.startsWith(`${parent}.`) || child.startsWith(`${parent}/`)
+}
+
 function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[]; mode: MailUnreadResult['mode'] } {
   if (isMailplusAccountsOnly(mailbox)) {
     const synology = synologyDotAccounts(boxes)
@@ -107,8 +113,19 @@ function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[
   return { paths: all, mode: 'all-except-trash' }
 }
 
-/** Zählt echte ungelesene Nachrichten (SEARCH) — STATUS allein ist auf Synology oft veraltet. */
-async function countUnreadInMailbox(client: ImapFlow, path: string): Promise<number> {
+/** \Noselect — kein SELECT möglich; MailPlus-Konto-Container oft nur per STATUS. */
+async function countUnreadViaStatus(client: ImapFlow, path: string): Promise<number> {
+  try {
+    const status = await client.status(path, { unseen: true })
+    if (typeof status.unseen === 'number') return status.unseen
+  } catch {
+    /* ignore */
+  }
+  return 0
+}
+
+/** Zählt ungelesene per SEARCH; bei Fehler STATUS als Fallback. */
+async function countUnreadViaSearch(client: ImapFlow, path: string): Promise<number> {
   try {
     const lock = await client.getMailboxLock(path)
     try {
@@ -118,29 +135,42 @@ async function countUnreadInMailbox(client: ImapFlow, path: string): Promise<num
       lock.release()
     }
   } catch {
-    try {
-      const status = await client.status(path, { unseen: true })
-      if (typeof status.unseen === 'number') return status.unseen
-    } catch {
-      /* ignore */
-    }
-    return 0
+    return countUnreadViaStatus(client, path)
   }
 }
 
 async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<MailUnreadResult> {
-  const boxes: ListedBox[] = (await client.list())
-    .filter(b => !b.flags?.has('\\Noselect'))
-    .map(b => ({ path: b.path, flags: b.flags }))
+  const boxes: ListedBox[] = (await client.list()).map(b => ({ path: b.path, flags: b.flags }))
 
   const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
+  const boxByPath = new Map(boxes.map(b => [b.path, b]))
 
+  const noselectRoots = toScan
+    .filter(p => boxByPath.get(p)?.flags?.has('\\Noselect'))
+    .filter(p => !toScan.some(other => other !== p && isDescendantMailboxPath(other, p)))
+
+  const coveredByNoselect = new Set<string>()
   const folders: MailFolderUnread[] = []
   let total = 0
 
+  for (const path of noselectRoots) {
+    const hasOpenableChild = toScan.some(
+      p => p !== path && isDescendantMailboxPath(path, p) && !boxByPath.get(p)?.flags?.has('\\Noselect'),
+    )
+    if (hasOpenableChild) continue
+
+    const unread = await countUnreadViaStatus(client, path)
+    folders.push({ path, unread })
+    total += unread
+    if (unread > 0) coveredByNoselect.add(path)
+  }
+
   for (const path of toScan) {
+    if (boxByPath.get(path)?.flags?.has('\\Noselect')) continue
+    if ([...coveredByNoselect].some(parent => isDescendantMailboxPath(parent, path))) continue
+
     try {
-      const unread = await countUnreadInMailbox(client, path)
+      const unread = await countUnreadViaSearch(client, path)
       folders.push({ path, unread })
       total += unread
     } catch {
@@ -159,7 +189,11 @@ export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<Mail
       return await sumUnreadAllFolders(client, config.mailbox)
     }
     const mailbox = config.mailbox.trim() || 'INBOX'
-    const unread = await countUnreadInMailbox(client, mailbox)
+    const listed = await client.list()
+    const box = listed.find(b => b.path === mailbox)
+    const unread = box?.flags?.has('\\Noselect')
+      ? await countUnreadViaStatus(client, mailbox)
+      : await countUnreadViaSearch(client, mailbox)
     return { total: unread, folders: [{ path: mailbox, unread }], mode: 'single' }
   } finally {
     try {
