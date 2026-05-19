@@ -3,15 +3,13 @@ import { NextResponse } from 'next/server'
 import { formatMailError } from '@/lib/mail/errors'
 import { logMailEvent } from '@/lib/mail/log'
 import { runMailSync } from '@/lib/mail/sync'
-import { pickOpenUrl, readMailStore, resetMailStatusCache, toPublicConfigLegacy } from '@/lib/mail/store'
+import { pickOpenUrl, readMailStore, toPublicConfigLegacy } from '@/lib/mail/store'
 
 export const dynamic = 'force-dynamic'
 
-/** Leert den gespeicherten Mail-Status (Zähler) und startet sofort einen IMAP-Sync. */
 export async function POST() {
   try {
-    await resetMailStatusCache()
-    await runMailSync({ wait: true })
+    await runMailSync({ wait: true, resetStatus: true })
     const store = await readMailStore()
     return NextResponse.json({
       ok: true,

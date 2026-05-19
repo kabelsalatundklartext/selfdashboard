@@ -4,12 +4,8 @@ import { formatMailError } from '@/lib/mail/errors'
 import { markAllUnreadAsRead } from '@/lib/mail/imap'
 import { logMailEvent } from '@/lib/mail/log'
 import { runMailSync } from '@/lib/mail/sync'
-import {
-  applyAccountUpdate,
-  findAccount,
-  readMailStore,
-} from '@/lib/mail/store'
-import { accountToImapConfig, DEFAULT_ACCOUNT_FIELDS, newAccountId } from '@/lib/mail/types'
+import { readMailStore, resolveAccountFromRequest } from '@/lib/mail/store'
+import { accountToImapConfig } from '@/lib/mail/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,16 +19,7 @@ export async function POST(req: Request) {
 
   try {
     const store = await readMailStore()
-    const account =
-      (typeof body.accountId === 'string' ? findAccount(store, body.accountId) : undefined) ??
-      store.accounts[0] ??
-      {
-        id: newAccountId(),
-        label: 'Mark read',
-        ...DEFAULT_ACCOUNT_FIELDS,
-      }
-
-    const merged = applyAccountUpdate({ ...account }, body)
+    const merged = resolveAccountFromRequest(store, body, 'Mark read')
     if (!merged.passwordEncrypted?.trim()) {
       return NextResponse.json(
         { ok: false, error: 'Passwort fehlt — bitte speichern oder Testen mit Passwort.' },
@@ -42,7 +29,6 @@ export async function POST(req: Request) {
 
     const result = await markAllUnreadAsRead(accountToImapConfig(merged, store.unreadMaxAgeDays))
     await runMailSync({ wait: true })
-    const fresh = await readMailStore()
 
     void logMailEvent('mark-all-read', `${result.marked} Nachricht(en) als gelesen markiert`, {
       detail: {
@@ -53,11 +39,8 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({
-      ok: true,
-      ...result,
-      status: fresh.status,
-    })
+    const fresh = await readMailStore()
+    return NextResponse.json({ ok: true, ...result, status: fresh.status })
   } catch (e: unknown) {
     const msg = formatMailError(e instanceof Error ? e.message : String(e))
     void logMailEvent('mark-all-read', msg)

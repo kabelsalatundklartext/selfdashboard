@@ -231,6 +231,22 @@ export function findAccount(store: MailStoreFile, id: string): MailAccount | und
   return store.accounts.find(a => a.id === id)
 }
 
+/** Konto aus Request-Body oder erstem gespeicherten Konto (für Test/Preview/Mark-read APIs). */
+export function resolveAccountFromRequest(
+  store: MailStoreFile,
+  body: Record<string, unknown>,
+  fallbackLabel: string,
+): MailAccount {
+  const base =
+    (typeof body.accountId === 'string' ? findAccount(store, body.accountId) : undefined) ??
+    store.accounts[0] ?? {
+      id: newAccountId(),
+      label: fallbackLabel,
+      ...DEFAULT_ACCOUNT_FIELDS,
+    }
+  return applyAccountUpdate({ ...base }, body)
+}
+
 /** Webmail-Link: Konto mit Ungelesen, sonst erstes Konto mit URL/Host-Fallback */
 export function pickOpenUrl(store: MailStoreFile): string | null {
   const withLink = store.accounts.filter(a => resolveWebmailUrl(a))

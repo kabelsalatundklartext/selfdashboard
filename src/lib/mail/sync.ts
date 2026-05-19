@@ -11,13 +11,13 @@ import {
   type MailAccountStatus,
 } from './types'
 import { fetchUnreadBreakdown } from './imap'
-import { describeMailSyncBlocker, mutateMailStore, readMailStore } from './store'
+import { describeMailSyncBlocker, mutateMailStore, readMailStore, resetMailStatusCache } from './store'
 
 let schedulerStarted = false
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null
 let syncInFlight = false
 
-export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
+export async function runMailSync(opts?: { wait?: boolean; resetStatus?: boolean }): Promise<void> {
   if (syncInFlight) {
     if (!opts?.wait) return
     for (let i = 0; i < 120 && syncInFlight; i++) {
@@ -27,6 +27,7 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
   }
   syncInFlight = true
   try {
+    if (opts?.resetStatus) await resetMailStatusCache()
     const store = await readMailStore()
     if (!store.navbarEnabled) {
       await mutateMailStore(s => {
