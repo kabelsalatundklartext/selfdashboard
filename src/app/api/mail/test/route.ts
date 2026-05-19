@@ -4,15 +4,14 @@ import { accountToImapConfig } from '@/lib/mail/types'
 import { testImapConnection } from '@/lib/mail/imap'
 import { formatMailError } from '@/lib/mail/errors'
 import {
-  applyAccountUpdate,
   findAccount,
   mutateMailStore,
   persistAccountFromImapTest,
   pickOpenUrl,
   readMailStore,
+  resolveAccountFromRequest,
 } from '@/lib/mail/store'
 import { logMailEvent } from '@/lib/mail/log'
-import { DEFAULT_ACCOUNT_FIELDS, newAccountId } from '@/lib/mail/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,16 +25,7 @@ export async function POST(req: Request) {
 
   try {
     const store = await readMailStore()
-    let account =
-      (typeof body.accountId === 'string' ? findAccount(store, body.accountId) : undefined) ??
-      store.accounts[0] ??
-      {
-        id: newAccountId(),
-        label: 'Test',
-        ...DEFAULT_ACCOUNT_FIELDS,
-      }
-
-    const merged = applyAccountUpdate({ ...account }, body)
+    const merged = resolveAccountFromRequest(store, body, 'Test')
     const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays))
     if (!result.ok) {
       void logMailEvent('test', result.error, {
@@ -43,6 +33,7 @@ export async function POST(req: Request) {
       })
       return NextResponse.json({ ok: false, error: formatMailError(result.error) }, { status: 400 })
     }
+
     let status: Awaited<ReturnType<typeof readMailStore>>['status'] | undefined
     let openUrl: string | null = null
     const accountKey =
@@ -50,9 +41,8 @@ export async function POST(req: Request) {
       (typeof body.id === 'string' && body.id) ||
       undefined
     if (accountKey && findAccount(store, accountKey)) {
-      const id = accountKey
       await mutateMailStore(s => {
-        persistAccountFromImapTest(s, { ...merged, id }, result.unread)
+        persistAccountFromImapTest(s, { ...merged, id: accountKey }, result.unread)
       })
       const fresh = await readMailStore()
       status = fresh.status

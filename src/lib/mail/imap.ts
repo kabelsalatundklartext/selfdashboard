@@ -203,7 +203,7 @@ function isRealUnreadMessage(flags: Set<string> | undefined): boolean {
   return true
 }
 
-type VerifiedUnreadEntry = { uid: number; messageId?: string; date?: Date }
+type VerifiedUnreadEntry = { uid: number }
 
 type VerifiedUnreadScan = {
   entries: VerifiedUnreadEntry[]
@@ -267,7 +267,7 @@ async function fetchVerifiedUnreadEntries(
         }
         seenMessageIds.add(mid)
       }
-      entries.push({ uid: msg.uid, messageId: mid, date: when })
+      entries.push({ uid: msg.uid })
     }
     return { entries, skippedStale, skippedDuplicate }
   } finally {

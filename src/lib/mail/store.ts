@@ -316,12 +316,6 @@ export function describeMailSyncBlocker(store: MailStoreFile): string {
   return 'Synchronisation nicht möglich.'
 }
 
-export async function updateMailStatus(status: Partial<MailAggregateStatus>) {
-  return mutateMailStore(s => {
-    s.status = { ...s.status, ...status }
-  })
-}
-
 /** Nur Zähler/Status in mail.json leeren — Konten und Passwörter bleiben. */
 export async function resetMailStatusCache(): Promise<MailStoreFile> {
   return mutateMailStore(s => {

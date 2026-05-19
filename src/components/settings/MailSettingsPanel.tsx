@@ -14,7 +14,6 @@ import {
   MAIL_UNREAD_MAX_AGE_DEFAULT,
   MAIL_UNREAD_MAX_AGE_MAX_DAYS,
   MAIL_UNREAD_MAX_AGE_MAX_YEARS,
-  MAIL_UNREAD_MAX_AGE_MIN,
   formatUnreadMaxAgeSummary,
   unreadMaxAgeDaysToInput,
   unreadMaxAgeInputToDays,
