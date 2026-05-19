@@ -15,9 +15,40 @@
 
 ---
 
+<a id="overview"></a>
+
+## SelfDashboard im Überblick
+
+<p align="center">
+  <a href="docs/screenshot-dashboard.png">
+    <img src="docs/screenshot-dashboard.png" alt="SelfDashboard — Beispiel-Dashboard mit Kalender, Wetter, Dienst-Links, CrowdSec, Unraid-Monitoring und E-Mail-Badge in der Navbar" width="920"/>
+  </a>
+</p>
+
+<p align="center"><sub>Ein reales Homelab-Layout — alle Widgets sind Plugins, frei anordbar und konfigurierbar.</sub></p>
+
+**SelfDashboard** ist dein persönliches Kontrollzentrum für Homelab und Self-Hosting: **ein Docker-Container**, **ein Browser-Tab** — statt zwölf geöffneter Admin-Oberflächen.
+
+| Im Screenshot sichtbar | Was es dir bringt |
+|---|---|
+| 📅 **Kalender** | Termine (CalDAV/ICS), Monatsansicht direkt auf dem Dashboard |
+| 🕐 **Uhr & Wetter** | Lokale Zeit und Wetter ohne extra Tab |
+| 🔖 **Lesezeichen-Grid** | Schnellzugriff auf Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
+| 🛡️ **CrowdSec** | Alerts und aktive Bans auf einen Blick |
+| 🌐 **Netzwerk / AdGuard** | Schutz-Status und Live-Traffic |
+| 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
+| 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
+| ✉️ **Navbar E-Mail** | Ungelesene Mails als Badge — Klick öffnet Webmail |
+
+Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — und jedes Widget kommt aus dem **Plugin-System** (mitgeliefert oder selbst gebaut).
+
+---
+
 # 🇬🇧 English
 
 ## What is SelfDashboard?
+
+> **See the screenshot above** — one page for calendar, weather, bookmarks, security (CrowdSec), network stats, Unraid monitoring, media status, and an IMAP mail badge in the navbar. Everything is a plugin; layout and themes are fully customizable.
 
 SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. Plugins can be developed by anyone and installed later.
 
@@ -395,6 +426,8 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 # 🇩🇪 Deutsch
 
 ## Was ist SelfDashboard?
+
+> **Screenshot und Überblick:** siehe [SelfDashboard im Überblick](#overview) oben in dieser Datei.
 
 SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. Plugins können von jedem entwickelt und nachträglich installiert werden.
 
