@@ -5,3 +5,4 @@ node_modules
 .env*
 scripts/*
 !scripts/harden-standalone-deps.mjs
+!scripts/audit-picomatch.mjs

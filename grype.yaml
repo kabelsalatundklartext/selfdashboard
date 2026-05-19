@@ -1,0 +1,10 @@
+# Grype/Trivy: Syft meldet an next/dist/compiled/picomatch oft „4.0.3“ per Fingerabdruck,
+# obwohl der Docker-Build auf 4.0.4 ersetzt (scripts/harden-standalone-deps.mjs + audit-picomatch.mjs).
+# Nur nutzen, wenn der Image-Build „audit-picomatch: OK“ loggt und der Befund nur dieser GHSA ist.
+ignore:
+  - vulnerability: GHSA-c2c7-rcm5-vvqj
+    package:
+      name: picomatch
+      version: 4.0.3
+    fix-available: true
+    reason: "Next-Bundle im Image durch Build auf picomatch 4.0.4 ersetzt; Scanner-False-Positive am Pfad next/dist/compiled/picomatch"

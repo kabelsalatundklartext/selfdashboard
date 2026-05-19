@@ -1,23 +1,16 @@
 /**
- * Ersetzt verwundbare Versionen in Standalone, node_modules und Next-compiled-Bundles.
+ * Ersetzt verwundbare Pakete — inkl. Next dist/compiled und allen picomatch-Ordnern unter SCAN_ROOT.
  */
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+const VULN_PICOMATCH_SHA1 = '6e92069f5eef59717a569d8d5c6ca5faa31f0c59'
 const root = process.cwd()
-
-/** Next-Bundle-SHA1 von picomatch 4.0.3 (siehe vercel/next.js#92950) */
-const NEXT_PICOMATCH_403_SHA1 = '6e92069f5eef59717a569d8d5c6ca5faa31f0c59'
+const scanRoot = path.resolve(process.env.SCAN_ROOT || root)
 
 const sourceNm = path.join(root, 'node_modules')
 
-const standaloneNm = path.join(root, '.next/standalone/node_modules')
-const appNm = path.join(root, 'node_modules')
-
-const TARGET_ROOTS = [...new Set([standaloneNm, appNm].filter((p) => fs.existsSync(p)))]
-
-/** Mindestversion laut Grype / GHSA */
 const PATCH = {
   picomatch: '4.0.4',
   'ip-address': '10.1.1',
@@ -47,6 +40,12 @@ function sha1File(file) {
   return crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex')
 }
 
+function isVulnPicomatchBundle(dir) {
+  const idx = path.join(dir, 'index.js')
+  if (!fs.existsSync(idx)) return false
+  return sha1File(idx) === VULN_PICOMATCH_SHA1
+}
+
 function* walkPackageDirs(nmRoot) {
   if (!fs.existsSync(nmRoot)) return
   for (const entry of fs.readdirSync(nmRoot, { withFileTypes: true })) {
@@ -61,6 +60,23 @@ function* walkPackageDirs(nmRoot) {
     }
     const nested = path.join(dir, 'node_modules')
     if (fs.existsSync(nested)) yield* walkPackageDirs(nested)
+  }
+}
+
+function* findDirsNamed(dir, name, skip = new Set()) {
+  if (!fs.existsSync(dir) || skip.has(dir)) return
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (entry.name === '.git') continue
+    const full = path.join(dir, entry.name)
+    if (!entry.isDirectory()) continue
+    if (entry.name === name) yield full
+    yield* findDirsNamed(full, name, skip)
   }
 }
 
@@ -106,86 +122,70 @@ function writePackageVersion(targetDir, name, version) {
   fs.writeFileSync(pjPath, `${JSON.stringify(pj, null, 2)}\n`)
 }
 
-function assertPicomatchNotVulnerableBundle(dir) {
-  const idx = path.join(dir, 'index.js')
-  if (!fs.existsSync(idx)) return
-  const sha = sha1File(idx)
-  if (sha === NEXT_PICOMATCH_403_SHA1) {
-    throw new Error(
-      `picomatch still Next-4.0.3 bundle at ${dir} (sha1=${sha}) — Grype will keep flagging GHSA-c2c7-rcm5-vvqj`,
-    )
+function assertPicomatchSafe(dir) {
+  if (isVulnPicomatchBundle(dir)) {
+    throw new Error(`picomatch still 4.0.3 bundle at ${dir}`)
   }
 }
 
-/** Next shippt ein webpack-Bundle ohne Version — Grype erkennt 4.0.3 per Datei-Hash */
-function patchNextCompiled(nmRoot) {
-  const compiled = path.join(nmRoot, 'next/dist/compiled')
-  if (!fs.existsSync(compiled)) return 0
-
-  let n = 0
-  for (const name of Object.keys(PATCH)) {
-    const target = path.join(compiled, name)
-    if (!fs.existsSync(target)) continue
-
-    const src = findBestSource(name, PATCH[name])
-    if (!src) {
-      console.warn(`harden-standalone-deps: no source for next/dist/compiled/${name}`)
-      continue
-    }
-
-    const srcVer = readVersion(src)
-    replaceDir(target, src)
-    writePackageVersion(target, name, srcVer)
-    if (name === 'picomatch') assertPicomatchNotVulnerableBundle(target)
-    console.log(`harden-standalone-deps: next/dist/compiled/${name} -> ${srcVer}`)
-    n++
-  }
-  return n
+function patchPicomatchDir(targetDir, srcDir, srcVer) {
+  if (path.resolve(targetDir) === path.resolve(srcDir)) return false
+  replaceDir(targetDir, srcDir)
+  writePackageVersion(targetDir, 'picomatch', srcVer)
+  assertPicomatchSafe(targetDir)
+  return true
 }
 
-if (TARGET_ROOTS.length === 0) {
-  console.log('harden-standalone-deps: nothing to scan — skip')
-  process.exit(0)
+const picomatchSrc = findBestSource('picomatch', PATCH.picomatch)
+if (!picomatchSrc) {
+  console.error('harden-standalone-deps: picomatch 4.0.4 source missing — run npm install')
+  process.exit(1)
 }
+const picomatchVer = readVersion(picomatchSrc)
 
 let patched = 0
+const skip = new Set([path.resolve(picomatchSrc)])
 
-for (const targetRoot of TARGET_ROOTS) {
-  patched += patchNextCompiled(targetRoot)
+for (const dir of findDirsNamed(scanRoot, 'picomatch', skip)) {
+  if (path.resolve(dir) === path.resolve(picomatchSrc)) continue
+  const idx = path.join(dir, 'index.js')
+  if (!fs.existsSync(idx)) continue
+  const cur = readVersion(dir)
+  const mustPatch =
+    isVulnPicomatchBundle(dir) ||
+    !cur ||
+    cmpVersion(cur, PATCH.picomatch) < 0 ||
+    dir.includes(`${path.sep}next${path.sep}dist${path.sep}compiled${path.sep}`)
 
-  for (const { name, dir } of walkPackageDirs(targetRoot)) {
-    const minVer = PATCH[name]
-    if (!minVer) continue
+  if (!mustPatch) {
+    assertPicomatchSafe(dir)
+    continue
+  }
 
-    const isNextCompiled = dir.includes(`${path.sep}next${path.sep}dist${path.sep}compiled${path.sep}`)
-    const cur = readVersion(dir)
-    const needsPatch =
-      isNextCompiled && name === 'picomatch'
-        ? true
-        : !cur || cmpVersion(cur, minVer) < 0
-
-    if (!needsPatch) {
-      if (name === 'picomatch') assertPicomatchNotVulnerableBundle(dir)
-      continue
-    }
-
-    const src = findBestSource(name, minVer)
-    if (!src) {
-      console.warn(
-        `harden-standalone-deps: skip ${name} @ ${dir} — no source >= ${minVer}`,
-      )
-      continue
-    }
-    if (path.resolve(dir) === path.resolve(src)) continue
-
-    const srcVer = readVersion(src)
-    replaceDir(dir, src)
-    if (name === 'picomatch') assertPicomatchNotVulnerableBundle(dir)
-    console.log(
-      `harden-standalone-deps: ${name} ${cur ?? 'next-bundle'} -> ${srcVer} (${dir})`,
-    )
+  if (patchPicomatchDir(dir, picomatchSrc, picomatchVer)) {
+    console.log(`harden-standalone-deps: picomatch -> ${picomatchVer} (${dir})`)
     patched++
   }
 }
 
-console.log(`harden-standalone-deps: ${patched} location(s) updated`)
+const nmTargets = [
+  path.join(root, 'node_modules'),
+  path.join(root, '.next/standalone/node_modules'),
+].filter((p) => fs.existsSync(p))
+
+for (const nmRoot of nmTargets) {
+  for (const { name, dir } of walkPackageDirs(nmRoot)) {
+    if (name === 'picomatch') continue
+    const minVer = PATCH[name]
+    if (!minVer) continue
+    const cur = readVersion(dir)
+    if (cur && cmpVersion(cur, minVer) >= 0) continue
+    const src = findBestSource(name, minVer)
+    if (!src || path.resolve(dir) === path.resolve(src)) continue
+    replaceDir(dir, src)
+    console.log(`harden-standalone-deps: ${name} ${cur ?? '?'} -> ${readVersion(dir)} (${dir})`)
+    patched++
+  }
+}
+
+console.log(`harden-standalone-deps: ${patched} location(s) updated (scanRoot=${scanRoot})`)
