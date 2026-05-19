@@ -85,14 +85,6 @@ function accountFoldersUnderInbox(paths: string[], inboxRoot: string): string[] 
   })
 }
 
-/** Übergeordnete MailPlus-Ordner weglassen, wenn Unterordner existieren (vermeidet veralteten STATUS-Zähler). */
-function preferLeafMailboxPaths(paths: string[]): string[] {
-  const leaves = paths.filter(
-    p => !paths.some(other => other !== p && (other.startsWith(`${p}/`) || other.startsWith(`${p}.`))),
-  )
-  return leaves.length > 0 ? leaves : paths
-}
-
 function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[]; mode: MailUnreadResult['mode'] } {
   if (isMailplusAccountsOnly(mailbox)) {
     const synology = synologyDotAccounts(boxes)
@@ -141,11 +133,7 @@ async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<M
     .filter(b => !b.flags?.has('\\Noselect'))
     .map(b => ({ path: b.path, flags: b.flags }))
 
-  const { paths: resolved, mode } = resolveScanPaths(boxes, mailbox)
-  const toScan =
-    mode === 'all-except-trash' || mode === 'synology-accounts' || mode === 'accounts'
-      ? preferLeafMailboxPaths(resolved)
-      : resolved
+  const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
 
   const folders: MailFolderUnread[] = []
   let total = 0
