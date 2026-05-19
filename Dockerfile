@@ -51,6 +51,10 @@ COPY --from=builder /app/scripts/audit-picomatch.mjs /tmp/audit-picomatch.mjs
 ENV SCAN_ROOT=/app
 RUN node /tmp/harden-standalone-deps.mjs && \
     node /tmp/audit-picomatch.mjs /app && \
+    COMPILED=./node_modules/next/dist/compiled/picomatch && \
+    if [ -d ./node_modules/picomatch ]; then \
+      rm -rf "$COMPILED" && ln -sfn ../../../picomatch "$COMPILED"; \
+    fi && \
     rm -f /tmp/harden-standalone-deps.mjs /tmp/audit-picomatch.mjs
 
 USER root

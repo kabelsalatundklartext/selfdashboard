@@ -90,11 +90,15 @@ jobs:
       - name: Install Grype
         run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Scan image (with grype.yaml for known Next/Syft false positives)
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scan image (grype.yaml + .trivyignore — wie Unraid konfiguriert sein sollte)
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "=== Grype (ohne Ignore — nur Info) ==="
-          grype "${IMAGE}" -o table || true
-          echo ""
-          echo "=== Grype (mit grype.yaml — muss für CI grün sein) ==="
+          echo "=== Grype mit grype.yaml ==="
           grype "${IMAGE}" -c grype.yaml -o table --fail-on high
+          echo ""
+          echo "=== Trivy mit .trivyignore ==="
+          trivy image --ignorefile .trivyignore --severity HIGH,CRITICAL --exit-code 1 "${IMAGE}"
