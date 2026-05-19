@@ -83,6 +83,19 @@ export interface MailUnreadPreviewMessage {
   note?: string
 }
 
+export interface MailMarkAllReadFolderResult {
+  path: string
+  marked: number
+}
+
+export interface MailMarkAllReadResult {
+  marked: number
+  folders: MailMarkAllReadFolderResult[]
+  /** Ordner nur per STATUS (\\Noselect) — konnten nicht geöffnet werden */
+  noselectSkipped?: string[]
+  mode: 'all-except-trash' | 'synology-accounts' | 'accounts' | 'single'
+}
+
 export interface MailUnreadPreviewResult {
   total: number
   messages: MailUnreadPreviewMessage[]

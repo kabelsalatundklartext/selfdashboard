@@ -7,6 +7,7 @@ import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from 
 import type {
   MailFolderUnread,
   MailImapConfig,
+  MailMarkAllReadResult,
   MailUnreadPreviewMessage,
   MailUnreadPreviewResult,
 } from './types'
@@ -118,6 +119,74 @@ function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[
   // Standard bei *: jeder IMAP-Ordner, nur Papierkorb ausnehmen
   const all = boxes.filter(b => !isTrashMailbox(b.path, b.flags)).map(b => b.path)
   return { paths: all, mode: 'all-except-trash' }
+}
+
+/** Welche Ordner für Zählen / „Als gelesen“ geöffnet werden können (wie Sync, ohne Papierkorb). */
+function listOpenableScanPaths(
+  boxes: ListedBox[],
+  mailbox: string,
+): { paths: string[]; noselectSkipped: string[]; mode: MailUnreadResult['mode'] } {
+  const boxByPath = new Map(boxes.map(b => [b.path, b]))
+
+  if (!isAllMailboxes(mailbox) && !isMailplusAccountsOnly(mailbox)) {
+    const root = mailbox.trim() || 'INBOX'
+    const inScope = boxes.filter(
+      b => b.path === root || isDescendantMailboxPath(root, b.path),
+    )
+    const noselectSkipped = inScope
+      .filter(b => b.flags?.has('\\Noselect'))
+      .map(b => b.path)
+    const paths = inScope
+      .filter(b => !b.flags?.has('\\Noselect'))
+      .filter(b => !isTrashMailbox(b.path, b.flags))
+      .map(b => b.path)
+    return { paths, noselectSkipped, mode: 'single' }
+  }
+
+  const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
+  const noselectRoots = toScan
+    .filter(p => boxByPath.get(p)?.flags?.has('\\Noselect'))
+    .filter(p => !toScan.some(other => other !== p && isDescendantMailboxPath(other, p)))
+
+  const coveredByNoselect = new Set<string>()
+  const noselectSkipped: string[] = []
+
+  for (const path of noselectRoots) {
+    const hasOpenableChild = toScan.some(
+      p => p !== path && isDescendantMailboxPath(path, p) && !boxByPath.get(p)?.flags?.has('\\Noselect'),
+    )
+    if (hasOpenableChild) continue
+    noselectSkipped.push(path)
+    coveredByNoselect.add(path)
+  }
+
+  const paths = toScan.filter(p => {
+    if (boxByPath.get(p)?.flags?.has('\\Noselect')) return false
+    if ([...coveredByNoselect].some(parent => isDescendantMailboxPath(parent, p))) return false
+    return true
+  })
+
+  return { paths, noselectSkipped, mode }
+}
+
+/** Setzt \\Seen auf alle IMAP-UNSEEN (nicht gelöscht) im Ordner — auch „Geister“, die Webmail nicht zeigt. */
+async function markUnreadAsSeenInPath(client: ImapFlow, path: string): Promise<number> {
+  const lock = await client.getMailboxLock(path)
+  try {
+    const found = await client.search({ seen: false, deleted: false }, { uid: true })
+    if (!Array.isArray(found) || found.length === 0) return 0
+
+    const uids: number[] = []
+    for await (const msg of client.fetch(found, { flags: true, uid: true }, { uid: true })) {
+      if (isRealUnreadMessage(msg.flags)) uids.push(msg.uid)
+    }
+    if (uids.length === 0) return 0
+
+    await client.messageFlagsAdd(uids, ['\\Seen'], { uid: true })
+    return uids.length
+  } finally {
+    lock.release()
+  }
 }
 
 /** \Noselect — kein SELECT möglich; MailPlus-Konto-Container oft nur per STATUS. */
@@ -496,6 +565,41 @@ export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<Mail
       await client.logout()
     } catch {
       /* connection may already be closed */
+    }
+  }
+}
+
+export async function markAllUnreadAsRead(config: MailImapConfig): Promise<MailMarkAllReadResult> {
+  const client = createClient(config)
+  await client.connect()
+  try {
+    const boxes: ListedBox[] = (await client.list()).map(b => ({ path: b.path, flags: b.flags }))
+    const { paths, noselectSkipped, mode } = listOpenableScanPaths(boxes, config.mailbox)
+
+    const folders: MailMarkAllReadResult['folders'] = []
+    let marked = 0
+
+    for (const path of paths) {
+      try {
+        const n = await markUnreadAsSeenInPath(client, path)
+        if (n > 0) folders.push({ path, marked: n })
+        marked += n
+      } catch {
+        /* Ordner überspringen */
+      }
+    }
+
+    return {
+      marked,
+      folders,
+      mode,
+      noselectSkipped: noselectSkipped.length > 0 ? noselectSkipped : undefined,
+    }
+  } finally {
+    try {
+      await client.logout()
+    } catch {
+      /* ignore */
     }
   }
 }

@@ -416,6 +416,69 @@ export function MailSettingsPanel({
     }
   }
 
+  const markAllReadOnServer = async () => {
+    if (!selected) return
+    const label = form.label || selected.label || selected.username
+    const scope =
+      form.mailbox.trim() === '*' || !form.mailbox.trim()
+        ? (de ? 'alle IMAP-Ordner dieses Kontos (ohne Papierkorb)' : 'all IMAP folders for this account (except trash)')
+        : (de ? `Ordner „${form.mailbox.trim()}“ inkl. Unterordner` : `mailbox “${form.mailbox.trim()}” including subfolders`)
+
+    const step1 = window.confirm(
+      de
+        ? `Alle per IMAP als ungelesen gemeldeten Mails für „${label}“ als GELESEN markieren?\n\nBereich: ${scope}\n\nMailPlus/Thunderbird zeigen sie oft nicht — SelfDashboard setzt dann serverseitig das Gelesen-Flag.`
+        : `Mark all IMAP-reported unread mail for “${label}” as READ?\n\nScope: ${scope}\n\nMailPlus/Thunderbird may not list them — SelfDashboard will set the Seen flag on the server.`,
+    )
+    if (!step1) return
+
+    const step2 = window.confirm(
+      de
+        ? `Letzte Bestätigung: wirklich ALLE ungelesenen Mails in diesem Bereich als gelesen markieren?\n\nDas kann nicht rückgängig gemacht werden (außer du markierst sie in einem Mail-Programm wieder als ungelesen).`
+        : `Final confirmation: mark ALL unread messages in this scope as read?\n\nThis cannot be undone from SelfDashboard (you would need to mark them unread again in a mail client).`,
+    )
+    if (!step2) return
+
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/mail/mark-all-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
+      })
+      const j = await res.json() as {
+        ok?: boolean
+        error?: string
+        marked?: number
+        folders?: { path: string; marked: number }[]
+        status?: MailStatus
+      }
+      if (!res.ok || !j.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (j.status) setStatus(j.status)
+      const n = j.marked ?? 0
+      const detail =
+        j.folders && j.folders.length > 0
+          ? j.folders.map(f => `${formatMailFolderLabel(f.path)}: ${f.marked}`).join(', ')
+          : ''
+      setMsg(
+        de
+          ? `${n} Nachricht(en) auf dem Server als gelesen markiert${detail ? ` (${detail})` : ''}.`
+          : `${n} message(s) marked read on the server${detail ? ` (${detail})` : ''}.`,
+      )
+      dispatchMailConfigChanged({
+        unread: j.status?.unread ?? 0,
+        forceRefresh: true,
+      })
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : String(e)
+      setErr(m)
+      reportPluginError('mail', m, { category: 'settings/mark-all-read' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const test = async () => {
     if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
@@ -680,6 +743,16 @@ export function MailSettingsPanel({
               title={de ? 'Betreffzeilen der gezählten ungelesenen Mails' : 'Subjects of counted unread mail'}
             >
               {previewBusy ? (de ? 'Lade…' : 'Loading…') : (de ? 'Ungelesen anzeigen' : 'Show unread')}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={busy}
+              onClick={() => void markAllReadOnServer()}
+              style={{ color: '#fbbf24' }}
+              title={de ? 'IMAP: alle UNSEEN als gelesen markieren (2× bestätigen)' : 'IMAP: mark all UNSEEN as read (double confirm)'}
+            >
+              {de ? 'Alles als gelesen (IMAP)' : 'Mark all read (IMAP)'}
             </button>
             {accounts.length > 1 ? (
               <button type="button" className="btn-ghost" disabled={busy} onClick={() => void deleteAccount()}
