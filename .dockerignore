@@ -3,4 +3,5 @@ node_modules
 .git
 *.md
 .env*
-scripts/
+scripts/*
+!scripts/harden-standalone-deps.mjs
