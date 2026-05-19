@@ -36,6 +36,11 @@ COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlit
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
 
+# Grype scannt /app/node_modules im Runner (nicht .next/standalone) — Next-Bundle picomatch 4.0.3 ersetzen
+COPY --from=builder /app/node_modules/picomatch ./node_modules/picomatch
+COPY --from=builder /app/scripts/harden-standalone-deps.mjs /tmp/harden-standalone-deps.mjs
+RUN node /tmp/harden-standalone-deps.mjs && rm -f /tmp/harden-standalone-deps.mjs
+
 # Root: bind-mounted /var/run/docker.sock is owned by host root:docker — non-root often gets EACCES without --group-add.
 USER root
 EXPOSE 3000

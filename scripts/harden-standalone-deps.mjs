@@ -1,16 +1,21 @@
 /**
  * Ersetzt verwundbare Versionen in Standalone, node_modules und Next-compiled-Bundles.
  */
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
 const root = process.cwd()
+
+/** Next-Bundle-SHA1 von picomatch 4.0.3 (siehe vercel/next.js#92950) */
+const NEXT_PICOMATCH_403_SHA1 = '6e92069f5eef59717a569d8d5c6ca5faa31f0c59'
+
 const sourceNm = path.join(root, 'node_modules')
 
-const TARGET_ROOTS = [
-  path.join(root, '.next/standalone/node_modules'),
-  path.join(root, 'node_modules'),
-].filter((p) => fs.existsSync(p))
+const standaloneNm = path.join(root, '.next/standalone/node_modules')
+const appNm = path.join(root, 'node_modules')
+
+const TARGET_ROOTS = [...new Set([standaloneNm, appNm].filter((p) => fs.existsSync(p)))]
 
 /** Mindestversion laut Grype / GHSA */
 const PATCH = {
@@ -38,6 +43,10 @@ function cmpVersion(a, b) {
   return 0
 }
 
+function sha1File(file) {
+  return crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex')
+}
+
 function* walkPackageDirs(nmRoot) {
   if (!fs.existsSync(nmRoot)) return
   for (const entry of fs.readdirSync(nmRoot, { withFileTypes: true })) {
@@ -56,6 +65,12 @@ function* walkPackageDirs(nmRoot) {
 }
 
 function findBestSource(name, minVer) {
+  const pinned = path.join(sourceNm, name)
+  const pinnedVer = readVersion(pinned)
+  if (pinnedVer && cmpVersion(pinnedVer, minVer) >= 0) {
+    return pinned
+  }
+
   let bestDir = null
   let bestVer = null
   for (const { name: n, dir } of walkPackageDirs(sourceNm)) {
@@ -91,7 +106,18 @@ function writePackageVersion(targetDir, name, version) {
   fs.writeFileSync(pjPath, `${JSON.stringify(pj, null, 2)}\n`)
 }
 
-/** Next shippt picomatch/brace-expansion ohne Version — Grype erkennt trotzdem 4.0.3 / 2.0.2 */
+function assertPicomatchNotVulnerableBundle(dir) {
+  const idx = path.join(dir, 'index.js')
+  if (!fs.existsSync(idx)) return
+  const sha = sha1File(idx)
+  if (sha === NEXT_PICOMATCH_403_SHA1) {
+    throw new Error(
+      `picomatch still Next-4.0.3 bundle at ${dir} (sha1=${sha}) — Grype will keep flagging GHSA-c2c7-rcm5-vvqj`,
+    )
+  }
+}
+
+/** Next shippt ein webpack-Bundle ohne Version — Grype erkennt 4.0.3 per Datei-Hash */
 function patchNextCompiled(nmRoot) {
   const compiled = path.join(nmRoot, 'next/dist/compiled')
   if (!fs.existsSync(compiled)) return 0
@@ -103,13 +129,14 @@ function patchNextCompiled(nmRoot) {
 
     const src = findBestSource(name, PATCH[name])
     if (!src) {
-      console.warn(`harden-standalone-deps: no source for next compiled ${name}`)
+      console.warn(`harden-standalone-deps: no source for next/dist/compiled/${name}`)
       continue
     }
 
     const srcVer = readVersion(src)
     replaceDir(target, src)
     writePackageVersion(target, name, srcVer)
+    if (name === 'picomatch') assertPicomatchNotVulnerableBundle(target)
     console.log(`harden-standalone-deps: next/dist/compiled/${name} -> ${srcVer}`)
     n++
   }
@@ -129,8 +156,18 @@ for (const targetRoot of TARGET_ROOTS) {
   for (const { name, dir } of walkPackageDirs(targetRoot)) {
     const minVer = PATCH[name]
     if (!minVer) continue
+
+    const isNextCompiled = dir.includes(`${path.sep}next${path.sep}dist${path.sep}compiled${path.sep}`)
     const cur = readVersion(dir)
-    if (cur && cmpVersion(cur, minVer) >= 0) continue
+    const needsPatch =
+      isNextCompiled && name === 'picomatch'
+        ? true
+        : !cur || cmpVersion(cur, minVer) < 0
+
+    if (!needsPatch) {
+      if (name === 'picomatch') assertPicomatchNotVulnerableBundle(dir)
+      continue
+    }
 
     const src = findBestSource(name, minVer)
     if (!src) {
@@ -143,8 +180,9 @@ for (const targetRoot of TARGET_ROOTS) {
 
     const srcVer = readVersion(src)
     replaceDir(dir, src)
+    if (name === 'picomatch') assertPicomatchNotVulnerableBundle(dir)
     console.log(
-      `harden-standalone-deps: ${name} ${cur ?? '?'} -> ${srcVer} (${dir})`,
+      `harden-standalone-deps: ${name} ${cur ?? 'next-bundle'} -> ${srcVer} (${dir})`,
     )
     patched++
   }
