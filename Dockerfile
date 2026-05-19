@@ -31,10 +31,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 
-# serverExternalPackages: Laufzeit-Module neben standalone (imapflow → ip-address, …)
+# serverExternalPackages: Laufzeit-Module neben standalone (ip-address liegt unter socks/)
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
-COPY --from=builder /app/node_modules/ip-address ./node_modules/ip-address
 
 # Root: bind-mounted /var/run/docker.sock is owned by host root:docker — non-root often gets EACCES without --group-add.
 USER root
