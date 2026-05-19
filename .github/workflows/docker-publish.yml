@@ -90,8 +90,11 @@ jobs:
       - name: Install Grype
         run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Scan image (with grype.yaml for known Next false positives)
+      - name: Scan image (with grype.yaml for known Next/Syft false positives)
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "Scanning ${IMAGE}"
-          grype "${IMAGE}" -c grype.yaml --fail-on high
+          echo "=== Grype (ohne Ignore — nur Info) ==="
+          grype "${IMAGE}" -o table || true
+          echo ""
+          echo "=== Grype (mit grype.yaml — muss für CI grün sein) ==="
+          grype "${IMAGE}" -c grype.yaml -o table --fail-on high

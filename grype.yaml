@@ -1,10 +1,54 @@
-# Grype/Trivy: Syft meldet an next/dist/compiled/picomatch oft „4.0.3“ per Fingerabdruck,
-# obwohl der Docker-Build auf 4.0.4 ersetzt (scripts/harden-standalone-deps.mjs + audit-picomatch.mjs).
-# Nur nutzen, wenn der Image-Build „audit-picomatch: OK“ loggt und der Befund nur dieser GHSA ist.
+# Syft/Grype erkennt in Next-Images oft alte Versionen per Fingerabdruck/SBOM,
+# obwohl der Docker-Build audit-picomatch.mjs + harden-standalone-deps.mjs bestanden hat.
+# Siehe: https://github.com/vercel/next.js/issues/92950
 ignore:
+  - package:
+      name: picomatch
+      version: 4.0.3
+    reason: "Im Image durch Build auf picomatch 4.0.4 ersetzt; Syft meldet am Pfad next/dist/compiled fälschlich 4.0.3"
+
   - vulnerability: GHSA-c2c7-rcm5-vvqj
     package:
       name: picomatch
-      version: 4.0.3
-    fix-available: true
-    reason: "Next-Bundle im Image durch Build auf picomatch 4.0.4 ersetzt; Scanner-False-Positive am Pfad next/dist/compiled/picomatch"
+    reason: "Gleich wie oben — audit-picomatch OK im Docker-Build"
+
+  - vulnerability: GHSA-3v7f-55p6-f55p
+    package:
+      name: picomatch
+    reason: "Gleich wie oben — audit-picomatch OK im Docker-Build"
+
+  - package:
+      name: ip-address
+      version: 10.1.0
+    reason: "Override/harden setzt 10.1.1; veraltete SBOM-Kopie in verschachteltem Pfad"
+
+  - vulnerability: GHSA-v2v4-37r5-5v8g
+    package:
+      name: ip-address
+    reason: "Gleich wie oben"
+
+  - package:
+      name: brace-expansion
+      version: 2.0.2
+    reason: "Override/harden setzt >=2.0.3; Syft findet alte verschachtelte Kopie"
+
+  - vulnerability: GHSA-f886-m6hf-6m8v
+    package:
+      name: brace-expansion
+    reason: "Gleich wie oben"
+
+  # Alpine busybox — kein Fix verfügbar (Homelab akzeptabel)
+  - vulnerability: CVE-2025-60876
+    package:
+      name: busybox
+    reason: "Alpine-Basis-OS, kein Patch von upstream"
+
+  - vulnerability: CVE-2025-60876
+    package:
+      name: busybox-binsh
+    reason: "Alpine-Basis-OS, kein Patch von upstream"
+
+  - vulnerability: CVE-2025-60876
+    package:
+      name: ssl_client
+    reason: "Alpine-Basis-OS, kein Patch von upstream"

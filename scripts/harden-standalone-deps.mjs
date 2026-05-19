@@ -168,24 +168,27 @@ for (const dir of findDirsNamed(scanRoot, 'picomatch', skip)) {
   }
 }
 
-const nmTargets = [
-  path.join(root, 'node_modules'),
-  path.join(root, '.next/standalone/node_modules'),
-].filter((p) => fs.existsSync(p))
+function patchNamedPackage(name, minVer) {
+  const src = findBestSource(name, minVer)
+  if (!src) {
+    console.warn(`harden-standalone-deps: no source for ${name} >= ${minVer}`)
+    return
+  }
+  const srcVer = readVersion(src)
+  const skipDirs = new Set([path.resolve(src)])
 
-for (const nmRoot of nmTargets) {
-  for (const { name, dir } of walkPackageDirs(nmRoot)) {
-    if (name === 'picomatch') continue
-    const minVer = PATCH[name]
-    if (!minVer) continue
+  for (const dir of findDirsNamed(scanRoot, name, skipDirs)) {
+    if (path.resolve(dir) === path.resolve(src)) continue
     const cur = readVersion(dir)
     if (cur && cmpVersion(cur, minVer) >= 0) continue
-    const src = findBestSource(name, minVer)
-    if (!src || path.resolve(dir) === path.resolve(src)) continue
     replaceDir(dir, src)
-    console.log(`harden-standalone-deps: ${name} ${cur ?? '?'} -> ${readVersion(dir)} (${dir})`)
+    writePackageVersion(dir, name, srcVer)
+    console.log(`harden-standalone-deps: ${name} ${cur ?? '?'} -> ${srcVer} (${dir})`)
     patched++
   }
 }
+
+patchNamedPackage('ip-address', PATCH['ip-address'])
+patchNamedPackage('brace-expansion', PATCH['brace-expansion'])
 
 console.log(`harden-standalone-deps: ${patched} location(s) updated (scanRoot=${scanRoot})`)

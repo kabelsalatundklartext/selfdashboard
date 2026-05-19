@@ -42,6 +42,8 @@ COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlit
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
 COPY --from=builder /app/node_modules/picomatch ./node_modules/picomatch
+COPY --from=builder /app/node_modules/ip-address ./node_modules/ip-address
+COPY --from=builder /app/node_modules/brace-expansion ./node_modules/brace-expansion
 COPY --from=builder /app/scripts/harden-standalone-deps.mjs /tmp/harden-standalone-deps.mjs
 COPY --from=builder /app/scripts/audit-picomatch.mjs /tmp/audit-picomatch.mjs
 
