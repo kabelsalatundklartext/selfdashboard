@@ -9,6 +9,14 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "overrides": {
+    "minimatch": "^9.0.7",
+    "glob": "^10.5.0",
+    "cross-spawn": "^7.0.5",
+    "brace-expansion": "^2.0.3",
+    "tar": "^7.5.11",
+    "ip-address": "^10.1.1"
+  },
   "dependencies": {
     "autoprefixer": "^10.4.19",
     "axios": "^1.7.2",
@@ -21,10 +29,10 @@
     "imapflow": "^1.3.3",
     "lucide-react": "^0.383.0",
     "maxmind": "^4.3.23",
-    "next": "15.3.2",
+    "next": "15.5.18",
     "next-themes": "^0.3.0",
     "node-fetch": "^2.7.0",
-    "postcss": "^8",
+    "postcss": "^8.5.10",
     "react": "^18",
     "react-dom": "^18",
     "react-grid-layout": "^1.4.4",
@@ -42,7 +50,7 @@
     "@types/react-dom": "^18",
     "@types/react-grid-layout": "^1.3.5",
     "eslint": "^9",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "15.5.18",
     "typescript": "^5"
   }
 }
