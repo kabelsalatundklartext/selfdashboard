@@ -3,6 +3,4 @@ node_modules
 .git
 *.md
 .env*
-scripts/*
-!scripts/harden-standalone-deps.mjs
-!scripts/audit-picomatch.mjs
+scripts/

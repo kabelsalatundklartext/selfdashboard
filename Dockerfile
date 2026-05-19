@@ -1,33 +1,24 @@
 # ── Stage 1: deps ───────────────────────────────────────────
-FROM node:22-alpine3.23 AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
-RUN apk update && apk add --no-cache python3 make g++ && apk upgrade --no-cache
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* yarn.lock* ./
 RUN npm install --frozen-lockfile 2>/dev/null || npm install
 
 # ── Stage 2: builder ─────────────────────────────────────────
-FROM node:22-alpine3.23 AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
-RUN apk update && apk add --no-cache python3 make g++ && apk upgrade --no-cache
+RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Next-Bundle 4.0.3 entfernen, bevor standalone gebaut wird
-RUN node scripts/harden-standalone-deps.mjs && node scripts/audit-picomatch.mjs /app
-
 RUN mkdir -p public && npm run build
 
-# Nach standalone: erneut patchen + prüfen (inkl. .next/server)
-RUN node scripts/harden-standalone-deps.mjs && node scripts/audit-picomatch.mjs /app
-
 # ── Stage 3: runner ──────────────────────────────────────────
-FROM node:22-alpine3.23 AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN apk update && apk upgrade --no-cache
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser  --system --uid 1001 nextjs
@@ -37,25 +28,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-
-# serverExternalPackages
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
-COPY --from=builder /app/node_modules/picomatch ./node_modules/picomatch
-COPY --from=builder /app/node_modules/ip-address ./node_modules/ip-address
-COPY --from=builder /app/node_modules/brace-expansion ./node_modules/brace-expansion
-COPY --from=builder /app/scripts/harden-standalone-deps.mjs /tmp/harden-standalone-deps.mjs
-COPY --from=builder /app/scripts/audit-picomatch.mjs /tmp/audit-picomatch.mjs
-
-# Grype scannt /app (node_modules + .next) — letzter Schritt
-ENV SCAN_ROOT=/app
-RUN node /tmp/harden-standalone-deps.mjs && \
-    node /tmp/audit-picomatch.mjs /app && \
-    COMPILED=./node_modules/next/dist/compiled/picomatch && \
-    if [ -d ./node_modules/picomatch ]; then \
-      rm -rf "$COMPILED" && ln -sfn ../../../picomatch "$COMPILED"; \
-    fi && \
-    rm -f /tmp/harden-standalone-deps.mjs /tmp/audit-picomatch.mjs
 
 USER root
 EXPOSE 3000

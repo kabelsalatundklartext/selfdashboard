@@ -3,13 +3,7 @@ const nextConfig = {
   output: 'standalone',
   serverExternalPackages: ['better-sqlite3', 'maxmind', 'tsdav', 'ical.js', 'rrule', 'digest-fetch', 'imapflow'],
   outputFileTracingIncludes: {
-    '/*': [
-      './node_modules/better-sqlite3/**/*',
-      './node_modules/picomatch/**/*',
-    ],
-  },
-  outputFileTracingExcludes: {
-    '*': ['./node_modules/next/dist/compiled/picomatch/**/*'],
+    '/*': ['./node_modules/better-sqlite3/**/*'],
   },
   images: {
     remotePatterns: [
