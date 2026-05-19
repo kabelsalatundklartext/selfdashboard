@@ -12,7 +12,8 @@ RUN apk update && apk add --no-cache python3 make g++ && apk upgrade --no-cache
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN mkdir -p public && npm run build
+RUN mkdir -p public && npm run build && \
+    node -e "const fs=require('fs'),path=require('path');const MIN={picomatch:'4.0.4','ip-address':'10.1.1','brace-expansion':'2.0.3'};const BAD={picomatch:'4.0.3','ip-address':'10.1.0','brace-expansion':'2.0.2'};function rv(d){try{return JSON.parse(fs.readFileSync(path.join(d,'package.json'))).version}catch{return null}}function cmp(a,b){const pa=a.split('.').map(Number),pb=b.split('.').map(Number);for(let i=0;i<Math.max(pa.length,pb.length);i++){const d=(pa[i]||0)-(pb[i]||0);if(d)return d}return 0}function*walk(r){if(!fs.existsSync(r))return;for(const e of fs.readdirSync(r,{withFileTypes:true})){if(!e.isDirectory())continue;const p=path.join(r,e.name);if(e.name==='node_modules'){yield*walk(p);continue}if(fs.existsSync(path.join(p,'package.json')))yield p;const n=path.join(p,'node_modules');if(fs.existsSync(n))yield*walk(n)}}const roots=['/app/.next/standalone','/app/node_modules'];const fail=[];for(const root of roots){for(const dir of walk(root)){const name=path.basename(dir);if(!MIN[name])continue;const v=rv(dir);if(!v)continue;if(v===BAD[name]||cmp(v,MIN[name])<0)fail.push(name+' '+v+' @ '+dir)}}if(fail.length){console.error('harden verify FAILED:',fail.join('; '));process.exit(1)}console.log('harden verify OK')"
 
 # ── Stage 3: runner ──────────────────────────────────────────
 FROM node:22-alpine3.23 AS runner

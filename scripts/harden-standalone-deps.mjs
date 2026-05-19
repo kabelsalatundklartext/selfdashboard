@@ -1,6 +1,5 @@
 /**
- * Next.js standalone kopiert teils alte verschachtelte Versionen (picomatch 4.0.3 …).
- * Ersetzt bekannte Pakete im Standalone-Baum durch die Version aus node_modules (npm overrides).
+ * Ersetzt verwundbare Versionen in Standalone, node_modules und Next-compiled-Bundles.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,7 +7,6 @@ import path from 'node:path'
 const root = process.cwd()
 const sourceNm = path.join(root, 'node_modules')
 
-/** Alle Bäume, die im Produktions-Image landen können */
 const TARGET_ROOTS = [
   path.join(root, '.next/standalone/node_modules'),
   path.join(root, 'node_modules'),
@@ -57,33 +55,99 @@ function* walkPackageDirs(nmRoot) {
   }
 }
 
+function findBestSource(name, minVer) {
+  let bestDir = null
+  let bestVer = null
+  for (const { name: n, dir } of walkPackageDirs(sourceNm)) {
+    if (n !== name) continue
+    const v = readVersion(dir)
+    if (!v || cmpVersion(v, minVer) < 0) continue
+    if (!bestVer || cmpVersion(v, bestVer) > 0) {
+      bestDir = dir
+      bestVer = v
+    }
+  }
+  return bestDir
+}
+
+function replaceDir(targetDir, srcDir) {
+  fs.rmSync(targetDir, { recursive: true, force: true })
+  fs.mkdirSync(path.dirname(targetDir), { recursive: true })
+  fs.cpSync(srcDir, targetDir, { recursive: true })
+}
+
+function writePackageVersion(targetDir, name, version) {
+  const pjPath = path.join(targetDir, 'package.json')
+  let pj = { name, main: 'index.js' }
+  if (fs.existsSync(pjPath)) {
+    try {
+      pj = JSON.parse(fs.readFileSync(pjPath, 'utf8'))
+    } catch {
+      /* ignore */
+    }
+  }
+  pj.name = name
+  pj.version = version
+  fs.writeFileSync(pjPath, `${JSON.stringify(pj, null, 2)}\n`)
+}
+
+/** Next shippt picomatch/brace-expansion ohne Version — Grype erkennt trotzdem 4.0.3 / 2.0.2 */
+function patchNextCompiled(nmRoot) {
+  const compiled = path.join(nmRoot, 'next/dist/compiled')
+  if (!fs.existsSync(compiled)) return 0
+
+  let n = 0
+  for (const name of Object.keys(PATCH)) {
+    const target = path.join(compiled, name)
+    if (!fs.existsSync(target)) continue
+
+    const src = findBestSource(name, PATCH[name])
+    if (!src) {
+      console.warn(`harden-standalone-deps: no source for next compiled ${name}`)
+      continue
+    }
+
+    const srcVer = readVersion(src)
+    replaceDir(target, src)
+    writePackageVersion(target, name, srcVer)
+    console.log(`harden-standalone-deps: next/dist/compiled/${name} -> ${srcVer}`)
+    n++
+  }
+  return n
+}
+
 if (TARGET_ROOTS.length === 0) {
   console.log('harden-standalone-deps: nothing to scan — skip')
   process.exit(0)
 }
 
 let patched = 0
+
 for (const targetRoot of TARGET_ROOTS) {
+  patched += patchNextCompiled(targetRoot)
+
   for (const { name, dir } of walkPackageDirs(targetRoot)) {
     const minVer = PATCH[name]
     if (!minVer) continue
     const cur = readVersion(dir)
-    if (!cur || cmpVersion(cur, minVer) >= 0) continue
+    if (cur && cmpVersion(cur, minVer) >= 0) continue
 
-    const src = path.join(sourceNm, name)
+    const src = findBestSource(name, minVer)
+    if (!src) {
+      console.warn(
+        `harden-standalone-deps: skip ${name} @ ${dir} — no source >= ${minVer}`,
+      )
+      continue
+    }
     if (path.resolve(dir) === path.resolve(src)) continue
 
     const srcVer = readVersion(src)
-    if (!srcVer || cmpVersion(srcVer, minVer) < 0) {
-      console.warn(`harden-standalone-deps: skip ${name} — source ${srcVer ?? 'missing'} < ${minVer}`)
-      continue
-    }
-
-    fs.rmSync(dir, { recursive: true, force: true })
-    fs.cpSync(src, dir, { recursive: true })
-    console.log(`harden-standalone-deps: ${name} ${cur} -> ${readVersion(dir)} (${dir})`)
+    replaceDir(dir, src)
+    console.log(
+      `harden-standalone-deps: ${name} ${cur ?? '?'} -> ${srcVer} (${dir})`,
+    )
     patched++
   }
 }
 
-console.log(`harden-standalone-deps: ${patched} package(s) updated`)
+console.log(`harden-standalone-deps: ${patched} location(s) updated`)
