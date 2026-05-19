@@ -17,30 +17,30 @@
 
 <a id="overview"></a>
 
-## SelfDashboard im Überblick
+## SelfDashboard at a glance
 
 <p align="center">
   <a href="docs/screenshot-dashboard.png">
-    <img src="docs/screenshot-dashboard.png" alt="SelfDashboard — Beispiel-Dashboard mit Kalender, Wetter, Dienst-Links, CrowdSec, Unraid-Monitoring und E-Mail-Badge in der Navbar" width="920"/>
+    <img src="docs/screenshot-dashboard.png" alt="SelfDashboard — example dashboard with calendar, weather, bookmarks, CrowdSec, dual Unraid monitoring, and navbar mail badge" width="920"/>
   </a>
 </p>
 
-<p align="center"><sub>Ein reales Homelab-Layout — alle Widgets sind Plugins, frei anordbar und konfigurierbar.</sub></p>
+<p align="center"><sub>A real homelab layout — every widget is a plugin, freely arrangeable and configurable.</sub></p>
 
-**SelfDashboard** ist dein persönliches Kontrollzentrum für Homelab und Self-Hosting: **ein Docker-Container**, **ein Browser-Tab** — statt zwölf geöffneter Admin-Oberflächen.
+**SelfDashboard** is your personal control center for homelab and self-hosting: **one Docker container**, **one browser tab** — instead of a dozen open admin UIs.
 
-| Im Screenshot sichtbar | Was es dir bringt |
+| Visible in the screenshot | What you get |
 |---|---|
-| 📅 **Kalender** | Termine (CalDAV/ICS), Monatsansicht direkt auf dem Dashboard |
-| 🕐 **Uhr & Wetter** | Lokale Zeit und Wetter ohne extra Tab |
-| 🔖 **Lesezeichen-Grid** | Schnellzugriff auf Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
-| 🛡️ **CrowdSec** | Alerts und aktive Bans auf einen Blick |
-| 🌐 **Netzwerk / AdGuard** | Schutz-Status und Live-Traffic |
-| 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
-| 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
-| ✉️ **Navbar E-Mail** | Ungelesene Mails als Badge — Klick öffnet Webmail |
+| 📅 **Calendar** | Events (CalDAV/ICS), month view right on the dashboard |
+| 🕐 **Clock & weather** | Local time and weather without an extra tab |
+| 🔖 **Bookmark grid** | Quick access to Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
+| 🛡️ **CrowdSec** | Alerts and active bans at a glance |
+| 🌐 **Network / AdGuard** | Protection status and live traffic |
+| 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server |
+| 📺 **Emby / SelfStream** | Is anything streaming right now? |
+| ✉️ **Navbar mail** | Unread count as a badge — click opens webmail |
 
-Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — und jedes Widget kommt aus dem **Plugin-System** (mitgeliefert oder selbst gebaut).
+Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — and every widget comes from the **plugin system** (built-in or self-built).
 
 ---
 
@@ -48,7 +48,7 @@ Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/
 
 ## What is SelfDashboard?
 
-> **See the screenshot above** — one page for calendar, weather, bookmarks, security (CrowdSec), network stats, Unraid monitoring, media status, and an IMAP mail badge in the navbar. Everything is a plugin; layout and themes are fully customizable.
+> **See the [overview](#overview) above** for a full screenshot walkthrough.
 
 SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. Plugins can be developed by anyone and installed later.
 
@@ -425,9 +425,34 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 
 # 🇩🇪 Deutsch
 
-## Was ist SelfDashboard?
+<a id="overview-de"></a>
 
-> **Screenshot und Überblick:** siehe [SelfDashboard im Überblick](#overview) oben in dieser Datei.
+## SelfDashboard im Überblick
+
+<p align="center">
+  <a href="docs/screenshot-dashboard.png">
+    <img src="docs/screenshot-dashboard.png" alt="SelfDashboard — Beispiel-Dashboard mit Kalender, Wetter, Dienst-Links, CrowdSec, Unraid-Monitoring und E-Mail-Badge in der Navbar" width="920"/>
+  </a>
+</p>
+
+<p align="center"><sub>Ein reales Homelab-Layout — alle Widgets sind Plugins, frei anordbar und konfigurierbar.</sub></p>
+
+**SelfDashboard** ist dein persönliches Kontrollzentrum für Homelab und Self-Hosting: **ein Docker-Container**, **ein Browser-Tab** — statt zwölf geöffneter Admin-Oberflächen.
+
+| Im Screenshot sichtbar | Was es dir bringt |
+|---|---|
+| 📅 **Kalender** | Termine (CalDAV/ICS), Monatsansicht direkt auf dem Dashboard |
+| 🕐 **Uhr & Wetter** | Lokale Zeit und Wetter ohne extra Tab |
+| 🔖 **Lesezeichen-Grid** | Schnellzugriff auf Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
+| 🛡️ **CrowdSec** | Alerts und aktive Bans auf einen Blick |
+| 🌐 **Netzwerk / AdGuard** | Schutz-Status und Live-Traffic |
+| 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
+| 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
+| ✉️ **Navbar E-Mail** | Ungelesene Mails als Badge — Klick öffnet Webmail |
+
+Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — und jedes Widget kommt aus dem **Plugin-System** (mitgeliefert oder selbst gebaut).
+
+## Was ist SelfDashboard?
 
 SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. Plugins können von jedem entwickelt und nachträglich installiert werden.
 
