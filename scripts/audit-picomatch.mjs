@@ -32,10 +32,43 @@ for (const file of walkFiles(scanRoot)) {
   }
 }
 
+function listPicomatchDirs(root) {
+  const rows = []
+  function walk(dir) {
+    if (!fs.existsSync(dir)) return
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === '.git') continue
+      const full = path.join(dir, entry.name)
+      if (!entry.isDirectory()) continue
+      if (entry.name === 'picomatch') {
+        const pj = path.join(full, 'package.json')
+        let version = '(no package.json)'
+        if (fs.existsSync(pj)) {
+          try {
+            version = JSON.parse(fs.readFileSync(pj, 'utf8')).version ?? version
+          } catch {
+            version = '(parse error)'
+          }
+        }
+        const idx = path.join(full, 'index.js')
+        const sha = fs.existsSync(idx) ? sha1File(idx).slice(0, 12) : 'n/a'
+        rows.push({ full, version, sha })
+      }
+      walk(full)
+    }
+  }
+  walk(root)
+  return rows
+}
+
 if (hits.length) {
   console.error(`audit-picomatch: vulnerable picomatch 4.0.3 bundle in ${hits.length} file(s):`)
   for (const h of hits.slice(0, 25)) console.error(`  ${h}`)
   process.exit(1)
 }
 
+const picos = listPicomatchDirs(scanRoot)
 console.log(`audit-picomatch: OK (no ${VULN_SHA1} under ${scanRoot})`)
+for (const p of picos) {
+  console.log(`  picomatch ${p.version} sha1=${p.sha}… ${p.full}`)
+}
