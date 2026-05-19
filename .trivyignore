@@ -1,4 +1,6 @@
 # Gleiche False-Positives wie grype.yaml (Next compiled + Syft-SBOM)
+# Trivy node-pkg nutzt CVE-IDs (nicht nur GHSA)
+CVE-2026-33671
 GHSA-c2c7-rcm5-vvqj
 GHSA-3v7f-55p6-f55p
 GHSA-v2v4-37r5-5v8g

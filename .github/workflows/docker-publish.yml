@@ -74,6 +74,8 @@ jobs:
   grype-scan:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      TRIVY_DISABLE_VEX_NOTICE: "1"
     permissions:
       contents: read
       packages: read
@@ -102,3 +104,4 @@ jobs:
           echo ""
           echo "=== Trivy mit .trivyignore ==="
           trivy image --ignorefile .trivyignore --severity HIGH,CRITICAL --exit-code 1 "${IMAGE}"
+          echo "Trivy: keine HIGH/CRITICAL (nach .trivyignore)"

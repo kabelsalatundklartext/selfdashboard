@@ -7,6 +7,11 @@ ignore:
       version: 4.0.3
     reason: "Im Image durch Build auf picomatch 4.0.4 ersetzt; Syft meldet am Pfad next/dist/compiled fälschlich 4.0.3"
 
+  - vulnerability: CVE-2026-33671
+    package:
+      name: picomatch
+    reason: "Gleich wie oben — audit-picomatch OK im Docker-Build"
+
   - vulnerability: GHSA-c2c7-rcm5-vvqj
     package:
       name: picomatch
