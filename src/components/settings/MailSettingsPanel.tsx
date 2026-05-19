@@ -12,8 +12,13 @@ import {
   MAIL_POLL_INTERVAL_MAX,
   MAIL_POLL_INTERVAL_MIN,
   MAIL_UNREAD_MAX_AGE_DEFAULT,
-  MAIL_UNREAD_MAX_AGE_MAX,
+  MAIL_UNREAD_MAX_AGE_MAX_DAYS,
+  MAIL_UNREAD_MAX_AGE_MAX_YEARS,
   MAIL_UNREAD_MAX_AGE_MIN,
+  formatUnreadMaxAgeSummary,
+  unreadMaxAgeDaysToInput,
+  unreadMaxAgeInputToDays,
+  type UnreadMaxAgeUnit,
   type MailAccountPublic,
   type MailAggregateStatus,
   type MailUnreadPreviewMessage,
@@ -54,6 +59,7 @@ export function MailSettingsPanel({
   const [pollIntervalSeconds, setPollIntervalSeconds] = useState(MAIL_POLL_INTERVAL_DEFAULT)
   const [pollDraft, setPollDraft] = useState(String(MAIL_POLL_INTERVAL_DEFAULT))
   const [unreadMaxAgeDays, setUnreadMaxAgeDays] = useState(MAIL_UNREAD_MAX_AGE_DEFAULT)
+  const [unreadMaxAgeUnit, setUnreadMaxAgeUnit] = useState<UnreadMaxAgeUnit>('days')
   const [unreadMaxAgeDraft, setUnreadMaxAgeDraft] = useState(String(MAIL_UNREAD_MAX_AGE_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -111,7 +117,10 @@ export function MailSettingsPanel({
       if (typeof j.unreadMaxAgeDays === 'number') {
         const days = clampUnreadMaxAgeDays(j.unreadMaxAgeDays)
         setUnreadMaxAgeDays(days)
-        setUnreadMaxAgeDraft(String(days))
+        const unit: UnreadMaxAgeUnit =
+          days >= 365 && days % 365 === 0 ? 'years' : 'days'
+        setUnreadMaxAgeUnit(unit)
+        setUnreadMaxAgeDraft(String(unreadMaxAgeDaysToInput(days, unit)))
       }
       const list = j.accounts ?? []
       setAccounts(list)
@@ -171,9 +180,22 @@ export function MailSettingsPanel({
     return clampPollIntervalSeconds(Number.isFinite(parsed) ? parsed : pollIntervalSeconds)
   }
 
+  const syncUnreadMaxAgeDraft = (days: number, unit: UnreadMaxAgeUnit = unreadMaxAgeUnit) => {
+    setUnreadMaxAgeDays(days)
+    setUnreadMaxAgeDraft(String(unreadMaxAgeDaysToInput(days, unit)))
+  }
+
   const resolveUnreadMaxAge = () => {
     const parsed = parseInt(unreadMaxAgeDraft.trim(), 10)
-    return clampUnreadMaxAgeDays(Number.isFinite(parsed) ? parsed : unreadMaxAgeDays)
+    if (!Number.isFinite(parsed)) return unreadMaxAgeDays
+    return unreadMaxAgeInputToDays(parsed, unreadMaxAgeUnit)
+  }
+
+  const applyUnreadMaxAgePreset = (days: number) => {
+    const unit: UnreadMaxAgeUnit =
+      days >= 365 && days % 365 === 0 ? 'years' : 'days'
+    setUnreadMaxAgeUnit(unit)
+    syncUnreadMaxAgeDraft(days, unit)
   }
 
   const savePollInterval = async () => {
@@ -217,8 +239,7 @@ export function MailSettingsPanel({
 
   const saveUnreadMaxAge = async () => {
     const days = resolveUnreadMaxAge()
-    setUnreadMaxAgeDays(days)
-    setUnreadMaxAgeDraft(String(days))
+    syncUnreadMaxAgeDraft(days)
     setBusy(true)
     setErr(null)
     setMsg(null)
@@ -237,15 +258,19 @@ export function MailSettingsPanel({
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       if (typeof j.unreadMaxAgeDays === 'number') {
         const saved = clampUnreadMaxAgeDays(j.unreadMaxAgeDays)
-        setUnreadMaxAgeDays(saved)
-        setUnreadMaxAgeDraft(String(saved))
+        const unit: UnreadMaxAgeUnit =
+          saved >= 365 && saved % 365 === 0 ? 'years' : 'days'
+        setUnreadMaxAgeUnit(unit)
+        syncUnreadMaxAgeDraft(saved, unit)
       }
       if (j.status) setStatus(j.status)
       if (j.accounts) setAccounts(j.accounts)
       setMsg(
         days === 0
           ? (de ? 'Altersfilter aus — alle IMAP-Ungelesen zählen' : 'Age filter off — all IMAP unread counted')
-          : (de ? `Altersfilter gespeichert (${days} Tage)` : `Age filter saved (${days} days)`),
+          : (de
+            ? `Altersfilter gespeichert (${formatUnreadMaxAgeSummary(days, true)})`
+            : `Age filter saved (${formatUnreadMaxAgeSummary(days, false)})`),
       )
       dispatchMailConfigChanged({
         unread: j.status?.unread,
@@ -795,30 +820,70 @@ export function MailSettingsPanel({
       <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginTop: '4px' }}>
         {de ? 'Altersfilter ungelesen (alle Konten)' : 'Unread age filter (all accounts)'}
       </label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+        {([
+          { id: 'off', label: de ? 'Aus' : 'Off', days: 0 },
+          { id: '30d', label: '30', days: 30 },
+          { id: '1y', label: de ? '1 Jahr' : '1 year', days: 365 },
+          { id: 'max', label: 'Max', days: MAIL_UNREAD_MAX_AGE_MAX_DAYS },
+        ] as const).map(p => (
+          <button
+            key={p.id}
+            type="button"
+            className="btn-ghost"
+            style={{
+              fontSize: '12px',
+              padding: '4px 10px',
+              borderColor: unreadMaxAgeDays === p.days ? 'var(--accent)' : undefined,
+              color: unreadMaxAgeDays === p.days ? 'var(--accent)' : undefined,
+            }}
+            disabled={busy}
+            onClick={() => applyUnreadMaxAgePreset(p.days)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
         <input
-          style={{ ...inp, flex: '1 1 120px', minWidth: '80px' }}
+          style={{ ...inp, flex: '1 1 100px', minWidth: '72px', maxWidth: '120px' }}
           type="number"
-          min={MAIL_UNREAD_MAX_AGE_MIN}
-          max={MAIL_UNREAD_MAX_AGE_MAX}
+          min={1}
+          max={unreadMaxAgeUnit === 'years' ? MAIL_UNREAD_MAX_AGE_MAX_YEARS : MAIL_UNREAD_MAX_AGE_MAX_DAYS}
           step={1}
           value={unreadMaxAgeDraft}
+          disabled={unreadMaxAgeDays === 0}
           onChange={e => setUnreadMaxAgeDraft(e.target.value)}
-          onBlur={() => {
-            const n = resolveUnreadMaxAge()
-            setUnreadMaxAgeDays(n)
-            setUnreadMaxAgeDraft(String(n))
-          }}
+          onBlur={() => syncUnreadMaxAgeDraft(resolveUnreadMaxAge())}
         />
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{de ? 'Tage' : 'days'}</span>
+        <select
+          style={{ ...inp, flex: '0 0 auto', width: 'auto', minWidth: '88px' }}
+          value={unreadMaxAgeUnit}
+          disabled={unreadMaxAgeDays === 0}
+          onChange={e => {
+            const unit = e.target.value as UnreadMaxAgeUnit
+            const parsed = parseInt(unreadMaxAgeDraft.trim(), 10)
+            const days =
+              unreadMaxAgeDays > 0
+                ? unreadMaxAgeDays
+                : Number.isFinite(parsed)
+                  ? unreadMaxAgeInputToDays(parsed, unit)
+                  : MAIL_UNREAD_MAX_AGE_DEFAULT
+            setUnreadMaxAgeUnit(unit)
+            syncUnreadMaxAgeDraft(days > 0 ? days : MAIL_UNREAD_MAX_AGE_DEFAULT, unit)
+          }}
+        >
+          <option value="days">{de ? 'Tage' : 'Days'}</option>
+          <option value="years">{de ? 'Jahre' : 'Years'}</option>
+        </select>
         <button type="button" className="btn-ghost" style={{ fontSize: '12px' }} disabled={busy} onClick={() => void saveUnreadMaxAge()}>
           {de ? 'Altersfilter speichern' : 'Save age filter'}
         </button>
       </div>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
         {de
-          ? `Ungelesen älter als diese Anzahl wird nicht gezählt (Standard ${MAIL_UNREAD_MAX_AGE_DEFAULT}). „0“ = Filter aus (alle IMAP-UNSEEN). Hilft bei Synology-Altlasten, die MailPlus nicht mehr anzeigt.`
-          : `Unread older than this is ignored (default ${MAIL_UNREAD_MAX_AGE_DEFAULT}). “0” disables the filter (all IMAP UNSEEN). Helps with Synology stale UNSEEN not shown in MailPlus.`}
+          ? `Ungelesen älter als der Wert wird ignoriert (Standard ${MAIL_UNREAD_MAX_AGE_DEFAULT} Tage). Aus = alle IMAP-UNSEEN. Max = ${MAIL_UNREAD_MAX_AGE_MAX_YEARS} Jahre. Eingabe in Tagen oder Jahren (bis ${MAIL_UNREAD_MAX_AGE_MAX_DAYS} Tage).`
+          : `Unread older than the value is ignored (default ${MAIL_UNREAD_MAX_AGE_DEFAULT} days). Off = all IMAP UNSEEN. Max = ${MAIL_UNREAD_MAX_AGE_MAX_YEARS} years. Enter days or years (up to ${MAIL_UNREAD_MAX_AGE_MAX_DAYS} days).`}
       </p>
 
       {status ? (
@@ -949,8 +1014,8 @@ export function MailSettingsPanel({
                 <span style={{ color: '#fbbf24' }}>
                   {previewSkippedStale > 0
                     ? (de
-                      ? ` · ${previewSkippedStale} älter als ${previewMaxAgeDays} Tage ignoriert`
-                      : ` · ${previewSkippedStale} older than ${previewMaxAgeDays}d ignored`)
+                      ? ` · ${previewSkippedStale} älter als ${formatUnreadMaxAgeSummary(previewMaxAgeDays, true)} ignoriert`
+                      : ` · ${previewSkippedStale} older than ${formatUnreadMaxAgeSummary(previewMaxAgeDays, false)} ignored`)
                     : ''}
                   {previewSkippedDuplicate > 0
                     ? (de

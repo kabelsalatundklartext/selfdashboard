@@ -7,8 +7,11 @@ export const MAIL_POLL_INTERVAL_DEFAULT = 120
 
 /** Ungelesen älter als X Tage nicht zählen (0 = Filter aus) */
 export const MAIL_UNREAD_MAX_AGE_MIN = 0
-export const MAIL_UNREAD_MAX_AGE_MAX = 365
+/** ~10 Jahre — „Max“-Voreinstellung und Obergrenze */
+export const MAIL_UNREAD_MAX_AGE_MAX_DAYS = 3650
+export const MAIL_UNREAD_MAX_AGE_MAX_YEARS = 10
 export const MAIL_UNREAD_MAX_AGE_DEFAULT = 30
+export const DAYS_PER_YEAR = 365
 
 /** Max. Ordner mit Ungelesen pro Konto in der Status-Anzeige */
 export const MAIL_STATUS_MAX_FOLDERS = 12
@@ -34,7 +37,31 @@ export function clampUnreadMaxAgeDays(days: number): number {
   if (!Number.isFinite(days)) return MAIL_UNREAD_MAX_AGE_DEFAULT
   const n = Math.round(days)
   if (n <= MAIL_UNREAD_MAX_AGE_MIN) return MAIL_UNREAD_MAX_AGE_MIN
-  return Math.min(MAIL_UNREAD_MAX_AGE_MAX, n)
+  return Math.min(MAIL_UNREAD_MAX_AGE_MAX_DAYS, n)
+}
+
+export type UnreadMaxAgeUnit = 'days' | 'years'
+
+export function unreadMaxAgeDaysToInput(days: number, unit: UnreadMaxAgeUnit): number {
+  if (days <= 0) return 0
+  if (unit === 'years') return Math.max(1, Math.round(days / DAYS_PER_YEAR))
+  return days
+}
+
+export function unreadMaxAgeInputToDays(value: number, unit: UnreadMaxAgeUnit): number {
+  if (!Number.isFinite(value) || value <= 0) return 0
+  const n = Math.round(value)
+  if (unit === 'years') return clampUnreadMaxAgeDays(n * DAYS_PER_YEAR)
+  return clampUnreadMaxAgeDays(n)
+}
+
+export function formatUnreadMaxAgeSummary(days: number, de: boolean): string {
+  if (days <= 0) return de ? 'aus' : 'off'
+  if (days >= DAYS_PER_YEAR && days % DAYS_PER_YEAR === 0) {
+    const y = days / DAYS_PER_YEAR
+    return de ? `${y} Jahr${y === 1 ? '' : 'e'}` : `${y} year${y === 1 ? '' : 's'}`
+  }
+  return de ? `${days} Tage` : `${days} days`
 }
 
 /** Legacy single-account shape (v1) — migration only */
