@@ -63,6 +63,9 @@ export function MailSettingsPanel({
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewMessages, setPreviewMessages] = useState<MailUnreadPreviewMessage[]>([])
   const [previewTruncated, setPreviewTruncated] = useState(false)
+  const [previewSkippedStale, setPreviewSkippedStale] = useState(0)
+  const [previewSkippedDuplicate, setPreviewSkippedDuplicate] = useState(0)
+  const [previewMaxAgeDays, setPreviewMaxAgeDays] = useState(30)
 
   const selected = accounts.find(a => a.id === selectedId) ?? accounts[0]
 
@@ -332,11 +335,17 @@ export function MailSettingsPanel({
         total?: number
         messages?: MailUnreadPreviewMessage[]
         truncated?: boolean
+        skippedStale?: number
+        skippedDuplicate?: number
+        maxUnreadAgeDays?: number
       }
       if (!res.ok || !j.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       setPreviewTotal(j.total ?? 0)
       setPreviewMessages(j.messages ?? [])
       setPreviewTruncated(Boolean(j.truncated))
+      setPreviewSkippedStale(j.skippedStale ?? 0)
+      setPreviewSkippedDuplicate(j.skippedDuplicate ?? 0)
+      setPreviewMaxAgeDays(j.maxUnreadAgeDays ?? 30)
       setPreviewOpen(true)
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
@@ -719,6 +728,20 @@ export function MailSettingsPanel({
               {de ? 'Aufgelistet' : 'Listed'}: <strong style={{ color: 'var(--text)' }}>{previewMessages.length}</strong>
               {previewTruncated ? (
                 <span style={{ color: '#fbbf24' }}> · {de ? 'Liste gekürzt' : 'List truncated'}</span>
+              ) : null}
+              {(previewSkippedStale > 0 || previewSkippedDuplicate > 0) ? (
+                <span style={{ color: '#fbbf24' }}>
+                  {previewSkippedStale > 0
+                    ? (de
+                      ? ` · ${previewSkippedStale} älter als ${previewMaxAgeDays} Tage ignoriert`
+                      : ` · ${previewSkippedStale} older than ${previewMaxAgeDays}d ignored`)
+                    : ''}
+                  {previewSkippedDuplicate > 0
+                    ? (de
+                      ? ` · ${previewSkippedDuplicate} Duplikat(e) ignoriert`
+                      : ` · ${previewSkippedDuplicate} duplicate(s) ignored`)
+                    : ''}
+                </span>
               ) : null}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>

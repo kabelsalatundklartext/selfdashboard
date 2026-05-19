@@ -138,21 +138,87 @@ function isRealUnreadMessage(flags: Set<string> | undefined): boolean {
   return true
 }
 
-/** UNSEEN + UNDELETED, danach Flags pro Nachricht prüfen (gegen Geister-Mails). */
-async function fetchVerifiedUnreadUids(client: ImapFlow, path: string): Promise<number[]> {
+/** MailPlus zählt alte IMAP-UNSEEN oft nicht mehr — FRITZ!Box-Altlasten z. B. */
+const MAX_UNREAD_AGE_DAYS = Math.max(
+  1,
+  parseInt(process.env.MAIL_UNREAD_MAX_AGE_DAYS ?? '30', 10) || 30,
+)
+
+type VerifiedUnreadEntry = { uid: number; messageId?: string; date?: Date }
+
+type VerifiedUnreadScan = {
+  entries: VerifiedUnreadEntry[]
+  skippedStale: number
+  skippedDuplicate: number
+}
+
+function messageDate(msg: {
+  envelope?: { date?: Date | string }
+  internalDate?: Date | string
+}): Date | undefined {
+  if (msg.envelope?.date) {
+    const d = new Date(msg.envelope.date)
+    if (!isNaN(+d)) return d
+  }
+  if (msg.internalDate) {
+    const d = new Date(msg.internalDate)
+    if (!isNaN(+d)) return d
+  }
+  return undefined
+}
+
+function isRecentUnread(date: Date | undefined): boolean {
+  if (!date) return true
+  return Date.now() - date.getTime() <= MAX_UNREAD_AGE_DAYS * 86_400_000
+}
+
+/** UNSEEN + UNDELETED, Flags prüfen, Stale/Duplikate filtern. */
+async function fetchVerifiedUnreadEntries(
+  client: ImapFlow,
+  path: string,
+): Promise<VerifiedUnreadScan> {
   const lock = await client.getMailboxLock(path)
   try {
     const found = await client.search({ seen: false, deleted: false }, { uid: true })
-    if (!Array.isArray(found) || found.length === 0) return []
-
-    const verified: number[] = []
-    for await (const msg of client.fetch(found, { flags: true, uid: true }, { uid: true })) {
-      if (isRealUnreadMessage(msg.flags)) verified.push(msg.uid)
+    if (!Array.isArray(found) || found.length === 0) {
+      return { entries: [], skippedStale: 0, skippedDuplicate: 0 }
     }
-    return verified
+
+    const entries: VerifiedUnreadEntry[] = []
+    const seenMessageIds = new Set<string>()
+    let skippedStale = 0
+    let skippedDuplicate = 0
+
+    for await (const msg of client.fetch(
+      found,
+      { flags: true, uid: true, envelope: true, internalDate: true },
+      { uid: true },
+    )) {
+      if (!isRealUnreadMessage(msg.flags)) continue
+      const when = messageDate(msg)
+      if (!isRecentUnread(when)) {
+        skippedStale++
+        continue
+      }
+      const mid = msg.envelope?.messageId?.trim().toLowerCase()
+      if (mid) {
+        if (seenMessageIds.has(mid)) {
+          skippedDuplicate++
+          continue
+        }
+        seenMessageIds.add(mid)
+      }
+      entries.push({ uid: msg.uid, messageId: mid, date: when })
+    }
+    return { entries, skippedStale, skippedDuplicate }
   } finally {
     lock.release()
   }
+}
+
+async function fetchVerifiedUnreadUids(client: ImapFlow, path: string): Promise<number[]> {
+  const { entries } = await fetchVerifiedUnreadEntries(client, path)
+  return entries.map(e => e.uid)
 }
 
 /** Zählt ungelesene per SEARCH; bei Fehler STATUS als Fallback. */
@@ -215,23 +281,22 @@ function formatFromAddress(from: { name?: string; address?: string } | undefined
   return from.name?.trim() ? `${from.name.trim()} <${from.address}>` : from.address
 }
 
-async function listUnreadInMailbox(
+async function listUnreadFromEntries(
   client: ImapFlow,
   path: string,
+  entries: VerifiedUnreadEntry[],
   max: number,
 ): Promise<MailUnreadPreviewMessage[]> {
   const out: MailUnreadPreviewMessage[] = []
-  let uids: number[]
-  try {
-    uids = await fetchVerifiedUnreadUids(client, path)
-  } catch {
-    return out
-  }
-  if (!uids.length) return out
+  if (!entries.length) return out
 
   const lock = await client.getMailboxLock(path)
   try {
-    for await (const msg of client.fetch(uids.slice(0, max), { envelope: true, uid: true }, { uid: true })) {
+    for await (const msg of client.fetch(
+      entries.slice(0, max).map(e => e.uid),
+      { envelope: true, uid: true },
+      { uid: true },
+    )) {
       const env = msg.envelope
       out.push({
         folder: path,
@@ -246,6 +311,19 @@ async function listUnreadInMailbox(
     lock.release()
   }
   return out
+}
+
+async function listUnreadInMailbox(
+  client: ImapFlow,
+  path: string,
+  max: number,
+): Promise<MailUnreadPreviewMessage[]> {
+  try {
+    const { entries } = await fetchVerifiedUnreadEntries(client, path)
+    return await listUnreadFromEntries(client, path, entries, max)
+  } catch {
+    return []
+  }
 }
 
 async function collectUnreadPreviews(
@@ -265,6 +343,8 @@ async function collectUnreadPreviews(
   const messages: MailUnreadPreviewMessage[] = []
   let total = 0
   let truncated = false
+  let skippedStale = 0
+  let skippedDuplicate = 0
 
   const pushMessages = (batch: MailUnreadPreviewMessage[]) => {
     for (const m of batch) {
@@ -302,11 +382,14 @@ async function collectUnreadPreviews(
     if ([...coveredByNoselect].some(parent => isDescendantMailboxPath(parent, path))) continue
 
     try {
-      const unread = await countUnreadViaSearch(client, path)
+      const scan = await fetchVerifiedUnreadEntries(client, path)
+      skippedStale += scan.skippedStale
+      skippedDuplicate += scan.skippedDuplicate
+      const unread = scan.entries.length
       folders.push({ path, unread })
       total += unread
       if (unread > 0) {
-        const listed = await listUnreadInMailbox(client, path, PREVIEW_MAX_PER_FOLDER)
+        const listed = await listUnreadFromEntries(client, path, scan.entries, PREVIEW_MAX_PER_FOLDER)
         if (listed.length < unread) truncated = true
         pushMessages(listed)
       }
@@ -316,7 +399,16 @@ async function collectUnreadPreviews(
     if (truncated) break
   }
 
-  return { total, messages, folders, mode, truncated: truncated || undefined }
+  return {
+    total,
+    messages,
+    folders,
+    mode,
+    truncated: truncated || undefined,
+    skippedStale: skippedStale || undefined,
+    skippedDuplicate: skippedDuplicate || undefined,
+    maxUnreadAgeDays: MAX_UNREAD_AGE_DAYS,
+  }
 }
 
 export async function fetchUnreadMessagePreviews(
@@ -349,14 +441,19 @@ export async function fetchUnreadMessagePreviews(
         mode: 'single',
       }
     }
-    const unread = await countUnreadViaSearch(client, mailbox)
-    const messages = unread > 0 ? await listUnreadInMailbox(client, mailbox, PREVIEW_MAX_PER_FOLDER) : []
+    const scan = await fetchVerifiedUnreadEntries(client, mailbox)
+    const messages = scan.entries.length > 0
+      ? await listUnreadFromEntries(client, mailbox, scan.entries, PREVIEW_MAX_PER_FOLDER)
+      : []
     return {
-      total: unread,
+      total: scan.entries.length,
       messages,
-      folders: [{ path: mailbox, unread }],
+      folders: [{ path: mailbox, unread: scan.entries.length }],
       mode: 'single',
-      truncated: unread > messages.length ? true : undefined,
+      truncated: scan.entries.length > messages.length ? true : undefined,
+      skippedStale: scan.skippedStale || undefined,
+      skippedDuplicate: scan.skippedDuplicate || undefined,
+      maxUnreadAgeDays: MAX_UNREAD_AGE_DAYS,
     }
   } finally {
     try {

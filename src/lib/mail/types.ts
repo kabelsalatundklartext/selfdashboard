@@ -68,6 +68,12 @@ export interface MailUnreadPreviewResult {
   folders: MailFolderUnread[]
   mode: 'all-except-trash' | 'synology-accounts' | 'accounts' | 'single'
   truncated?: boolean
+  /** Ungelesen per IMAP, aber älter als MAIL_UNREAD_MAX_AGE_DAYS — nicht gezählt */
+  skippedStale?: number
+  /** Doppelte Message-ID im selben Ordner */
+  skippedDuplicate?: number
+  /** Alter als MAIL_UNREAD_MAX_AGE_DAYS (Standard 30) */
+  maxUnreadAgeDays?: number
 }
 
 /** API/UI — Konto ohne Passwort im Klartext */

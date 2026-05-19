@@ -269,7 +269,7 @@ Built-in feature (not a dashboard widget). Configure under **Settings → Email*
 | **API** | `GET /api/mail/status` (read cache), `?refresh=1` (run IMAP sync now), `PUT /api/mail/settings`, `POST /api/mail/test` |
 | **Storage** | `data/mail/mail.json` (or `MAIL_DATA_DIR`); passwords **AES-256-GCM** (same key as calendar — `SELFDASHBOARD_CALENDAR_KEY`) |
 | **Accounts** | Multiple accounts; per account: label, host, port, SSL, user, password, mailbox mode, webmail URL, **Poll this account** (enabled) |
-| **How counts work** | Each sync runs a **fresh IMAP query** and **replaces** the stored total (no tracking of deleted mail). Unread = `SEARCH` unseen messages per folder; `STATUS` is only a fallback if search fails (important on Synology — parent folders can show stale STATUS) |
+| **How counts work** | Each sync runs a **fresh IMAP query** and **replaces** the stored total (no tracking of deleted mail). Unread = `SEARCH` unseen + flag check (`\Seen`/`\Deleted` ignored); messages older than **30 days** are skipped (override: `MAIL_UNREAD_MAX_AGE_DAYS`). `STATUS` is only a fallback if search fails (important on Synology — parent folders can show stale STATUS) |
 | **Mailbox `*`** | All folders with unread mail, **trash excluded** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Leaf folders preferred when a parent has subfolders (avoids double-count / ghost unread on `INBOX.Account`) |
 | **Mailbox `@accounts`** | MailPlus-style: only `INBOX.AccountName` (`@accounts`, `accounts`, `mailplus`, `konten`) — closer to the MailPlus sidebar |
 | **Single folder** | Any other name (e.g. `INBOX`) counts only that mailbox |
@@ -403,6 +403,7 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | Mail: `ENOTFOUND host:5000` | IMAP host must be IP/hostname only (e.g. `192.168.1.15`), port **993** separate; webmail URL goes in **Webmail URL** field |
 | Mail test OK, navbar empty | Enable **Navbar email** (General or Email tab); save account; badge needs unread &gt; 0 |
 | Mail badge shows mail that is gone in MailPlus | IMAP may still list deleted/read messages until the server cleans up. Use **Show unread** in email settings to see subjects. After update, SelfDashboard ignores `\Deleted` and `\Seen` ghosts. In MailPlus: empty trash / expunge if needed, then **Refresh all accounts**. |
+| MailPlus shows 1 unread, preview listed 2 (old FRITZ mail) | Synology IMAP can keep ancient `UNSEEN` UIDs. SelfDashboard drops unread older than 30 days and duplicate `Message-ID`s; the preview notes how many were ignored. Set `MAIL_UNREAD_MAX_AGE_DAYS=0` to disable the age filter (not recommended). |
 
 ---
 
@@ -674,7 +675,7 @@ Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen
 | **API** | `GET /api/mail/status` (Cache), `?refresh=1` (sofort IMAP-Sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
 | **Speicher** | `data/mail/mail.json` (oder `MAIL_DATA_DIR`); Passwörter **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`, wie Kalender) |
 | **Konten** | Mehrere Konten: Name, Host, Port, SSL, Benutzer, Passwort, Ordner-Modus, Webmail-URL, **Dieses Konto abfragen** |
-| **Zählweise** | Jeder Sync = **neue IMAP-Abfrage**, Anzeige wird **ersetzt** (kein Tracking gelöschter Mails). Ungelesen per **SEARCH**; **STATUS** nur als Fallback (Synology: veralteter STATUS auf übergeordneten Ordnern) |
+| **Zählweise** | Jeder Sync = **neue IMAP-Abfrage**, Anzeige wird **ersetzt** (kein Tracking gelöschter Mails). Ungelesen per **SEARCH** + Flag-Prüfung (`\Seen`/`\Deleted` ignoriert); älter als **30 Tage** wird übersprungen (`MAIL_UNREAD_MAX_AGE_DAYS`). **STATUS** nur als Fallback (Synology: veralteter STATUS auf übergeordneten Ordnern) |
 | **Ordner `*`** | Alle Ordner mit Ungelesen, **ohne Papierkorb** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Unterordner statt übergeordnetem Ordner, wenn vorhanden |
 | **Ordner `@accounts`** | Wie MailPlus-Sidebar: nur `INBOX.Kontoname` (`@accounts`, `accounts`, `mailplus`, `konten`) |
 | **Einzelordner** | Anderer Name (z. B. `INBOX`) zählt nur diesen Ordner |
@@ -793,6 +794,7 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | E-Mail: `ENOTFOUND host:5000` | IMAP-Host nur IP/Name (z. B. `192.168.1.15`), Port **993** extra; Webmail-URL ins Feld **Webmail-URL** |
 | Test OK, Navbar leer | **Navbar E-Mail** einschalten; Konto speichern; Badge nur bei Ungelesen &gt; 0 |
 | Badge zeigt Mail, die in MailPlus weg ist | IMAP kann gelöschte/gelesene Mails noch listen. **Ungelesen anzeigen** in den E-Mail-Einstellungen prüfen. Neuere Version ignoriert `\Deleted`/`\Seen`-Geister. In MailPlus Papierkorb leeren/leeren, dann **Alle Konten aktualisieren**. |
+| MailPlus 1 ungelesen, Vorschau zeigte 2 (alte FRITZ-Mail) | Synology-IMAP behält oft alte `UNSEEN`-UIDs. SelfDashboard filtert Ungelesen älter als 30 Tage und doppelte `Message-ID`; die Vorschau zeigt, wie viele ignoriert wurden. `MAIL_UNREAD_MAX_AGE_DAYS=0` schaltet den Altersfilter aus (nicht empfohlen). |
 
 ---
 
