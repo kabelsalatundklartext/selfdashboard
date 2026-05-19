@@ -15,7 +15,12 @@
     "cross-spawn": "^7.0.5",
     "brace-expansion": "^2.0.3",
     "tar": "^7.5.11",
-    "ip-address": "^10.1.1"
+    "ip-address": "10.1.1",
+    "picomatch": "^4.0.4",
+    "postcss": "^8.5.10",
+    "next": {
+      "postcss": "^8.5.10"
+    }
   },
   "dependencies": {
     "autoprefixer": "^10.4.19",
