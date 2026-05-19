@@ -32,7 +32,9 @@ export async function POST(req: Request) {
       }
 
     const merged = applyAccountUpdate({ ...account }, body)
-    const result = await fetchUnreadMessagePreviews(accountToImapConfig(merged))
+    const result = await fetchUnreadMessagePreviews(
+      accountToImapConfig(merged, store.unreadMaxAgeDays),
+    )
     return NextResponse.json({ ok: true, ...result })
   } catch (e: unknown) {
     const msg = formatMailError(e instanceof Error ? e.message : String(e))

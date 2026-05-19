@@ -59,7 +59,7 @@ export async function runMailSync(opts?: { wait?: boolean }): Promise<void> {
 
     for (const account of active) {
       try {
-        const result = await fetchUnreadBreakdown(accountToImapConfig(account))
+        const result = await fetchUnreadBreakdown(accountToImapConfig(account, store.unreadMaxAgeDays))
         total += result.total
         perAccount.push({
           id: account.id,

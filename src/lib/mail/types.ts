@@ -5,6 +5,11 @@ export const MAIL_POLL_INTERVAL_MIN = 1
 export const MAIL_POLL_INTERVAL_MAX = 900
 export const MAIL_POLL_INTERVAL_DEFAULT = 120
 
+/** Ungelesen älter als X Tage nicht zählen (0 = Filter aus) */
+export const MAIL_UNREAD_MAX_AGE_MIN = 0
+export const MAIL_UNREAD_MAX_AGE_MAX = 365
+export const MAIL_UNREAD_MAX_AGE_DEFAULT = 30
+
 /** Max. Ordner mit Ungelesen pro Konto in der Status-Anzeige */
 export const MAIL_STATUS_MAX_FOLDERS = 12
 
@@ -14,6 +19,22 @@ export function clampPollIntervalSeconds(seconds: number): number {
     MAIL_POLL_INTERVAL_MIN,
     Math.min(MAIL_POLL_INTERVAL_MAX, Math.round(seconds)),
   )
+}
+
+export function resolveUnreadMaxAgeDays(value?: number): number {
+  if (value !== undefined && Number.isFinite(value)) {
+    return clampUnreadMaxAgeDays(value)
+  }
+  const fromEnv = parseInt(process.env.MAIL_UNREAD_MAX_AGE_DAYS ?? '', 10)
+  if (Number.isFinite(fromEnv)) return clampUnreadMaxAgeDays(fromEnv)
+  return MAIL_UNREAD_MAX_AGE_DEFAULT
+}
+
+export function clampUnreadMaxAgeDays(days: number): number {
+  if (!Number.isFinite(days)) return MAIL_UNREAD_MAX_AGE_DEFAULT
+  const n = Math.round(days)
+  if (n <= MAIL_UNREAD_MAX_AGE_MIN) return MAIL_UNREAD_MAX_AGE_MIN
+  return Math.min(MAIL_UNREAD_MAX_AGE_MAX, n)
 }
 
 /** Legacy single-account shape (v1) — migration only */
@@ -68,11 +89,11 @@ export interface MailUnreadPreviewResult {
   folders: MailFolderUnread[]
   mode: 'all-except-trash' | 'synology-accounts' | 'accounts' | 'single'
   truncated?: boolean
-  /** Ungelesen per IMAP, aber älter als MAIL_UNREAD_MAX_AGE_DAYS — nicht gezählt */
+  /** Ungelesen per IMAP, aber älter als eingestelltes Limit — nicht gezählt */
   skippedStale?: number
   /** Doppelte Message-ID im selben Ordner */
   skippedDuplicate?: number
-  /** Alter als MAIL_UNREAD_MAX_AGE_DAYS (Standard 30) */
+  /** Aktives Limit in Tagen (0 = kein Altersfilter) */
   maxUnreadAgeDays?: number
 }
 
@@ -121,6 +142,8 @@ export interface MailStoreFile {
   /** Navbar-Symbol + Abfrage global */
   navbarEnabled: boolean
   pollIntervalSeconds: number
+  /** 0 = alle UNSEEN zählen; Standard 30 */
+  unreadMaxAgeDays: number
   accounts: MailAccount[]
   status: MailAggregateStatus
 }
@@ -161,6 +184,8 @@ export interface MailImapConfig {
   passwordEncrypted: string
   mailbox: string
   verifyTls: boolean
+  /** 0 = Altersfilter aus */
+  maxUnreadAgeDays?: number
 }
 
 /** Konto kann per IMAP abgefragt werden (Navbar-Sync) */
@@ -173,7 +198,10 @@ export function isMailAccountFetchable(account: MailAccount): boolean {
   )
 }
 
-export function accountToImapConfig(account: MailAccount): MailImapConfig {
+export function accountToImapConfig(
+  account: MailAccount,
+  unreadMaxAgeDays?: number,
+): MailImapConfig {
   return {
     host: account.host,
     port: account.port,
@@ -182,5 +210,6 @@ export function accountToImapConfig(account: MailAccount): MailImapConfig {
     passwordEncrypted: account.passwordEncrypted,
     mailbox: account.mailbox,
     verifyTls: account.verifyTls,
+    maxUnreadAgeDays: resolveUnreadMaxAgeDays(unreadMaxAgeDays),
   }
 }

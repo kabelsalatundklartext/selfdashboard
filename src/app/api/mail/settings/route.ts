@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { logMailEvent } from '@/lib/mail/log'
-import { clampPollIntervalSeconds } from '@/lib/mail/types'
+import { clampPollIntervalSeconds, clampUnreadMaxAgeDays } from '@/lib/mail/types'
 import { runMailSync } from '@/lib/mail/sync'
 import {
   applyAccountUpdate,
@@ -20,6 +20,8 @@ function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
   if (typeof body.navbarEnabled === 'boolean') return true
   if (typeof body.enabled === 'boolean') return true
   if (typeof body.host === 'string' || typeof body.username === 'string') return true
+  if (typeof body.pollIntervalSeconds === 'number') return true
+  if (typeof body.unreadMaxAgeDays === 'number') return true
   return false
 }
 
@@ -30,6 +32,7 @@ export async function GET() {
       ok: true,
       navbarEnabled: store.navbarEnabled,
       pollIntervalSeconds: store.pollIntervalSeconds,
+      unreadMaxAgeDays: store.unreadMaxAgeDays,
       accounts: store.accounts.map(toPublicAccount),
       status: store.status,
       config: toPublicConfigLegacy(store),
@@ -53,6 +56,9 @@ export async function PUT(req: Request) {
       if (typeof body.enabled === 'boolean') s.navbarEnabled = body.enabled
       if (typeof body.pollIntervalSeconds === 'number' && Number.isFinite(body.pollIntervalSeconds)) {
         s.pollIntervalSeconds = clampPollIntervalSeconds(body.pollIntervalSeconds)
+      }
+      if (typeof body.unreadMaxAgeDays === 'number' && Number.isFinite(body.unreadMaxAgeDays)) {
+        s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays)
       }
 
       if (typeof body.deleteAccountId === 'string') {
@@ -86,6 +92,7 @@ export async function PUT(req: Request) {
       ok: true,
       navbarEnabled: updated.navbarEnabled,
       pollIntervalSeconds: updated.pollIntervalSeconds,
+      unreadMaxAgeDays: updated.unreadMaxAgeDays,
       accounts: updated.accounts.map(toPublicAccount),
       status: updated.status,
       config: toPublicConfigLegacy(updated),

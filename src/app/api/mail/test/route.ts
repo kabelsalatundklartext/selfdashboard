@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       }
 
     const merged = applyAccountUpdate({ ...account }, body)
-    const result = await testImapConnection(accountToImapConfig(merged))
+    const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays))
     if (!result.ok) {
       void logMailEvent('test', result.error, {
         detail: { accountId: merged.id, label: merged.label, host: merged.host },

@@ -7,9 +7,13 @@ import { MailNavbarToggle, saveMailNavbarEnabled } from '@/components/settings/M
 import { dispatchMailConfigChanged } from '@/lib/mail/events'
 import {
   clampPollIntervalSeconds,
+  clampUnreadMaxAgeDays,
   MAIL_POLL_INTERVAL_DEFAULT,
   MAIL_POLL_INTERVAL_MAX,
   MAIL_POLL_INTERVAL_MIN,
+  MAIL_UNREAD_MAX_AGE_DEFAULT,
+  MAIL_UNREAD_MAX_AGE_MAX,
+  MAIL_UNREAD_MAX_AGE_MIN,
   type MailAccountPublic,
   type MailAggregateStatus,
   type MailUnreadPreviewMessage,
@@ -49,6 +53,8 @@ export function MailSettingsPanel({
   const [navbarEnabled, setNavbarEnabled] = useState(false)
   const [pollIntervalSeconds, setPollIntervalSeconds] = useState(MAIL_POLL_INTERVAL_DEFAULT)
   const [pollDraft, setPollDraft] = useState(String(MAIL_POLL_INTERVAL_DEFAULT))
+  const [unreadMaxAgeDays, setUnreadMaxAgeDays] = useState(MAIL_UNREAD_MAX_AGE_DEFAULT)
+  const [unreadMaxAgeDraft, setUnreadMaxAgeDraft] = useState(String(MAIL_UNREAD_MAX_AGE_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
@@ -92,6 +98,7 @@ export function MailSettingsPanel({
       const j = await res.json() as {
         navbarEnabled?: boolean
         pollIntervalSeconds?: number
+        unreadMaxAgeDays?: number
         accounts?: MailAccountPublic[]
         status?: MailStatus
       }
@@ -100,6 +107,11 @@ export function MailSettingsPanel({
         const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
         setPollIntervalSeconds(sec)
         setPollDraft(String(sec))
+      }
+      if (typeof j.unreadMaxAgeDays === 'number') {
+        const days = clampUnreadMaxAgeDays(j.unreadMaxAgeDays)
+        setUnreadMaxAgeDays(days)
+        setUnreadMaxAgeDraft(String(days))
       }
       const list = j.accounts ?? []
       setAccounts(list)
@@ -159,6 +171,11 @@ export function MailSettingsPanel({
     return clampPollIntervalSeconds(Number.isFinite(parsed) ? parsed : pollIntervalSeconds)
   }
 
+  const resolveUnreadMaxAge = () => {
+    const parsed = parseInt(unreadMaxAgeDraft.trim(), 10)
+    return clampUnreadMaxAgeDays(Number.isFinite(parsed) ? parsed : unreadMaxAgeDays)
+  }
+
   const savePollInterval = async () => {
     const sec = resolvePollInterval()
     setPollIntervalSeconds(sec)
@@ -190,6 +207,49 @@ export function MailSettingsPanel({
       dispatchMailConfigChanged({
         unread: j.status?.unread,
         pollIntervalSeconds: sec,
+      })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveUnreadMaxAge = async () => {
+    const days = resolveUnreadMaxAge()
+    setUnreadMaxAgeDays(days)
+    setUnreadMaxAgeDraft(String(days))
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unreadMaxAgeDays: days }),
+      })
+      const j = await res.json() as {
+        error?: string
+        unreadMaxAgeDays?: number
+        status?: MailStatus
+        accounts?: MailAccountPublic[]
+      }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (typeof j.unreadMaxAgeDays === 'number') {
+        const saved = clampUnreadMaxAgeDays(j.unreadMaxAgeDays)
+        setUnreadMaxAgeDays(saved)
+        setUnreadMaxAgeDraft(String(saved))
+      }
+      if (j.status) setStatus(j.status)
+      if (j.accounts) setAccounts(j.accounts)
+      setMsg(
+        days === 0
+          ? (de ? 'Altersfilter aus — alle IMAP-Ungelesen zählen' : 'Age filter off — all IMAP unread counted')
+          : (de ? `Altersfilter gespeichert (${days} Tage)` : `Age filter saved (${days} days)`),
+      )
+      dispatchMailConfigChanged({
+        unread: j.status?.unread,
+        forceRefresh: true,
       })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -619,6 +679,35 @@ export function MailSettingsPanel({
         {de
           ? `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s (Standard ${MAIL_POLL_INTERVAL_DEFAULT}). Server synct per IMAP im Hintergrund; Anzeige liest den Cache. „Alle Konten aktualisieren“ = sofort neuer IMAP-Lauf.`
           : `${MAIL_POLL_INTERVAL_MIN}–${MAIL_POLL_INTERVAL_MAX} s (default ${MAIL_POLL_INTERVAL_DEFAULT}). Server syncs via IMAP in the background; UI reads cache. “Refresh all accounts” forces IMAP now.`}
+      </p>
+
+      <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginTop: '4px' }}>
+        {de ? 'Altersfilter ungelesen (alle Konten)' : 'Unread age filter (all accounts)'}
+      </label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+        <input
+          style={{ ...inp, flex: '1 1 120px', minWidth: '80px' }}
+          type="number"
+          min={MAIL_UNREAD_MAX_AGE_MIN}
+          max={MAIL_UNREAD_MAX_AGE_MAX}
+          step={1}
+          value={unreadMaxAgeDraft}
+          onChange={e => setUnreadMaxAgeDraft(e.target.value)}
+          onBlur={() => {
+            const n = resolveUnreadMaxAge()
+            setUnreadMaxAgeDays(n)
+            setUnreadMaxAgeDraft(String(n))
+          }}
+        />
+        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{de ? 'Tage' : 'days'}</span>
+        <button type="button" className="btn-ghost" style={{ fontSize: '12px' }} disabled={busy} onClick={() => void saveUnreadMaxAge()}>
+          {de ? 'Altersfilter speichern' : 'Save age filter'}
+        </button>
+      </div>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 0', lineHeight: 1.45 }}>
+        {de
+          ? `Ungelesen älter als diese Anzahl wird nicht gezählt (Standard ${MAIL_UNREAD_MAX_AGE_DEFAULT}). „0“ = Filter aus (alle IMAP-UNSEEN). Hilft bei Synology-Altlasten, die MailPlus nicht mehr anzeigt.`
+          : `Unread older than this is ignored (default ${MAIL_UNREAD_MAX_AGE_DEFAULT}). “0” disables the filter (all IMAP UNSEEN). Helps with Synology stale UNSEEN not shown in MailPlus.`}
       </p>
 
       {status ? (
