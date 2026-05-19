@@ -130,16 +130,36 @@ async function countUnreadViaStatus(client: ImapFlow, path: string): Promise<num
   return 0
 }
 
+/** MailPlus/Synology: SEARCH liefert manchmal UIDs die in der UI schon gelesen/gelöscht sind. */
+function isRealUnreadMessage(flags: Set<string> | undefined): boolean {
+  if (!flags) return true
+  if (flags.has('\\Deleted')) return false
+  if (flags.has('\\Seen')) return false
+  return true
+}
+
+/** UNSEEN + UNDELETED, danach Flags pro Nachricht prüfen (gegen Geister-Mails). */
+async function fetchVerifiedUnreadUids(client: ImapFlow, path: string): Promise<number[]> {
+  const lock = await client.getMailboxLock(path)
+  try {
+    const found = await client.search({ seen: false, deleted: false }, { uid: true })
+    if (!Array.isArray(found) || found.length === 0) return []
+
+    const verified: number[] = []
+    for await (const msg of client.fetch(found, { flags: true, uid: true }, { uid: true })) {
+      if (isRealUnreadMessage(msg.flags)) verified.push(msg.uid)
+    }
+    return verified
+  } finally {
+    lock.release()
+  }
+}
+
 /** Zählt ungelesene per SEARCH; bei Fehler STATUS als Fallback. */
 async function countUnreadViaSearch(client: ImapFlow, path: string): Promise<number> {
   try {
-    const lock = await client.getMailboxLock(path)
-    try {
-      const uids = await client.search({ seen: false }, { uid: true })
-      return Array.isArray(uids) ? uids.length : 0
-    } finally {
-      lock.release()
-    }
+    const uids = await fetchVerifiedUnreadUids(client, path)
+    return uids.length
   } catch {
     return countUnreadViaStatus(client, path)
   }
@@ -201,12 +221,17 @@ async function listUnreadInMailbox(
   max: number,
 ): Promise<MailUnreadPreviewMessage[]> {
   const out: MailUnreadPreviewMessage[] = []
+  let uids: number[]
+  try {
+    uids = await fetchVerifiedUnreadUids(client, path)
+  } catch {
+    return out
+  }
+  if (!uids.length) return out
+
   const lock = await client.getMailboxLock(path)
   try {
-    const found = await client.search({ seen: false }, { uid: true })
-    if (!Array.isArray(found) || found.length === 0) return out
-    const uids = found.slice(0, max)
-    for await (const msg of client.fetch(uids, { envelope: true, uid: true }, { uid: true })) {
+    for await (const msg of client.fetch(uids.slice(0, max), { envelope: true, uid: true }, { uid: true })) {
       const env = msg.envelope
       out.push({
         folder: path,
