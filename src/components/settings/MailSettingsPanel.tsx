@@ -497,6 +497,44 @@ export function MailSettingsPanel({
     }
   }
 
+  const resetMailCache = async () => {
+    const ok = window.confirm(
+      de
+        ? 'Gespeicherte Ungelesen-Zähler in SelfDashboard löschen und sofort neu per IMAP abfragen?\n\nHinweis: E-Mails auf Synology werden nicht gelöscht. Wenn danach noch „Geister“-Mails erscheinen, liegen sie noch als UNSEEN auf dem Mail-Server (MailPlus zeigt sie oft nicht).'
+        : 'Clear stored unread counts in SelfDashboard and query IMAP again now?\n\nNote: Mail on Synology is not deleted. If ghost messages still appear, they remain UNSEEN on the mail server (MailPlus often hides them).',
+    )
+    if (!ok) return
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/mail/reset-cache', { method: 'POST', cache: 'no-store' })
+      const j = await res.json() as MailStatus & { ok?: boolean; error?: string; openUrl?: string | null }
+      if (!res.ok || j.ok === false) throw new Error(j.error ?? `HTTP ${res.status}`)
+      setStatus({
+        unread: j.unread ?? 0,
+        lastSyncAt: j.lastSyncAt,
+        lastError: j.lastError,
+        accounts: j.accounts ?? [],
+      })
+      await load()
+      setMsg(
+        de
+          ? `Cache geleert — neu gezählt: ${j.unread ?? 0} ungelesen`
+          : `Cache cleared — recount: ${j.unread ?? 0} unread`,
+      )
+      dispatchMailConfigChanged({
+        openUrl: (j.openUrl ?? form.openUrl.trim()) || null,
+        unread: j.unread,
+        forceRefresh: true,
+      })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const accountUnread = (id: string) => status?.accounts?.find(a => a.id === id)?.unread ?? 0
 
   return (
@@ -779,9 +817,25 @@ export function MailSettingsPanel({
 
       {previewErr ? <div style={{ fontSize: '12px', color: '#f87171' }}>{previewErr}</div> : null}
 
-      <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()} style={{ alignSelf: 'flex-start' }}>
-        <RefreshCw size={14} /> {de ? 'Alle Konten aktualisieren' : 'Refresh all accounts'}
-      </button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+        <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()}>
+          <RefreshCw size={14} /> {de ? 'Alle Konten aktualisieren' : 'Refresh all accounts'}
+        </button>
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={busy}
+          onClick={() => void resetMailCache()}
+          title={de ? 'Nur SelfDashboard-Zähler in mail.json leeren, dann IMAP' : 'Clear SelfDashboard counters in mail.json, then IMAP'}
+        >
+          {de ? 'Mail-Cache leeren' : 'Clear mail cache'}
+        </button>
+      </div>
+      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+        {de
+          ? 'SelfDashboard speichert keine E-Mails — nur Zähler in mail.json. „Cache leeren“ = Zähler zurücksetzen + frischer IMAP-Lauf. Hilft bei veraltetem Badge, nicht wenn Synology/IMAP die Mail noch als UNSEEN führt (dann MailPlus-Suche im richtigen Konto, z. B. Web Mail SSchmidt).'
+          : 'SelfDashboard does not store emails — only counters in mail.json. “Clear cache” resets counts + fresh IMAP. Helps stale badges, not when Synology/IMAP still reports UNSEEN (search the correct account in MailPlus, e.g. Web Mail SSchmidt).'}
+      </p>
 
       {previewOpen ? (
         <div

@@ -306,6 +306,13 @@ export async function updateMailStatus(status: Partial<MailAggregateStatus>) {
   })
 }
 
+/** Nur Zähler/Status in mail.json leeren — Konten und Passwörter bleiben. */
+export async function resetMailStatusCache(): Promise<MailStoreFile> {
+  return mutateMailStore(s => {
+    s.status = structuredClone(EMPTY_MAIL_STATUS)
+  })
+}
+
 /** Legacy-Kompatibilität für alte API-Clients */
 export function toPublicConfigLegacy(store: MailStoreFile) {
   const first = store.accounts[0]
