@@ -4,7 +4,13 @@ import { ImapFlow } from 'imapflow'
 
 import { decrypt } from '@/lib/secretCrypto'
 import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
-import type { MailFolderUnread, MailImapConfig } from './types'
+import type {
+  MailFolderUnread,
+  MailImapConfig,
+  MailUnreadPreviewMessage,
+  MailUnreadPreviewResult,
+} from './types'
+import { formatMailFolderLabel } from './types'
 
 export type MailUnreadResult = {
   total: number
@@ -179,6 +185,161 @@ async function sumUnreadAllFolders(client: ImapFlow, mailbox: string): Promise<M
   }
 
   return { total, folders, mode }
+}
+
+const PREVIEW_MAX_TOTAL = 100
+const PREVIEW_MAX_PER_FOLDER = 40
+
+function formatFromAddress(from: { name?: string; address?: string } | undefined): string | undefined {
+  if (!from?.address) return undefined
+  return from.name?.trim() ? `${from.name.trim()} <${from.address}>` : from.address
+}
+
+async function listUnreadInMailbox(
+  client: ImapFlow,
+  path: string,
+  max: number,
+): Promise<MailUnreadPreviewMessage[]> {
+  const out: MailUnreadPreviewMessage[] = []
+  const lock = await client.getMailboxLock(path)
+  try {
+    const found = await client.search({ seen: false }, { uid: true })
+    if (!Array.isArray(found) || found.length === 0) return out
+    const uids = found.slice(0, max)
+    for await (const msg of client.fetch(uids, { envelope: true, uid: true }, { uid: true })) {
+      const env = msg.envelope
+      out.push({
+        folder: path,
+        folderLabel: formatMailFolderLabel(path),
+        uid: msg.uid,
+        subject: (env?.subject && String(env.subject).trim()) || '(no subject)',
+        from: formatFromAddress(env?.from?.[0]),
+        date: env?.date ? new Date(env.date).toISOString() : undefined,
+      })
+    }
+  } finally {
+    lock.release()
+  }
+  return out
+}
+
+async function collectUnreadPreviews(
+  client: ImapFlow,
+  mailbox: string,
+): Promise<MailUnreadPreviewResult> {
+  const boxes: ListedBox[] = (await client.list()).map(b => ({ path: b.path, flags: b.flags }))
+  const { paths: toScan, mode } = resolveScanPaths(boxes, mailbox)
+  const boxByPath = new Map(boxes.map(b => [b.path, b]))
+
+  const noselectRoots = toScan
+    .filter(p => boxByPath.get(p)?.flags?.has('\\Noselect'))
+    .filter(p => !toScan.some(other => other !== p && isDescendantMailboxPath(other, p)))
+
+  const coveredByNoselect = new Set<string>()
+  const folders: MailFolderUnread[] = []
+  const messages: MailUnreadPreviewMessage[] = []
+  let total = 0
+  let truncated = false
+
+  const pushMessages = (batch: MailUnreadPreviewMessage[]) => {
+    for (const m of batch) {
+      if (messages.length >= PREVIEW_MAX_TOTAL) {
+        truncated = true
+        return
+      }
+      messages.push(m)
+    }
+  }
+
+  for (const path of noselectRoots) {
+    const hasOpenableChild = toScan.some(
+      p => p !== path && isDescendantMailboxPath(path, p) && !boxByPath.get(p)?.flags?.has('\\Noselect'),
+    )
+    if (hasOpenableChild) continue
+
+    const unread = await countUnreadViaStatus(client, path)
+    folders.push({ path, unread })
+    total += unread
+    if (unread > 0) {
+      coveredByNoselect.add(path)
+      pushMessages([{
+        folder: path,
+        folderLabel: formatMailFolderLabel(path),
+        uid: 0,
+        subject: `(${unread} unread — folder is Noselect, subjects not available via IMAP)`,
+        note: 'noselect',
+      }])
+    }
+  }
+
+  for (const path of toScan) {
+    if (boxByPath.get(path)?.flags?.has('\\Noselect')) continue
+    if ([...coveredByNoselect].some(parent => isDescendantMailboxPath(parent, path))) continue
+
+    try {
+      const unread = await countUnreadViaSearch(client, path)
+      folders.push({ path, unread })
+      total += unread
+      if (unread > 0) {
+        const listed = await listUnreadInMailbox(client, path, PREVIEW_MAX_PER_FOLDER)
+        if (listed.length < unread) truncated = true
+        pushMessages(listed)
+      }
+    } catch {
+      folders.push({ path, unread: 0 })
+    }
+    if (truncated) break
+  }
+
+  return { total, messages, folders, mode, truncated: truncated || undefined }
+}
+
+export async function fetchUnreadMessagePreviews(
+  config: MailImapConfig,
+): Promise<MailUnreadPreviewResult> {
+  const client = createClient(config)
+  await client.connect()
+  try {
+    if (isAllMailboxes(config.mailbox)) {
+      return await collectUnreadPreviews(client, config.mailbox)
+    }
+    const mailbox = config.mailbox.trim() || 'INBOX'
+    const listed = await client.list()
+    const box = listed.find(b => b.path === mailbox)
+    if (box?.flags?.has('\\Noselect')) {
+      const unread = await countUnreadViaStatus(client, mailbox)
+      const messages: MailUnreadPreviewMessage[] = unread > 0
+        ? [{
+            folder: mailbox,
+            folderLabel: formatMailFolderLabel(mailbox),
+            uid: 0,
+            subject: `(${unread} unread — Noselect, subjects not available)`,
+            note: 'noselect',
+          }]
+        : []
+      return {
+        total: unread,
+        messages,
+        folders: [{ path: mailbox, unread }],
+        mode: 'single',
+      }
+    }
+    const unread = await countUnreadViaSearch(client, mailbox)
+    const messages = unread > 0 ? await listUnreadInMailbox(client, mailbox, PREVIEW_MAX_PER_FOLDER) : []
+    return {
+      total: unread,
+      messages,
+      folders: [{ path: mailbox, unread }],
+      mode: 'single',
+      truncated: unread > messages.length ? true : undefined,
+    }
+  } finally {
+    try {
+      await client.logout()
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<MailUnreadResult> {

@@ -50,6 +50,26 @@ export interface MailFolderUnread {
   unread: number
 }
 
+/** Einzelne ungelesene Nachricht (IMAP-Vorschau / Debug in Einstellungen). */
+export interface MailUnreadPreviewMessage {
+  folder: string
+  folderLabel: string
+  uid: number
+  subject: string
+  from?: string
+  date?: string
+  /** z. B. Noselect-Ordner ohne abrufbare Envelope-Daten */
+  note?: string
+}
+
+export interface MailUnreadPreviewResult {
+  total: number
+  messages: MailUnreadPreviewMessage[]
+  folders: MailFolderUnread[]
+  mode: 'all-except-trash' | 'synology-accounts' | 'accounts' | 'single'
+  truncated?: boolean
+}
+
 /** API/UI — Konto ohne Passwort im Klartext */
 export type MailAccountPublic = {
   id: string

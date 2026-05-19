@@ -12,6 +12,7 @@ import {
   MAIL_POLL_INTERVAL_MIN,
   type MailAccountPublic,
   type MailAggregateStatus,
+  type MailUnreadPreviewMessage,
   formatMailFolderLabel,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
@@ -56,6 +57,12 @@ export function MailSettingsPanel({
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewErr, setPreviewErr] = useState<string | null>(null)
+  const [previewTotal, setPreviewTotal] = useState(0)
+  const [previewMessages, setPreviewMessages] = useState<MailUnreadPreviewMessage[]>([])
+  const [previewTruncated, setPreviewTruncated] = useState(false)
 
   const selected = accounts.find(a => a.id === selectedId) ?? accounts[0]
 
@@ -309,6 +316,37 @@ export function MailSettingsPanel({
     }
   }
 
+  const showUnreadPreview = async () => {
+    if (!selected) return
+    setPreviewBusy(true)
+    setPreviewErr(null)
+    try {
+      const res = await fetch('/api/mail/unread-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
+      })
+      const j = await res.json() as {
+        ok?: boolean
+        error?: string
+        total?: number
+        messages?: MailUnreadPreviewMessage[]
+        truncated?: boolean
+      }
+      if (!res.ok || !j.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      setPreviewTotal(j.total ?? 0)
+      setPreviewMessages(j.messages ?? [])
+      setPreviewTruncated(Boolean(j.truncated))
+      setPreviewOpen(true)
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : String(e)
+      setPreviewErr(m)
+      reportPluginError('mail', m, { category: 'settings/unread-preview' })
+    } finally {
+      setPreviewBusy(false)
+    }
+  }
+
   const test = async () => {
     if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
@@ -527,6 +565,15 @@ export function MailSettingsPanel({
             <button type="button" className="btn-ghost" disabled={busy} onClick={() => void test()}>
               {de ? 'Testen' : 'Test'}
             </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={busy || previewBusy}
+              onClick={() => void showUnreadPreview()}
+              title={de ? 'Betreffzeilen der gezählten ungelesenen Mails' : 'Subjects of counted unread mail'}
+            >
+              {previewBusy ? (de ? 'Lade…' : 'Loading…') : (de ? 'Ungelesen anzeigen' : 'Show unread')}
+            </button>
             {accounts.length > 1 ? (
               <button type="button" className="btn-ghost" disabled={busy} onClick={() => void deleteAccount()}
                 style={{ color: '#f87171', marginLeft: 'auto' }} title={de ? 'Konto löschen' : 'Delete account'}>
@@ -632,9 +679,104 @@ export function MailSettingsPanel({
         </div>
       ) : null}
 
+      {previewErr ? <div style={{ fontSize: '12px', color: '#f87171' }}>{previewErr}</div> : null}
+
       <button type="button" className="btn-ghost" disabled={busy} onClick={() => void syncNow()} style={{ alignSelf: 'flex-start' }}>
         <RefreshCw size={14} /> {de ? 'Alle Konten aktualisieren' : 'Refresh all accounts'}
       </button>
+
+      {previewOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={e => { if (e.target === e.currentTarget) setPreviewOpen(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10050,
+            background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div style={{
+            width: 'min(560px, 100%)', maxHeight: 'min(80vh, 640px)',
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+          }}>
+            <div style={{
+              padding: '14px 16px', borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+            }}>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}>
+                {de ? 'Ungelesene Mails (IMAP)' : 'Unread mail (IMAP)'}
+              </div>
+              <button type="button" className="btn-ghost" style={{ fontSize: '12px' }} onClick={() => setPreviewOpen(false)}>
+                {de ? 'Schließen' : 'Close'}
+              </button>
+            </div>
+            <div style={{ padding: '12px 16px', fontSize: '12px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+              {de ? 'Gezählt' : 'Counted'}: <strong style={{ color: 'var(--text)' }}>{previewTotal}</strong>
+              {' · '}
+              {de ? 'Aufgelistet' : 'Listed'}: <strong style={{ color: 'var(--text)' }}>{previewMessages.length}</strong>
+              {previewTruncated ? (
+                <span style={{ color: '#fbbf24' }}> · {de ? 'Liste gekürzt' : 'List truncated'}</span>
+              ) : null}
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+              {previewMessages.length === 0 ? (
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  {de ? 'Keine ungelesenen Nachrichten per IMAP-SEARCH.' : 'No unread messages via IMAP SEARCH.'}
+                </p>
+              ) : (
+                (() => {
+                  const byFolder = new Map<string, MailUnreadPreviewMessage[]>()
+                  for (const m of previewMessages) {
+                    const list = byFolder.get(m.folder) ?? []
+                    list.push(m)
+                    byFolder.set(m.folder, list)
+                  }
+                  return [...byFolder.entries()].map(([folder, items]) => (
+                    <div key={folder} style={{ marginBottom: '14px' }}>
+                      <div style={{
+                        fontSize: '11px', fontWeight: 600, textTransform: 'uppercase',
+                        letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '6px',
+                      }}>
+                        {items[0]?.folderLabel ?? formatMailFolderLabel(folder)}
+                        <span style={{ fontWeight: 400, textTransform: 'none' }}> ({items.length})</span>
+                      </div>
+                      <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {items.map((m, i) => (
+                          <li key={`${folder}-${m.uid}-${i}`} style={{ fontSize: '13px', color: 'var(--text)' }}>
+                            <div style={{ fontWeight: 500 }}>
+                              {m.note === 'noselect'
+                                ? (de
+                                  ? `Noselect-Ordner — ${previewTotal} gezählt, Betreffzeilen nicht per IMAP abrufbar`
+                                  : m.subject)
+                                : m.subject === '(no subject)'
+                                  ? (de ? '(ohne Betreff)' : m.subject)
+                                  : m.subject}
+                            </div>
+                            {m.from ? <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.from}</div> : null}
+                            {m.date ? (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                {new Date(m.date).toLocaleString(de ? 'de-DE' : 'en-US')}
+                              </div>
+                            ) : null}
+                            {m.uid > 0 ? (
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'ui-monospace, monospace' }}>
+                                UID {m.uid}
+                              </div>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
