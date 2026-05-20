@@ -5,7 +5,6 @@
 
 import DigestClient from 'digest-fetch'
 import https from 'node:https'
-import { runWithTr064NodeFetch } from '@/lib/tr064NodeFetch'
 
 const BLOCKED_HOSTNAMES = new Set(
   ['metadata.google.internal', 'metadata.goog', '169.254.169.254'].map((h) => h.toLowerCase()),
@@ -30,23 +29,15 @@ export type FritzBoxSummary = {
   uptimeSec: number | null
   externalIpv4: string | null
   lastError: string | null
-  /** z. B. IP_Routed, PPPoE (WANIPConnection GetInfo) */
   wanConnectionType: string | null
-  /** Anzeigename der WAN-Verbindung in der Box */
   wanConnectionName: string | null
   natEnabled: boolean | null
-  /** DNS-Server der WAN-Verbindung, Leerzeichen-getrennt */
   wanDnsServers: string | null
-  /** Bekannte Heimnetz-Geräte (Hosts:1 / Hosts:2) */
   hostCount: number | null
-  /** WAN-Gesamtbytes (Zähler der Box), für aktuelle Rate: Differenz zwischen Abrufen */
   wanTotalBytesReceived: string | null
   wanTotalBytesSent: string | null
-  /** Aktuelle WAN-Rate (Online-Monitor bevorzugt, sonst GetAddonInfos), bit/s */
   wanLiveDownBps: number | null
   wanLiveUpBps: number | null
-  /** Woher die Live-Raten stammen (Diagnose) */
-  wanLiveSource?: 'monitor' | 'addon' | 'mixed' | null
 }
 
 export type FritzWanCounters = Pick<
@@ -78,14 +69,8 @@ export function fritzboxRootFromInput(raw: string): string {
   return path ? `${origin}${path}` : origin
 }
 
-/** Host inkl. Port — für Descriptor & controlURL-Auflösung (immer Wurzel des TR-064-Ports). */
-function tr064OriginFromRoot(root: string): string {
-  const u = new URL(root)
-  return `${u.protocol}//${u.hostname}:${u.port}`
-}
-
 /** Bekannte Pfade zur Gerätebeschreibung (AVM / FRITZ!OS variiert). */
-export const TR064_DESCRIPTOR_PATHS = [
+const TR064_DESCRIPTOR_PATHS = [
   '/tr64desc.xml',
   '/tr064desc.xml',
   '/tr064/tr064desc.xml',
@@ -106,56 +91,17 @@ export function tr064OriginsForConnection(conn: FritzBoxConnection): string[] {
   return [...new Set(out)]
 }
 
-/** WAN-Durchsatz: HTTP :49000 zuerst (HTTPS liefert oft falsche/kaputte Live-Raten). */
-export function tr064OriginsForWan(conn: FritzBoxConnection): string[] {
-  const origins = tr064OriginsForConnection(conn)
-  return [...origins].sort((a, b) => {
-    const rank = (o: string) => (o.startsWith('http:') ? 0 : 1)
-    return rank(a) - rank(b)
-  })
-}
-
-function scoreWanLiveData(
-  down: number | null,
-  up: number | null,
-  hasBytes: boolean,
-): number {
-  let score = (down ?? 0) + (up ?? 0)
-  if (down != null || up != null) score += 1e12
-  if (hasBytes) score += 1e6
-  return score
-}
-
-/** Alle bekannten Descriptor-Dateien — wichtig seit Homeauto: igddesc allein reicht oft nicht für WAN/Addon. */
-export async function collectTr064ServicesOnOrigin(
-  client: DigestClient,
-  origin: string,
-  signal: AbortSignal,
-  fetchOpts: { agent?: https.Agent },
-): Promise<{ services: Tr064Service[]; descXml: string }> {
-  const byKey = new Map<string, Tr064Service>()
-  let descXml: string | null = null
-  const tried: string[] = []
-
-  for (const p of TR064_DESCRIPTOR_PATHS) {
-    const url = `${origin.replace(/\/+$/, '')}${p}`
-    tried.push(p)
-    const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
-    const text = await descRes.text()
-    if (descRes.status === 401 || descRes.status === 403) {
-      throw new Error('unauthorized')
-    }
-    if (!descRes.ok) continue
-    if (!looksLikeDeviceDescription(text)) continue
-    if (!descXml) descXml = text
-    for (const s of parseTr064Services(text)) {
-      const key = `${s.type}\0${s.controlUrl}`
-      if (!byKey.has(key)) byKey.set(key, s)
-    }
+async function runWithInsecureTls<T>(conn: FritzBoxConnection, fn: () => Promise<T>): Promise<T> {
+  const usesHttps = tr064OriginsForConnection(conn).some((o) => o.startsWith('https:'))
+  if (!usesHttps || !conn.insecureTls) return fn()
+  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+  try {
+    return await fn()
+  } finally {
+    if (prev === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev
   }
-
-  if (byKey.size === 0) throw new Error(`desc_not_found:${tried.join(',')}`)
-  return { services: [...byKey.values()], descXml: descXml ?? '' }
 }
 
 function looksLikeDeviceDescription(xml: string): boolean {
@@ -167,7 +113,7 @@ function looksLikeDeviceDescription(xml: string): boolean {
   )
 }
 
-export async function fetchDescriptorXml(
+async function fetchDescriptorXml(
   client: DigestClient,
   origin: string,
   signal: AbortSignal,
@@ -187,30 +133,6 @@ export async function fetchDescriptorXml(
     return { xml: text, path: p }
   }
   throw new Error(`desc_not_found:${tried.join(',')}`)
-}
-
-/**
- * Sucht einen TR-064-Dienst in allen bekannten Descriptor-Dateien.
- * Wichtig für Smart Home: `igddesc.xml` enthält oft kein X_AVM-DE_Homeauto — dann `tr064desc.xml` probieren.
- */
-export async function findTr064ServiceAcrossDescriptors(
-  client: DigestClient,
-  origin: string,
-  signal: AbortSignal,
-  fetchOpts: { agent?: https.Agent },
-  match: (service: Tr064Service) => boolean,
-): Promise<{ service: Tr064Service; descriptorPath: string } | null> {
-  for (const p of TR064_DESCRIPTOR_PATHS) {
-    const url = `${origin.replace(/\/+$/, '')}${p}`
-    const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
-    const text = await descRes.text()
-    if (descRes.status === 401 || descRes.status === 403) throw new Error('unauthorized')
-    if (!descRes.ok) continue
-    if (!looksLikeDeviceDescription(text)) continue
-    const hit = parseTr064Services(text).find(match)
-    if (hit) return { service: hit, descriptorPath: p }
-  }
-  return null
 }
 
 function absUrl(origin: string, relativeOrAbsolute: string): string {
@@ -233,7 +155,6 @@ function parseIntSafe(v: string | null): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Zähler aus SOAP (nur Ziffern, als String wegen großer Werte). */
 function parseDecimalUIntString(xml: string, ...localNames: string[]): string | null {
   for (const name of localNames) {
     const v = xmlFirst(xml, name)
@@ -242,7 +163,7 @@ function parseDecimalUIntString(xml: string, ...localNames: string[]): string | 
   return null
 }
 
-export type Tr064Service = { type: string; controlUrl: string }
+type Tr064Service = { type: string; controlUrl: string }
 
 function escapeXmlTr064(s: string): string {
   return s
@@ -252,8 +173,7 @@ function escapeXmlTr064(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** SOAP-Body wie AVM TR-064 First Steps (Kapitel 10). */
-export function buildTr064SoapEnvelope(
+function buildTr064SoapEnvelope(
   serviceUrn: string,
   action: string,
   args: Record<string, string> = {},
@@ -270,8 +190,7 @@ export function buildTr064SoapEnvelope(
 </s:Envelope>`
 }
 
-/** Parst tr064desc.xml nach serviceType + controlURL + SCPDURL. */
-export function parseTr064Services(descXml: string): Tr064Service[] {
+function parseTr064Services(descXml: string): Tr064Service[] {
   const out: Tr064Service[] = []
   const serviceBlocks = descXml.split(/<service[\s>]/i)
   for (let i = 1; i < serviceBlocks.length; i++) {
@@ -283,7 +202,6 @@ export function parseTr064Services(descXml: string): Tr064Service[] {
   return out
 }
 
-/** UPnP root device (z. B. igddesc.xml): Modell, wenn kein TR-064 DeviceInfo. */
 function parseUpnpRootDeviceBasics(descXml: string): {
   friendlyName: string | null
   modelName: string | null
@@ -305,9 +223,8 @@ async function soapAction(
   action: string,
   signal: AbortSignal,
   fetchOpts: { agent?: https.Agent },
-  args: Record<string, string> = {},
 ): Promise<string> {
-  const body = buildTr064SoapEnvelope(serviceUrn, action, args)
+  const body = buildTr064SoapEnvelope(serviceUrn, action)
   const soapActionHdr = `"${serviceUrn}#${action}"`
   const res = await client.fetch(controlUrl, {
     method: 'POST',
@@ -353,140 +270,6 @@ function liveRatesFromAddonXml(addonXml: string): { wanLiveDownBps: number | nul
   }
 }
 
-/** Maximum aus Online-Monitor-Feld (kommaseparierte Zeitreihe), Werte in bit/s. */
-function parseMonitorBpsField(monitorXml: string, ...localNames: string[]): number | null {
-  let best: number | null = null
-  for (const name of localNames) {
-    const raw = xmlFirst(monitorXml, name)
-    if (!raw) continue
-    const parts = raw.includes(',')
-      ? raw.split(',').map((s) => parseInt(s.trim(), 10))
-      : [parseInt(raw.trim(), 10)]
-    for (const n of parts) {
-      if (n != null && Number.isFinite(n) && n >= 0) {
-        best = best == null ? n : Math.max(best, n)
-      }
-    }
-  }
-  return best
-}
-
-function maxBps(...vals: Array<number | null | undefined>): number | null {
-  let best: number | null = null
-  for (const v of vals) {
-    if (v != null && Number.isFinite(v) && v >= 0) {
-      best = best == null ? v : Math.max(best, v)
-    }
-  }
-  return best
-}
-
-function liveRatesFromOnlineMonitorXml(monitorXml: string): {
-  wanLiveDownBps: number | null
-  wanLiveUpBps: number | null
-} {
-  const down = parseMonitorBpsField(
-    monitorXml,
-    'Newds_current_bps',
-    'newds_current_bps',
-    'NewDSLRXRate_bps',
-    'NewByteReceiveRate',
-  )
-  const up = parseMonitorBpsField(
-    monitorXml,
-    'Newus_current_bps',
-    'newus_current_bps',
-    'NewDSLTXRate_bps',
-    'NewByteSendRate',
-  )
-  const downMax = parseIntSafe(xmlFirst(monitorXml, 'Newmax_ds'))
-  const upMax = parseIntSafe(xmlFirst(monitorXml, 'Newmax_us'))
-  return {
-    wanLiveDownBps: maxBps(down, downMax),
-    wanLiveUpBps: maxBps(up, upMax),
-  }
-}
-
-function pickLiveWanRates(
-  addon: { wanLiveDownBps: number | null; wanLiveUpBps: number | null },
-  monitor: { wanLiveDownBps: number | null; wanLiveUpBps: number | null },
-): { wanLiveDownBps: number | null; wanLiveUpBps: number | null; source: 'monitor' | 'addon' | 'mixed' | null } {
-  const pickDir = (a: number | null, m: number | null): { bps: number | null; from: 'monitor' | 'addon' | null } => {
-    const av = a != null && a >= 0 ? a : null
-    const mv = m != null && m >= 0 ? m : null
-    if (mv != null && av != null) {
-      if (mv >= av) return { bps: mv, from: 'monitor' }
-      return { bps: av, from: 'addon' }
-    }
-    if (mv != null) return { bps: mv, from: 'monitor' }
-    if (av != null) return { bps: av, from: 'addon' }
-    return { bps: null, from: null }
-  }
-
-  const down = pickDir(addon.wanLiveDownBps, monitor.wanLiveDownBps)
-  const up = pickDir(addon.wanLiveUpBps, monitor.wanLiveUpBps)
-  if (down.bps == null && up.bps == null) {
-    return { wanLiveDownBps: null, wanLiveUpBps: null, source: null }
-  }
-
-  let source: 'monitor' | 'addon' | 'mixed' | null = null
-  if (down.from && up.from) {
-    source = down.from === up.from ? down.from : 'mixed'
-  } else {
-    source = down.from ?? up.from
-  }
-
-  return {
-    wanLiveDownBps: down.bps ?? 0,
-    wanLiveUpBps: up.bps ?? 0,
-    source,
-  }
-}
-
-async function fetchOnlineMonitorLiveRates(
-  client: DigestClient,
-  ctl: string,
-  urn: string,
-  signal: AbortSignal,
-  fetchOpts: { agent?: https.Agent },
-): Promise<{ wanLiveDownBps: number | null; wanLiveUpBps: number | null }> {
-  const actions = ['X_AVM-DE_GetOnlineMonitor', 'X_AVM_DE_GetOnlineMonitor'] as const
-  let bestDown: number | null = null
-  let bestUp: number | null = null
-
-  for (const action of actions) {
-    let groupCount = 1
-    let gotAny = false
-    for (let syncIdx = 0; syncIdx < 4; syncIdx++) {
-      try {
-        const xml = await soapAction(client, ctl, urn, action, signal, fetchOpts, {
-          NewSyncGroupIndex: String(syncIdx),
-        })
-        if (syncIdx === 0) {
-          const n = parseIntSafe(xmlFirst(xml, 'NewTotalNumberSyncGroups'))
-          if (n != null && n > 0) groupCount = Math.min(4, n)
-        }
-        const live = liveRatesFromOnlineMonitorXml(xml)
-        gotAny = true
-        if (live.wanLiveDownBps != null) {
-          bestDown = bestDown == null ? live.wanLiveDownBps : Math.max(bestDown, live.wanLiveDownBps)
-        }
-        if (live.wanLiveUpBps != null) {
-          bestUp = bestUp == null ? live.wanLiveUpBps : Math.max(bestUp, live.wanLiveUpBps)
-        }
-        if (syncIdx + 1 >= groupCount) break
-      } catch {
-        if (syncIdx === 0 && !gotAny) break
-        if (syncIdx + 1 >= groupCount) break
-      }
-    }
-    if (bestDown != null || bestUp != null) {
-      return { wanLiveDownBps: bestDown, wanLiveUpBps: bestUp }
-    }
-  }
-  return { wanLiveDownBps: null, wanLiveUpBps: null }
-}
-
 async function readWanByteCounters(
   client: DigestClient,
   origin: string,
@@ -509,9 +292,7 @@ async function readWanByteCounters(
     const urn = wanCommonSvc.type
     try {
       const addon = await soapAction(client, ctl, urn, 'GetAddonInfos', signal, fetchOpts)
-      const addonLive = liveRatesFromAddonXml(addon)
-      const monitorLive = await fetchOnlineMonitorLiveRates(client, ctl, urn, signal, fetchOpts)
-      const live = pickLiveWanRates(addonLive, monitorLive)
+      const live = liveRatesFromAddonXml(addon)
       wanLiveDownBps = live.wanLiveDownBps
       wanLiveUpBps = live.wanLiveUpBps
       wanTotalBytesReceived = parseDecimalUIntString(
@@ -529,17 +310,7 @@ async function readWanByteCounters(
         'TotalBytesSent',
       )
     } catch {
-      try {
-        const monitorLive = await fetchOnlineMonitorLiveRates(client, ctl, urn, signal, fetchOpts)
-        wanLiveDownBps = monitorLive.wanLiveDownBps ?? 0
-        wanLiveUpBps = monitorLive.wanLiveUpBps ?? 0
-        if (wanLiveDownBps === 0 && wanLiveUpBps === 0) {
-          wanLiveDownBps = null
-          wanLiveUpBps = null
-        }
-      } catch {
-        /* optional */
-      }
+      /* optional */
     }
     if (!wanTotalBytesReceived) {
       try {
@@ -595,8 +366,9 @@ async function fetchFritzBoxSummaryOnOrigin(
 ): Promise<FritzBoxSummary> {
   const fetchOpts = tr064FetchOpts(origin, conn)
   const client = digestClient(conn.username, conn.password)
-  const { services, descXml } = await collectTr064ServicesOnOrigin(client, origin, signal, fetchOpts)
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
 
+  const services = parseTr064Services(descXml)
   if (!servicesHaveWan(services)) throw new Error('wan_not_found')
 
   const deviceSvc =
@@ -607,7 +379,6 @@ async function fetchFritzBoxSummaryOnOrigin(
     services.find((s) => s.type.endsWith('WANCommonInterfaceConfig:1')) ||
     services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
     null
-
   const hostsSvc =
     services.find((s) => /:Hosts:1$/i.test(s.type)) ||
     services.find((s) => /:Hosts:2$/i.test(s.type)) ||
@@ -639,7 +410,7 @@ async function fetchFritzBoxSummaryOnOrigin(
   let wanTotalBytesSent: string | null = null
   let wanLiveDownBps: number | null = null
   let wanLiveUpBps: number | null = null
-  let wanLiveSource: 'monitor' | 'addon' | 'mixed' | null = null
+
   if (wanCommonSvc) {
     const ctl = absUrl(origin, wanCommonSvc.controlUrl)
     const xml = await soapAction(client, ctl, wanCommonSvc.type, 'GetCommonLinkProperties', signal, fetchOpts)
@@ -648,12 +419,9 @@ async function fetchFritzBoxSummaryOnOrigin(
     upstreamMaxBps = parseIntSafe(xmlFirst(xml, 'NewLayer1UpstreamMaxBitRate'))
     try {
       const addon = await soapAction(client, ctl, wanCommonSvc.type, 'GetAddonInfos', signal, fetchOpts)
-      const addonLive = liveRatesFromAddonXml(addon)
-      const monitorLive = await fetchOnlineMonitorLiveRates(client, ctl, wanCommonSvc.type, signal, fetchOpts)
-      const live = pickLiveWanRates(addonLive, monitorLive)
+      const live = liveRatesFromAddonXml(addon)
       wanLiveDownBps = live.wanLiveDownBps
       wanLiveUpBps = live.wanLiveUpBps
-      wanLiveSource = live.source
       wanTotalBytesReceived = parseDecimalUIntString(
         addon,
         'X_AVM_DE_TotalBytesReceived64',
@@ -669,14 +437,7 @@ async function fetchFritzBoxSummaryOnOrigin(
         'TotalBytesSent',
       )
     } catch {
-      try {
-        const monitorLive = await fetchOnlineMonitorLiveRates(client, ctl, wanCommonSvc.type, signal, fetchOpts)
-        wanLiveDownBps = monitorLive.wanLiveDownBps
-        wanLiveUpBps = monitorLive.wanLiveUpBps
-        if (wanLiveDownBps != null || wanLiveUpBps != null) wanLiveSource = 'monitor'
-      } catch {
-        /* GetAddonInfos / OnlineMonitor optional */
-      }
+      /* GetAddonInfos optional */
     }
     if (!wanTotalBytesReceived) {
       try {
@@ -799,7 +560,6 @@ async function fetchFritzBoxSummaryOnOrigin(
     wanTotalBytesSent,
     wanLiveDownBps,
     wanLiveUpBps,
-    wanLiveSource,
   }
 }
 
@@ -807,30 +567,16 @@ export async function fetchFritzBoxSummary(
   conn: FritzBoxConnection,
   signal: AbortSignal,
 ): Promise<FritzBoxSummary> {
-  return runWithTr064NodeFetch(conn, async () => {
+  return runWithInsecureTls(conn, async () => {
     let lastMsg = 'desc_not_found'
-    let best: FritzBoxSummary | null = null
-    let bestScore = -1
-
-    for (const origin of tr064OriginsForWan(conn)) {
+    for (const origin of tr064OriginsForConnection(conn)) {
       try {
-        const summary = await fetchFritzBoxSummaryOnOrigin(conn, origin, signal)
-        const score = scoreWanLiveData(
-          summary.wanLiveDownBps,
-          summary.wanLiveUpBps,
-          Boolean(summary.wanTotalBytesReceived && summary.wanTotalBytesSent),
-        )
-        if (score > bestScore) {
-          bestScore = score
-          best = summary
-        }
+        return await fetchFritzBoxSummaryOnOrigin(conn, origin, signal)
       } catch (e) {
         lastMsg = e instanceof Error ? e.message : String(e)
         if (lastMsg === 'unauthorized') throw new Error('unauthorized')
       }
     }
-
-    if (best) return best
     throw new Error(lastMsg)
   })
 }
@@ -840,37 +586,27 @@ export async function fetchFritzBoxByteCountersOnly(
   conn: FritzBoxConnection,
   signal: AbortSignal,
 ): Promise<FritzWanCounters> {
-  return runWithTr064NodeFetch(conn, async () => {
+  return runWithInsecureTls(conn, async () => {
     const client = digestClient(conn.username, conn.password)
     let lastMsg = 'desc_not_found'
-    let best: FritzWanCounters | null = null
-    let bestScore = -1
-
-    for (const origin of tr064OriginsForWan(conn)) {
+    for (const origin of tr064OriginsForConnection(conn)) {
       const fetchOpts = tr064FetchOpts(origin, conn)
       try {
-        const { services } = await collectTr064ServicesOnOrigin(client, origin, signal, fetchOpts)
+        const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
+        const services = parseTr064Services(descXml)
         if (!servicesHaveWan(services)) {
           lastMsg = 'wan_not_found'
           continue
         }
         const counters = await readWanByteCounters(client, origin, services, signal, fetchOpts)
-        const score = scoreWanLiveData(
-          counters.wanLiveDownBps,
-          counters.wanLiveUpBps,
-          Boolean(counters.wanTotalBytesReceived && counters.wanTotalBytesSent),
-        )
-        if (score > bestScore) {
-          bestScore = score
-          best = counters
-        }
+        if (counters.wanLiveDownBps != null && counters.wanLiveUpBps != null) return counters
+        if (counters.wanTotalBytesReceived && counters.wanTotalBytesSent) return counters
+        lastMsg = 'wan_counters_missing'
       } catch (e) {
         lastMsg = e instanceof Error ? e.message : String(e)
         if (lastMsg === 'unauthorized') throw new Error('unauthorized')
       }
     }
-
-    if (best) return best
     throw new Error(lastMsg)
   })
 }

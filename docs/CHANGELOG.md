@@ -106,6 +106,14 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ---
 
+### Removed: FRITZ! Steckdose Energie (`fritz-energy`)
+
+The smart-plug energy plugin and `/api/fritz-energy` were removed. Persisted dashboards drop `fritz-energy` widgets automatically (`src/lib/removedPlugins.ts`). On the server you may delete unused data: `data/fritz-energy/` under your appdata mount (optional script: `scripts/cleanup-removed-fritz-energy.ps1`).
+
+**DE:** Plugin und API entfernt; Widgets verschwinden nach dem nächsten Laden der Dashboard-Konfiguration. Optional `data/fritz-energy/` auf dem Server löschen.
+
+---
+
 ## Plugin versions (reference)
 
 Builtin plugin `meta.version` values in the repo (see each `plugins/<id>/index.tsx`):
@@ -113,7 +121,7 @@ Builtin plugin `meta.version` values in the repo (see each `plugins/<id>/index.t
 | Plugin | Version (approx.) |
 |--------|-------------------|
 | Docker | 1.7.9 |
-| FRITZ!Box | 2.3.7 |
+| FRITZ!Box | 2.4.2 |
 | Calendar | 1.4.2 |
 | Bookmarks | 1.6.0 |
 | Unraid Docker | 0.4.4 |
