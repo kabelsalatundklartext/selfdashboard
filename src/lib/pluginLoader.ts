@@ -16,6 +16,7 @@ import * as scratchpad from '../../plugins/scratchpad'
 import * as unraid from '../../plugins/unraid'
 import * as unraidDocker from '../../plugins/unraid-docker'
 import * as fritzbox from '../../plugins/fritzbox'
+import * as fritzEnergy from '../../plugins/fritz-energy'
 import * as weather from '../../plugins/weather'
 import * as crowdsec from '../../plugins/crowdsec'
 import * as selfstream from '../../plugins/selfstream'
@@ -30,6 +31,7 @@ export function loadBuiltinPlugins() {
   registerPlugin(adguard.meta, adguard.component)
   registerPlugin(pihole.meta, pihole.component)
   registerPlugin(fritzbox.meta, fritzbox.component)
+  registerPlugin(fritzEnergy.meta, fritzEnergy.component)
   registerPlugin(scratchpad.meta, scratchpad.component)
   registerPlugin(unraid.meta, unraid.component)
   registerPlugin(unraidDocker.meta, unraidDocker.component)
