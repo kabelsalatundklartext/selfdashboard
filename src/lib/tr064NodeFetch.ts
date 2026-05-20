@@ -1,36 +1,29 @@
 /**
- * digest-fetch uses global fetch on Node 18+, which ignores `agent`.
- * FRITZ! TR-064 on :49443 needs node-fetch + rejectUnauthorized for self-signed certs.
+ * digest-fetch uses global fetch (undici on Node 18+).
+ * FRITZ! TR-064 on :49443 needs rejectUnauthorized for self-signed certs.
  */
-import nodeFetch from 'node-fetch'
-import https from 'node:https'
+import { Agent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 import type { FritzBoxConnection } from '@/lib/fritzboxTr064'
 import { tr064OriginsForConnection } from '@/lib/fritzboxTr064'
 
 export function tr064NeedsInsecureAgent(conn: FritzBoxConnection): boolean {
-  const httpsOrigin = tr064OriginsForConnection(conn).some((o) => o.startsWith('https:'))
-  return httpsOrigin && conn.insecureTls
+  const usesHttps = tr064OriginsForConnection(conn).some((o) => o.startsWith('https:'))
+  return usesHttps && conn.insecureTls
 }
 
-/** Run TR-064 calls with node-fetch so HTTPS agent (self-signed) is honored. */
+/** Run TR-064 with TLS verification disabled for FRITZ! self-signed HTTPS. */
 export async function runWithTr064NodeFetch<T>(
   conn: FritzBoxConnection,
   fn: () => Promise<T>,
 ): Promise<T> {
   if (!tr064NeedsInsecureAgent(conn)) return fn()
 
-  const agent = new https.Agent({ rejectUnauthorized: false })
-  const prevFetch = globalThis.fetch
-  globalThis.fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
-    const href =
-      typeof url === 'string' ? url : url instanceof URL ? url.href : (url as Request).url
-    const opts = { ...init, agent: href.startsWith('https:') ? agent : undefined }
-    return nodeFetch(href, opts as Parameters<typeof nodeFetch>[1]) as unknown as Promise<Response>
-  }) as typeof fetch
-
+  const prev = getGlobalDispatcher()
+  const insecure = new Agent({ connect: { rejectUnauthorized: false } })
+  setGlobalDispatcher(insecure)
   try {
     return await fn()
   } finally {
-    globalThis.fetch = prevFetch
+    setGlobalDispatcher(prev)
   }
 }
