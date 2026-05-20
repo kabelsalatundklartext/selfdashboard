@@ -13,6 +13,7 @@ import {
   type Tr064Service,
 } from '@/lib/fritzboxTr064'
 import { runWithTr064NodeFetch } from '@/lib/tr064NodeFetch'
+import https from 'node:https'
 
 export type FritzEnergyReading = {
   powerW: number
@@ -56,20 +57,27 @@ function isHomeautoService(s: Tr064Service): boolean {
   return /X_AVM-DE_Homeauto/i.test(s.type) || /\/x_homeauto/i.test(s.controlUrl)
 }
 
+function tr064FetchOpts(origin: string, conn: FritzBoxConnection): { agent?: https.Agent } {
+  const isHttps = origin.startsWith('https:')
+  const agent =
+    isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined
+  return agent ? { agent } : {}
+}
+
 async function resolveHomeautoService(
   conn: FritzBoxConnection,
   client: DigestClient,
   signal: AbortSignal,
-): Promise<Tr064Service> {
+): Promise<{ service: Tr064Service; origin: string }> {
   for (const origin of tr064OriginsForConnection(conn)) {
     const hit = await findTr064ServiceAcrossDescriptors(
       client,
       origin,
       signal,
-      {},
+      tr064FetchOpts(origin, conn),
       isHomeautoService,
     )
-    if (hit) return hit.service
+    if (hit) return { service: hit.service, origin }
   }
   throw new Error('homeauto_not_found')
 }
@@ -82,10 +90,7 @@ type HomeautoCtx = {
 
 async function homeautoCtx(conn: FritzBoxConnection, signal: AbortSignal): Promise<HomeautoCtx> {
   const client = new DigestClient(conn.username || '', conn.password || '')
-  const ha = await resolveHomeautoService(conn, client, signal)
-  const origin =
-    tr064OriginsForConnection(conn).find((o) => o.startsWith('https:')) ??
-    tr064OriginsForConnection(conn)[0]
+  const { service: ha, origin } = await resolveHomeautoService(conn, client, signal)
   const controlUrl = absUrl(origin, ha.controlUrl)
   return { client, ha, controlUrl }
 }

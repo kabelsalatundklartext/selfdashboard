@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.4',
+  version: '2.4.6',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -135,8 +135,8 @@ function clampThroughputBps(
   return { down: d, up: u }
 }
 
-const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v2'
-const FB_BPS_HISTORY_STORAGE_LEGACY = 'sd:fritzbox:bpsHistory:v1'
+const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v3'
+const FB_BPS_HISTORY_STORAGE_LEGACY = ['sd:fritzbox:bpsHistory:v1', 'sd:fritzbox:bpsHistory:v2'] as const
 const FB_BPS_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function fritzboxBpsHistoryStorageKey(baseUrl: string, username: string): string {
@@ -863,6 +863,7 @@ type Summary = {
   wanTotalBytesSent: string | null
   wanLiveDownBps?: number | null
   wanLiveUpBps?: number | null
+  wanLiveSource?: 'monitor' | 'addon' | 'mixed' | null
   fetchedAt?: string
 }
 
@@ -883,11 +884,11 @@ function Widget({ config }: PluginWidgetProps) {
   })()
   const liveInput = r.liveIntervalSeconds
   const liveEvery = (() => {
-    if (liveInput === undefined || liveInput === null || liveInput === '') return 5
+    if (liveInput === undefined || liveInput === null || liveInput === '') return 3
     const n = Math.round(Number(liveInput))
-    if (!Number.isFinite(n)) return 5
+    if (!Number.isFinite(n)) return 3
     if (n <= 0) return 0
-    return Math.min(15, Math.max(3, n))
+    return Math.min(15, Math.max(2, n))
   })()
 
   const chartCap = Math.min(120, Math.max(16, Math.round(num(r.chartHistoryPoints)) || 48))
@@ -944,6 +945,7 @@ function Widget({ config }: PluginWidgetProps) {
   const prevBytesRef = useRef<{ rx: string; tx: string; t: number } | null>(null)
   const dataRef = useRef<Summary | null>(null)
   const bpsHistoryKeyRef = useRef<string>('')
+  const lastHistorySampleRef = useRef<{ down: number; up: number; t: number } | null>(null)
 
   useEffect(() => {
     if (!baseUrl) {
@@ -955,11 +957,10 @@ function Widget({ config }: PluginWidgetProps) {
     }
     if (typeof window !== 'undefined') {
       try {
-        const legacy = fritzboxBpsHistoryStorageKey(baseUrl, username).replace(
-          FB_BPS_HISTORY_STORAGE,
-          FB_BPS_HISTORY_STORAGE_LEGACY,
-        )
-        localStorage.removeItem(legacy)
+        const cur = fritzboxBpsHistoryStorageKey(baseUrl, username)
+        for (const legacyKey of FB_BPS_HISTORY_STORAGE_LEGACY) {
+          localStorage.removeItem(cur.replace(FB_BPS_HISTORY_STORAGE, legacyKey))
+        }
       } catch {
         /* ignore */
       }
@@ -987,18 +988,6 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     dataRef.current = data
   }, [data])
-
-  useEffect(() => {
-    setBpsHistory((prev) => {
-      if (prev.length === 0) return prev
-      const ld = data?.downstreamMaxBps ?? null
-      const lu = data?.upstreamMaxBps ?? null
-      const next = prev.map((p) => clampThroughputBps(p.down, p.up, ld, lu, clampMbps))
-      const same =
-        next.length === prev.length && next.every((p, i) => p.down === prev[i]!.down && p.up === prev[i]!.up)
-      return same ? prev : next
-    })
-  }, [data, clampMbps])
 
   const load = useCallback(async () => {
     if (!baseUrl) {
@@ -1065,10 +1054,10 @@ function Widget({ config }: PluginWidgetProps) {
         if (typeof j.wanTotalBytesSent === 'string' && /^\d+$/.test(j.wanTotalBytesSent)) {
           next.wanTotalBytesSent = j.wanTotalBytesSent
         }
-        if (typeof j.wanLiveDownBps === 'number' && Number.isFinite(j.wanLiveDownBps)) {
+        if (typeof j.wanLiveDownBps === 'number' && Number.isFinite(j.wanLiveDownBps) && j.wanLiveDownBps >= 0) {
           next.wanLiveDownBps = j.wanLiveDownBps
         }
-        if (typeof j.wanLiveUpBps === 'number' && Number.isFinite(j.wanLiveUpBps)) {
+        if (typeof j.wanLiveUpBps === 'number' && Number.isFinite(j.wanLiveUpBps) && j.wanLiveUpBps >= 0) {
           next.wanLiveUpBps = j.wanLiveUpBps
         }
         return next
@@ -1102,15 +1091,12 @@ function Widget({ config }: PluginWidgetProps) {
 
     const liveDown = data.wanLiveDownBps
     const liveUp = data.wanLiveUpBps
-    if (
-      liveDown != null &&
-      liveUp != null &&
-      Number.isFinite(liveDown) &&
-      Number.isFinite(liveUp) &&
-      liveDown >= 0 &&
-      liveUp >= 0
-    ) {
-      setLiveBps(clampThroughputBps(liveDown, liveUp, null, null, clampMbps))
+    const hasLiveDown = liveDown != null && Number.isFinite(liveDown) && liveDown >= 0
+    const hasLiveUp = liveUp != null && Number.isFinite(liveUp) && liveUp >= 0
+    if (hasLiveDown || hasLiveUp) {
+      setLiveBps(
+        clampThroughputBps(hasLiveDown ? liveDown : 0, hasLiveUp ? liveUp : 0, null, null, clampMbps),
+      )
       return
     }
 
@@ -1149,6 +1135,15 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     if (!liveBps || !Number.isFinite(liveBps.down) || !Number.isFinite(liveBps.up)) return
+    const now = Date.now()
+    const last = lastHistorySampleRef.current
+    const changed =
+      !last ||
+      now - last.t >= 1500 ||
+      Math.abs(liveBps.down - last.down) / Math.max(1, last.down) > 0.02 ||
+      Math.abs(liveBps.up - last.up) / Math.max(1, last.up) > 0.02
+    if (!changed) return
+    lastHistorySampleRef.current = { down: liveBps.down, up: liveBps.up, t: now }
     setBpsHistory((prev) => [...prev, { down: liveBps.down, up: liveBps.up }].slice(-chartCap))
   }, [liveBps, chartCap])
 
@@ -1191,6 +1186,14 @@ function Widget({ config }: PluginWidgetProps) {
     >
       {error ? (
         <p style={{ margin: 0, fontSize: '11px', color: '#fb7185', textAlign: 'center', lineHeight: 1.4, padding: '8px' }}>{error}</p>
+      ) : null}
+
+      {clampMbps === 1 ? (
+        <p style={{ margin: 0, fontSize: '10px', color: '#fbbf24', textAlign: 'center', padding: '0 8px 6px' }}>
+          {de
+            ? '„Max. Messrate“ steht auf 1 Mbit/s — bitte auf 0 setzen (keine Kappung).'
+            : '“Max rate” is set to 1 Mbps — set it to 0 (no cap).'}
+        </p>
       ) : null}
 
       {data && !error ? (
@@ -1255,10 +1258,22 @@ function Widget({ config }: PluginWidgetProps) {
   )
 }
 
+type FritzTestResult = {
+  ok?: boolean
+  error?: string
+  message?: string
+  wanLiveDownBps?: number | null
+  wanLiveUpBps?: number | null
+  wanLiveSource?: string | null
+  downstreamMaxBps?: number | null
+}
+
 function Settings({ config, onChange }: PluginSettingsProps) {
   const { de: dashboardDe } = usePluginLocale()
   const r = config as Record<string, unknown>
   const de = pluginDe(r, dashboardDe)
+  const [testState, setTestState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [testResult, setTestResult] = useState<FritzTestResult | null>(null)
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
@@ -1279,26 +1294,59 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   })()
   const liveSettingsVal = (() => {
     const v = r.liveIntervalSeconds
-    if (v === undefined || v === null || v === '') return 5
+    if (v === undefined || v === null || v === '') return 3
     const n = Math.round(Number(v))
-    if (!Number.isFinite(n)) return 5
+    if (!Number.isFinite(n)) return 3
     return Math.min(15, Math.max(0, n))
   })()
+
+  const runTr064Test = async () => {
+    const baseUrl = str(r.baseUrl)
+    if (!baseUrl) {
+      setTestResult({ ok: false, message: de ? 'Keine Basis-URL.' : 'No base URL.' })
+      setTestState('done')
+      return
+    }
+    setTestState('loading')
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/fritzbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+          baseUrl,
+          username: str(r.username),
+          password: typeof r.password === 'string' ? r.password : '',
+          insecureTls: r.insecureTls === true,
+        }),
+      })
+      const j = (await res.json()) as FritzTestResult
+      if (!res.ok || j.ok === false) {
+        setTestResult({ ok: false, error: j.error, message: j.message || `HTTP ${res.status}` })
+      } else {
+        setTestResult(j)
+      }
+    } catch (e) {
+      setTestResult({ ok: false, message: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setTestState('done')
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
         {de ? (
           <>
-            Nur der Internet-Durchsatz-Verlauf (WAN) aus den Byte-Zählern der FRITZ!Box. Zugriff per{' '}
-            <strong>TR-064</strong> (Port <code style={{ fontSize: '10px' }}>49000</code> bei <code style={{ fontSize: '10px' }}>http</code>
-            ) — der Abruf läuft über den SelfDashboard-Server.
+            Internet-Durchsatz (WAN) per <strong>TR-064</strong>. Für den Verlauf am zuverlässigsten:{' '}
+            <strong>http://fritz.box</strong> (Port <code style={{ fontSize: '10px' }}>49000</code>) — gleiche URL wie bei der
+            Steckdose möglich; HTTPS wird bei WAN automatisch nach HTTP durchprobiert.
           </>
         ) : (
           <>
-            WAN throughput chart from FRITZ!Box byte counters via <strong>TR-064</strong> (port{' '}
-            <code style={{ fontSize: '10px' }}>49000</code> for <code style={{ fontSize: '10px' }}>http</code>). Fetched through the
-            SelfDashboard server.
+            WAN throughput via <strong>TR-064</strong>. Most reliable: <strong>http://fritz.box</strong> (port{' '}
+            <code style={{ fontSize: '10px' }}>49000</code>). Same URL as the outlet plugin is fine; for WAN, HTTP is tried before HTTPS.
           </>
         )}
       </p>
@@ -1425,6 +1473,69 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             </>
           )}
         </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <button
+          type="button"
+          onClick={() => void runTr064Test()}
+          disabled={testState === 'loading'}
+          style={{
+            padding: '8px 12px',
+            fontSize: '12px',
+            fontWeight: 600,
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+            background: 'var(--surface-2)',
+            color: 'var(--text)',
+            cursor: testState === 'loading' ? 'wait' : 'pointer',
+          }}
+        >
+          {testState === 'loading'
+            ? de
+              ? 'Teste TR-064…'
+              : 'Testing TR-064…'
+            : de
+              ? 'TR-064-Verbindung testen'
+              : 'Test TR-064 connection'}
+        </button>
+        {testResult ? (
+          <div
+            style={{
+              fontSize: '11px',
+              lineHeight: 1.45,
+              color: testResult.ok === false ? '#fb7185' : 'var(--text-muted)',
+              padding: '8px 10px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+            }}
+          >
+            {testResult.ok === false ? (
+              <span>{testResult.message || testResult.error || (de ? 'Fehler' : 'Error')}</span>
+            ) : (
+              <>
+                <div>
+                  {de ? 'Live Download' : 'Live download'}:{' '}
+                  <strong>{formatMbps(testResult.wanLiveDownBps ?? null, de)}</strong>
+                </div>
+                <div>
+                  {de ? 'Live Upload' : 'Live upload'}:{' '}
+                  <strong>{formatMbps(testResult.wanLiveUpBps ?? null, de)}</strong>
+                </div>
+                <div>
+                  {de ? 'Quelle' : 'Source'}: <strong>{testResult.wanLiveSource || '—'}</strong>
+                </div>
+                {testResult.downstreamMaxBps != null && testResult.downstreamMaxBps > 0 && testResult.downstreamMaxBps < 50_000_000 ? (
+                  <div style={{ marginTop: '6px' }}>
+                    {de ? 'Hinweis: Box meldet Link-Max.' : 'Note: box reports link max.'}{' '}
+                    {formatMbps(testResult.downstreamMaxBps, de)} ({de ? 'wird nicht mehr auf den Verlauf gekappt' : 'no longer caps the chart'})
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div
