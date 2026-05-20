@@ -1,3 +1,4 @@
+import 'server-only'
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'node:crypto'

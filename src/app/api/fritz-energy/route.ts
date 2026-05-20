@@ -13,6 +13,7 @@ import {
 } from '@/lib/fritzEnergyStore'
 import { fritzboxRootFromInput, type FritzBoxConnection } from '@/lib/fritzboxTr064'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const FETCH_TIMEOUT_MS = 20_000
