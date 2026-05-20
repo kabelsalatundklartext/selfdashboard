@@ -18,7 +18,8 @@ type Props = {
 }
 
 /**
- * Wand-Tablet / Kiosk: Navbar nach Inaktivität ausblenden (ohne Layout-Lücke), per Button kurz wieder einblenden.
+ * Wand-Tablet / Kiosk: Navbar nach Inaktivität ausblenden (ohne Layout-Lücke).
+ * Wieder einblenden nur über den „Leiste“-Button — Maus/Klicks auf Widgets öffnen sie nicht.
  * Deaktiviert im Bearbeitungsmodus.
  */
 export function KioskNavbarShell({ children, locale }: Props) {
@@ -61,26 +62,7 @@ export function KioskNavbarShell({ children, locale }: Props) {
     }
     setBarVisible(true)
     scheduleHide()
-
-    const onActivity = () => {
-      setBarVisible(true)
-      scheduleHide()
-    }
-    const opts: AddEventListenerOptions = { passive: true }
-    window.addEventListener('mousemove', onActivity, opts)
-    window.addEventListener('mousedown', onActivity, opts)
-    window.addEventListener('touchstart', onActivity, opts)
-    window.addEventListener('keydown', onActivity)
-    window.addEventListener('wheel', onActivity, opts)
-
-    return () => {
-      clearHideTimer()
-      window.removeEventListener('mousemove', onActivity)
-      window.removeEventListener('mousedown', onActivity)
-      window.removeEventListener('touchstart', onActivity)
-      window.removeEventListener('keydown', onActivity)
-      window.removeEventListener('wheel', onActivity)
-    }
+    return () => clearHideTimer()
   }, [active, scheduleHide, clearHideTimer])
 
   const de = locale === 'de'
@@ -109,6 +91,9 @@ export function KioskNavbarShell({ children, locale }: Props) {
           pointerEvents: showNavbar ? 'auto' : 'none',
         }}
         aria-hidden={!showNavbar}
+        onPointerDown={() => {
+          if (barVisible) scheduleHide()
+        }}
       >
         {children}
       </div>

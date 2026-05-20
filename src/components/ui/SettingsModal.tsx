@@ -282,8 +282,8 @@ export function SettingsModal({ open, onClose }: Props) {
                     </p>
                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0', lineHeight: 1.45 }}>
                       {locale === 'de'
-                        ? 'Nach Inaktivität verschwindet die Leiste — kleiner Button oben blendet sie kurz wieder ein. Im Bearbeitungsmodus bleibt sie sichtbar.'
-                        : 'After idle time the bar hides — a small top button brings it back briefly. Stays visible in edit mode.'}
+                        ? 'Nach Inaktivität verschwindet die Leiste — nur der Akzent-Button „Leiste“ blendet sie wieder ein (Maus über Widgets nicht). Im Bearbeitungsmodus bleibt sie sichtbar.'
+                        : 'After idle time the bar hides — only the accent “Menu” button brings it back (not mouse over widgets). Stays visible in edit mode.'}
                     </p>
                   </div>
                   <Toggle value={kioskModeEnabled} onChange={setKioskModeEnabled} />
