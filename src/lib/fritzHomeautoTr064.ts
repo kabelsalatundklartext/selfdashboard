@@ -4,10 +4,10 @@
 import DigestClient from 'digest-fetch'
 import https from 'node:https'
 import {
-  fetchDescriptorXml,
+  findTr064ServiceAcrossDescriptors,
   fritzboxRootFromInput,
-  parseTr064Services,
   type FritzBoxConnection,
+  type Tr064Service,
 } from '@/lib/fritzboxTr064'
 
 export type FritzEnergyReading = {
@@ -88,13 +88,21 @@ async function soapAction(
   return text
 }
 
-function homeautoService(services: ReturnType<typeof parseTr064Services>) {
-  return (
-    services.find((s) => /X_AVM-DE_Homeauto:1$/i.test(s.type)) ||
-    services.find((s) => /X_AVM-DE_Homeautomation:1$/i.test(s.type)) ||
-    services.find((s) => s.type.includes('Homeauto')) ||
-    null
-  )
+function isHomeautoService(s: Tr064Service): boolean {
+  if (/X_AVM-DE_Homeauto/i.test(s.type) || /X_AVM-DE_Homeautomation/i.test(s.type)) return true
+  if (/homeauto/i.test(s.type)) return true
+  return /\/x_homeauto/i.test(s.controlUrl) || /homeauto/i.test(s.controlUrl)
+}
+
+async function resolveHomeautoService(
+  client: DigestClient,
+  origin: string,
+  signal: AbortSignal,
+  fetchOpts: { agent?: https.Agent },
+): Promise<Tr064Service> {
+  const hit = await findTr064ServiceAcrossDescriptors(client, origin, signal, fetchOpts, isHomeautoService)
+  if (!hit) throw new Error('homeauto_not_found')
+  return hit.service
 }
 
 /** AIN: 12 Ziffern → „11630 0425503“ */
@@ -132,10 +140,7 @@ export async function fetchFritzEnergyReading(
   const fetchOpts = agent ? { agent } : {}
   const client = new DigestClient(conn.username || '', conn.password || '')
 
-  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
-  const services = parseTr064Services(descXml)
-  const ha = homeautoService(services)
-  if (!ha) throw new Error('homeauto_not_found')
+  const ha = await resolveHomeautoService(client, origin, signal, fetchOpts)
 
   const ctl = absUrl(origin, ha.controlUrl)
   const xml = await soapAction(client, ctl, ha.type, 'GetSpecificDeviceInfos', signal, fetchOpts, {
@@ -162,10 +167,7 @@ export async function listFritzSmartDevices(
   const fetchOpts = agent ? { agent } : {}
   const client = new DigestClient(conn.username || '', conn.password || '')
 
-  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
-  const services = parseTr064Services(descXml)
-  const ha = homeautoService(services)
-  if (!ha) throw new Error('homeauto_not_found')
+  const ha = await resolveHomeautoService(client, origin, signal, fetchOpts)
 
   const ctl = absUrl(origin, ha.controlUrl)
   const xml = await soapAction(client, ctl, ha.type, 'GetDeviceList', signal, fetchOpts)

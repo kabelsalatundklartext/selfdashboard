@@ -74,7 +74,7 @@ function tr064OriginFromRoot(root: string): string {
 }
 
 /** Bekannte Pfade zur Gerätebeschreibung (AVM / FRITZ!OS variiert). */
-const DESCRIPTOR_PATHS = [
+export const TR064_DESCRIPTOR_PATHS = [
   '/tr064desc.xml',
   '/tr064/tr064desc.xml',
   '/tr064dev.xml',
@@ -98,7 +98,7 @@ export async function fetchDescriptorXml(
   fetchOpts: { agent?: https.Agent },
 ): Promise<{ xml: string; path: string }> {
   const tried: string[] = []
-  for (const p of DESCRIPTOR_PATHS) {
+  for (const p of TR064_DESCRIPTOR_PATHS) {
     const url = `${origin.replace(/\/+$/, '')}${p}`
     tried.push(p)
     const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
@@ -111,6 +111,30 @@ export async function fetchDescriptorXml(
     return { xml: text, path: p }
   }
   throw new Error(`desc_not_found:${tried.join(',')}`)
+}
+
+/**
+ * Sucht einen TR-064-Dienst in allen bekannten Descriptor-Dateien.
+ * Wichtig für Smart Home: `igddesc.xml` enthält oft kein X_AVM-DE_Homeauto — dann `tr064desc.xml` probieren.
+ */
+export async function findTr064ServiceAcrossDescriptors(
+  client: DigestClient,
+  origin: string,
+  signal: AbortSignal,
+  fetchOpts: { agent?: https.Agent },
+  match: (service: Tr064Service) => boolean,
+): Promise<{ service: Tr064Service; descriptorPath: string } | null> {
+  for (const p of TR064_DESCRIPTOR_PATHS) {
+    const url = `${origin.replace(/\/+$/, '')}${p}`
+    const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
+    const text = await descRes.text()
+    if (descRes.status === 401 || descRes.status === 403) throw new Error('unauthorized')
+    if (!descRes.ok) continue
+    if (!looksLikeDeviceDescription(text)) continue
+    const hit = parseTr064Services(text).find(match)
+    if (hit) return { service: hit, descriptorPath: p }
+  }
+  return null
 }
 
 function absUrl(origin: string, relativeOrAbsolute: string): string {
