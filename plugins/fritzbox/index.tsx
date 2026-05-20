@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.3',
+  version: '2.4.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -92,10 +92,10 @@ export const meta: PluginMeta = {
     },
     {
       key: 'throughputClampMbps',
-      label: 'Max. Messrate (Mbit/s), 0 = nur TR-064',
+      label: 'Max. Messrate (Mbit/s), 0 = keine Kappung',
       type: 'number',
       defaultValue: 0,
-      placeholder: 'z. B. 1000 bei 1-Gbit-Vertrag',
+      placeholder: '0 = empfohlen; nur bei Bedarf z. B. 1000',
     },
     {
       key: 'chartHistoryPoints',
@@ -118,31 +118,25 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Mess-Ausreißer begrenzen: Nutzer-Kappung (Mbit/s) exakt in bit/s; sonst TR-064 Layer1-Max (bit/s) je Richtung +3 % Puffer. */
+/** Mess-Ausreißer begrenzen: nur explizite Nutzer-Kappung (Mbit/s). Kein TR-064-Layer1-Max — der ist oft falsch (z. B. 1 Mbit/s bei Gigabit). */
 function clampThroughputBps(
   down: number,
   up: number,
-  lineDownBps: number | null,
-  lineUpBps: number | null,
+  _lineDownBps: number | null,
+  _lineUpBps: number | null,
   userCapMbps: number,
 ): { down: number; up: number } {
-  const phyHead = 1.03
   let d = Number.isFinite(down) ? Math.max(0, down) : 0
   let u = Number.isFinite(up) ? Math.max(0, up) : 0
   if (userCapMbps > 0 && Number.isFinite(userCapMbps)) {
     const cap = Math.max(1, userCapMbps) * 1_000_000
     return { down: Math.min(d, cap), up: Math.min(u, cap) }
   }
-  if (lineDownBps != null && lineDownBps > 0 && Number.isFinite(lineDownBps)) {
-    d = Math.min(d, lineDownBps * phyHead)
-  }
-  if (lineUpBps != null && lineUpBps > 0 && Number.isFinite(lineUpBps)) {
-    u = Math.min(u, lineUpBps * phyHead)
-  }
   return { down: d, up: u }
 }
 
-const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v1'
+const FB_BPS_HISTORY_STORAGE = 'sd:fritzbox:bpsHistory:v2'
+const FB_BPS_HISTORY_STORAGE_LEGACY = 'sd:fritzbox:bpsHistory:v1'
 const FB_BPS_HISTORY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function fritzboxBpsHistoryStorageKey(baseUrl: string, username: string): string {
@@ -867,6 +861,8 @@ type Summary = {
   hostCount: number | null
   wanTotalBytesReceived: string | null
   wanTotalBytesSent: string | null
+  wanLiveDownBps?: number | null
+  wanLiveUpBps?: number | null
   fetchedAt?: string
 }
 
@@ -957,6 +953,17 @@ function Widget({ config }: PluginWidgetProps) {
       setBpsHistory([])
       return
     }
+    if (typeof window !== 'undefined') {
+      try {
+        const legacy = fritzboxBpsHistoryStorageKey(baseUrl, username).replace(
+          FB_BPS_HISTORY_STORAGE,
+          FB_BPS_HISTORY_STORAGE_LEGACY,
+        )
+        localStorage.removeItem(legacy)
+      } catch {
+        /* ignore */
+      }
+    }
     const key = fritzboxBpsHistoryStorageKey(baseUrl, username)
     if (key !== bpsHistoryKeyRef.current) {
       bpsHistoryKeyRef.current = key
@@ -1033,7 +1040,7 @@ function Widget({ config }: PluginWidgetProps) {
   const loadLite = useCallback(async () => {
     if (!baseUrl || liveEvery <= 0) return
     const cur = dataRef.current
-    if (!cur || (!cur.wanTotalBytesReceived && !cur.wanTotalBytesSent)) return
+    if (!cur) return
     try {
       const res = await fetch('/api/fritzbox', {
         method: 'POST',
@@ -1045,6 +1052,8 @@ function Widget({ config }: PluginWidgetProps) {
         ok?: boolean
         wanTotalBytesReceived?: string | null
         wanTotalBytesSent?: string | null
+        wanLiveDownBps?: number | null
+        wanLiveUpBps?: number | null
       }
       if (!res.ok || j.ok === false) return
       setData((d) => {
@@ -1055,6 +1064,12 @@ function Widget({ config }: PluginWidgetProps) {
         }
         if (typeof j.wanTotalBytesSent === 'string' && /^\d+$/.test(j.wanTotalBytesSent)) {
           next.wanTotalBytesSent = j.wanTotalBytesSent
+        }
+        if (typeof j.wanLiveDownBps === 'number' && Number.isFinite(j.wanLiveDownBps)) {
+          next.wanLiveDownBps = j.wanLiveDownBps
+        }
+        if (typeof j.wanLiveUpBps === 'number' && Number.isFinite(j.wanLiveUpBps)) {
+          next.wanLiveUpBps = j.wanLiveUpBps
         }
         return next
       })
@@ -1084,6 +1099,21 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     if (!data) return
+
+    const liveDown = data.wanLiveDownBps
+    const liveUp = data.wanLiveUpBps
+    if (
+      liveDown != null &&
+      liveUp != null &&
+      Number.isFinite(liveDown) &&
+      Number.isFinite(liveUp) &&
+      liveDown >= 0 &&
+      liveUp >= 0
+    ) {
+      setLiveBps(clampThroughputBps(liveDown, liveUp, null, null, clampMbps))
+      return
+    }
+
     if (!data.wanTotalBytesReceived || !data.wanTotalBytesSent) {
       setLiveBps(null)
       prevBytesRef.current = null
@@ -1104,9 +1134,7 @@ function Widget({ config }: PluginWidgetProps) {
             const down = Number(drx * BigInt(8)) / dt
             const up = Number(dtx * BigInt(8)) / dt
             if (Number.isFinite(down) && Number.isFinite(up)) {
-              setLiveBps(
-                clampThroughputBps(down, up, data.downstreamMaxBps, data.upstreamMaxBps, clampMbps),
-              )
+              setLiveBps(clampThroughputBps(down, up, null, null, clampMbps))
             }
           } else {
             setLiveBps(null)
@@ -1136,13 +1164,7 @@ function Widget({ config }: PluginWidgetProps) {
   const liveForDisplay =
     liveForDisplayRaw == null
       ? null
-      : clampThroughputBps(
-          liveForDisplayRaw.down,
-          liveForDisplayRaw.up,
-          data?.downstreamMaxBps ?? null,
-          data?.upstreamMaxBps ?? null,
-          clampMbps,
-        )
+      : clampThroughputBps(liveForDisplayRaw.down, liveForDisplayRaw.up, null, null, clampMbps)
 
   if (!baseUrl && !loading) {
     return (
@@ -1172,7 +1194,8 @@ function Widget({ config }: PluginWidgetProps) {
       ) : null}
 
       {data && !error ? (
-        !data.wanTotalBytesReceived || !data.wanTotalBytesSent ? (
+        (data.wanLiveDownBps == null || data.wanLiveUpBps == null) &&
+        (!data.wanTotalBytesReceived || !data.wanTotalBytesSent) ? (
           <div
             style={{
               flex: 1,
@@ -1186,8 +1209,8 @@ function Widget({ config }: PluginWidgetProps) {
             }}
           >
             {de
-              ? 'Byte-Zähler (WAN) werden von dieser Box/TR-064 nicht geliefert — keine Kurve möglich.'
-              : 'Byte counters are not exposed for this router/TR-064 session — chart unavailable.'}
+              ? 'WAN-Durchsatz von dieser Box/TR-064 nicht verfügbar — Benutzer mit TR-064 + WAN-Recht prüfen.'
+              : 'WAN throughput not available from TR-064 — check user has TR-064 and WAN rights.'}
           </div>
         ) : bpsHistory.length >= 2 ? (
           <ThroughputHistoryChart
