@@ -148,7 +148,7 @@ function Widget({ config }: PluginWidgetProps) {
       }
       setData(j)
     } catch (e) {
-      reportPluginCatch('fritz-energy', 'fetch', e)
+      reportPluginCatch('fritz-energy', e, 'fetch')
       setErr('network')
       setData(null)
     } finally {
