@@ -1170,8 +1170,7 @@ function Widget({ config }: PluginWidgetProps) {
       ) : null}
 
       {data && !error ? (
-        (data.wanLiveDownBps == null || data.wanLiveUpBps == null) &&
-        (!data.wanTotalBytesReceived || !data.wanTotalBytesSent) ? (
+        !data.wanTotalBytesReceived || !data.wanTotalBytesSent ? (
           <div
             style={{
               flex: 1,
@@ -1185,8 +1184,8 @@ function Widget({ config }: PluginWidgetProps) {
             }}
           >
             {de
-              ? 'WAN-Durchsatz von dieser Box/TR-064 nicht verfügbar — Benutzer mit TR-064 + WAN-Recht prüfen.'
-              : 'WAN throughput not available from TR-064 — check user has TR-064 and WAN rights.'}
+              ? 'Byte-Zähler (WAN) werden von dieser Box/TR-064 nicht geliefert — keine Kurve möglich.'
+              : 'Byte counters are not exposed for this router/TR-064 session — chart unavailable.'}
           </div>
         ) : bpsHistory.length >= 2 ? (
           <ThroughputHistoryChart
