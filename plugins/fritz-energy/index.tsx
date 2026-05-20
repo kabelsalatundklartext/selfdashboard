@@ -114,7 +114,7 @@ function PowerSparkline({ points }: { points: { powerW: number }[] }) {
 }
 
 function Widget({ config }: PluginWidgetProps) {
-  const locale = usePluginLocale(config)
+  const { locale, de } = usePluginLocale()
   const [data, setData] = useState<EnergyPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -162,7 +162,6 @@ function Widget({ config }: PluginWidgetProps) {
     return () => clearInterval(id)
   }, [fetchEnergy, refreshSec])
 
-  const de = locale !== 'en'
   const labels = de
     ? { now: 'Aktuell', today: 'Heute', week: '7 Tage', month: 'Monat', total: 'Zähler gesamt' }
     : { now: 'Now', today: 'Today', week: '7 days', month: 'Month', total: 'Meter total' }
@@ -238,8 +237,7 @@ function Widget({ config }: PluginWidgetProps) {
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
-  const locale = usePluginLocale(config)
-  const de = locale !== 'en'
+  const { de } = usePluginLocale()
   const [devices, setDevices] = useState<{ ain: string; name: string }[]>([])
   const [listErr, setListErr] = useState<string | null>(null)
   const [listing, setListing] = useState(false)
