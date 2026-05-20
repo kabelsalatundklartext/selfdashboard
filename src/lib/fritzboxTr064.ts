@@ -179,7 +179,7 @@ function parseDecimalUIntString(xml: string, ...localNames: string[]): string | 
   return null
 }
 
-export type Tr064Service = { type: string; controlUrl: string; scpdUrl: string | null }
+export type Tr064Service = { type: string; controlUrl: string }
 
 function escapeXmlTr064(s: string): string {
   return s
@@ -194,14 +194,9 @@ export function buildTr064SoapEnvelope(
   serviceUrn: string,
   action: string,
   args: Record<string, string> = {},
-  opts?: { namespacedArgs?: boolean },
 ): string {
   const inner = Object.entries(args)
-    .map(([k, v]) => {
-      const val = escapeXmlTr064(v)
-      if (opts?.namespacedArgs) return `<u:${k} xmlns:u="${serviceUrn}">${val}</u:${k}>`
-      return `<${k}>${val}</${k}>`
-    })
+    .map(([k, v]) => `<${k}>${escapeXmlTr064(v)}</${k}>`)
     .join('\n')
   const bodyInner = inner ? `\n${inner}\n` : ''
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -220,19 +215,7 @@ export function parseTr064Services(descXml: string): Tr064Service[] {
     const block = serviceBlocks[i] ?? ''
     const t = xmlFirst(block, 'serviceType')
     const c = xmlFirst(block, 'controlURL')
-    const scpd = xmlFirst(block, 'SCPDURL') ?? xmlFirst(block, 'scpdURL')
-    if (t && c) out.push({ type: t, controlUrl: c, scpdUrl: scpd })
-  }
-  return out
-}
-
-/** Action-Namen aus SCPD (x_homeautoSCPD.xml). */
-export function parseScpdActionNames(scpdXml: string): string[] {
-  const out: string[] = []
-  const blocks = scpdXml.split(/<action>/i)
-  for (let i = 1; i < blocks.length; i++) {
-    const name = xmlFirst(blocks[i] ?? '', 'name')
-    if (name) out.push(name)
+    if (t && c) out.push({ type: t, controlUrl: c })
   }
   return out
 }

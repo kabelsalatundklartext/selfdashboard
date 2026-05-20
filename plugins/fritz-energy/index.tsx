@@ -9,8 +9,7 @@ import { reportPluginCatch } from '@/lib/pluginLog'
 export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
-  description:
-    'Eigenes Plugin (nicht „Fritzbox Internet Verlauf“): Strom der FRITZ!Smart Energy 200 per TR-064 — aktuell, heute, 7 Tage, Monat; Speicherung auf dem Server.',
+  description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
   version: '1.0.0',
   author: 'SelfDashboard',
   category: 'network',
@@ -49,7 +48,7 @@ function pluginDe(r: Record<string, unknown>, dashboardDe: boolean): boolean {
   return dashboardDe
 }
 
-function listDevicesError(code: string, de: boolean): string {
+function fritzEnergyError(code: string, de: boolean): string {
   const base = code.split(':')[0]
   switch (base) {
     case 'unauthorized':
@@ -58,12 +57,12 @@ function listDevicesError(code: string, de: boolean): string {
         : 'Login failed — check username and password (FRITZ!Box user with TR-064 access).'
     case 'desc_not_found':
       return de
-        ? 'TR-064-Beschreibung nicht erreichbar. Basis-URL wie beim Plugin „Fritzbox Internet Verlauf“ (http → Port 49000, https → 49443), nicht die Weboberfläche auf Port 80/443.'
-        : 'TR-064 device description unreachable. Use the same base URL as the Fritzbox plugin (http → port 49000, https → 49443), not the web UI on 80/443.'
+        ? 'TR-064 nicht erreichbar. Basis-URL https://192.168.1.1, Haken „selbstsigniert“, Zugriff für Apps + UPnP in der Box.'
+        : 'TR-064 unreachable. Use https://192.168.1.1, allow self-signed TLS, enable app access + UPnP on the router.'
     case 'homeauto_not_found':
       return de
-        ? 'Smart-Home per TR-064 nicht gefunden. In der Probe liefert igddesc nur WAN — probiere Basis-URL https://192.168.1.1, Haken „selbstsigniert“, Port 49443. Heimnetz: Zugriff für Apps + UPnP.'
-        : 'Smart Home TR-064 not found. igddesc often has WAN only — try https://192.168.1.1, self-signed TLS, port 49443. Enable app access + UPnP in Home Network settings.'
+        ? 'Smart-Home-Dienst nicht gefunden. HTTPS-Basis-URL und „selbstsigniert“ prüfen.'
+        : 'Smart Home service not found. Check HTTPS base URL and self-signed TLS option.'
     case 'timeout':
       return de ? 'Zeitüberschreitung beim Abruf.' : 'Request timed out.'
     case 'network':
@@ -76,6 +75,10 @@ function listDevicesError(code: string, de: boolean): string {
       return de
         ? 'FRITZ!-Benutzer hat keine Smart-Home-Rechte. In der Box: System → FRITZ!-Benutzer → Benutzer bearbeiten → „Smart Home“ aktivieren.'
         : 'FRITZ!Box user lacks Smart Home rights. Enable Smart Home for this user in System → FRITZ!Box users.'
+    case 'no_multimeter':
+      return de
+        ? 'Gerät meldet keine Leistungsmessung — FRITZ!Smart Energy 200?'
+        : 'Device has no power meter.'
     default:
       if (base.startsWith('homeauto_fault_')) {
         return de
@@ -163,7 +166,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const baseUrl = str(config.baseUrl) || 'http://fritz.box'
+  const baseUrl = str(config.baseUrl) || 'https://192.168.1.1'
   const username = str(config.username)
   const password = str(config.password)
   const ain = str(config.ain)
@@ -220,17 +223,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (err) {
     return (
-      <p style={{ margin: 0, fontSize: 13, color: 'var(--danger, #f87171)' }}>
-        {err === 'unauthorized'
-          ? de
-            ? 'Anmeldung fehlgeschlagen — Benutzer/Passwort der FRITZ!Box prüfen.'
-            : 'Login failed — check FRITZ!Box user/password.'
-          : err === 'no_multimeter'
-            ? de
-              ? 'Gerät meldet keine Leistungsmessung — FRITZ!Smart Energy 200?'
-              : 'Device has no power meter.'
-            : `${de ? 'Fehler' : 'Error'}: ${err}`}
-      </p>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--danger, #f87171)' }}>{fritzEnergyError(err, de)}</p>
     )
   }
 
@@ -317,7 +310,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'listDevices',
-          baseUrl: str(r.baseUrl) || 'http://fritz.box',
+          baseUrl: str(r.baseUrl) || 'https://192.168.1.1',
           username: str(r.username),
           password: typeof r.password === 'string' ? r.password : '',
           insecureTls: r.insecureTls === true,
@@ -325,7 +318,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       })
       const j = (await res.json()) as { ok?: boolean; devices?: { ain: string; name: string }[]; error?: string }
       if (!res.ok || !j.ok) {
-        setListErr(listDevicesError(j.error ?? 'list_failed', de))
+        setListErr(fritzEnergyError(j.error ?? 'list_failed', de))
         setDevices([])
         return
       }
@@ -334,7 +327,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         setListErr(de ? 'Keine Smart-Home-Geräte gefunden.' : 'No Smart Home devices found.')
       }
     } catch {
-      setListErr(listDevicesError('network', de))
+      setListErr(fritzEnergyError('network', de))
     } finally {
       setListing(false)
     }
@@ -345,15 +338,16 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
         {de ? (
           <>
-            Stromverbrauch der FRITZ!Smart Energy 200 (oder anderer Steckdose) per <strong>TR-064</strong> (Port{' '}
-            <code style={{ fontSize: '10px' }}>49000</code> bei <code style={{ fontSize: '10px' }}>http</code>) — Abruf und
-            Verlaufsspeicherung über den SelfDashboard-Server. Gleiche Zugangsdaten wie beim Plugin „Fritzbox Internet Verlauf“.
+            Stromverbrauch per <strong>TR-064</strong> über <strong>HTTPS</strong> (Port{' '}
+            <code style={{ fontSize: '10px' }}>49443</code>). Basis-URL z. B.{' '}
+            <code style={{ fontSize: '10px' }}>https://192.168.1.1</code>, selbstsigniertes Zertifikat erlauben. Verlauf wird auf dem
+            SelfDashboard-Server gespeichert.
           </>
         ) : (
           <>
-            Power use of your FRITZ!Smart Energy outlet via <strong>TR-064</strong> (port{' '}
-            <code style={{ fontSize: '10px' }}>49000</code> for <code style={{ fontSize: '10px' }}>http</code>). Fetched and stored on
-            the SelfDashboard server. Use the same credentials as the Fritzbox throughput plugin.
+            Power use via <strong>TR-064</strong> over <strong>HTTPS</strong> (port{' '}
+            <code style={{ fontSize: '10px' }}>49443</code>). Base URL e.g.{' '}
+            <code style={{ fontSize: '10px' }}>https://192.168.1.1</code>, allow self-signed TLS. History is stored on the server.
           </>
         )}
       </p>
