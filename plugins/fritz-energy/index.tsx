@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.1',
+  version: '1.1.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -120,14 +120,15 @@ function StatTile({
   sub,
   icon: Icon,
   tint,
-  tall,
+  fill,
 }: {
   label: string
   value: string
   sub?: string
   icon: LucideIcon
   tint: TintKey
-  tall?: boolean
+  /** Kachel füllt die Rasterzelle (2×2-Widget ohne Lücke unten). */
+  fill?: boolean
 }) {
   const c = TINT[tint]
   return (
@@ -137,13 +138,15 @@ function StatTile({
         background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-        padding: tall ? '10px 12px' : '8px 10px',
+        padding: fill ? '10px 12px' : '8px 10px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         gap: '2px',
         minWidth: 0,
         minHeight: 0,
+        height: fill ? '100%' : undefined,
+        boxSizing: 'border-box',
         containerType: 'inline-size',
       }}
     >
@@ -168,7 +171,7 @@ function StatTile({
       <span
         className="tabular-nums"
         style={{
-          fontSize: tall ? 'clamp(15px, 4.5cqw, 20px)' : 'clamp(14px, 4cqw, 18px)',
+          fontSize: fill ? 'clamp(15px, 5cqw, 22px)' : 'clamp(14px, 4cqw, 18px)',
           fontWeight: 800,
           lineHeight: 1.12,
           color: c.solid,
@@ -529,9 +532,11 @@ function Widget({ config }: PluginWidgetProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: loading ? 6 : 0,
         minHeight: 0,
         height: '100%',
+        width: '100%',
+        boxSizing: 'border-box',
         containerType: 'size',
       }}
     >
@@ -539,7 +544,11 @@ function Widget({ config }: PluginWidgetProps) {
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gridTemplateRows: '1fr 1fr',
           gap: 8,
+          flex: 1,
+          minHeight: 0,
+          alignContent: 'stretch',
         }}
       >
         <StatTile
@@ -548,13 +557,16 @@ function Widget({ config }: PluginWidgetProps) {
           sub={data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : undefined}
           icon={Zap}
           tint="amber"
+          fill
         />
-        <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} tint="sky" />
-        <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" />
-        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" />
+        <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} tint="sky" fill />
+        <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" fill />
+        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" fill />
       </div>
       {loading ? (
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, textAlign: 'center' }}>
+          {de ? 'Aktualisiere…' : 'Updating…'}
+        </span>
       ) : null}
     </div>
   )
