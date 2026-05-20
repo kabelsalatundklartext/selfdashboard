@@ -18,7 +18,7 @@ type Props = {
 }
 
 /**
- * Wand-Tablet / Kiosk: Navbar nach Inaktivität ausblenden, per kleinem Button kurz wieder einblenden.
+ * Wand-Tablet / Kiosk: Navbar nach Inaktivität ausblenden (ohne Layout-Lücke), per Button kurz wieder einblenden.
  * Deaktiviert im Bearbeitungsmodus.
  */
 export function KioskNavbarShell({ children, locale }: Props) {
@@ -85,15 +85,24 @@ export function KioskNavbarShell({ children, locale }: Props) {
 
   const de = locale === 'de'
 
+  if (!active) {
+    return (
+      <div className="sd-kiosk-navbar-wrap sticky top-0 z-50 flex-shrink-0" style={{ minWidth: 0 }}>
+        {children}
+      </div>
+    )
+  }
+
   return (
     <>
       <div
         className="sd-kiosk-navbar-wrap"
         style={{
-          position: 'sticky',
+          position: 'fixed',
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 50,
-          flexShrink: 0,
           transform: showNavbar ? 'translateY(0)' : 'translateY(-100%)',
           transition: 'transform 0.38s cubic-bezier(0.4, 0, 0.2, 1)',
           willChange: 'transform',
@@ -104,7 +113,7 @@ export function KioskNavbarShell({ children, locale }: Props) {
         {children}
       </div>
 
-      {active && !showNavbar ? (
+      {!showNavbar ? (
         <button
           type="button"
           className="sd-kiosk-reveal-btn"
@@ -113,37 +122,34 @@ export function KioskNavbarShell({ children, locale }: Props) {
           title={de ? 'Leiste einblenden' : 'Show top bar'}
           style={{
             position: 'fixed',
-            top: 'max(8px, env(safe-area-inset-top, 0px))',
+            top: 'max(10px, env(safe-area-inset-top, 0px))',
             left: '50%',
             transform: 'translateX(-50%)',
-            zIndex: 60,
+            zIndex: 200,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6,
-            padding: '6px 14px',
+            padding: '7px 16px',
             borderRadius: 999,
-            border: '1px solid color-mix(in srgb, var(--border) 80%, transparent)',
-            background: 'color-mix(in srgb, var(--surface) 92%, transparent)',
-            backdropFilter: 'blur(10px)',
-            color: 'var(--text-muted)',
+            border: 'none',
+            background: 'var(--accent)',
+            color: '#fff',
             fontSize: 11,
-            fontWeight: 600,
+            fontWeight: 700,
+            letterSpacing: '0.02em',
             cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-            opacity: 0.85,
-            transition: 'opacity 0.2s, background 0.2s',
+            boxShadow: '0 4px 18px color-mix(in srgb, var(--accent) 55%, transparent), 0 2px 8px rgba(0,0,0,0.35)',
+            transition: 'transform 0.15s ease, filter 0.15s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1'
-            e.currentTarget.style.background = 'var(--surface)'
+            e.currentTarget.style.filter = 'brightness(1.08)'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '0.85'
-            e.currentTarget.style.background = 'color-mix(in srgb, var(--surface) 92%, transparent)'
+            e.currentTarget.style.filter = 'none'
           }}
         >
-          <PanelTop size={14} strokeWidth={2.25} aria-hidden />
+          <PanelTop size={15} strokeWidth={2.5} aria-hidden />
           <span>{de ? 'Leiste' : 'Menu'}</span>
         </button>
       ) : null}
