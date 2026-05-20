@@ -107,24 +107,22 @@ export function KioskNavbarShell({ children, locale }: Props) {
           title={de ? 'Leiste einblenden' : 'Show top bar'}
           style={{
             position: 'fixed',
-            top: 'max(8px, env(safe-area-inset-top, 0px))',
+            top: 'max(6px, env(safe-area-inset-top, 0px))',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 200,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 4,
-            padding: '4px 10px',
-            borderRadius: 999,
+            width: 26,
+            height: 22,
+            padding: 0,
+            borderRadius: 6,
             border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
             background: 'var(--accent)',
             color: '#fff',
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: '0.02em',
             cursor: 'pointer',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.28)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
             transition: 'opacity 0.15s ease',
           }}
           onMouseEnter={(e) => {
@@ -134,8 +132,7 @@ export function KioskNavbarShell({ children, locale }: Props) {
             e.currentTarget.style.opacity = '1'
           }}
         >
-          <ChevronDown size={12} strokeWidth={2.5} aria-hidden />
-          <span>{de ? 'Leiste' : 'Menu'}</span>
+          <ChevronDown size={14} strokeWidth={2.5} aria-hidden />
         </button>
       ) : null}
     </>
