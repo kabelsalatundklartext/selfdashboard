@@ -10,12 +10,12 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.0',
+  version: '1.1.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
   iconUrl: '/plugin-logos/fritzbox.svg',
-  defaultLayout: { w: 2, h: 3, minW: 1, minH: 2 },
+  defaultLayout: { w: 2, h: 2, minW: 1, minH: 2 },
 }
 
 type EnergyPayload = {
@@ -110,21 +110,9 @@ const TINT = {
   sky: { solid: '#38bdf8', wash: 'rgba(56, 189, 248, 0.18)', rim: 'rgba(56, 189, 248, 0.38)' },
   violet: { solid: '#a78bfa', wash: 'rgba(167, 139, 250, 0.18)', rim: 'rgba(167, 139, 250, 0.38)' },
   emerald: { solid: '#34d399', wash: 'rgba(52, 211, 153, 0.18)', rim: 'rgba(52, 211, 153, 0.38)' },
-  slate: { solid: '#94a3b8', wash: 'rgba(148, 163, 184, 0.14)', rim: 'rgba(148, 163, 184, 0.32)' },
 } as const
 
 type TintKey = keyof typeof TINT
-
-function formatMonthKey(key: string, locale: 'de' | 'en'): string {
-  const [y, m] = key.split('-')
-  const yr = Number(y)
-  const mo = Number(m)
-  if (!Number.isFinite(yr) || !Number.isFinite(mo)) return key
-  return new Date(yr, mo - 1, 1).toLocaleDateString(locale === 'en' ? 'en-GB' : 'de-DE', {
-    month: 'short',
-    year: '2-digit',
-  })
-}
 
 function StatTile({
   label,
@@ -197,91 +185,7 @@ function StatTile({
   )
 }
 
-function MonthBarsChart({
-  monthlyKwh,
-  locale,
-  de,
-  compact,
-}: {
-  monthlyKwh: Record<string, number>
-  locale: 'de' | 'en'
-  de: boolean
-  compact?: boolean
-}) {
-  const months = Object.entries(monthlyKwh)
-    .filter(([, v]) => v > 0)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-12)
-  if (months.length < 2) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '10px',
-          color: 'var(--text-muted)',
-          textAlign: 'center',
-          padding: '8px',
-          lineHeight: 1.4,
-        }}
-      >
-        {de
-          ? 'Monatsverlauf: in Einstellungen „Verlauf von FRITZ!Box holen“ oder nach dem nächsten Abruf.'
-          : 'Monthly chart: use “Import history from FRITZ!Box” in settings or wait for the next poll.'}
-      </div>
-    )
-  }
-  const max = Math.max(...months.map(([, v]) => v), 0.01)
-  const h = compact ? 72 : 88
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, flex: 1 }}>
-      <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
-        {de ? 'Monatsverlauf (kWh)' : 'Monthly use (kWh)'}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: h, minHeight: h }}>
-        {months.map(([key, kwh]) => {
-          const barH = Math.max(4, Math.round((kwh / max) * (h - 8)))
-          return (
-            <div
-              key={key}
-              title={`${formatMonthKey(key, locale)}: ${formatKwh(kwh, locale)}`}
-              style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  maxWidth: 28,
-                  height: barH,
-                  borderRadius: '3px 3px 1px 1px',
-                  background: 'linear-gradient(180deg, #fb923c 0%, #ea580c 100%)',
-                  opacity: 0.92,
-                }}
-              />
-              {!compact ? (
-                <span
-                  style={{
-                    fontSize: '7px',
-                    color: 'var(--text-muted)',
-                    transform: 'rotate(-42deg)',
-                    transformOrigin: 'top center',
-                    whiteSpace: 'nowrap',
-                    marginTop: 2,
-                  }}
-                >
-                  {formatMonthKey(key, locale)}
-                </span>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-type EnergyViewId = 'now' | 'today' | 'week' | 'month' | 'total'
+type EnergyViewId = 'now' | 'today' | 'week' | 'month'
 
 type EnergyView = {
   id: EnergyViewId
@@ -501,7 +405,6 @@ function EnergyCarousel({
 function Widget({ config }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const rootRef = useRef<HTMLDivElement>(null)
-  const { compact } = useWidgetSize(rootRef)
   const [data, setData] = useState<EnergyPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -551,8 +454,8 @@ function Widget({ config }: PluginWidgetProps) {
   }, [fetchEnergy, refreshSec])
 
   const labels = de
-    ? { now: 'Aktuell', today: 'Heute', week: '7 Tage', month: 'Monat', total: 'Zähler gesamt' }
-    : { now: 'Now', today: 'Today', week: '7 days', month: 'Month', total: 'Meter total' }
+    ? { now: 'Aktuell', today: 'Heute', week: '7 Tage', month: 'Monat' }
+    : { now: 'Now', today: 'Today', week: '7 days', month: 'Month' }
 
   if (!ain) {
     return (
@@ -572,10 +475,7 @@ function Widget({ config }: PluginWidgetProps) {
   const today = num(data?.todayKwh)
   const week = num(data?.last7DaysKwh)
   const month = num(data?.monthKwh)
-  const totalKwh = num(data?.energyWhTotal) / 1000
   const recent = Array.isArray(data?.recent) ? data.recent : []
-  const monthlyKwh =
-    data?.monthlyKwh && typeof data.monthlyKwh === 'object' ? data.monthlyKwh : {}
 
   const timeFmt = locale === 'en' ? 'en-GB' : 'de-DE'
   const updatedAt = data?.fetchedAt ? new Date(data.fetchedAt) : null
@@ -622,15 +522,6 @@ function Widget({ config }: PluginWidgetProps) {
       icon: Calendar,
       accent: '#34d399',
     },
-    {
-      id: 'total',
-      label: labels.total,
-      value: formatKwh(totalKwh, locale),
-      sub: updatedSub,
-      subShort: updatedShort,
-      icon: Bolt,
-      accent: '#94a3b8',
-    },
   ]
 
   if (viewMode === 'carousel') {
@@ -673,40 +564,14 @@ function Widget({ config }: PluginWidgetProps) {
         />
         <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} tint="sky" />
         <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" />
-        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" />
-      </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
-          gap: 8,
-          flex: '1 1 auto',
-          minHeight: 0,
-        }}
-      >
         <StatTile
-          label={labels.total}
-          value={formatKwh(totalKwh, locale)}
+          label={labels.month}
+          value={formatKwh(month, locale)}
           sub={updatedSub}
-          icon={Bolt}
-          tint="slate"
-          tall
+          icon={Calendar}
+          tint="emerald"
         />
-        <div
-          style={{
-            borderRadius: '12px',
-            border: '1px solid var(--border)',
-            background: 'var(--surface-2)',
-            padding: '8px 10px',
-            minHeight: 0,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <MonthBarsChart monthlyKwh={monthlyKwh} locale={locale} de={de} compact={compact} />
-        </div>
       </div>
-      {!compact ? <PowerSparkline points={recent.slice(-60)} /> : null}
       {loading ? (
         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
       ) : null}
@@ -894,8 +759,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </select>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
           {de
-            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln. Widget verkleinern (min. 1 Spalte breit).'
-            : 'Carousel: now, today, 7 days, month, meter total. Shrink the widget on the dashboard (min. 1 column wide).'}
+            ? 'Einzelansicht: Aktuell, Heute, 7 Tage und Monat per Pfeil oder Punkt wechseln. Widget verkleinern (min. 1 Spalte breit).'
+            : 'Carousel: now, today, 7 days, month. Shrink the widget on the dashboard (min. 1 column wide).'}
         </p>
       </div>
 
