@@ -57,12 +57,12 @@ function fritzEnergyError(code: string, de: boolean): string {
         : 'Login failed — check username and password (FRITZ!Box user with TR-064 access).'
     case 'desc_not_found':
       return de
-        ? 'TR-064 nicht erreichbar. Basis-URL https://192.168.1.1, Haken „selbstsigniert“, Zugriff für Apps + UPnP in der Box.'
-        : 'TR-064 unreachable. Use https://192.168.1.1, allow self-signed TLS, enable app access + UPnP on the router.'
+        ? 'TR-064 nicht erreichbar — Basis-URL (http://192.168.1.1), Benutzer/Passwort, Zugriff für Apps in der Box.'
+        : 'TR-064 unreachable — check base URL (http://192.168.1.1), credentials, app access on the router.'
     case 'homeauto_not_found':
       return de
-        ? 'Smart-Home-Dienst nicht gefunden. HTTPS-Basis-URL und „selbstsigniert“ prüfen.'
-        : 'Smart Home service not found. Check HTTPS base URL and self-signed TLS option.'
+        ? 'Smart-Home-Dienst nicht gefunden — TR-064-URL und Smart-Home-Rechte des Benutzers prüfen.'
+        : 'Smart Home service not found — check TR-064 URL and user Smart Home rights.'
     case 'timeout':
       return de ? 'Zeitüberschreitung beim Abruf.' : 'Request timed out.'
     case 'network':
@@ -166,7 +166,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const baseUrl = str(config.baseUrl) || 'https://192.168.1.1'
+  const baseUrl = str(config.baseUrl) || 'http://192.168.1.1'
   const username = str(config.username)
   const password = str(config.password)
   const ain = str(config.ain)
@@ -310,7 +310,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'listDevices',
-          baseUrl: str(r.baseUrl) || 'https://192.168.1.1',
+          baseUrl: str(r.baseUrl) || 'http://192.168.1.1',
           username: str(r.username),
           password: typeof r.password === 'string' ? r.password : '',
           insecureTls: r.insecureTls === true,
@@ -338,16 +338,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       <p style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
         {de ? (
           <>
-            Stromverbrauch per <strong>TR-064</strong> über <strong>HTTPS</strong> (Port{' '}
-            <code style={{ fontSize: '10px' }}>49443</code>). Basis-URL z. B.{' '}
-            <code style={{ fontSize: '10px' }}>https://192.168.1.1</code>, selbstsigniertes Zertifikat erlauben. Verlauf wird auf dem
-            SelfDashboard-Server gespeichert.
+            Stromverbrauch per <strong>TR-064</strong> (Port <code style={{ fontSize: '10px' }}>49000</code> bei{' '}
+            <code style={{ fontSize: '10px' }}>http</code>). Basis-URL z. B.{' '}
+            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — bei HTTPS Haken „selbstsigniert“ setzen. Verlauf auf dem Server.
           </>
         ) : (
           <>
-            Power use via <strong>TR-064</strong> over <strong>HTTPS</strong> (port{' '}
-            <code style={{ fontSize: '10px' }}>49443</code>). Base URL e.g.{' '}
-            <code style={{ fontSize: '10px' }}>https://192.168.1.1</code>, allow self-signed TLS. History is stored on the server.
+            Power use via <strong>TR-064</strong> (port <code style={{ fontSize: '10px' }}>49000</code> for{' '}
+            <code style={{ fontSize: '10px' }}>http</code>). Base URL e.g.{' '}
+            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — for HTTPS enable self-signed TLS. History stored on the server.
           </>
         )}
       </p>
@@ -360,7 +359,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           style={inp}
           value={str(r.baseUrl)}
           onChange={(e) => onChange('baseUrl', e.target.value)}
-          placeholder="https://192.168.1.1"
+          placeholder="http://192.168.1.1"
         />
       </div>
 
