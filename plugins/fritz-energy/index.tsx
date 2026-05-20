@@ -69,6 +69,8 @@ function fritzEnergyError(code: string, de: boolean): string {
       return de ? 'Netzwerkfehler — Server erreicht die Box nicht.' : 'Network error — server cannot reach the router.'
     case 'list_failed':
       return de ? 'Geräteliste konnte nicht geladen werden.' : 'Could not load device list.'
+    case 'import_failed':
+      return de ? 'Verlauf konnte nicht von der FRITZ!Box gelesen werden.' : 'Could not import history from FRITZ!Box.'
     case 'device_not_found':
       return de ? 'Steckdose mit dieser AIN nicht gefunden.' : 'No outlet found for this AIN.'
     case 'homeauto_unauthorized':
@@ -534,6 +536,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const [devices, setDevices] = useState<{ ain: string; name: string }[]>([])
   const [listErr, setListErr] = useState<string | null>(null)
   const [listing, setListing] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importMsg, setImportMsg] = useState<string | null>(null)
 
   const inp: CSSProperties = {
     background: 'var(--surface)',
@@ -554,6 +558,48 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     if (!Number.isFinite(n)) return 60
     return Math.min(300, Math.max(15, n))
   })()
+
+  const importHistory = async () => {
+    if (!str(r.ain)) {
+      setImportMsg(de ? 'Zuerst AIN eintragen.' : 'Enter AIN first.')
+      return
+    }
+    setImporting(true)
+    setImportMsg(null)
+    try {
+      const res = await fetch('/api/fritz-energy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'importHistory',
+          importHistory: true,
+          baseUrl: str(r.baseUrl) || 'http://192.168.1.1',
+          username: str(r.username),
+          password: typeof r.password === 'string' ? r.password : '',
+          ain: str(r.ain),
+          insecureTls: r.insecureTls === true,
+        }),
+      })
+      const j = (await res.json()) as { ok?: boolean; error?: string; historyImported?: boolean }
+      if (!res.ok || !j.ok) {
+        setImportMsg(fritzEnergyError(j.error ?? 'import_failed', de))
+        return
+      }
+      setImportMsg(
+        j.historyImported
+          ? de
+            ? 'Verlauf von der FRITZ!Box übernommen (heute / 7 Tage / Monat).'
+            : 'History imported from FRITZ!Box (today / 7 days / month).'
+          : de
+            ? 'Kein Verlauf von der Box — nur Live-Werte. Smart-Home-Rechte und FRITZ!OS 7+ prüfen.'
+            : 'No history from box — live values only. Check Smart Home rights and FRITZ!OS 7+.',
+      )
+    } catch {
+      setImportMsg(fritzEnergyError('network', de))
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const loadDevices = async () => {
     setListing(true)
@@ -594,7 +640,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <>
             Stromverbrauch per <strong>TR-064</strong> (Port <code style={{ fontSize: '10px' }}>49000</code> bei{' '}
             <code style={{ fontSize: '10px' }}>http</code>). Basis-URL z. B.{' '}
-            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — bei HTTPS Haken „selbstsigniert“ setzen. Verlauf auf dem Server.
+            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — bei HTTPS Haken „selbstsigniert“. Beim ersten Abruf werden heute / 7 Tage / Monat von der Box übernommen.
           </>
         ) : (
           <>
@@ -733,24 +779,52 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadDevices()}
-          disabled={listing}
-          style={{
-            alignSelf: 'flex-start',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--text)',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: listing ? 'wait' : 'pointer',
-          }}
-        >
-          {listing ? (de ? 'Lade Geräte…' : 'Loading devices…') : de ? 'Geräte von FRITZ!Box laden' : 'Load devices from FRITZ!Box'}
-        </button>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => void loadDevices()}
+            disabled={listing}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: listing ? 'wait' : 'pointer',
+            }}
+          >
+            {listing ? (de ? 'Lade Geräte…' : 'Loading devices…') : de ? 'Geräte laden' : 'Load devices'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void importHistory()}
+            disabled={importing}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: importing ? 'wait' : 'pointer',
+            }}
+          >
+            {importing
+              ? de
+                ? 'Importiere Verlauf…'
+                : 'Importing history…'
+              : de
+                ? 'Verlauf von FRITZ!Box holen'
+                : 'Import history from FRITZ!Box'}
+          </button>
+        </div>
+
+        {importMsg ? (
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>{importMsg}</p>
+        ) : null}
 
         {listErr ? (
           <p style={{ fontSize: '11px', color: 'var(--danger, #f87171)', margin: 0, lineHeight: 1.45 }}>{listErr}</p>

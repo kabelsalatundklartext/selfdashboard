@@ -5,11 +5,14 @@ import {
   listFritzSmartDevices,
   normalizeAin,
 } from '@/lib/fritzHomeautoTr064'
+import { fetchFritzEnergyHistoryFromBox } from '@/lib/fritzEnergyImport'
 import {
   appendEnergySample,
   aggregatesFromStore,
   energyStoreKey,
+  importBoxEnergyHistory,
   readEnergyStore,
+  storeNeedsHistoryImport,
 } from '@/lib/fritzEnergyStore'
 import { fritzboxRootFromInput, type FritzBoxConnection } from '@/lib/fritzboxTr064'
 
@@ -97,7 +100,22 @@ export async function POST(req: Request) {
       powerW: reading.powerW,
       energyWh: reading.energyWh,
     }
-    const { store, aggregates } = await appendEnergySample(key, { ain, baseUrl: conn.baseUrl }, sample)
+
+    const forceImport = body.action === 'importHistory' || body.importHistory === true
+    let store = await readEnergyStore(key)
+    if (forceImport || storeNeedsHistoryImport(store)) {
+      try {
+        const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal)
+        if (box) {
+          store = await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
+        }
+      } catch {
+        /* Verlauf optional — Live-Werte weiterhin aus TR-064 */
+      }
+    }
+
+    const { store: storeOut, aggregates } = await appendEnergySample(key, { ain, baseUrl: conn.baseUrl }, sample)
+    const storeFinal = storeOut
 
     return NextResponse.json({
       ok: true,
@@ -105,7 +123,8 @@ export async function POST(req: Request) {
       fetchedAt: new Date().toISOString(),
       voltageV: reading.voltageV,
       ...aggregates,
-      recent: store.recent.slice(-288),
+      recent: storeFinal.recent.slice(-288),
+      historyImported: Boolean(storeFinal.historyImportedAt),
     })
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
