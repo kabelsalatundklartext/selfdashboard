@@ -91,7 +91,7 @@ function looksLikeDeviceDescription(xml: string): boolean {
   )
 }
 
-async function fetchDescriptorXml(
+export async function fetchDescriptorXml(
   client: DigestClient,
   origin: string,
   signal: AbortSignal,

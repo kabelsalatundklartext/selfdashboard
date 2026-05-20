@@ -4,6 +4,7 @@
 import DigestClient from 'digest-fetch'
 import https from 'node:https'
 import {
+  fetchDescriptorXml,
   fritzboxRootFromInput,
   parseTr064Services,
   type FritzBoxConnection,
@@ -21,13 +22,6 @@ export type FritzSmartDevice = {
   name: string
   productName: string | null
 }
-
-const DESCRIPTOR_PATHS = [
-  '/tr064desc.xml',
-  '/tr064/tr064desc.xml',
-  '/tr064dev.xml',
-  '/tr064/tr064dev.xml',
-]
 
 function tr064OriginFromRoot(root: string): string {
   const u = new URL(root)
@@ -94,23 +88,6 @@ async function soapAction(
   return text
 }
 
-async function fetchDescriptor(
-  client: DigestClient,
-  origin: string,
-  signal: AbortSignal,
-  fetchOpts: { agent?: https.Agent },
-): Promise<string> {
-  for (const p of DESCRIPTOR_PATHS) {
-    const url = `${origin.replace(/\/+$/, '')}${p}`
-    const res = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
-    const text = await res.text()
-    if (res.status === 401 || res.status === 403) throw new Error('unauthorized')
-    if (!res.ok) continue
-    if (/<serviceType>/i.test(text) && /<controlURL>/i.test(text)) return text
-  }
-  throw new Error('desc_not_found')
-}
-
 function homeautoService(services: ReturnType<typeof parseTr064Services>) {
   return (
     services.find((s) => /X_AVM-DE_Homeauto:1$/i.test(s.type)) ||
@@ -155,7 +132,7 @@ export async function fetchFritzEnergyReading(
   const fetchOpts = agent ? { agent } : {}
   const client = new DigestClient(conn.username || '', conn.password || '')
 
-  const descXml = await fetchDescriptor(client, origin, signal, fetchOpts)
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
   const services = parseTr064Services(descXml)
   const ha = homeautoService(services)
   if (!ha) throw new Error('homeauto_not_found')
@@ -185,7 +162,7 @@ export async function listFritzSmartDevices(
   const fetchOpts = agent ? { agent } : {}
   const client = new DigestClient(conn.username || '', conn.password || '')
 
-  const descXml = await fetchDescriptor(client, origin, signal, fetchOpts)
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
   const services = parseTr064Services(descXml)
   const ha = homeautoService(services)
   if (!ha) throw new Error('homeauto_not_found')
