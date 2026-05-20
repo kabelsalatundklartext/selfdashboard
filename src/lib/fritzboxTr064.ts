@@ -347,16 +347,27 @@ function pickLiveWanRates(
   const au = addon.wanLiveUpBps
   const md = monitor.wanLiveDownBps
   const mu = monitor.wanLiveUpBps
+
   const addonOk = ad != null && au != null && ad >= 0 && au >= 0
   const monitorOk = md != null && mu != null && md >= 0 && mu >= 0
+
   if (!addonOk && monitorOk) return { wanLiveDownBps: md, wanLiveUpBps: mu }
   if (addonOk && !monitorOk) return { wanLiveDownBps: ad, wanLiveUpBps: au }
   if (!addonOk && !monitorOk) return { wanLiveDownBps: null, wanLiveUpBps: null }
-  if (ad === 0 && au === 0 && (md > 0 || mu > 0)) return { wanLiveDownBps: md, wanLiveUpBps: mu }
-  const addonMax = Math.max(ad!, au!)
-  const monitorMax = Math.max(md!, mu!)
-  if (addonMax > 0 && monitorMax > addonMax * 4) return { wanLiveDownBps: md, wanLiveUpBps: mu }
-  return { wanLiveDownBps: ad, wanLiveUpBps: au }
+
+  if (ad != null && au != null && md != null && mu != null) {
+    if (ad === 0 && au === 0 && (md > 0 || mu > 0)) {
+      return { wanLiveDownBps: md, wanLiveUpBps: mu }
+    }
+    const addonMax = Math.max(ad, au)
+    const monitorMax = Math.max(md, mu)
+    if (addonMax > 0 && monitorMax > addonMax * 4) {
+      return { wanLiveDownBps: md, wanLiveUpBps: mu }
+    }
+    return { wanLiveDownBps: ad, wanLiveUpBps: au }
+  }
+
+  return { wanLiveDownBps: null, wanLiveUpBps: null }
 }
 
 async function fetchOnlineMonitorLiveRates(
