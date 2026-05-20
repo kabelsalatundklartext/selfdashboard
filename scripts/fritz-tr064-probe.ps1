@@ -1,27 +1,17 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  TR-064-Probe für FRITZ!Box Smart Home (FRITZ!Smart Energy / Homeauto).
-
-.DESCRIPTION
-  Liest Descriptor-XMLs (tr064desc, igddesc, …), listet alle serviceType-Einträge
-  und testet optional GetDeviceList / GetSpecificDeviceInfos per SOAP.
-
-  Voraussetzungen:
-  - curl.exe (Windows 10+)
-  - FRITZ!Box: Heimnetz → Netzwerk → Netzwerkeinstellungen:
-    „Zugriff für Apps zulassen“ + „Statusinformationen über UPnP senden“
-  - TR-064-Benutzer mit Passwort (nicht nur Weboberfläche)
+  TR-064 probe for FRITZ!Box Smart Home (FRITZ!Smart Energy / Homeauto).
 
 .EXAMPLE
-  .\scripts\fritz-tr064-probe.ps1 -Host 192.168.1.1 -User selfdashboard2 -Password 'geheim'
+  .\scripts\fritz-tr064-probe.ps1 -FritzHost 192.168.1.1 -User selfdashboard2 -Password 'geheim'
 
 .EXAMPLE
-  .\scripts\fritz-tr064-probe.ps1 -Host 192.168.1.1 -User selfdashboard2 -Password 'geheim' -Ain '11630 0425503'
+  .\scripts\fritz-tr064-probe.ps1 -FritzHost 192.168.1.1 -User selfdashboard2 -Password 'geheim' -UseHttps -InsecureTls
 #>
 [CmdletBinding()]
 param(
-  [string] $Host = '192.168.1.1',
+  [string] $FritzHost = '192.168.1.1',
   [int] $Port = 49000,
   [Parameter(Mandatory = $true)]
   [string] $User,
@@ -29,23 +19,30 @@ param(
   [string] $Password,
   [string] $Ain = '11630 0425503',
   [switch] $UseHttps,
-  [switch] $SkipSoap
+  [switch] $InsecureTls,
+  [switch] $SkipSoap,
+  [switch] $HttpOnly
 )
 
 $ErrorActionPreference = 'Stop'
 
 function Get-CurlExe {
   $c = Get-Command curl.exe -ErrorAction SilentlyContinue
-  if (-not $c) { throw 'curl.exe nicht gefunden (Windows 10+).' }
+  if (-not $c) { throw 'curl.exe not found (Windows 10+).' }
   return $c.Source
 }
 
 function Invoke-FritzGet {
-  param([string] $Url)
+  param(
+    [string] $Url,
+    [switch] $Insecure
+  )
   $curl = Get-CurlExe
   $auth = "${User}:$Password"
-  & $curl -sS --digest -u $auth $Url 2>&1
-  if ($LASTEXITCODE -ne 0) { throw "GET fehlgeschlagen ($LASTEXITCODE): $Url" }
+  $extra = @()
+  if ($Insecure) { $extra += '-k' }
+  & $curl -sS @extra --digest -u $auth $Url 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "GET failed ($LASTEXITCODE): $Url" }
 }
 
 function Invoke-FritzSoap {
@@ -53,7 +50,8 @@ function Invoke-FritzSoap {
     [string] $ControlUrl,
     [string] $ServiceUrn,
     [string] $Action,
-    [string] $BodyInner = ''
+    [string] $BodyInner = '',
+    [switch] $Insecure
   )
   $curl = Get-CurlExe
   $auth = "${User}:$Password"
@@ -69,11 +67,13 @@ function Invoke-FritzSoap {
   try {
     [System.IO.File]::WriteAllText($tmp, $envelope, [System.Text.UTF8Encoding]::new($false))
     $soapAction = "`"$ServiceUrn#$Action`""
-    & $curl -sS --digest -u $auth -X POST $ControlUrl `
+    $extra = @()
+    if ($Insecure) { $extra += '-k' }
+    & $curl -sS @extra --digest -u $auth -X POST $ControlUrl `
       -H 'Content-Type: text/xml; charset=utf-8' `
       -H "SOAPAction: $soapAction" `
       --data-binary "@$tmp" 2>&1
-    if ($LASTEXITCODE -ne 0) { throw "SOAP fehlgeschlagen ($LASTEXITCODE): $Action" }
+    if ($LASTEXITCODE -ne 0) { throw "SOAP failed ($LASTEXITCODE): $Action" }
   } finally {
     Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
   }
@@ -93,123 +93,194 @@ function Get-ControlUrlsFromXml {
     Select-Object -Unique
 }
 
-$scheme = if ($UseHttps) { 'https' } else { 'http' }
-if ($UseHttps -and $Port -eq 49000) { $Port = 49443 }
-$origin = "${scheme}://${Host}:${Port}"
-$paths = @(
-  '/tr064desc.xml',
-  '/tr064/tr064desc.xml',
-  '/tr064dev.xml',
-  '/tr064/tr064dev.xml',
-  '/igddesc.xml'
-)
-
-Write-Host ""
-Write-Host "FRITZ! TR-064 Probe" -ForegroundColor Cyan
-Write-Host "Origin: $origin"
-Write-Host "User:   $User"
-Write-Host ""
-
-$homeautoHits = @()
-
-foreach ($p in $paths) {
-  $url = "$origin$p"
-  Write-Host "=== GET $p ===" -ForegroundColor Yellow
-  try {
-    $xml = Invoke-FritzGet -Url $url
-  } catch {
-    Write-Host "  Fehler: $_" -ForegroundColor Red
-    continue
-  }
-  if ($xml -match '<html' -and $xml -match '<body') {
-    Write-Host "  (HTML-Antwort — falscher Port oder keine TR-064-URL)" -ForegroundColor DarkYellow
-    continue
-  }
-  $types = Get-ServiceTypesFromXml -Xml $xml
-  if (-not $types) {
-    Write-Host "  Keine serviceType-Einträge." -ForegroundColor DarkGray
-    continue
-  }
-  Write-Host "  Dienste ($($types.Count)):" -ForegroundColor Green
-  foreach ($t in $types) {
-    $mark = ''
-    if ($t -match 'Homeauto') { $mark = '  <-- Smart Home'; $homeautoHits += [pscustomobject]@{ Path = $p; ServiceType = $t; Xml = $xml } }
-    Write-Host "    $t$mark"
-  }
-  $ctl = Get-ControlUrlsFromXml -Xml $xml | Where-Object { $_ -match 'homeauto' }
-  if ($ctl) {
-    Write-Host "  controlURL (homeauto):" -ForegroundColor Green
-    $ctl | ForEach-Object { Write-Host "    $_" }
-  }
+function Test-IsHtmlResponse {
+  param([string] $Text)
+  return ($Text -like '*<html*' -and $Text -like '*<body*')
 }
 
-Write-Host ""
+function Get-HtmlHint {
+  param([string] $Text)
+  if ($Text -match '<title[^>]*>([^<]+)</title>') {
+    return "HTML title: $($Matches[1].Trim())"
+  }
+  $snippet = ($Text -replace '\s+', ' ').Trim()
+  if ($snippet.Length -gt 120) { $snippet = $snippet.Substring(0, 120) + '...' }
+  return "HTML snippet: $snippet"
+}
+
+function Test-Origin {
+  param(
+    [string] $Origin,
+    [switch] $Insecure
+  )
+  $paths = @(
+    '/tr064desc.xml',
+    '/tr64desc.xml',
+    '/tr064/tr064desc.xml',
+    '/tr064dev.xml',
+    '/tr064/tr064dev.xml',
+    '/igddesc.xml'
+  )
+  $hits = @()
+  Write-Host ""
+  Write-Host "=== Origin $Origin ===" -ForegroundColor Cyan
+
+  foreach ($p in $paths) {
+    $url = "$($Origin.TrimEnd('/'))$p"
+    Write-Host "--- GET $p ---" -ForegroundColor Yellow
+    try {
+      $xml = Invoke-FritzGet -Url $url -Insecure:$Insecure
+    } catch {
+      Write-Host "  Error: $_" -ForegroundColor Red
+      continue
+    }
+    if (Test-IsHtmlResponse -Text $xml) {
+      Write-Host "  (HTML - not TR-064 XML)" -ForegroundColor DarkYellow
+      Write-Host "  $(Get-HtmlHint -Text $xml)" -ForegroundColor DarkGray
+      continue
+    }
+    $types = Get-ServiceTypesFromXml -Xml $xml
+    if (-not $types) {
+      Write-Host '  No serviceType entries.' -ForegroundColor DarkGray
+      continue
+    }
+    Write-Host "  Services ($($types.Count)):" -ForegroundColor Green
+    foreach ($t in $types) {
+      $mark = ''
+      if ($t -match 'Homeauto|HomeAuto') {
+        $mark = '  <-- Smart Home'
+        $hits += [pscustomobject]@{ Origin = $Origin; Path = $p; ServiceType = $t; Xml = $xml; Insecure = [bool]$Insecure }
+      }
+      Write-Host "    $t$mark"
+    }
+  }
+  return $hits
+}
+
+$origins = @()
+if ($UseHttps) {
+  if ($Port -eq 49000) { $Port = 49443 }
+  $origins += "https://${FritzHost}:$Port"
+} else {
+  $origins += "http://${FritzHost}:$Port"
+}
+
+Write-Host ''
+Write-Host 'FRITZ! TR-064 Probe' -ForegroundColor Cyan
+Write-Host "User: $User"
+Write-Host ''
+
+$homeautoHits = @()
+foreach ($o in $origins) {
+  $homeautoHits += Test-Origin -Origin $o -Insecure:$InsecureTls
+}
+
+if (-not $HttpOnly -and $homeautoHits.Count -eq 0 -and -not $UseHttps) {
+  Write-Host ''
+  Write-Host 'No Homeauto on HTTP - trying HTTPS port 49443 ...' -ForegroundColor Magenta
+  $homeautoHits += Test-Origin -Origin "https://${FritzHost}:49443" -Insecure:$InsecureTls
+}
+
 if ($homeautoHits.Count -eq 0) {
-  Write-Host "Kein X_AVM-DE_Homeauto in keiner Descriptor-Datei gefunden." -ForegroundColor Red
-  Write-Host @"
-
-Mögliche Ursachen:
-  1) Smart Home in der FRITZ!Box deaktiviert oder kein DECT/Energy-Gerät gekoppelt
-  2) TR-064 nur über andere URL — in der Fritzbox-Weboberfläche prüfen
-  3) FRITZ!OS-Version nutzt anderen Dienstnamen — Ausgabe oben an Support schicken
-
-Box-Einstellungen (Heimnetz → Netzwerk → Netzwerkeinstellungen):
-  - Zugriff für Apps zulassen
-  - Statusinformationen über UPnP senden
-"@ -ForegroundColor DarkYellow
+  Write-Host ''
+  Write-Host 'No X_AVM-DE_Homeauto / X_HomeAuto in any descriptor.' -ForegroundColor Red
+  Write-Host ''
+  Write-Host 'What we saw:'
+  Write-Host '  - igddesc.xml = WAN only (enough for Fritzbox throughput plugin)'
+  Write-Host '  - tr064desc.xml = HTML on port 49000 (login page or web UI redirect)'
+  Write-Host ''
+  Write-Host 'Try next:'
+  Write-Host '  1) Fritz!Box: allow app access + UPnP status (Home Network -> Network)'
+  Write-Host '  2) Probe with HTTPS:'
+  Write-Host "     .\scripts\fritz-tr064-probe.ps1 -FritzHost $FritzHost -User $User -Password '...' -UseHttps -InsecureTls"
+  Write-Host '  3) In plugin settings: Base URL https://192.168.1.1 + self-signed cert checkbox'
   exit 2
 }
 
 if ($SkipSoap) {
-  Write-Host "SOAP-Tests übersprungen (-SkipSoap)." -ForegroundColor DarkGray
+  Write-Host ''
+  Write-Host 'SOAP skipped (-SkipSoap).' -ForegroundColor DarkGray
   exit 0
 }
 
 $hit = $homeautoHits[0]
 $serviceType = $hit.ServiceType
-$controlRel = ([regex]::Match(
-  $hit.Xml,
-  "(?s)<serviceType>\s*$([regex]::Escape($serviceType))\s*</serviceType>.*?<controlURL>([^<]+)</controlURL>"
-)).Groups[1].Value.Trim()
+$escapedType = [regex]::Escape($serviceType)
+$pattern = "(?s)<serviceType>\s*$escapedType\s*</serviceType>.*?<controlURL>([^<]+)</controlURL>"
+$controlRel = ([regex]::Match($hit.Xml, $pattern)).Groups[1].Value.Trim()
 if (-not $controlRel) {
-  $controlRel = (Get-ControlUrlsFromXml -Xml $hit.Xml | Where-Object { $_ -match 'homeauto' } | Select-Object -First 1)
+  $controlRel = Get-ControlUrlsFromXml -Xml $hit.Xml | Where-Object { $_ -match 'homeauto' } | Select-Object -First 1
 }
 if ($controlRel -notmatch '^https?://') {
-  $controlUrl = "$($origin.TrimEnd('/'))$controlRel"
+  $controlUrl = "$($hit.Origin.TrimEnd('/'))$controlRel"
 } else {
   $controlUrl = $controlRel
 }
 
-Write-Host "=== SOAP GetDeviceList ===" -ForegroundColor Yellow
+Write-Host ''
+Write-Host '=== SOAP GetGenericDeviceInfos (device list by index) ===' -ForegroundColor Yellow
 Write-Host "  Service: $serviceType"
 Write-Host "  URL:     $controlUrl"
-$listXml = Invoke-FritzSoap -ControlUrl $controlUrl -ServiceUrn $serviceType -Action 'GetDeviceList'
-if ($listXml -match '<NewDeviceList>([\s\S]*?)</NewDeviceList>') {
-  $raw = $Matches[1].Trim()
-  Write-Host "  Geräte (Rohliste):" -ForegroundColor Green
-  $raw -split "`n" | ForEach-Object { $line = $_.Trim(); if ($line) { Write-Host "    $line" } }
-} else {
-  Write-Host $listXml
+Write-Host '  (AVM: use GetGenericDeviceInfos index 0,1,2 - not GetDeviceList)' -ForegroundColor DarkGray
+Write-Host '  Tip: node scripts/fritz-tr064-probe.mjs HOST USER PASS' -ForegroundColor DarkGray
+$deviceCount = 0
+for ($idx = 0; $idx -lt 32; $idx++) {
+  $inner = "<NewIndex>$idx</NewIndex>"
+  try {
+    $gXml = Invoke-FritzSoap -ControlUrl $controlUrl -ServiceUrn $serviceType -Action 'GetGenericDeviceInfos' -BodyInner $inner -Insecure:$hit.Insecure
+  } catch {
+    break
+  }
+  if ($idx -eq 0) {
+    Write-Host '  --- GetInfo (no args) ---' -ForegroundColor DarkGray
+    try {
+      $infoXml = Invoke-FritzSoap -ControlUrl $controlUrl -ServiceUrn $serviceType -Action 'GetInfo' -Insecure:$hit.Insecure
+      if ($infoXml -notmatch '<s:Fault') {
+        Write-Host '  GetInfo: OK' -ForegroundColor Green
+      } else {
+        Write-Host '  GetInfo fault:' -ForegroundColor Red
+        Write-Host $infoXml
+      }
+    } catch {
+      Write-Host "  GetInfo error: $_" -ForegroundColor Red
+    }
+  }
+  if ($gXml -match '<errorCode>713</errorCode>') { break }
+  if ($gXml -match '<s:Fault') { Write-Host "  Index $idx fault:" -ForegroundColor Red; Write-Host $gXml; break }
+  $ainM = [regex]::Match($gXml, '<NewAIN>([^<]+)</NewAIN>')
+  if (-not $ainM.Success) { break }
+  $nameM = [regex]::Match($gXml, '<NewDeviceName>([^<]*)</NewDeviceName>')
+  $prodM = [regex]::Match($gXml, '<NewProductName>([^<]*)</NewProductName>')
+  $pwrM = [regex]::Match($gXml, '<NewMultimeterPower>([^<]*)</NewMultimeterPower>')
+  $n = if ($nameM.Success) { $nameM.Groups[1].Value } else { '?' }
+  $p = if ($prodM.Success) { $prodM.Groups[1].Value } else { '' }
+  $w = if ($pwrM.Success) { [int]$pwrM.Groups[1].Value / 100 } else { $null }
+  $line = "    [$idx] $($ainM.Groups[1].Value)  $n  $p"
+  if ($null -ne $w) { $line += "  (${w} W)" }
+  Write-Host $line -ForegroundColor Green
+  $deviceCount++
+}
+if ($deviceCount -eq 0) {
+  Write-Host '  No devices returned.' -ForegroundColor Red
 }
 
 $ainDigits = ($Ain -replace '\D', '')
 if ($ainDigits.Length -eq 12) {
-  $ainFmt = "$($ainDigits.Substring(0,5)) $($ainDigits.Substring(5))"
-  Write-Host ""
+  $ainFmt = "$($ainDigits.Substring(0, 5)) $($ainDigits.Substring(5))"
+  Write-Host ''
   Write-Host "=== SOAP GetSpecificDeviceInfos (AIN $ainFmt) ===" -ForegroundColor Yellow
   $inner = "<NewAIN>$ainFmt</NewAIN>"
-  $devXml = Invoke-FritzSoap -ControlUrl $controlUrl -ServiceUrn $serviceType -Action 'GetSpecificDeviceInfos' -BodyInner $inner
+  $devXml = Invoke-FritzSoap -ControlUrl $controlUrl -ServiceUrn $serviceType -Action 'GetSpecificDeviceInfos' -BodyInner $inner -Insecure:$hit.Insecure
   foreach ($tag in @('NewMultimeterIsSupported', 'NewMultimeterInfos', 'NewAIN')) {
-    if ($devXml -match "<$tag>([^<]*)</$tag>") {
+    $tagPattern = "<$tag>([^<]*)</$tag>"
+    if ($devXml -match $tagPattern) {
       Write-Host "  $tag = $($Matches[1])" -ForegroundColor Green
     }
   }
   if ($devXml -notmatch 'NewMultimeter') {
     Write-Host $devXml
   }
-} else {
-  Write-Host "AIN übersprungen (12 Ziffern erwartet): $Ain" -ForegroundColor DarkYellow
 }
 
-Write-Host ""
-Write-Host "Probe fertig." -ForegroundColor Cyan
+Write-Host ''
+Write-Host 'Probe done.' -ForegroundColor Cyan

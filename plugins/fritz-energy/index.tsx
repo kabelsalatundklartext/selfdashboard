@@ -62,15 +62,26 @@ function listDevicesError(code: string, de: boolean): string {
         : 'TR-064 device description unreachable. Use the same base URL as the Fritzbox plugin (http → port 49000, https → 49443), not the web UI on 80/443.'
     case 'homeauto_not_found':
       return de
-        ? 'Smart-Home-Dienst (X_AVM-DE_Homeauto) auf der Box nicht gefunden — FRITZ!OS / Smart Home aktivieren.'
-        : 'Smart Home TR-064 service (X_AVM-DE_Homeauto) not found on this router.'
+        ? 'Smart-Home per TR-064 nicht gefunden. In der Probe liefert igddesc nur WAN — probiere Basis-URL https://192.168.1.1, Haken „selbstsigniert“, Port 49443. Heimnetz: Zugriff für Apps + UPnP.'
+        : 'Smart Home TR-064 not found. igddesc often has WAN only — try https://192.168.1.1, self-signed TLS, port 49443. Enable app access + UPnP in Home Network settings.'
     case 'timeout':
       return de ? 'Zeitüberschreitung beim Abruf.' : 'Request timed out.'
     case 'network':
       return de ? 'Netzwerkfehler — Server erreicht die Box nicht.' : 'Network error — server cannot reach the router.'
     case 'list_failed':
       return de ? 'Geräteliste konnte nicht geladen werden.' : 'Could not load device list.'
+    case 'device_not_found':
+      return de ? 'Steckdose mit dieser AIN nicht gefunden.' : 'No outlet found for this AIN.'
+    case 'homeauto_unauthorized':
+      return de
+        ? 'FRITZ!-Benutzer hat keine Smart-Home-Rechte. In der Box: System → FRITZ!-Benutzer → Benutzer bearbeiten → „Smart Home“ aktivieren.'
+        : 'FRITZ!Box user lacks Smart Home rights. Enable Smart Home for this user in System → FRITZ!Box users.'
     default:
+      if (base.startsWith('homeauto_fault_')) {
+        return de
+          ? `FRITZ!Box Homeauto-Fehler (${base}). AIN prüfen oder HTTPS + selbstsigniert nutzen.`
+          : `FRITZ!Box Homeauto error (${base}). Check AIN or use HTTPS with self-signed TLS.`
+      }
       return code
   }
 }
@@ -355,7 +366,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           style={inp}
           value={str(r.baseUrl)}
           onChange={(e) => onChange('baseUrl', e.target.value)}
-          placeholder="http://fritz.box"
+          placeholder="https://192.168.1.1"
         />
       </div>
 

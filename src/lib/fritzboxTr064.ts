@@ -75,12 +75,25 @@ function tr064OriginFromRoot(root: string): string {
 
 /** Bekannte Pfade zur Gerätebeschreibung (AVM / FRITZ!OS variiert). */
 export const TR064_DESCRIPTOR_PATHS = [
+  '/tr64desc.xml',
   '/tr064desc.xml',
   '/tr064/tr064desc.xml',
+  '/tr064/tr64desc.xml',
   '/tr064dev.xml',
   '/tr064/tr064dev.xml',
   '/igddesc.xml',
 ]
+
+/** TR-064-Ports zum Durchprobieren (HTTP 49000, HTTPS 49443). */
+export function tr064OriginsForConnection(conn: FritzBoxConnection): string[] {
+  const root = fritzboxRootFromInput(conn.baseUrl)
+  const u = new URL(root)
+  const host = u.hostname
+  const out: string[] = [`${u.protocol}//${host}:${u.port}`]
+  if (u.protocol === 'http:') out.push(`https://${host}:49443`)
+  else if (u.protocol === 'https:') out.push(`http://${host}:49000`)
+  return [...new Set(out)]
+}
 
 function looksLikeDeviceDescription(xml: string): boolean {
   if (!xml || xml.length < 80) return false
@@ -166,9 +179,40 @@ function parseDecimalUIntString(xml: string, ...localNames: string[]): string | 
   return null
 }
 
-export type Tr064Service = { type: string; controlUrl: string }
+export type Tr064Service = { type: string; controlUrl: string; scpdUrl: string | null }
 
-/** Parst tr064desc.xml nach serviceType + controlURL. */
+function escapeXmlTr064(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** SOAP-Body wie AVM TR-064 First Steps (Kapitel 10). */
+export function buildTr064SoapEnvelope(
+  serviceUrn: string,
+  action: string,
+  args: Record<string, string> = {},
+  opts?: { namespacedArgs?: boolean },
+): string {
+  const inner = Object.entries(args)
+    .map(([k, v]) => {
+      const val = escapeXmlTr064(v)
+      if (opts?.namespacedArgs) return `<u:${k} xmlns:u="${serviceUrn}">${val}</u:${k}>`
+      return `<${k}>${val}</${k}>`
+    })
+    .join('\n')
+  const bodyInner = inner ? `\n${inner}\n` : ''
+  return `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body>
+<u:${action} xmlns:u="${serviceUrn}">${bodyInner}</u:${action}>
+</s:Body>
+</s:Envelope>`
+}
+
+/** Parst tr064desc.xml nach serviceType + controlURL + SCPDURL. */
 export function parseTr064Services(descXml: string): Tr064Service[] {
   const out: Tr064Service[] = []
   const serviceBlocks = descXml.split(/<service[\s>]/i)
@@ -176,7 +220,19 @@ export function parseTr064Services(descXml: string): Tr064Service[] {
     const block = serviceBlocks[i] ?? ''
     const t = xmlFirst(block, 'serviceType')
     const c = xmlFirst(block, 'controlURL')
-    if (t && c) out.push({ type: t, controlUrl: c })
+    const scpd = xmlFirst(block, 'SCPDURL') ?? xmlFirst(block, 'scpdURL')
+    if (t && c) out.push({ type: t, controlUrl: c, scpdUrl: scpd })
+  }
+  return out
+}
+
+/** Action-Namen aus SCPD (x_homeautoSCPD.xml). */
+export function parseScpdActionNames(scpdXml: string): string[] {
+  const out: string[] = []
+  const blocks = scpdXml.split(/<action>/i)
+  for (let i = 1; i < blocks.length; i++) {
+    const name = xmlFirst(blocks[i] ?? '', 'name')
+    if (name) out.push(name)
   }
   return out
 }
@@ -196,15 +252,6 @@ function parseUpnpRootDeviceBasics(descXml: string): {
   }
 }
 
-function soapEnvelope(serviceUrn: string, action: string): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-<s:Body>
-<u:${action} xmlns:u="${serviceUrn}"/>
-</s:Body>
-</s:Envelope>`
-}
-
 async function soapAction(
   client: DigestClient,
   controlUrl: string,
@@ -213,14 +260,14 @@ async function soapAction(
   signal: AbortSignal,
   fetchOpts: { agent?: https.Agent },
 ): Promise<string> {
-  const body = soapEnvelope(serviceUrn, action)
-  const soapAction = `"${serviceUrn}#${action}"`
+  const body = buildTr064SoapEnvelope(serviceUrn, action)
+  const soapActionHdr = `"${serviceUrn}#${action}"`
   const res = await client.fetch(controlUrl, {
     method: 'POST',
     signal,
     headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      SOAPAction: soapAction,
+      'Content-Type': 'text/xml; charset="utf-8"',
+      SOAPAction: soapActionHdr,
     },
     body,
     ...fetchOpts,
