@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { Bolt, Calendar, CalendarDays, Zap, type LucideIcon } from 'lucide-react'
+import { Bolt, Calendar, CalendarDays, ChevronLeft, ChevronRight, Zap, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { reportPluginCatch } from '@/lib/pluginLog'
@@ -139,6 +139,23 @@ function StatTile({
   )
 }
 
+type EnergyViewId = 'now' | 'today' | 'week' | 'month' | 'total'
+
+type EnergyView = {
+  id: EnergyViewId
+  label: string
+  value: string
+  sub?: string
+  icon: LucideIcon
+  accent: string
+  showSparkline?: boolean
+}
+
+function viewModeFromConfig(config: Record<string, unknown>): 'carousel' | 'grid' {
+  const v = str(config.viewMode).toLowerCase()
+  return v === 'grid' ? 'grid' : 'carousel'
+}
+
 function PowerSparkline({ points }: { points: { powerW: number }[] }) {
   if (points.length < 2) return null
   const w = 280
@@ -160,11 +177,127 @@ function PowerSparkline({ points }: { points: { powerW: number }[] }) {
   )
 }
 
+function EnergyCarousel({
+  views,
+  recent,
+  loading,
+  de,
+}: {
+  views: EnergyView[]
+  recent: { powerW: number }[]
+  loading: boolean
+  de: boolean
+}) {
+  const [idx, setIdx] = useState(0)
+  const n = views.length
+  const safeIdx = n > 0 ? ((idx % n) + n) % n : 0
+  const view = views[safeIdx]
+  if (!view) return null
+
+  const go = (delta: number) => setIdx((i) => (i + delta + n) % n)
+
+  const navBtn: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: '1px solid var(--border)',
+    background: 'var(--surface)',
+    color: 'var(--text)',
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: 0,
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button type="button" onClick={() => go(-1)} style={navBtn} aria-label={de ? 'Vorherige Ansicht' : 'Previous view'}>
+          <ChevronLeft size={18} aria-hidden />
+        </button>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <view.icon size={14} style={{ color: view.accent }} aria-hidden />
+            {view.label}
+          </div>
+        </div>
+        <button type="button" onClick={() => go(1)} style={navBtn} aria-label={de ? 'Nächste Ansicht' : 'Next view'}>
+          <ChevronRight size={18} aria-hidden />
+        </button>
+      </div>
+
+      <div
+        style={{
+          borderRadius: 14,
+          border: '1px solid var(--border)',
+          background: 'linear-gradient(145deg, var(--surface-2) 0%, var(--surface) 100%)',
+          padding: '16px 14px',
+          textAlign: 'center',
+          minHeight: 88,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 6,
+        }}
+      >
+        <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.05, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+          {view.value}
+        </div>
+        {view.sub ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{view.sub}</div> : null}
+      </div>
+
+      {view.showSparkline ? <PowerSparkline points={recent.slice(-60)} /> : null}
+
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {views.map((v, i) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setIdx(i)}
+            aria-label={v.label}
+            aria-current={i === safeIdx ? 'true' : undefined}
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              background: i === safeIdx ? view.accent : 'var(--border)',
+              opacity: i === safeIdx ? 1 : 0.55,
+            }}
+          />
+        ))}
+      </div>
+
+      {loading ? (
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+          {de ? 'Aktualisiere…' : 'Updating…'}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const [data, setData] = useState<EnergyPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const viewMode = viewModeFromConfig(config as Record<string, unknown>)
 
   const baseUrl = str(config.baseUrl) || 'http://192.168.1.1'
   const username = str(config.username)
@@ -234,6 +367,58 @@ function Widget({ config }: PluginWidgetProps) {
   const totalKwh = num(data?.energyWhTotal) / 1000
   const recent = Array.isArray(data?.recent) ? data.recent : []
 
+  const updatedSub = data?.fetchedAt
+    ? `${de ? 'Aktualisiert' : 'Updated'} ${new Date(data.fetchedAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'de-DE')}`
+    : undefined
+
+  const carouselViews: EnergyView[] = [
+    {
+      id: 'now',
+      label: labels.now,
+      value: formatW(power, locale),
+      sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : updatedSub,
+      icon: Zap,
+      accent: '#f59e0b',
+      showSparkline: true,
+    },
+    {
+      id: 'today',
+      label: labels.today,
+      value: formatKwh(today, locale),
+      sub: updatedSub,
+      icon: Bolt,
+      accent: '#38bdf8',
+    },
+    {
+      id: 'week',
+      label: labels.week,
+      value: formatKwh(week, locale),
+      sub: updatedSub,
+      icon: CalendarDays,
+      accent: '#a78bfa',
+    },
+    {
+      id: 'month',
+      label: labels.month,
+      value: formatKwh(month, locale),
+      sub: updatedSub,
+      icon: Calendar,
+      accent: '#34d399',
+    },
+    {
+      id: 'total',
+      label: labels.total,
+      value: formatKwh(totalKwh, locale),
+      sub: updatedSub,
+      icon: Bolt,
+      accent: '#94a3b8',
+    },
+  ]
+
+  if (viewMode === 'carousel') {
+    return <EnergyCarousel views={carouselViews} recent={recent} loading={loading} de={de} />
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
       <div
@@ -254,17 +439,7 @@ function Widget({ config }: PluginWidgetProps) {
         <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} accent="#a78bfa" />
         <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} accent="#34d399" />
       </div>
-      <StatTile
-        label={labels.total}
-        value={formatKwh(totalKwh, locale)}
-        sub={
-          data?.fetchedAt
-            ? `${de ? 'Aktualisiert' : 'Updated'} ${new Date(data.fetchedAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'de-DE')}`
-            : undefined
-        }
-        icon={Bolt}
-        accent="#94a3b8"
-      />
+      <StatTile label={labels.total} value={formatKwh(totalKwh, locale)} sub={updatedSub} icon={Bolt} accent="#94a3b8" />
       <PowerSparkline points={recent.slice(-60)} />
       {loading ? (
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
@@ -394,6 +569,25 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
         />
       </label>
+
+      <div>
+        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
+          {de ? 'Widget-Anzeige' : 'Widget layout'}
+        </label>
+        <select
+          style={inp}
+          value={viewModeFromConfig(r)}
+          onChange={(e) => onChange('viewMode', e.target.value)}
+        >
+          <option value="carousel">{de ? 'Einzelwert mit Pfeilen (← →)' : 'Single value with arrows (← →)'}</option>
+          <option value="grid">{de ? 'Alle Kacheln gleichzeitig' : 'All tiles at once'}</option>
+        </select>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
+          {de
+            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln.'
+            : 'Carousel cycles: now, today, 7 days, month, and meter total via arrows or dots.'}
+        </p>
+      </div>
 
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
