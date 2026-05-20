@@ -15,7 +15,7 @@ export const meta: PluginMeta = {
   category: 'network',
   icon: '⚡',
   iconUrl: '/plugin-logos/fritzbox.svg',
-  defaultLayout: { w: 2, h: 3, minW: 2, minH: 2 },
+  defaultLayout: { w: 2, h: 3, minW: 1, minH: 2 },
 }
 
 type EnergyPayload = {
@@ -146,6 +146,8 @@ type EnergyView = {
   label: string
   value: string
   sub?: string
+  /** Kurz für schmale Widgets (nur Uhrzeit) */
+  subShort?: string
   icon: LucideIcon
   accent: string
   showSparkline?: boolean
@@ -182,19 +184,22 @@ function PowerSparkline({ points, compact }: { points: { powerW: number }[]; com
   )
 }
 
-function useWidgetCompact(ref: RefObject<HTMLElement | null>) {
-  const [compact, setCompact] = useState(false)
+function useWidgetSize(ref: RefObject<HTMLElement | null>) {
+  const [size, setSize] = useState({ compact: false, narrow: false })
   useEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect
-      setCompact(height < 130 || width < 200)
+      setSize({
+        narrow: width < 150,
+        compact: height < 130 || width < 220,
+      })
     })
     ro.observe(el)
     return () => ro.disconnect()
   }, [ref])
-  return compact
+  return size
 }
 
 function EnergyCarousel({
@@ -211,8 +216,8 @@ function EnergyCarousel({
   forceCompact?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const autoCompact = useWidgetCompact(rootRef)
-  const compact = forceCompact || autoCompact
+  const { compact: autoCompact, narrow } = useWidgetSize(rootRef)
+  const compact = forceCompact || autoCompact || narrow
 
   const [idx, setIdx] = useState(0)
   const n = views.length
@@ -227,8 +232,8 @@ function EnergyCarousel({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: compact ? 26 : 28,
-    height: compact ? 26 : 28,
+    width: narrow ? 22 : compact ? 26 : 28,
+    height: narrow ? 22 : compact ? 26 : 28,
     borderRadius: 6,
     border: '1px solid var(--border)',
     background: 'var(--surface)',
@@ -257,8 +262,8 @@ function EnergyCarousel({
               color: 'var(--text-muted)',
             }}
           >
-            <view.icon size={compact ? 11 : 12} style={{ color: view.accent }} aria-hidden />
-            {view.label}
+            <view.icon size={narrow ? 12 : compact ? 11 : 12} style={{ color: view.accent }} aria-hidden />
+            {narrow ? null : <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{view.label}</span>}
           </div>
         </div>
         <button type="button" onClick={() => go(1)} style={navBtn} aria-label={de ? 'Nächste Ansicht' : 'Next view'}>
@@ -283,7 +288,7 @@ function EnergyCarousel({
       >
         <div
           style={{
-            fontSize: compact ? 22 : 26,
+            fontSize: narrow ? 18 : compact ? 22 : 26,
             fontWeight: 800,
             lineHeight: 1.05,
             color: 'var(--text)',
@@ -327,7 +332,20 @@ function EnergyCarousel({
           />
         ))}
         {compact && view.sub ? (
-          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>{view.sub}</span>
+          <span
+            style={{
+              fontSize: 9,
+              color: 'var(--text-muted)',
+              marginLeft: 4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: narrow ? '42%' : '55%',
+            }}
+            title={view.sub}
+          >
+            {narrow && view.subShort ? view.subShort : view.sub}
+          </span>
         ) : null}
         {loading ? (
           <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>{de ? '…' : '…'}</span>
@@ -412,9 +430,12 @@ function Widget({ config }: PluginWidgetProps) {
   const totalKwh = num(data?.energyWhTotal) / 1000
   const recent = Array.isArray(data?.recent) ? data.recent : []
 
-  const updatedSub = data?.fetchedAt
-    ? `${de ? 'Aktualisiert' : 'Updated'} ${new Date(data.fetchedAt).toLocaleTimeString(locale === 'en' ? 'en-GB' : 'de-DE')}`
+  const timeFmt = locale === 'en' ? 'en-GB' : 'de-DE'
+  const updatedAt = data?.fetchedAt ? new Date(data.fetchedAt) : null
+  const updatedSub = updatedAt
+    ? `${de ? 'Aktualisiert' : 'Updated'} ${updatedAt.toLocaleTimeString(timeFmt)}`
     : undefined
+  const updatedShort = updatedAt ? updatedAt.toLocaleTimeString(timeFmt) : undefined
 
   const carouselViews: EnergyView[] = [
     {
@@ -422,6 +443,7 @@ function Widget({ config }: PluginWidgetProps) {
       label: labels.now,
       value: formatW(power, locale),
       sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : updatedSub,
+      subShort: data?.voltageV != null ? `${num(data.voltageV).toFixed(0)}V` : updatedShort,
       icon: Zap,
       accent: '#f59e0b',
       showSparkline: true,
@@ -431,6 +453,7 @@ function Widget({ config }: PluginWidgetProps) {
       label: labels.today,
       value: formatKwh(today, locale),
       sub: updatedSub,
+      subShort: updatedShort,
       icon: Bolt,
       accent: '#38bdf8',
     },
@@ -439,6 +462,7 @@ function Widget({ config }: PluginWidgetProps) {
       label: labels.week,
       value: formatKwh(week, locale),
       sub: updatedSub,
+      subShort: updatedShort,
       icon: CalendarDays,
       accent: '#a78bfa',
     },
@@ -447,6 +471,7 @@ function Widget({ config }: PluginWidgetProps) {
       label: labels.month,
       value: formatKwh(month, locale),
       sub: updatedSub,
+      subShort: updatedShort,
       icon: Calendar,
       accent: '#34d399',
     },
@@ -455,6 +480,7 @@ function Widget({ config }: PluginWidgetProps) {
       label: labels.total,
       value: formatKwh(totalKwh, locale),
       sub: updatedSub,
+      subShort: updatedShort,
       icon: Bolt,
       accent: '#94a3b8',
     },
@@ -637,8 +663,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </select>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
           {de
-            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln. Widget im Dashboard verkleinern (min. 2×2).'
-            : 'Carousel: now, today, 7 days, month, meter total. Shrink the widget on the dashboard (min. 2×2).'}
+            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln. Widget verkleinern (min. 1 Spalte breit).'
+            : 'Carousel: now, today, 7 days, month, meter total. Shrink the widget on the dashboard (min. 1 column wide).'}
         </p>
       </div>
 
