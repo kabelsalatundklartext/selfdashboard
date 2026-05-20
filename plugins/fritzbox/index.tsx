@@ -21,7 +21,7 @@ export const meta: PluginMeta = {
   name: 'Fritzbox Internet Verlauf',
   description:
     'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.2',
+  version: '2.4.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -118,7 +118,7 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Mess-Ausreißer begrenzen (TR-064-Max + optional Nutzer-Kappung in Mbit/s). */
+/** Mess-Ausreißer begrenzen: Nutzer-Kappung (Mbit/s) exakt in bit/s; sonst TR-064 Layer1-Max (bit/s) je Richtung +3 % Puffer. */
 function clampThroughputBps(
   down: number,
   up: number,
@@ -126,14 +126,18 @@ function clampThroughputBps(
   lineUpBps: number | null,
   userCapMbps: number,
 ): { down: number; up: number } {
+  const phyHead = 1.03
   let d = Number.isFinite(down) ? Math.max(0, down) : 0
   let u = Number.isFinite(up) ? Math.max(0, up) : 0
-  if (lineDownBps != null && lineDownBps > 0) d = Math.min(d, lineDownBps)
-  if (lineUpBps != null && lineUpBps > 0) u = Math.min(u, lineUpBps)
   if (userCapMbps > 0 && Number.isFinite(userCapMbps)) {
     const cap = Math.max(1, userCapMbps) * 1_000_000
-    d = Math.min(d, cap)
-    u = Math.min(u, cap)
+    return { down: Math.min(d, cap), up: Math.min(u, cap) }
+  }
+  if (lineDownBps != null && lineDownBps > 0 && Number.isFinite(lineDownBps)) {
+    d = Math.min(d, lineDownBps * phyHead)
+  }
+  if (lineUpBps != null && lineUpBps > 0 && Number.isFinite(lineUpBps)) {
+    u = Math.min(u, lineUpBps * phyHead)
   }
   return { down: d, up: u }
 }
@@ -863,8 +867,6 @@ type Summary = {
   hostCount: number | null
   wanTotalBytesReceived: string | null
   wanTotalBytesSent: string | null
-  wanLiveDownBps?: number | null
-  wanLiveUpBps?: number | null
   fetchedAt?: string
 }
 
@@ -1031,7 +1033,7 @@ function Widget({ config }: PluginWidgetProps) {
   const loadLite = useCallback(async () => {
     if (!baseUrl || liveEvery <= 0) return
     const cur = dataRef.current
-    if (!cur) return
+    if (!cur || (!cur.wanTotalBytesReceived && !cur.wanTotalBytesSent)) return
     try {
       const res = await fetch('/api/fritzbox', {
         method: 'POST',
@@ -1043,8 +1045,6 @@ function Widget({ config }: PluginWidgetProps) {
         ok?: boolean
         wanTotalBytesReceived?: string | null
         wanTotalBytesSent?: string | null
-        wanLiveDownBps?: number | null
-        wanLiveUpBps?: number | null
       }
       if (!res.ok || j.ok === false) return
       setData((d) => {
@@ -1055,12 +1055,6 @@ function Widget({ config }: PluginWidgetProps) {
         }
         if (typeof j.wanTotalBytesSent === 'string' && /^\d+$/.test(j.wanTotalBytesSent)) {
           next.wanTotalBytesSent = j.wanTotalBytesSent
-        }
-        if (typeof j.wanLiveDownBps === 'number' && Number.isFinite(j.wanLiveDownBps) && j.wanLiveDownBps >= 0) {
-          next.wanLiveDownBps = j.wanLiveDownBps
-        }
-        if (typeof j.wanLiveUpBps === 'number' && Number.isFinite(j.wanLiveUpBps) && j.wanLiveUpBps >= 0) {
-          next.wanLiveUpBps = j.wanLiveUpBps
         }
         return next
       })
@@ -1078,35 +1072,16 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     if (liveEvery <= 0) return undefined
-    const t = window.setTimeout(() => void loadLite(), 400)
-    const t2 = window.setTimeout(() => void loadLite(), 1200)
+    const t = window.setTimeout(() => void loadLite(), 600)
     const id = window.setInterval(() => void loadLite(), liveEvery * 1000)
     return () => {
       window.clearTimeout(t)
-      window.clearTimeout(t2)
       window.clearInterval(id)
     }
   }, [liveEvery, loadLite])
 
   useEffect(() => {
     if (!data) return
-
-    const liveDown = data.wanLiveDownBps
-    const liveUp = data.wanLiveUpBps
-    if (
-      liveDown != null &&
-      liveUp != null &&
-      Number.isFinite(liveDown) &&
-      Number.isFinite(liveUp) &&
-      liveDown >= 0 &&
-      liveUp >= 0
-    ) {
-      setLiveBps(
-        clampThroughputBps(liveDown, liveUp, data.downstreamMaxBps ?? null, data.upstreamMaxBps ?? null, clampMbps),
-      )
-      return
-    }
-
     if (!data.wanTotalBytesReceived || !data.wanTotalBytesSent) {
       setLiveBps(null)
       prevBytesRef.current = null
@@ -1128,13 +1103,7 @@ function Widget({ config }: PluginWidgetProps) {
             const up = Number(dtx * BigInt(8)) / dt
             if (Number.isFinite(down) && Number.isFinite(up)) {
               setLiveBps(
-                clampThroughputBps(
-                  down,
-                  up,
-                  data.downstreamMaxBps ?? null,
-                  data.upstreamMaxBps ?? null,
-                  clampMbps,
-                ),
+                clampThroughputBps(down, up, data.downstreamMaxBps, data.upstreamMaxBps, clampMbps),
               )
             }
           } else {

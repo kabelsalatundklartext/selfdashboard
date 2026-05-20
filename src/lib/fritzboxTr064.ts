@@ -29,21 +29,19 @@ export type FritzBoxSummary = {
   uptimeSec: number | null
   externalIpv4: string | null
   lastError: string | null
+  /** z. B. IP_Routed, PPPoE (WANIPConnection GetInfo) */
   wanConnectionType: string | null
+  /** Anzeigename der WAN-Verbindung in der Box */
   wanConnectionName: string | null
   natEnabled: boolean | null
+  /** DNS-Server der WAN-Verbindung, Leerzeichen-getrennt */
   wanDnsServers: string | null
+  /** Bekannte Heimnetz-Geräte (Hosts:1 / Hosts:2) */
   hostCount: number | null
+  /** WAN-Gesamtbytes (Zähler der Box), für aktuelle Rate: Differenz zwischen Abrufen */
   wanTotalBytesReceived: string | null
   wanTotalBytesSent: string | null
-  wanLiveDownBps: number | null
-  wanLiveUpBps: number | null
 }
-
-export type FritzWanCounters = Pick<
-  FritzBoxSummary,
-  'wanTotalBytesReceived' | 'wanTotalBytesSent' | 'wanLiveDownBps' | 'wanLiveUpBps'
->
 
 function normalizeBaseUrl(raw: string): URL {
   const s = raw.trim()
@@ -69,40 +67,20 @@ export function fritzboxRootFromInput(raw: string): string {
   return path ? `${origin}${path}` : origin
 }
 
+/** Host inkl. Port — für Descriptor & controlURL-Auflösung (immer Wurzel des TR-064-Ports). */
+function tr064OriginFromRoot(root: string): string {
+  const u = new URL(root)
+  return `${u.protocol}//${u.hostname}:${u.port}`
+}
+
 /** Bekannte Pfade zur Gerätebeschreibung (AVM / FRITZ!OS variiert). */
-const TR064_DESCRIPTOR_PATHS = [
-  '/tr64desc.xml',
+const DESCRIPTOR_PATHS = [
   '/tr064desc.xml',
   '/tr064/tr064desc.xml',
-  '/tr064/tr64desc.xml',
   '/tr064dev.xml',
   '/tr064/tr064dev.xml',
   '/igddesc.xml',
 ]
-
-/** TR-064-Ports zum Durchprobieren (HTTP 49000, HTTPS 49443). */
-export function tr064OriginsForConnection(conn: FritzBoxConnection): string[] {
-  const root = fritzboxRootFromInput(conn.baseUrl)
-  const u = new URL(root)
-  const host = u.hostname
-  const out: string[] = [`${u.protocol}//${host}:${u.port}`]
-  if (u.protocol === 'http:') out.push(`https://${host}:49443`)
-  else if (u.protocol === 'https:') out.push(`http://${host}:49000`)
-  return [...new Set(out)]
-}
-
-async function runWithInsecureTls<T>(conn: FritzBoxConnection, fn: () => Promise<T>): Promise<T> {
-  const usesHttps = tr064OriginsForConnection(conn).some((o) => o.startsWith('https:'))
-  if (!usesHttps || !conn.insecureTls) return fn()
-  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-  try {
-    return await fn()
-  } finally {
-    if (prev === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED
-    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev
-  }
-}
 
 function looksLikeDeviceDescription(xml: string): boolean {
   if (!xml || xml.length < 80) return false
@@ -120,7 +98,7 @@ async function fetchDescriptorXml(
   fetchOpts: { agent?: https.Agent },
 ): Promise<{ xml: string; path: string }> {
   const tried: string[] = []
-  for (const p of TR064_DESCRIPTOR_PATHS) {
+  for (const p of DESCRIPTOR_PATHS) {
     const url = `${origin.replace(/\/+$/, '')}${p}`
     tried.push(p)
     const descRes = await client.fetch(url, { method: 'GET', signal, ...fetchOpts } as RequestInit)
@@ -155,6 +133,7 @@ function parseIntSafe(v: string | null): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Zähler aus SOAP (nur Ziffern, als String wegen großer Werte). */
 function parseDecimalUIntString(xml: string, ...localNames: string[]): string | null {
   for (const name of localNames) {
     const v = xmlFirst(xml, name)
@@ -163,34 +142,10 @@ function parseDecimalUIntString(xml: string, ...localNames: string[]): string | 
   return null
 }
 
-type Tr064Service = { type: string; controlUrl: string }
+export type Tr064Service = { type: string; controlUrl: string }
 
-function escapeXmlTr064(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-function buildTr064SoapEnvelope(
-  serviceUrn: string,
-  action: string,
-  args: Record<string, string> = {},
-): string {
-  const inner = Object.entries(args)
-    .map(([k, v]) => `<${k}>${escapeXmlTr064(v)}</${k}>`)
-    .join('\n')
-  const bodyInner = inner ? `\n${inner}\n` : ''
-  return `<?xml version="1.0" encoding="utf-8"?>
-<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
-<s:Body>
-<u:${action} xmlns:u="${serviceUrn}">${bodyInner}</u:${action}>
-</s:Body>
-</s:Envelope>`
-}
-
-function parseTr064Services(descXml: string): Tr064Service[] {
+/** Parst tr064desc.xml nach serviceType + controlURL. */
+export function parseTr064Services(descXml: string): Tr064Service[] {
   const out: Tr064Service[] = []
   const serviceBlocks = descXml.split(/<service[\s>]/i)
   for (let i = 1; i < serviceBlocks.length; i++) {
@@ -202,6 +157,7 @@ function parseTr064Services(descXml: string): Tr064Service[] {
   return out
 }
 
+/** UPnP root device (z. B. igddesc.xml): Modell, wenn kein TR-064 DeviceInfo. */
 function parseUpnpRootDeviceBasics(descXml: string): {
   friendlyName: string | null
   modelName: string | null
@@ -216,6 +172,15 @@ function parseUpnpRootDeviceBasics(descXml: string): {
   }
 }
 
+function soapEnvelope(serviceUrn: string, action: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+<s:Body>
+<u:${action} xmlns:u="${serviceUrn}"/>
+</s:Body>
+</s:Envelope>`
+}
+
 async function soapAction(
   client: DigestClient,
   controlUrl: string,
@@ -224,14 +189,14 @@ async function soapAction(
   signal: AbortSignal,
   fetchOpts: { agent?: https.Agent },
 ): Promise<string> {
-  const body = buildTr064SoapEnvelope(serviceUrn, action)
-  const soapActionHdr = `"${serviceUrn}#${action}"`
+  const body = soapEnvelope(serviceUrn, action)
+  const soapAction = `"${serviceUrn}#${action}"`
   const res = await client.fetch(controlUrl, {
     method: 'POST',
     signal,
     headers: {
-      'Content-Type': 'text/xml; charset="utf-8"',
-      SOAPAction: soapActionHdr,
+      'Content-Type': 'text/xml; charset=utf-8',
+      SOAPAction: soapAction,
     },
     body,
     ...fetchOpts,
@@ -247,129 +212,23 @@ function digestClient(user: string, pass: string): DigestClient {
   return new DigestClient(user || '', pass || '')
 }
 
-function tr064FetchOpts(origin: string, conn: FritzBoxConnection): { agent?: https.Agent } {
-  const isHttps = origin.startsWith('https:')
-  const agent =
-    isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined
-  return agent ? { agent } : {}
-}
-
-function servicesHaveWan(services: Tr064Service[]): boolean {
-  return services.some((s) => {
-    const t = s.type
-    return t.includes('WANCommonInterfaceConfig') || (t.includes('WANIPConnection') && !t.includes('WANIPv6'))
-  })
-}
-
-function liveRatesFromAddonXml(addonXml: string): { wanLiveDownBps: number | null; wanLiveUpBps: number | null } {
-  const rx = parseIntSafe(xmlFirst(addonXml, 'NewByteReceiveRate') ?? xmlFirst(addonXml, 'ByteReceiveRate'))
-  const tx = parseIntSafe(xmlFirst(addonXml, 'NewByteSendRate') ?? xmlFirst(addonXml, 'ByteSendRate'))
-  return {
-    wanLiveDownBps: rx != null && rx >= 0 ? rx * 8 : null,
-    wanLiveUpBps: tx != null && tx >= 0 ? tx * 8 : null,
-  }
-}
-
-async function readWanByteCounters(
-  client: DigestClient,
-  origin: string,
-  services: Tr064Service[],
-  signal: AbortSignal,
-  fetchOpts: { agent?: https.Agent },
-): Promise<FritzWanCounters> {
-  const wanCommonSvc =
-    services.find((s) => s.type.endsWith('WANCommonInterfaceConfig:1')) ||
-    services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
-    null
-
-  let wanTotalBytesReceived: string | null = null
-  let wanTotalBytesSent: string | null = null
-  let wanLiveDownBps: number | null = null
-  let wanLiveUpBps: number | null = null
-
-  if (wanCommonSvc) {
-    const ctl = absUrl(origin, wanCommonSvc.controlUrl)
-    const urn = wanCommonSvc.type
-    try {
-      const addon = await soapAction(client, ctl, urn, 'GetAddonInfos', signal, fetchOpts)
-      const live = liveRatesFromAddonXml(addon)
-      wanLiveDownBps = live.wanLiveDownBps
-      wanLiveUpBps = live.wanLiveUpBps
-      wanTotalBytesReceived = parseDecimalUIntString(
-        addon,
-        'X_AVM_DE_TotalBytesReceived64',
-        'NewX_AVM_DE_TotalBytesReceived64',
-        'NewTotalBytesReceived',
-        'TotalBytesReceived',
-      )
-      wanTotalBytesSent = parseDecimalUIntString(
-        addon,
-        'X_AVM_DE_TotalBytesSent64',
-        'NewX_AVM_DE_TotalBytesSent64',
-        'NewTotalBytesSent',
-        'TotalBytesSent',
-      )
-    } catch {
-      /* optional */
-    }
-    if (!wanTotalBytesReceived) {
-      try {
-        const rxXml = await soapAction(client, ctl, urn, 'GetTotalBytesReceived', signal, fetchOpts)
-        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
-      } catch {
-        /* optional */
-      }
-    }
-    if (!wanTotalBytesSent) {
-      try {
-        const txXml = await soapAction(client, ctl, urn, 'GetTotalBytesSent', signal, fetchOpts)
-        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
-      } catch {
-        /* optional */
-      }
-    }
-  }
-
-  const wanIpServices = services.filter((s) => {
-    const t = s.type
-    return t.includes('WANIPConnection') && !t.includes('WANIPv6')
-  })
-  const primaryWanIp = wanIpServices[0] ?? null
-  if (primaryWanIp) {
-    const ctl = absUrl(origin, primaryWanIp.controlUrl)
-    const t = primaryWanIp.type
-    if (!wanTotalBytesReceived) {
-      try {
-        const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
-        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
-      } catch {
-        /* optional */
-      }
-    }
-    if (!wanTotalBytesSent) {
-      try {
-        const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
-        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
-      } catch {
-        /* optional */
-      }
-    }
-  }
-
-  return { wanTotalBytesReceived, wanTotalBytesSent, wanLiveDownBps, wanLiveUpBps }
-}
-
-async function fetchFritzBoxSummaryOnOrigin(
+export async function fetchFritzBoxSummary(
   conn: FritzBoxConnection,
-  origin: string,
   signal: AbortSignal,
 ): Promise<FritzBoxSummary> {
-  const fetchOpts = tr064FetchOpts(origin, conn)
+  const root = fritzboxRootFromInput(conn.baseUrl)
+  const origin = tr064OriginFromRoot(root)
+  const isHttps = new URL(origin).protocol === 'https:'
+  const agent =
+    isHttps && conn.insecureTls
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined
+  const fetchOpts = agent ? { agent } : {}
+
   const client = digestClient(conn.username, conn.password)
   const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
 
   const services = parseTr064Services(descXml)
-  if (!servicesHaveWan(services)) throw new Error('wan_not_found')
 
   const deviceSvc =
     services.find((s) => s.type.endsWith('DeviceInfo:1')) ||
@@ -379,6 +238,7 @@ async function fetchFritzBoxSummaryOnOrigin(
     services.find((s) => s.type.endsWith('WANCommonInterfaceConfig:1')) ||
     services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
     null
+
   const hostsSvc =
     services.find((s) => /:Hosts:1$/i.test(s.type)) ||
     services.find((s) => /:Hosts:2$/i.test(s.type)) ||
@@ -408,9 +268,6 @@ async function fetchFritzBoxSummaryOnOrigin(
   let upstreamMaxBps: number | null = null
   let wanTotalBytesReceived: string | null = null
   let wanTotalBytesSent: string | null = null
-  let wanLiveDownBps: number | null = null
-  let wanLiveUpBps: number | null = null
-
   if (wanCommonSvc) {
     const ctl = absUrl(origin, wanCommonSvc.controlUrl)
     const xml = await soapAction(client, ctl, wanCommonSvc.type, 'GetCommonLinkProperties', signal, fetchOpts)
@@ -419,9 +276,6 @@ async function fetchFritzBoxSummaryOnOrigin(
     upstreamMaxBps = parseIntSafe(xmlFirst(xml, 'NewLayer1UpstreamMaxBitRate'))
     try {
       const addon = await soapAction(client, ctl, wanCommonSvc.type, 'GetAddonInfos', signal, fetchOpts)
-      const live = liveRatesFromAddonXml(addon)
-      wanLiveDownBps = live.wanLiveDownBps
-      wanLiveUpBps = live.wanLiveUpBps
       wanTotalBytesReceived = parseDecimalUIntString(
         addon,
         'X_AVM_DE_TotalBytesReceived64',
@@ -437,7 +291,7 @@ async function fetchFritzBoxSummaryOnOrigin(
         'TotalBytesSent',
       )
     } catch {
-      /* GetAddonInfos optional */
+      /* GetAddonInfos optional (ältere IGD ohne AVM-Erweiterung) */
     }
     if (!wanTotalBytesReceived) {
       try {
@@ -558,55 +412,98 @@ async function fetchFritzBoxSummaryOnOrigin(
     hostCount,
     wanTotalBytesReceived,
     wanTotalBytesSent,
-    wanLiveDownBps,
-    wanLiveUpBps,
   }
-}
-
-export async function fetchFritzBoxSummary(
-  conn: FritzBoxConnection,
-  signal: AbortSignal,
-): Promise<FritzBoxSummary> {
-  return runWithInsecureTls(conn, async () => {
-    let lastMsg = 'desc_not_found'
-    for (const origin of tr064OriginsForConnection(conn)) {
-      try {
-        return await fetchFritzBoxSummaryOnOrigin(conn, origin, signal)
-      } catch (e) {
-        lastMsg = e instanceof Error ? e.message : String(e)
-        if (lastMsg === 'unauthorized') throw new Error('unauthorized')
-      }
-    }
-    throw new Error(lastMsg)
-  })
 }
 
 /** Nur WAN-Byte-Zähler (weniger SOAP) — für schnellere Live-Takte im UI. */
 export async function fetchFritzBoxByteCountersOnly(
   conn: FritzBoxConnection,
   signal: AbortSignal,
-): Promise<FritzWanCounters> {
-  return runWithInsecureTls(conn, async () => {
-    const client = digestClient(conn.username, conn.password)
-    let lastMsg = 'desc_not_found'
-    for (const origin of tr064OriginsForConnection(conn)) {
-      const fetchOpts = tr064FetchOpts(origin, conn)
+): Promise<{ wanTotalBytesReceived: string | null; wanTotalBytesSent: string | null }> {
+  const root = fritzboxRootFromInput(conn.baseUrl)
+  const origin = tr064OriginFromRoot(root)
+  const isHttps = new URL(origin).protocol === 'https:'
+  const agent =
+    isHttps && conn.insecureTls
+      ? new https.Agent({ rejectUnauthorized: false })
+      : undefined
+  const fetchOpts = agent ? { agent } : {}
+  const client = digestClient(conn.username, conn.password)
+  const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
+  const services = parseTr064Services(descXml)
+  const wanCommonSvc =
+    services.find((s) => s.type.endsWith('WANCommonInterfaceConfig:1')) ||
+    services.find((s) => s.type.includes('WANCommonInterfaceConfig')) ||
+    null
+
+  let wanTotalBytesReceived: string | null = null
+  let wanTotalBytesSent: string | null = null
+
+  if (wanCommonSvc) {
+    const ctl = absUrl(origin, wanCommonSvc.controlUrl)
+    const urn = wanCommonSvc.type
+    try {
+      const addon = await soapAction(client, ctl, urn, 'GetAddonInfos', signal, fetchOpts)
+      wanTotalBytesReceived = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesReceived64',
+        'NewX_AVM_DE_TotalBytesReceived64',
+        'NewTotalBytesReceived',
+        'TotalBytesReceived',
+      )
+      wanTotalBytesSent = parseDecimalUIntString(
+        addon,
+        'X_AVM_DE_TotalBytesSent64',
+        'NewX_AVM_DE_TotalBytesSent64',
+        'NewTotalBytesSent',
+        'TotalBytesSent',
+      )
+    } catch {
+      /* optional */
+    }
+    if (!wanTotalBytesReceived) {
       try {
-        const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
-        const services = parseTr064Services(descXml)
-        if (!servicesHaveWan(services)) {
-          lastMsg = 'wan_not_found'
-          continue
-        }
-        const counters = await readWanByteCounters(client, origin, services, signal, fetchOpts)
-        if (counters.wanLiveDownBps != null && counters.wanLiveUpBps != null) return counters
-        if (counters.wanTotalBytesReceived && counters.wanTotalBytesSent) return counters
-        lastMsg = 'wan_counters_missing'
-      } catch (e) {
-        lastMsg = e instanceof Error ? e.message : String(e)
-        if (lastMsg === 'unauthorized') throw new Error('unauthorized')
+        const rxXml = await soapAction(client, ctl, urn, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
       }
     }
-    throw new Error(lastMsg)
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, urn, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
+    }
+  }
+
+  const wanIpServices = services.filter((s) => {
+    const t = s.type
+    return t.includes('WANIPConnection') && !t.includes('WANIPv6')
   })
+  const primaryWanIp = wanIpServices[0] ?? null
+  if (primaryWanIp) {
+    const ctl = absUrl(origin, primaryWanIp.controlUrl)
+    const t = primaryWanIp.type
+    if (!wanTotalBytesReceived) {
+      try {
+        const rxXml = await soapAction(client, ctl, t, 'GetTotalBytesReceived', signal, fetchOpts)
+        wanTotalBytesReceived = parseDecimalUIntString(rxXml, 'NewTotalBytesReceived', 'TotalBytesReceived')
+      } catch {
+        /* optional */
+      }
+    }
+    if (!wanTotalBytesSent) {
+      try {
+        const txXml = await soapAction(client, ctl, t, 'GetTotalBytesSent', signal, fetchOpts)
+        wanTotalBytesSent = parseDecimalUIntString(txXml, 'NewTotalBytesSent', 'TotalBytesSent')
+      } catch {
+        /* optional */
+      }
+    }
+  }
+
+  return { wanTotalBytesReceived, wanTotalBytesSent }
 }
