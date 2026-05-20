@@ -12,7 +12,7 @@ export const meta: PluginMeta = {
   name: 'AdGuard Home',
   description:
     'DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/adguard (CORS-frei).',
-  version: '1.1.5',
+  version: '1.1.6',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -101,9 +101,12 @@ function StatTile({
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
+        justifyContent: footer ? 'space-between' : 'center',
         gap: '2px',
         minWidth: 0,
+        minHeight: 0,
+        height: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -139,7 +142,7 @@ function StatTile({
       >
         {value}
       </span>
-      {footer}
+      {footer ? <div style={{ marginTop: 'auto', width: '100%', flexShrink: 0 }}>{footer}</div> : null}
     </div>
   )
 }
@@ -367,7 +370,7 @@ function Widget({ config }: PluginWidgetProps) {
   const statsDisabled = statsCfg != null && statsCfg.enabled === false
 
   const pctBar = (
-    <div className="sd-adguard-pctbar" style={{ marginTop: '10px' }}>
+    <div className="sd-adguard-pctbar">
       <div
         style={{
           height: '7px',
@@ -407,15 +410,24 @@ function Widget({ config }: PluginWidgetProps) {
           display: grid;
           gap: 8px;
           grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
           min-width: 0;
           flex: 1 1 auto;
           min-height: 0;
-          align-content: start;
+          align-content: stretch;
+          align-items: stretch;
+        }
+        .sd-adguard-host .sd-adguard-tile,
+        .sd-adguard-host .sd-adguard-tile-placeholder {
+          height: 100%;
+          min-height: 0;
+          box-sizing: border-box;
         }
         /* Schmal + viel Höhe: eine Spalte lesbar. Schmal + wenig Höhe: zwei Spalten, damit alles ohne Scroll passt */
         @container (max-width: 320px) and (min-height: 500px) {
           .sd-adguard-host .sd-adguard-stat-grid {
             grid-template-columns: 1fr;
+            grid-template-rows: repeat(4, 1fr);
           }
         }
         @container (max-height: 460px) {
@@ -556,6 +568,9 @@ function Widget({ config }: PluginWidgetProps) {
               alignItems: 'center',
               justifyContent: 'center',
               padding: '8px',
+              minHeight: 0,
+              height: '100%',
+              boxSizing: 'border-box',
             }}
           >
             <span style={{ fontSize: 'clamp(10px, 2.3cqmin, 11px)', color: 'var(--text-muted)', textAlign: 'center' }}>

@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.2',
+  version: '1.1.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -254,13 +254,11 @@ function useWidgetSize(ref: RefObject<HTMLElement | null>) {
 function EnergyCarousel({
   views,
   recent,
-  loading,
   de,
   forceCompact,
 }: {
   views: EnergyView[]
   recent: { powerW: number }[]
-  loading: boolean
   de: boolean
   forceCompact?: boolean
 }) {
@@ -397,9 +395,6 @@ function EnergyCarousel({
             {narrow && view.subShort ? view.subShort : view.sub}
           </span>
         ) : null}
-        {loading ? (
-          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>{de ? '…' : '…'}</span>
-        ) : null}
       </div>
     </div>
   )
@@ -409,7 +404,6 @@ function Widget({ config }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
   const rootRef = useRef<HTMLDivElement>(null)
   const [data, setData] = useState<EnergyPayload | null>(null)
-  const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const viewMode = viewModeFromConfig(config as Record<string, unknown>)
 
@@ -425,7 +419,6 @@ function Widget({ config }: PluginWidgetProps) {
       setErr(locale === 'en' ? 'Set AIN in settings' : 'AIN in den Einstellungen eintragen')
       return
     }
-    setLoading(true)
     setErr(null)
     try {
       const res = await fetch('/api/fritz-energy', {
@@ -445,8 +438,6 @@ function Widget({ config }: PluginWidgetProps) {
       reportPluginCatch('fritz-energy', e, 'fetch')
       setErr('network')
       setData(null)
-    } finally {
-      setLoading(false)
     }
   }, [ain, baseUrl, username, password, insecureTls, locale])
 
@@ -519,7 +510,6 @@ function Widget({ config }: PluginWidgetProps) {
       <EnergyCarousel
         views={carouselViews}
         recent={recent}
-        loading={loading}
         de={de}
         forceCompact={config.compactUi === true}
       />
@@ -532,7 +522,6 @@ function Widget({ config }: PluginWidgetProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: loading ? 6 : 0,
         minHeight: 0,
         height: '100%',
         width: '100%',
@@ -563,11 +552,6 @@ function Widget({ config }: PluginWidgetProps) {
         <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" fill />
         <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" fill />
       </div>
-      {loading ? (
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, textAlign: 'center' }}>
-          {de ? 'Aktualisiere…' : 'Updating…'}
-        </span>
-      ) : null}
     </div>
   )
 }
