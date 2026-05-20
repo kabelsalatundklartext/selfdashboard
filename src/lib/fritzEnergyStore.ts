@@ -16,6 +16,8 @@ export type EnergyStoreFile = {
   baseUrl: string
   /** YYYY-MM-DD (Europe/Berlin) → kWh (aus Zählerstand minus Tages-Baseline) */
   dailyKwh: Record<string, number>
+  /** YYYY-MM → kWh (von FRITZ!Box Jahr-/Monats-Serien) */
+  monthlyKwh: Record<string, number>
   /** Erster Zählerstand Wh pro Kalendertag (Europe/Berlin) */
   dayBaselineWh: Record<string, number>
   /** letzte 7 Tage Detail (max ~10k Punkte) */
@@ -78,6 +80,7 @@ export async function readEnergyStore(key: string): Promise<EnergyStoreFile | nu
     const raw = await readFile(storePath(key), 'utf8')
     const j = JSON.parse(raw) as EnergyStoreFile
     if (!j || typeof j !== 'object') return null
+    if (!j.monthlyKwh || typeof j.monthlyKwh !== 'object') j.monthlyKwh = {}
     return j
   } catch {
     return null
@@ -111,10 +114,22 @@ function sumDailyRange(daily: Record<string, number>, fromKey: string, toKey: st
 
 function sumLast7Days(daily: Record<string, number>, todayKey: string): number {
   const keys = Object.keys(daily).filter((k) => k <= todayKey).sort()
-  if (keys.length >= 7) {
-    return keys.slice(-7).reduce((a, k) => a + (daily[k] ?? 0), 0)
+  if (keys.length === 0) return 0
+  return keys.slice(-7).reduce((a, k) => a + (daily[k] ?? 0), 0)
+}
+
+function sumMonthFromDaily(daily: Record<string, number>, monthPrefix: string, todayKey: string): number {
+  return sumDailyRange(daily, `${monthPrefix}-01`, todayKey)
+}
+
+function monthKeysFromDaily(daily: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [day, kwh] of Object.entries(daily)) {
+    if (kwh <= 0) continue
+    const m = day.slice(0, 7)
+    out[m] = (out[m] ?? 0) + kwh
   }
-  return 0
+  return out
 }
 
 function computeAggregates(store: EnergyStoreFile, sample: EnergySample): EnergyAggregates {
@@ -129,10 +144,13 @@ function computeAggregates(store: EnergyStoreFile, sample: EnergySample): Energy
 
   const last7FromDaily = sumLast7Days(store.dailyKwh, todayKey)
   const last7DaysKwh =
-    last7FromDaily > 0 ? last7FromDaily : (store.boxPeriodKwh?.week ?? last7FromDaily)
+    last7FromDaily > 0
+      ? last7FromDaily
+      : Math.max(last7FromDaily, store.boxPeriodKwh?.week ?? 0)
 
-  const monthFromDaily = sumDailyRange(store.dailyKwh, `${monthPrefix}-01`, `${todayKey}`)
-  const monthKwh = monthFromDaily > 0 ? monthFromDaily : (store.boxPeriodKwh?.month ?? monthFromDaily)
+  const monthFromDaily = sumMonthFromDaily(store.dailyKwh, monthPrefix, todayKey)
+  const monthKwh =
+    monthFromDaily > 0 ? monthFromDaily : Math.max(monthFromDaily, store.boxPeriodKwh?.month ?? 0)
 
   return {
     currentPowerW: sample.powerW,
@@ -152,10 +170,23 @@ export function storeNeedsHistoryImport(store: EnergyStoreFile | null): boolean 
 }
 
 /** Tages-/Periodenwerte von der Box in den lokalen Speicher übernehmen. */
-export async function importBoxEnergyHistory(
+function mergeMonthly(target: Record<string, number>, add: Record<string, number>): void {
+  for (const [k, v] of Object.entries(add)) {
+    if (v > 0) target[k] = Math.max(target[k] ?? 0, v)
+  }
+}
+
+/** Periodenwerte von der FRITZ!Box (heute / Woche / Monat / Monatsbalken) in den Store schreiben. */
+export async function syncBoxEnergyPeriods(
   key: string,
   meta: { ain: string; baseUrl: string },
-  box: { todayKwh: number; last7DaysKwh: number; monthKwh: number; dailyKwh: Record<string, number> },
+  box: {
+    todayKwh: number
+    last7DaysKwh: number
+    monthKwh: number
+    dailyKwh: Record<string, number>
+    monthlyKwh: Record<string, number>
+  },
   sample: EnergySample,
 ): Promise<EnergyStoreFile> {
   let store =
@@ -164,14 +195,20 @@ export async function importBoxEnergyHistory(
       ain: meta.ain,
       baseUrl: meta.baseUrl,
       dailyKwh: {},
+      monthlyKwh: {},
       dayBaselineWh: {},
       recent: [],
       updatedAt: new Date(0).toISOString(),
     } satisfies EnergyStoreFile)
 
+  if (!store.monthlyKwh) store.monthlyKwh = {}
+
   for (const [day, kwh] of Object.entries(box.dailyKwh)) {
     if (kwh > 0) store.dailyKwh[day] = Math.max(store.dailyKwh[day] ?? 0, kwh)
   }
+  mergeMonthly(store.monthlyKwh, box.monthlyKwh)
+  mergeMonthly(store.monthlyKwh, monthKeysFromDaily(store.dailyKwh))
+
   const todayKey = berlinDateKey(sample.t)
   if (box.todayKwh > 0) store.dailyKwh[todayKey] = Math.max(store.dailyKwh[todayKey] ?? 0, box.todayKwh)
 
@@ -180,15 +217,33 @@ export async function importBoxEnergyHistory(
     week: box.last7DaysKwh,
     month: box.monthKwh,
   }
-  store.historyImportedAt = new Date().toISOString()
+  if (!store.historyImportedAt) store.historyImportedAt = new Date().toISOString()
   store.ain = meta.ain
   store.baseUrl = meta.baseUrl
+  store.dailyKwh = pruneDaily(store.dailyKwh)
+  await writeEnergyStore(key, store)
+  return store
+}
 
+export async function importBoxEnergyHistory(
+  key: string,
+  meta: { ain: string; baseUrl: string },
+  box: {
+    todayKwh: number
+    last7DaysKwh: number
+    monthKwh: number
+    dailyKwh: Record<string, number>
+    monthlyKwh: Record<string, number>
+  },
+  sample: EnergySample,
+): Promise<EnergyStoreFile> {
+  const store = await syncBoxEnergyPeriods(key, meta, box, sample)
+  store.historyImportedAt = new Date().toISOString()
+  const todayKey = berlinDateKey(sample.t)
   if (store.dayBaselineWh[todayKey] == null) {
     store.dayBaselineWh[todayKey] = sample.energyWh
   }
 
-  store.dailyKwh = pruneDaily(store.dailyKwh)
   await writeEnergyStore(key, store)
   return store
 }
@@ -207,10 +262,14 @@ export async function appendEnergySample(
       ain: meta.ain,
       baseUrl: meta.baseUrl,
       dailyKwh: {},
+      monthlyKwh: {},
       dayBaselineWh: {},
       recent: [],
       updatedAt: new Date(0).toISOString(),
     } satisfies EnergyStoreFile)
+
+  if (!store.monthlyKwh) store.monthlyKwh = {}
+  mergeMonthly(store.monthlyKwh, monthKeysFromDaily(store.dailyKwh))
 
   const dayKey = berlinDateKey(sample.t)
   if (store.dayBaselineWh[dayKey] == null) {
@@ -237,6 +296,12 @@ export async function appendEnergySample(
 
   await writeEnergyStore(key, store)
   return { store, aggregates: computeAggregates(store, sample) }
+}
+
+export function monthlyKwhFromStore(store: EnergyStoreFile): Record<string, number> {
+  const out: Record<string, number> = { ...(store.monthlyKwh ?? {}) }
+  mergeMonthly(out, monthKeysFromDaily(store.dailyKwh))
+  return out
 }
 
 export function aggregatesFromStore(store: EnergyStoreFile): EnergyAggregates | null {

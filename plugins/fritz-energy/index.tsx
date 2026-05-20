@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -29,6 +29,8 @@ type EnergyPayload = {
   voltageV?: number | null
   fetchedAt?: string
   recent?: { t: number; powerW: number; energyWh: number }[]
+  monthlyKwh?: Record<string, number>
+  boxPeriods?: { today: number; week: number; month: number } | null
 }
 
 function str(v: unknown): string {
@@ -103,40 +105,178 @@ function formatW(n: number, locale: 'de' | 'en'): string {
   return `${Math.round(n).toLocaleString(loc)} W`
 }
 
+const TINT = {
+  amber: { solid: '#f59e0b', wash: 'rgba(245, 158, 11, 0.18)', rim: 'rgba(245, 158, 11, 0.38)' },
+  sky: { solid: '#38bdf8', wash: 'rgba(56, 189, 248, 0.18)', rim: 'rgba(56, 189, 248, 0.38)' },
+  violet: { solid: '#a78bfa', wash: 'rgba(167, 139, 250, 0.18)', rim: 'rgba(167, 139, 250, 0.38)' },
+  emerald: { solid: '#34d399', wash: 'rgba(52, 211, 153, 0.18)', rim: 'rgba(52, 211, 153, 0.38)' },
+  slate: { solid: '#94a3b8', wash: 'rgba(148, 163, 184, 0.14)', rim: 'rgba(148, 163, 184, 0.32)' },
+} as const
+
+type TintKey = keyof typeof TINT
+
+function formatMonthKey(key: string, locale: 'de' | 'en'): string {
+  const [y, m] = key.split('-')
+  const yr = Number(y)
+  const mo = Number(m)
+  if (!Number.isFinite(yr) || !Number.isFinite(mo)) return key
+  return new Date(yr, mo - 1, 1).toLocaleDateString(locale === 'en' ? 'en-GB' : 'de-DE', {
+    month: 'short',
+    year: '2-digit',
+  })
+}
+
 function StatTile({
   label,
   value,
   sub,
   icon: Icon,
-  accent,
+  tint,
+  tall,
 }: {
   label: string
   value: string
   sub?: string
   icon: LucideIcon
-  accent: string
+  tint: TintKey
+  tall?: boolean
 }) {
+  const c = TINT[tint]
   return (
     <div
       style={{
-        borderRadius: 12,
+        borderRadius: '12px',
+        background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
-        background: 'var(--surface-2)',
-        padding: '10px 12px',
+        boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
+        padding: tall ? '10px 12px' : '8px 10px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 4,
+        justifyContent: 'center',
+        gap: '2px',
         minWidth: 0,
+        minHeight: 0,
+        containerType: 'inline-size',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-        <Icon size={14} style={{ color: accent, flexShrink: 0 }} aria-hidden />
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+        <Icon size={13} strokeWidth={2.25} style={{ color: c.solid, flexShrink: 0, opacity: 0.95 }} aria-hidden />
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--text-muted)',
+            lineHeight: 1.2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {label}
         </span>
       </div>
-      <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.1, color: 'var(--text)' }}>{value}</div>
-      {sub ? <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div> : null}
+      <span
+        className="tabular-nums"
+        style={{
+          fontSize: tall ? 'clamp(15px, 4.5cqw, 20px)' : 'clamp(14px, 4cqw, 18px)',
+          fontWeight: 800,
+          lineHeight: 1.12,
+          color: c.solid,
+          fontVariantNumeric: 'tabular-nums',
+          marginTop: '2px',
+        }}
+      >
+        {value}
+      </span>
+      {sub ? (
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.3, marginTop: '2px' }}>{sub}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function MonthBarsChart({
+  monthlyKwh,
+  locale,
+  de,
+  compact,
+}: {
+  monthlyKwh: Record<string, number>
+  locale: 'de' | 'en'
+  de: boolean
+  compact?: boolean
+}) {
+  const months = Object.entries(monthlyKwh)
+    .filter(([, v]) => v > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+  if (months.length < 2) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          textAlign: 'center',
+          padding: '8px',
+          lineHeight: 1.4,
+        }}
+      >
+        {de
+          ? 'Monatsverlauf: in Einstellungen „Verlauf von FRITZ!Box holen“ oder nach dem nächsten Abruf.'
+          : 'Monthly chart: use “Import history from FRITZ!Box” in settings or wait for the next poll.'}
+      </div>
+    )
+  }
+  const max = Math.max(...months.map(([, v]) => v), 0.01)
+  const h = compact ? 72 : 88
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0, flex: 1 }}>
+      <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>
+        {de ? 'Monatsverlauf (kWh)' : 'Monthly use (kWh)'}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: h, minHeight: h }}>
+        {months.map(([key, kwh]) => {
+          const barH = Math.max(4, Math.round((kwh / max) * (h - 8)))
+          return (
+            <div
+              key={key}
+              title={`${formatMonthKey(key, locale)}: ${formatKwh(kwh, locale)}`}
+              style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: 28,
+                  height: barH,
+                  borderRadius: '3px 3px 1px 1px',
+                  background: 'linear-gradient(180deg, #fb923c 0%, #ea580c 100%)',
+                  opacity: 0.92,
+                }}
+              />
+              {!compact ? (
+                <span
+                  style={{
+                    fontSize: '7px',
+                    color: 'var(--text-muted)',
+                    transform: 'rotate(-42deg)',
+                    transformOrigin: 'top center',
+                    whiteSpace: 'nowrap',
+                    marginTop: 2,
+                  }}
+                >
+                  {formatMonthKey(key, locale)}
+                </span>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -289,12 +429,13 @@ function EnergyCarousel({
         }}
       >
         <div
+          className="tabular-nums"
           style={{
-            fontSize: narrow ? 18 : compact ? 22 : 26,
+            fontSize: narrow ? 18 : compact ? 22 : 24,
             fontWeight: 800,
-            lineHeight: 1.05,
-            color: 'var(--text)',
-            letterSpacing: '-0.02em',
+            lineHeight: 1.08,
+            color: view.accent,
+            fontVariantNumeric: 'tabular-nums',
           }}
         >
           {view.value}
@@ -359,6 +500,8 @@ function EnergyCarousel({
 
 function Widget({ config }: PluginWidgetProps) {
   const { locale, de } = usePluginLocale()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const { compact } = useWidgetSize(rootRef)
   const [data, setData] = useState<EnergyPayload | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -431,6 +574,8 @@ function Widget({ config }: PluginWidgetProps) {
   const month = num(data?.monthKwh)
   const totalKwh = num(data?.energyWhTotal) / 1000
   const recent = Array.isArray(data?.recent) ? data.recent : []
+  const monthlyKwh =
+    data?.monthlyKwh && typeof data.monthlyKwh === 'object' ? data.monthlyKwh : {}
 
   const timeFmt = locale === 'en' ? 'en-GB' : 'de-DE'
   const updatedAt = data?.fetchedAt ? new Date(data.fetchedAt) : null
@@ -501,7 +646,17 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
+    <div
+      ref={rootRef}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        minHeight: 0,
+        height: '100%',
+        containerType: 'size',
+      }}
+    >
       <div
         style={{
           display: 'grid',
@@ -514,16 +669,46 @@ function Widget({ config }: PluginWidgetProps) {
           value={formatW(power, locale)}
           sub={data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : undefined}
           icon={Zap}
-          accent="#f59e0b"
+          tint="amber"
         />
-        <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} accent="#38bdf8" />
-        <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} accent="#a78bfa" />
-        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} accent="#34d399" />
+        <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} tint="sky" />
+        <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" />
+        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" />
       </div>
-      <StatTile label={labels.total} value={formatKwh(totalKwh, locale)} sub={updatedSub} icon={Bolt} accent="#94a3b8" />
-      <PowerSparkline points={recent.slice(-60)} />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr)',
+          gap: 8,
+          flex: '1 1 auto',
+          minHeight: 0,
+        }}
+      >
+        <StatTile
+          label={labels.total}
+          value={formatKwh(totalKwh, locale)}
+          sub={updatedSub}
+          icon={Bolt}
+          tint="slate"
+          tall
+        />
+        <div
+          style={{
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            background: 'var(--surface-2)',
+            padding: '8px 10px',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <MonthBarsChart monthlyKwh={monthlyKwh} locale={locale} de={de} compact={compact} />
+        </div>
+      </div>
+      {!compact ? <PowerSparkline points={recent.slice(-60)} /> : null}
       {loading ? (
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
       ) : null}
     </div>
   )

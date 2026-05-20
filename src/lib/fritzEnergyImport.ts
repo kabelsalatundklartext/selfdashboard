@@ -14,6 +14,8 @@ export type FritzBoxPeriodKwh = {
   monthKwh: number
   /** YYYY-MM-DD → kWh (soweit aus Box-Daten ableitbar) */
   dailyKwh: Record<string, number>
+  /** YYYY-MM → kWh (aus Jahr-/Monats-Serien der Box) */
+  monthlyKwh: Record<string, number>
 }
 
 type EnergySeries = {
@@ -126,6 +128,23 @@ function berlinDateKey(ms: number): string {
   }).format(new Date(ms))
 }
 
+function berlinMonthKey(ms: number): string {
+  return berlinDateKey(ms).slice(0, 7)
+}
+
+function normalizePeriodKey(period: string, gridSec: number): 'day' | 'week' | 'month' | 'year' | null {
+  const p = period.toLowerCase().trim()
+  if (p === 'day' || p === 'today' || p === '86400') return 'day'
+  if (p === 'week' || p === '7days' || p === '604800') return 'week'
+  if (p === 'month' || p === '2592000') return 'month'
+  if (p === 'year' || p === '2years' || p === 'years' || p === '730') return 'year'
+  if (gridSec >= 2_592_000) return 'year'
+  if (gridSec >= 86_400) return 'month'
+  if (gridSec >= 21_600) return 'week'
+  if (gridSec >= 900) return 'day'
+  return null
+}
+
 function dailyFromBuckets(values: number[], gridSec: number, endMs: number): Record<string, number> {
   const daily: Record<string, number> = {}
   if (gridSec <= 0 || values.length === 0) return daily
@@ -138,6 +157,20 @@ function dailyFromBuckets(values: number[], gridSec: number, endMs: number): Rec
     daily[key] = (daily[key] ?? 0) + wh / 1000
   }
   return daily
+}
+
+function monthlyFromBuckets(values: number[], gridSec: number, endMs: number): Record<string, number> {
+  const monthly: Record<string, number> = {}
+  if (gridSec <= 0 || values.length === 0) return monthly
+  const spanMs = gridSec * 1000
+  for (let i = 0; i < values.length; i++) {
+    const wh = values[i]
+    if (!Number.isFinite(wh) || wh <= 0) continue
+    const bucketEnd = endMs - (values.length - 1 - i) * spanMs
+    const key = berlinMonthKey(bucketEnd)
+    monthly[key] = (monthly[key] ?? 0) + wh / 1000
+  }
+  return monthly
 }
 
 function mergeDaily(target: Record<string, number>, add: Record<string, number>): void {
@@ -170,27 +203,32 @@ function parseBasicDeviceStatsXml(xml: string): { energies: EnergySeries[] } {
 
 function periodKwhFromSeries(energies: EnergySeries[]): FritzBoxPeriodKwh {
   const dailyKwh: Record<string, number> = {}
+  const monthlyKwh: Record<string, number> = {}
   const now = Date.now()
   let todayKwh = 0
   let last7DaysKwh = 0
   let monthKwh = 0
 
   for (const s of energies) {
+    const grid = s.interval || 900
     const kwh = sumWhToKwh(s.values)
-    const p = s.period.toLowerCase()
-    if (p === 'day' || p === 'today') {
+    const kind = normalizePeriodKey(s.period, grid)
+    if (kind === 'day') {
       todayKwh = Math.max(todayKwh, kwh)
-      mergeDaily(dailyKwh, dailyFromBuckets(s.values, s.interval || 900, now))
-    } else if (p === 'week' || p === '7days') {
+      mergeDaily(dailyKwh, dailyFromBuckets(s.values, grid, now))
+    } else if (kind === 'week') {
       last7DaysKwh = Math.max(last7DaysKwh, kwh)
-      mergeDaily(dailyKwh, dailyFromBuckets(s.values, s.interval || 21_600, now))
-    } else if (p === 'month') {
+      mergeDaily(dailyKwh, dailyFromBuckets(s.values, grid, now))
+    } else if (kind === 'month') {
       monthKwh = Math.max(monthKwh, kwh)
-      mergeDaily(dailyKwh, dailyFromBuckets(s.values, s.interval || 86_400, now))
+      mergeDaily(dailyKwh, dailyFromBuckets(s.values, grid, now))
+      mergeDaily(monthlyKwh, monthlyFromBuckets(s.values, grid, now))
+    } else if (kind === 'year') {
+      mergeDaily(monthlyKwh, monthlyFromBuckets(s.values, grid, now))
     }
   }
 
-  return { todayKwh, last7DaysKwh, monthKwh, dailyKwh }
+  return { todayKwh, last7DaysKwh, monthKwh, dailyKwh, monthlyKwh }
 }
 
 async function fetchRestPeriodKwh(
@@ -228,6 +266,7 @@ async function fetchRestPeriodKwh(
       if (energies.length === 0) continue
 
       const dailyKwh: Record<string, number> = {}
+      const monthlyKwh: Record<string, number> = {}
       const now = Date.now()
       let todayKwh = 0
       let last7DaysKwh = 0
@@ -235,21 +274,25 @@ async function fetchRestPeriodKwh(
 
       for (const e of energies) {
         const vals = (e.values ?? []).map((v) => (typeof v === 'number' ? v : 0))
+        const grid = e.interval || 900
         const kwh = sumWhToKwh(vals)
-        const p = String(e.period ?? '').toLowerCase()
-        if (p === 'day') {
-          todayKwh = kwh
-          mergeDaily(dailyKwh, dailyFromBuckets(vals, e.interval || 900, now))
-        } else if (p === 'week') {
-          last7DaysKwh = kwh
-          mergeDaily(dailyKwh, dailyFromBuckets(vals, e.interval || 21_600, now))
-        } else if (p === 'month') {
-          monthKwh = kwh
-          mergeDaily(dailyKwh, dailyFromBuckets(vals, e.interval || 86_400, now))
+        const kind = normalizePeriodKey(String(e.period ?? ''), grid)
+        if (kind === 'day') {
+          todayKwh = Math.max(todayKwh, kwh)
+          mergeDaily(dailyKwh, dailyFromBuckets(vals, grid, now))
+        } else if (kind === 'week') {
+          last7DaysKwh = Math.max(last7DaysKwh, kwh)
+          mergeDaily(dailyKwh, dailyFromBuckets(vals, grid, now))
+        } else if (kind === 'month') {
+          monthKwh = Math.max(monthKwh, kwh)
+          mergeDaily(dailyKwh, dailyFromBuckets(vals, grid, now))
+          mergeDaily(monthlyKwh, monthlyFromBuckets(vals, grid, now))
+        } else if (kind === 'year') {
+          mergeDaily(monthlyKwh, monthlyFromBuckets(vals, grid, now))
         }
       }
 
-      return { todayKwh, last7DaysKwh, monthKwh, dailyKwh }
+      return { todayKwh, last7DaysKwh, monthKwh, dailyKwh, monthlyKwh }
     } catch {
       continue
     }

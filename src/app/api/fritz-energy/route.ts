@@ -11,8 +11,10 @@ import {
   aggregatesFromStore,
   energyStoreKey,
   importBoxEnergyHistory,
+  monthlyKwhFromStore,
   readEnergyStore,
   storeNeedsHistoryImport,
+  syncBoxEnergyPeriods,
 } from '@/lib/fritzEnergyStore'
 import { fritzboxRootFromInput, type FritzBoxConnection } from '@/lib/fritzboxTr064'
 
@@ -103,15 +105,16 @@ export async function POST(req: Request) {
 
     const forceImport = body.action === 'importHistory' || body.importHistory === true
     let store = await readEnergyStore(key)
-    if (forceImport || storeNeedsHistoryImport(store)) {
-      try {
-        const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal)
-        if (box) {
-          store = await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
-        }
-      } catch {
-        /* Verlauf optional — Live-Werte weiterhin aus TR-064 */
+    try {
+      const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal)
+      if (box) {
+        store =
+          forceImport || storeNeedsHistoryImport(store)
+            ? await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
+            : await syncBoxEnergyPeriods(key, { ain, baseUrl: conn.baseUrl }, box, sample)
       }
+    } catch {
+      /* Verlauf optional — Live-Werte weiterhin aus TR-064 */
     }
 
     const { store: storeOut, aggregates } = await appendEnergySample(key, { ain, baseUrl: conn.baseUrl }, sample)
@@ -123,8 +126,10 @@ export async function POST(req: Request) {
       fetchedAt: new Date().toISOString(),
       voltageV: reading.voltageV,
       ...aggregates,
+      monthlyKwh: monthlyKwhFromStore(storeFinal),
       recent: storeFinal.recent.slice(-288),
       historyImported: Boolean(storeFinal.historyImportedAt),
+      boxPeriods: storeFinal.boxPeriodKwh ?? null,
     })
   } catch (e) {
     const name = e instanceof Error ? e.name : ''
@@ -174,7 +179,9 @@ export async function GET(req: Request) {
     ain: store.ain,
     updatedAt: store.updatedAt,
     aggregates,
+    monthlyKwh: monthlyKwhFromStore(store),
     recent: store.recent.slice(-288),
     dailyKwh: store.dailyKwh,
+    boxPeriods: store.boxPeriodKwh ?? null,
   })
 }
