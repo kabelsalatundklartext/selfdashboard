@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { PanelTop } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
 
 const IDLE_MIN_SEC = 3
@@ -107,34 +107,34 @@ export function KioskNavbarShell({ children, locale }: Props) {
           title={de ? 'Leiste einblenden' : 'Show top bar'}
           style={{
             position: 'fixed',
-            top: 'max(10px, env(safe-area-inset-top, 0px))',
+            top: 'max(8px, env(safe-area-inset-top, 0px))',
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 200,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 6,
-            padding: '7px 16px',
+            gap: 4,
+            padding: '4px 10px',
             borderRadius: 999,
-            border: 'none',
+            border: '1px solid color-mix(in srgb, var(--accent) 35%, var(--border))',
             background: 'var(--accent)',
             color: '#fff',
-            fontSize: 11,
-            fontWeight: 700,
+            fontSize: 10,
+            fontWeight: 600,
             letterSpacing: '0.02em',
             cursor: 'pointer',
-            boxShadow: '0 4px 18px color-mix(in srgb, var(--accent) 55%, transparent), 0 2px 8px rgba(0,0,0,0.35)',
-            transition: 'transform 0.15s ease, filter 0.15s ease',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.28)',
+            transition: 'opacity 0.15s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.filter = 'brightness(1.08)'
+            e.currentTarget.style.opacity = '0.92'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.filter = 'none'
+            e.currentTarget.style.opacity = '1'
           }}
         >
-          <PanelTop size={15} strokeWidth={2.5} aria-hidden />
+          <ChevronDown size={12} strokeWidth={2.5} aria-hidden />
           <span>{de ? 'Leiste' : 'Menu'}</span>
         </button>
       ) : null}

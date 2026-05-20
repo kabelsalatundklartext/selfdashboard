@@ -106,11 +106,35 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ---
 
-### Removed: FRITZ! Steckdose Energie (`fritz-energy`)
+### FRITZ! smart plug energy (`fritz-energy`) **1.1.x**
 
-The smart-plug energy plugin and `/api/fritz-energy` were removed. Persisted dashboards drop `fritz-energy` widgets automatically (`src/lib/removedPlugins.ts`). On the server you may delete unused data: `data/fritz-energy/` under your appdata mount (optional script: `scripts/cleanup-removed-fritz-energy.ps1`).
+| Topic | Description |
+|--------|-------------|
+| **Data** | TR-064 Homeauto via **`POST /api/fritz-energy`**; current W, today / 7 days / month kWh; history under `data/fritz-energy/`. |
+| **Widget** | Grid (2×2 fill) or carousel; optional compact UI; silent background refresh (no “Updating…” flash). |
+| **Setup** | AIN + same TR-064 credentials as WAN plugin; Smart Home rights on the FRITZ!Box user. |
 
-**DE:** Plugin und API entfernt; Widgets verschwinden nach dem nächsten Laden der Dashboard-Konfiguration. Optional `data/fritz-energy/` auf dem Server löschen.
+**DE:** Steckdose Energie im Image — README **FRITZ! Steckdose Energie**.
+
+---
+
+### Kiosk mode (core)
+
+| Topic | Description |
+|--------|-------------|
+| **Settings** | **General → Kiosk mode** — auto-hide navbar after **3–60 s** idle (default **5**). |
+| **UI** | Hidden bar uses `translateY` (no layout gap); widgets start at the top. |
+| **Reveal** | Accent **Menu** / **Leiste** button only — not mouse over widgets. Edit mode keeps the bar visible. |
+
+**DE:** README **Kiosk-Modus (Wand-Tablet)**.
+
+---
+
+### AdGuard Home **1.1.6**
+
+2×2 stat tiles stretch to full widget height (no empty band at the bottom).
+
+**DE:** Kacheln füllen die Widget-Höhe.
 
 ---
 
@@ -121,13 +145,14 @@ Builtin plugin `meta.version` values in the repo (see each `plugins/<id>/index.t
 | Plugin | Version (approx.) |
 |--------|-------------------|
 | Docker | 1.7.9 |
-| FRITZ!Box | 2.4.2 |
+| FRITZ!Box Internet | 2.4.3 |
+| FRITZ! Steckdose Energie | 1.1.3 |
 | Calendar | 1.4.2 |
 | Bookmarks | 1.6.0 |
 | Unraid Docker | 0.4.4 |
 | Iframe | 2.1.4 |
-| Weather | 1.2.0 |
-| AdGuard Home | 1.1.2 |
+| Weather | 1.2.3 |
+| AdGuard Home | 1.1.6 |
 | Clock | 1.2.1 |
 | Unraid | 1.5.3 |
 | Emby | 1.0.3 |

@@ -35,8 +35,10 @@
 | 🕐 **Clock & weather** | Local time and weather without an extra tab |
 | 🔖 **Bookmark grid** | Quick access to Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
 | 🛡️ **CrowdSec** | Alerts and active bans at a glance |
-| 🌐 **Network / AdGuard** | Protection status and live traffic |
+| 🌐 **Network / AdGuard** | Protection status, DNS stats (tiles fill the widget) |
+| ⚡ **FRITZ! energy** | Smart-outlet power: now, today, 7 days, month (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server |
+| 📺 **Kiosk / wall tablet** | Navbar auto-hides — show again only via the accent **Menu** button |
 | 📺 **Emby / SelfStream** | Is anything streaming right now? |
 | ✉️ **Navbar mail** | Unread count as a badge — click opens webmail |
 
@@ -73,6 +75,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
+| 📺 **Kiosk mode** | Wall tablet: navbar hides after idle; widgets use the full height (no gap under the bar); **Menu** button brings the bar back — not mouse movement over widgets |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
 ---
@@ -92,9 +95,10 @@ Icons match the assets in the app under [`public/plugin-logos/`](public/plugin-l
 | <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | ✅ Included |
 | <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container list via Engine API (socket mount) | ✅ Included |
 | <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection (via `/api/adguard`, Basic auth) | ✅ Included |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection; 2×2 tiles stretch to widget height; toggle protection (`/api/adguard`) | ✅ Included |
 | <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | ✅ Included |
 | <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ!Box Internet** | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Network | Smart-outlet power: current W, today / 7 days / month kWh via TR-064 Homeauto (`POST /api/fritz-energy`) | ✅ Included |
 | 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
 | 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
 | <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
@@ -317,9 +321,40 @@ Built-in feature (not a dashboard widget). Configure under **Settings → Email*
 
 ---
 
+## FRITZ! smart plug energy plugin
+
+| Topic | Details |
+|---|---|
+| **Purpose** | Power use for a **FRITZ!Smart Energy** outlet (or compatible smart plug with multimeter) — **current W**, **today**, **last 7 days**, and **month** kWh. |
+| **API** | Browser → `POST /api/fritz-energy` (SelfDashboard server calls TR-064 **Homeauto** on the same FRITZ!Box as the WAN plugin). |
+| **Setup** | Base URL, TR-064 user + password (Smart Home rights on the FRITZ!Box user), **AIN** of the outlet (load devices in settings or copy from FRITZ!Box Smart Home). |
+| **History** | On each poll, today / week / month are synced from the box where available; samples stored server-side under `data/fritz-energy/` (per box + AIN). |
+| **Widget layout** | **Grid** (four tiles at once, fills 2×2 height) or **carousel** (one value with arrows). Optional compact UI. |
+| **Refresh** | **15–300 s** poll interval in plugin settings. |
+| **UI** | No flashing “Updating…” line on reload — values refresh silently in the background. |
+| **Language** | Auto / German / English (plugin setting). |
+
+Separate from **FRITZ!Box Internet** (WAN chart): different API route and TR-064 services; both can run on the same router credentials.
+
+---
+
+## Kiosk mode (wall tablet)
+
+| Topic | Details |
+|---|---|
+| **Where** | **Settings → General → Kiosk mode (wall tablet)** — toggle **Auto-hide top bar** and idle time (**3–60 s**, default **5**). |
+| **Behaviour** | When enabled (and **not** in edit mode), the navbar slides away after idle time. **Widgets move to the top** — no empty strip reserved for the hidden bar. |
+| **Show bar again** | Only the accent **Menu** / **Leiste** button at the top — **not** mouse movement or clicks on widgets. |
+| **While bar is visible** | Clicks inside the navbar reset the hide timer so you can open settings. |
+| **Edit mode** | Navbar stays visible (normal sticky layout) so you can rearrange widgets. |
+
+Ideal for a wall-mounted tablet or kiosk browser in full-screen.
+
+---
+
 ## Settings Overview
 
-**General** — Language (DE/EN), Dashboard title, Navbar display style, Dashboard tab visibility
+**General** — Language (DE/EN), Dashboard title, **kiosk mode (wall tablet)**, navbar web search, navbar mail badge, navbar display style, dashboard tab visibility
 
 **Dashboards** — Create, edit, delete dashboards. Toggle tab visibility per dashboard. Set emoji or custom PNG icon.
 
@@ -351,7 +386,7 @@ Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and t
 
 ### Builtin plugins, `pluginLoader.ts`, and Unraid
 
-- **Shipped plugins** (Bookmarks, Calendar, Clock, Weather, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, FRITZ!Box, Iframe, Scratchpad, CrowdSec, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
+- **Shipped plugins** (Bookmarks, Calendar, Clock, Weather, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, FRITZ!Box Internet, FRITZ! Steckdose Energie, Iframe, Scratchpad, CrowdSec, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
 - The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
 
 **Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
@@ -447,8 +482,10 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | 🕐 **Uhr & Wetter** | Lokale Zeit und Wetter ohne extra Tab |
 | 🔖 **Lesezeichen-Grid** | Schnellzugriff auf Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
 | 🛡️ **CrowdSec** | Alerts und aktive Bans auf einen Blick |
-| 🌐 **Netzwerk / AdGuard** | Schutz-Status und Live-Traffic |
+| 🌐 **Netzwerk / AdGuard** | Schutz-Status, DNS-Statistik (Kacheln füllen das Widget) |
+| ⚡ **FRITZ! Energie** | Steckdose: aktuell, heute, 7 Tage, Monat (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
+| 📺 **Kiosk / Wand-Tablet** | Navbar blendet sich aus — nur Button **Leiste** holt sie zurück |
 | 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
 | ✉️ **Navbar E-Mail** | Ungelesene Mails als Badge — Klick öffnet Webmail |
 
@@ -479,6 +516,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
+| 📺 **Kiosk-Modus** | Wand-Tablet: Navbar nach Inaktivität aus; Widgets nutzen volle Höhe; **Leiste**-Button blendet sie ein (nicht Maus über Widgets) |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
 ---
@@ -498,9 +536,10 @@ Die Icons entsprechen den Dateien in [`public/plugin-logos/`](public/plugin-logo
 | <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | ✅ Enthalten |
 | <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
 | <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz (über `/api/adguard`, Basic-Auth) | ✅ Enthalten |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz; 2×2-Kacheln füllen die Widget-Höhe; Schutz per Klick (`/api/adguard`) | ✅ Enthalten |
 | <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | ✅ Enthalten |
 | <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **Fritzbox Internet Verlauf** | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Netzwerk | Steckdose: aktuell W, heute / 7 Tage / Monat kWh per TR-064 Homeauto (`POST /api/fritz-energy`) | ✅ Enthalten |
 | 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
 | 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
 | <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
@@ -723,9 +762,40 @@ Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen
 
 ---
 
+## FRITZ! Steckdose Energie (Plugin)
+
+| Thema | Details |
+|---|---|
+| **Zweck** | Stromverbrauch einer **FRITZ!Smart Energy**-Steckdose (oder kompatibler Steckdose mit Zähler) — **aktuell W**, **heute**, **letzte 7 Tage**, **Monat** kWh. |
+| **API** | Browser → `POST /api/fritz-energy` (SelfDashboard-Server ruft TR-064 **Homeauto** auf derselben Box wie beim Internet-Verlauf). |
+| **Einrichtung** | Basis-URL, TR-064-Benutzer + Passwort (FRITZ!-Benutzer mit **Smart Home**), **AIN** der Steckdose (Geräte laden in den Einstellungen oder aus der FRITZ!Box kopieren). |
+| **Verlauf** | Bei jedem Abruf werden heute / Woche / Monat von der Box übernommen, wo verfügbar; Messwerte serverseitig unter `data/fritz-energy/` (pro Box + AIN). |
+| **Widget** | **Raster** (vier Kacheln, füllt 2×2-Höhe) oder **Karussell** (ein Wert mit Pfeilen). Optional kompakte Darstellung. |
+| **Aktualisieren** | **15–300 s** Intervall in den Plugin-Einstellungen. |
+| **Anzeige** | Kein kurzes „Aktualisiere…“ beim Laden — Werte werden still im Hintergrund aktualisiert. |
+| **Sprache** | Auto / Deutsch / Englisch (Plugin-Einstellung). |
+
+Getrennt vom Plugin **Fritzbox Internet Verlauf** (WAN-Kurve): andere API-Route und TR-064-Dienste; gleiche Router-Zugangsdaten möglich.
+
+---
+
+## Kiosk-Modus (Wand-Tablet)
+
+| Thema | Details |
+|---|---|
+| **Wo** | **Einstellungen → Allgemein → Kiosk-Modus (Wand-Tablet)** — Schalter **Navbar automatisch ausblenden** und Wartezeit (**3–60 s**, Standard **5**). |
+| **Verhalten** | Wenn aktiv (und **nicht** im Bearbeitungsmodus), verschwindet die Navbar nach Inaktivität. **Widgets rutschen nach oben** — kein leerer Streifen für die ausgeblendete Leiste. |
+| **Leiste wieder** | Nur der Akzent-Button **Leiste** oben — **nicht** Mausbewegung oder Klicks auf Widgets. |
+| **Leiste sichtbar** | Klicks in der Navbar setzen den Ausblend-Timer zurück (Einstellungen bedienen). |
+| **Bearbeitungsmodus** | Navbar bleibt sichtbar (normales Layout), damit du Widgets anordnen kannst. |
+
+Für Wand-Tablet oder Vollbild-Kiosk-Browser.
+
+---
+
 ## Einstellungen-Übersicht
 
-**Allgemein** — Sprache (DE/EN), Dashboard-Titel, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
+**Allgemein** — Sprache (DE/EN), Dashboard-Titel, **Kiosk-Modus (Wand-Tablet)**, Navbar-Websuche, Navbar E-Mail, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
 
 **Dashboards** — Dashboards erstellen, bearbeiten, löschen. Tab-Sichtbarkeit pro Dashboard. Emoji oder PNG-Icon setzen.
 
@@ -757,7 +827,7 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 
 ### Builtin-Plugins, `pluginLoader.ts` und Unraid
 
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Wetter, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, Iframe, Notizzettel, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
+- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Wetter, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, FRITZ! Steckdose Energie, Iframe, Notizzettel, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
 - Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
 
 ---
