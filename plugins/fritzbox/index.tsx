@@ -1072,10 +1072,12 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     if (liveEvery <= 0) return undefined
-    const t = window.setTimeout(() => void loadLite(), 600)
+    const t = window.setTimeout(() => void loadLite(), 400)
+    const t2 = window.setTimeout(() => void loadLite(), 1200)
     const id = window.setInterval(() => void loadLite(), liveEvery * 1000)
     return () => {
       window.clearTimeout(t)
+      window.clearTimeout(t2)
       window.clearInterval(id)
     }
   }, [liveEvery, loadLite])
