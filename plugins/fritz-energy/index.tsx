@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.3',
+  version: '1.1.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -133,12 +133,13 @@ function StatTile({
   const c = TINT[tint]
   return (
     <div
+      className={fill ? 'sd-fritz-energy-tile' : undefined}
       style={{
         borderRadius: '12px',
         background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
         border: '1px solid var(--border)',
         boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-        padding: fill ? '10px 12px' : '8px 10px',
+        padding: fill ? '9px 10px 9px 11px' : '8px 10px',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -147,14 +148,15 @@ function StatTile({
         minHeight: 0,
         height: fill ? '100%' : undefined,
         boxSizing: 'border-box',
-        containerType: 'inline-size',
+        containerType: fill ? 'size' : 'inline-size',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
         <Icon size={13} strokeWidth={2.25} style={{ color: c.solid, flexShrink: 0, opacity: 0.95 }} aria-hidden />
         <span
+          className={fill ? 'sd-fritz-energy-tile-label' : undefined}
           style={{
-            fontSize: '9px',
+            fontSize: fill ? undefined : '9px',
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
@@ -169,14 +171,14 @@ function StatTile({
         </span>
       </div>
       <span
-        className="tabular-nums"
+        className={`tabular-nums${fill ? ' sd-fritz-energy-tile-value' : ''}`}
         style={{
-          fontSize: fill ? 'clamp(15px, 5cqw, 22px)' : 'clamp(14px, 4cqw, 18px)',
+          fontSize: fill ? undefined : 'clamp(0.78rem, min(3.5cqmin, 2.8cqh), 1.35rem)',
           fontWeight: 800,
           lineHeight: 1.12,
           color: c.solid,
           fontVariantNumeric: 'tabular-nums',
-          marginTop: '2px',
+          marginTop: fill ? '4px' : '2px',
         }}
       >
         {value}
@@ -291,7 +293,23 @@ function EnergyCarousel({
   }
 
   return (
-    <div ref={rootRef} style={{ display: 'flex', flexDirection: 'column', gap: compact ? 5 : 7, minHeight: 0, height: '100%' }}>
+    <div
+      ref={rootRef}
+      className="sd-fritz-energy-carousel-host"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: compact ? 5 : 7,
+        minHeight: 0,
+        height: '100%',
+        containerType: 'size',
+      }}
+    >
+      <style>{`
+        .sd-fritz-energy-carousel-host .sd-fritz-energy-carousel-value {
+          font-size: clamp(0.85rem, min(4.2cqmin, 3.4cqh), 1.35rem);
+        }
+      `}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6 }}>
         <button type="button" onClick={() => go(-1)} style={navBtn} aria-label={de ? 'Vorherige Ansicht' : 'Previous view'}>
           <ChevronLeft size={compact ? 15 : 16} aria-hidden />
@@ -334,9 +352,8 @@ function EnergyCarousel({
         }}
       >
         <div
-          className="tabular-nums"
+          className="tabular-nums sd-fritz-energy-carousel-value"
           style={{
-            fontSize: narrow ? 18 : compact ? 22 : 24,
             fontWeight: 800,
             lineHeight: 1.08,
             color: view.accent,
@@ -519,6 +536,7 @@ function Widget({ config }: PluginWidgetProps) {
   return (
     <div
       ref={rootRef}
+      className="sd-fritz-energy-host"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -529,7 +547,16 @@ function Widget({ config }: PluginWidgetProps) {
         containerType: 'size',
       }}
     >
+      <style>{`
+        .sd-fritz-energy-host .sd-fritz-energy-tile-value {
+          font-size: clamp(0.78rem, min(4.8cqmin, 3.8cqh), 1.45rem);
+        }
+        .sd-fritz-energy-host .sd-fritz-energy-tile-label {
+          font-size: clamp(8px, min(1.9cqmin, 1.6cqh), 10px);
+        }
+      `}</style>
       <div
+        className="sd-fritz-energy-stat-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
