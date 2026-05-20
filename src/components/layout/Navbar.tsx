@@ -71,7 +71,7 @@ export function Navbar() {
   return (
     <>
       <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className={`sticky top-0 z-50 flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}>
+        className={`flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}>
 
         <div className="flex flex-wrap items-center gap-3 min-w-0 w-full">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>

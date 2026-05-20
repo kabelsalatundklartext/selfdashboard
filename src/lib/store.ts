@@ -68,6 +68,10 @@ interface DashboardStore {
   navbarSearchWidthPx: number
   /** User-defined search engines (name + URL template). */
   navbarSearchCustomProviders: NavbarCustomSearchProvider[]
+  /** Wand-Tablet: Navbar nach Inaktivität ausblenden */
+  kioskModeEnabled: boolean
+  /** Sekunden ohne Eingabe bis die Navbar ausblendet (3–60) */
+  kioskModeIdleSeconds: number
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -110,6 +114,8 @@ interface DashboardStore {
   setNavbarSearchWidthPx: (widthPx: number) => void
   addNavbarSearchCustomProvider: (name: string, urlTemplate: string) => boolean
   removeNavbarSearchCustomProvider: (id: string) => void
+  setKioskModeEnabled: (enabled: boolean) => void
+  setKioskModeIdleSeconds: (seconds: number) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -132,6 +138,8 @@ export const useDashboardStore = create<DashboardStore>()(
       navbarSearchLastProvider: 'duckduckgo',
       navbarSearchWidthPx: 320,
       navbarSearchCustomProviders: [],
+      kioskModeEnabled: false,
+      kioskModeIdleSeconds: 5,
 
       activeDashboard: () => {
         const s = get()
@@ -283,6 +291,11 @@ export const useDashboardStore = create<DashboardStore>()(
         const nextLast = stillOk ? last : firstEnabledSearchTargetId(s.navbarSearchProviders, customs)
         return { navbarSearchCustomProviders: customs, navbarSearchLastProvider: nextLast }
       }),
+      setKioskModeEnabled: (kioskModeEnabled) => set({ kioskModeEnabled }),
+      setKioskModeIdleSeconds: (raw) => {
+        const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw) : 5
+        set({ kioskModeIdleSeconds: Math.min(60, Math.max(3, n)) })
+      },
     }),
     {
       name: 'selfdashboard-v2',
@@ -316,6 +329,13 @@ export const useDashboardStore = create<DashboardStore>()(
             state.navbarSearchWidthPx = 320
           } else {
             state.navbarSearchWidthPx = Math.min(920, Math.max(200, Math.round(w)))
+          }
+          if (typeof state.kioskModeEnabled !== 'boolean') state.kioskModeEnabled = false
+          const idle = state.kioskModeIdleSeconds
+          if (typeof idle !== 'number' || !Number.isFinite(idle)) {
+            state.kioskModeIdleSeconds = 5
+          } else {
+            state.kioskModeIdleSeconds = Math.min(60, Math.max(3, Math.round(idle)))
           }
           state.dashboards = stripRemovedPlugins(state.dashboards)
         }

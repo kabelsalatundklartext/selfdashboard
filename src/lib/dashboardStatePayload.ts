@@ -29,6 +29,8 @@ export type DashboardStatePersisted = {
   navbarSearchWidthPx: number
   /** User-defined search providers (name + URL with `{q}` or `%s`). */
   navbarSearchCustomProviders: NavbarCustomSearchProvider[]
+  kioskModeEnabled: boolean
+  kioskModeIdleSeconds: number
 }
 
 const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
@@ -153,6 +155,11 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
     return false
   }
   if (typeof data.navbarSearchWidthPx !== 'number' || !Number.isFinite(data.navbarSearchWidthPx)) return false
+  if (data.kioskModeEnabled !== undefined && typeof data.kioskModeEnabled !== 'boolean') return false
+  if (data.kioskModeIdleSeconds !== undefined) {
+    if (typeof data.kioskModeIdleSeconds !== 'number' || !Number.isFinite(data.kioskModeIdleSeconds)) return false
+    if (data.kioskModeIdleSeconds < 3 || data.kioskModeIdleSeconds > 60) return false
+  }
   return true
 }
 
@@ -173,5 +180,10 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
     navbarSearchLastProvider: s.navbarSearchLastProvider,
     navbarSearchWidthPx: s.navbarSearchWidthPx,
     navbarSearchCustomProviders: s.navbarSearchCustomProviders ?? [],
+    kioskModeEnabled: s.kioskModeEnabled === true,
+    kioskModeIdleSeconds:
+      typeof s.kioskModeIdleSeconds === 'number' && Number.isFinite(s.kioskModeIdleSeconds)
+        ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds)))
+        : 5,
   }
 }

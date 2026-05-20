@@ -4,11 +4,12 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboardStore } from '@/lib/store'
 import { Navbar } from '@/components/layout/Navbar'
+import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 
 export function DashboardPage({ id }: { id: string }) {
-  const { dashboards, setActiveDashboard, activeDashboardId } = useDashboardStore()
+  const { dashboards, setActiveDashboard, activeDashboardId, locale } = useDashboardStore()
   const router = useRouter()
 
   useEffect(() => {
@@ -24,7 +25,9 @@ export function DashboardPage({ id }: { id: string }) {
   return (
     <>
       <PluginBootstrap />
-      <Navbar />
+      <KioskNavbarShell locale={locale}>
+        <Navbar />
+      </KioskNavbarShell>
       <main
         style={{
           width: '100%',

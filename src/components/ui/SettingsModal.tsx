@@ -76,6 +76,8 @@ export function SettingsModal({ open, onClose }: Props) {
     navbarSearchProviders, setNavbarSearchProviderEnabled,
     navbarSearchCustomProviders, setNavbarSearchCustomProviderEnabled,
     addNavbarSearchCustomProvider, removeNavbarSearchCustomProvider,
+    kioskModeEnabled, setKioskModeEnabled,
+    kioskModeIdleSeconds, setKioskModeIdleSeconds,
   } = store
   const dash = store.activeDashboard()
 
@@ -267,6 +269,44 @@ export function SettingsModal({ open, onClose }: Props) {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {locale === 'de' ? 'Kiosk-Modus (Wand-Tablet)' : 'Kiosk mode (wall tablet)'}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', marginBottom: '10px' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+                      {locale === 'de' ? 'Navbar automatisch ausblenden' : 'Auto-hide top bar'}
+                    </p>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0', lineHeight: 1.45 }}>
+                      {locale === 'de'
+                        ? 'Nach Inaktivität verschwindet die Leiste — kleiner Button oben blendet sie kurz wieder ein. Im Bearbeitungsmodus bleibt sie sichtbar.'
+                        : 'After idle time the bar hides — a small top button brings it back briefly. Stays visible in edit mode.'}
+                    </p>
+                  </div>
+                  <Toggle value={kioskModeEnabled} onChange={setKioskModeEnabled} />
+                </div>
+                {kioskModeEnabled ? (
+                  <div style={{ marginBottom: '4px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                      {locale === 'de' ? 'Ausblenden nach (Sekunden)' : 'Hide after (seconds)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={3}
+                      max={60}
+                      step={1}
+                      value={kioskModeIdleSeconds}
+                      onChange={(e) => setKioskModeIdleSeconds(Number(e.target.value))}
+                      style={inp}
+                    />
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                      {locale === 'de' ? '3–60 Sekunden ohne Maus/Touch, dann nur noch Widgets.' : '3–60 seconds without input, then widgets only.'}
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               {/* Navbar web search */}
