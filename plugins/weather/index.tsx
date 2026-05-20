@@ -25,7 +25,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.',
-  version: '1.2.2',
+  version: '1.2.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -306,8 +306,6 @@ function Widget({ config }: PluginWidgetProps) {
   const [daily, setDaily] = useState<DailyDay[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-
   useEffect(() => {
     const ac = new AbortController()
     let cancelled = false
@@ -318,7 +316,6 @@ function Widget({ config }: PluginWidgetProps) {
         setCurrent(null)
         setDaily([])
         setError(null)
-        setUpdatedAt(null)
         setLoading(false)
         return
       }
@@ -332,7 +329,6 @@ function Widget({ config }: PluginWidgetProps) {
           setCurrent(null)
           setDaily([])
           setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
-          setUpdatedAt(null)
           return
         }
         setPlaceLabel(formatPlace(hit))
@@ -340,7 +336,6 @@ function Widget({ config }: PluginWidgetProps) {
         if (cancelled) return
         setCurrent(cur)
         setDaily(dail)
-        setUpdatedAt(new Date())
       } catch (e) {
         if (cancelled || (e as Error).name === 'AbortError') return
         reportPluginCatch('weather', e, 'open-meteo')
@@ -387,7 +382,6 @@ function Widget({ config }: PluginWidgetProps) {
       feels: de ? 'Gefühlt' : 'Feels like',
       hum: de ? 'Luftfeuchte' : 'Humidity',
       wind: de ? 'Wind' : 'Wind',
-      updated: de ? 'Stand' : 'Updated',
       nextDays: de ? 'Nächste Tage' : 'Next days',
     }),
     [de],
@@ -755,12 +749,6 @@ function Widget({ config }: PluginWidgetProps) {
           </div>
         )}
       </div>
-
-      {updatedAt && (
-        <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted, flexShrink: 0 }}>
-          {t.updated}: {updatedAt.toLocaleString(de ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
-        </p>
-      )}
     </div>
   )
 }

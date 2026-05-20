@@ -477,20 +477,13 @@ function Widget({ config }: PluginWidgetProps) {
   const month = num(data?.monthKwh)
   const recent = Array.isArray(data?.recent) ? data.recent : []
 
-  const timeFmt = locale === 'en' ? 'en-GB' : 'de-DE'
-  const updatedAt = data?.fetchedAt ? new Date(data.fetchedAt) : null
-  const updatedSub = updatedAt
-    ? `${de ? 'Aktualisiert' : 'Updated'} ${updatedAt.toLocaleTimeString(timeFmt)}`
-    : undefined
-  const updatedShort = updatedAt ? updatedAt.toLocaleTimeString(timeFmt) : undefined
-
   const carouselViews: EnergyView[] = [
     {
       id: 'now',
       label: labels.now,
       value: formatW(power, locale),
-      sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : updatedSub,
-      subShort: data?.voltageV != null ? `${num(data.voltageV).toFixed(0)}V` : updatedShort,
+      sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : undefined,
+      subShort: data?.voltageV != null ? `${num(data.voltageV).toFixed(0)}V` : undefined,
       icon: Zap,
       accent: '#f59e0b',
       showSparkline: true,
@@ -499,8 +492,6 @@ function Widget({ config }: PluginWidgetProps) {
       id: 'today',
       label: labels.today,
       value: formatKwh(today, locale),
-      sub: updatedSub,
-      subShort: updatedShort,
       icon: Bolt,
       accent: '#38bdf8',
     },
@@ -508,8 +499,6 @@ function Widget({ config }: PluginWidgetProps) {
       id: 'week',
       label: labels.week,
       value: formatKwh(week, locale),
-      sub: updatedSub,
-      subShort: updatedShort,
       icon: CalendarDays,
       accent: '#a78bfa',
     },
@@ -517,8 +506,6 @@ function Widget({ config }: PluginWidgetProps) {
       id: 'month',
       label: labels.month,
       value: formatKwh(month, locale),
-      sub: updatedSub,
-      subShort: updatedShort,
       icon: Calendar,
       accent: '#34d399',
     },
@@ -564,13 +551,7 @@ function Widget({ config }: PluginWidgetProps) {
         />
         <StatTile label={labels.today} value={formatKwh(today, locale)} icon={Bolt} tint="sky" />
         <StatTile label={labels.week} value={formatKwh(week, locale)} icon={CalendarDays} tint="violet" />
-        <StatTile
-          label={labels.month}
-          value={formatKwh(month, locale)}
-          sub={updatedSub}
-          icon={Calendar}
-          tint="emerald"
-        />
+        <StatTile label={labels.month} value={formatKwh(month, locale)} icon={Calendar} tint="emerald" />
       </div>
       {loading ? (
         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{de ? 'Aktualisiere…' : 'Updating…'}</span>
