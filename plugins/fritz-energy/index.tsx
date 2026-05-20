@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { Bolt, Calendar, CalendarDays, ChevronLeft, ChevronRight, Zap, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
@@ -15,7 +15,7 @@ export const meta: PluginMeta = {
   category: 'network',
   icon: '⚡',
   iconUrl: '/plugin-logos/fritzbox.svg',
-  defaultLayout: { w: 3, h: 5, minW: 2, minH: 4 },
+  defaultLayout: { w: 2, h: 3, minW: 2, minH: 2 },
 }
 
 type EnergyPayload = {
@@ -156,10 +156,10 @@ function viewModeFromConfig(config: Record<string, unknown>): 'carousel' | 'grid
   return v === 'grid' ? 'grid' : 'carousel'
 }
 
-function PowerSparkline({ points }: { points: { powerW: number }[] }) {
+function PowerSparkline({ points, compact }: { points: { powerW: number }[]; compact?: boolean }) {
   if (points.length < 2) return null
   const w = 280
-  const h = 48
+  const h = compact ? 28 : 40
   const vals = points.map((p) => p.powerW)
   const max = Math.max(1, ...vals)
   const step = w / (vals.length - 1)
@@ -171,10 +171,30 @@ function PowerSparkline({ points }: { points: { powerW: number }[] }) {
     })
     .join(' ')
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} style={{ display: 'block', marginTop: 8 }}>
-      <path d={d} fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinejoin="round" />
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      width="100%"
+      height={h}
+      style={{ display: 'block', marginTop: compact ? 4 : 6 }}
+    >
+      <path d={d} fill="none" stroke="#f59e0b" strokeWidth={compact ? 1.5 : 2} strokeLinejoin="round" />
     </svg>
   )
+}
+
+function useWidgetCompact(ref: RefObject<HTMLElement | null>) {
+  const [compact, setCompact] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      setCompact(height < 130 || width < 200)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref])
+  return compact
 }
 
 function EnergyCarousel({
@@ -182,12 +202,18 @@ function EnergyCarousel({
   recent,
   loading,
   de,
+  forceCompact,
 }: {
   views: EnergyView[]
   recent: { powerW: number }[]
   loading: boolean
   de: boolean
+  forceCompact?: boolean
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const autoCompact = useWidgetCompact(rootRef)
+  const compact = forceCompact || autoCompact
+
   const [idx, setIdx] = useState(0)
   const n = views.length
   const safeIdx = n > 0 ? ((idx % n) + n) % n : 0
@@ -195,14 +221,15 @@ function EnergyCarousel({
   if (!view) return null
 
   const go = (delta: number) => setIdx((i) => (i + delta + n) % n)
+  const showSpark = view.showSparkline && !compact
 
   const navBtn: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: compact ? 26 : 28,
+    height: compact ? 26 : 28,
+    borderRadius: 6,
     border: '1px solid var(--border)',
     background: 'var(--surface)',
     color: 'var(--text)',
@@ -212,56 +239,74 @@ function EnergyCarousel({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div ref={rootRef} style={{ display: 'flex', flexDirection: 'column', gap: compact ? 5 : 7, minHeight: 0, height: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 4 : 6 }}>
         <button type="button" onClick={() => go(-1)} style={navBtn} aria-label={de ? 'Vorherige Ansicht' : 'Previous view'}>
-          <ChevronLeft size={18} aria-hidden />
+          <ChevronLeft size={compact ? 15 : 16} aria-hidden />
         </button>
         <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 6,
-              fontSize: 11,
+              gap: 4,
+              fontSize: compact ? 9 : 10,
               fontWeight: 700,
               textTransform: 'uppercase',
-              letterSpacing: '0.06em',
+              letterSpacing: '0.05em',
               color: 'var(--text-muted)',
             }}
           >
-            <view.icon size={14} style={{ color: view.accent }} aria-hidden />
+            <view.icon size={compact ? 11 : 12} style={{ color: view.accent }} aria-hidden />
             {view.label}
           </div>
         </div>
         <button type="button" onClick={() => go(1)} style={navBtn} aria-label={de ? 'Nächste Ansicht' : 'Next view'}>
-          <ChevronRight size={18} aria-hidden />
+          <ChevronRight size={compact ? 15 : 16} aria-hidden />
         </button>
       </div>
 
       <div
         style={{
-          borderRadius: 14,
+          borderRadius: compact ? 10 : 12,
           border: '1px solid var(--border)',
-          background: 'linear-gradient(145deg, var(--surface-2) 0%, var(--surface) 100%)',
-          padding: '16px 14px',
+          background: 'var(--surface-2)',
+          padding: compact ? '8px 6px' : '10px 8px',
           textAlign: 'center',
-          minHeight: 88,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          gap: 6,
+          gap: compact ? 2 : 4,
+          flex: '1 1 auto',
+          minHeight: 0,
         }}
       >
-        <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.05, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+        <div
+          style={{
+            fontSize: compact ? 22 : 26,
+            fontWeight: 800,
+            lineHeight: 1.05,
+            color: 'var(--text)',
+            letterSpacing: '-0.02em',
+          }}
+        >
           {view.value}
         </div>
-        {view.sub ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{view.sub}</div> : null}
+        {view.sub && !compact ? <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{view.sub}</div> : null}
       </div>
 
-      {view.showSparkline ? <PowerSparkline points={recent.slice(-60)} /> : null}
+      {showSpark ? <PowerSparkline points={recent.slice(-60)} compact={compact} /> : null}
 
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: compact ? 4 : 5,
+          flexWrap: 'wrap',
+          minHeight: compact ? 14 : 16,
+        }}
+      >
         {views.map((v, i) => (
           <button
             key={v.id}
@@ -270,8 +315,8 @@ function EnergyCarousel({
             aria-label={v.label}
             aria-current={i === safeIdx ? 'true' : undefined}
             style={{
-              width: 8,
-              height: 8,
+              width: compact ? 6 : 7,
+              height: compact ? 6 : 7,
               borderRadius: '50%',
               border: 'none',
               padding: 0,
@@ -281,13 +326,13 @@ function EnergyCarousel({
             }}
           />
         ))}
+        {compact && view.sub ? (
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>{view.sub}</span>
+        ) : null}
+        {loading ? (
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>{de ? '…' : '…'}</span>
+        ) : null}
       </div>
-
-      {loading ? (
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-          {de ? 'Aktualisiere…' : 'Updating…'}
-        </span>
-      ) : null}
     </div>
   )
 }
@@ -416,7 +461,15 @@ function Widget({ config }: PluginWidgetProps) {
   ]
 
   if (viewMode === 'carousel') {
-    return <EnergyCarousel views={carouselViews} recent={recent} loading={loading} de={de} />
+    return (
+      <EnergyCarousel
+        views={carouselViews}
+        recent={recent}
+        loading={loading}
+        de={de}
+        forceCompact={config.compactUi === true}
+      />
+    )
   }
 
   return (
@@ -584,10 +637,27 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </select>
         <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.45 }}>
           {de
-            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln.'
-            : 'Carousel cycles: now, today, 7 days, month, and meter total via arrows or dots.'}
+            ? 'Einzelansicht: Aktuell, Heute, 7 Tage, Monat und Zähler gesamt per Pfeil oder Punkt wechseln. Widget im Dashboard verkleinern (min. 2×2).'
+            : 'Carousel: now, today, 7 days, month, meter total. Shrink the widget on the dashboard (min. 2×2).'}
         </p>
       </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '10px' }}>
+        <span style={{ fontSize: '13px', color: 'var(--text)' }}>
+          {de ? 'Immer kompakte Darstellung' : 'Always use compact layout'}
+        </span>
+        <input
+          type="checkbox"
+          checked={r.compactUi === true}
+          onChange={(e) => onChange('compactUi', e.target.checked)}
+          style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+        />
+      </label>
+      <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '-6px 0 0', lineHeight: 1.45 }}>
+        {de
+          ? 'Ohne Haken passt sich die Ansicht beim Verkleinern automatisch an (Verlauf aus, kleinere Schrift).'
+          : 'When off, the UI adapts when you resize smaller (hides sparkline, smaller text).'}
+      </p>
 
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 600 }}>
