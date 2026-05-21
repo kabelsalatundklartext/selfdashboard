@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.6',
+  version: '1.1.7',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',

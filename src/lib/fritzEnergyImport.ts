@@ -132,6 +132,28 @@ function berlinMonthKey(ms: number): string {
   return berlinDateKey(ms).slice(0, 7)
 }
 
+/** Mitternacht des Berlin-Kalendertags von `ms` (für FRITZ!-Tages-Serie ab 0:00). */
+function startOfBerlinDayMs(ms: number): number {
+  let lo = ms - 40 * 3_600_000
+  let hi = ms
+  for (let i = 0; i < 48; i++) {
+    const mid = Math.floor((lo + hi) / 2)
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Berlin',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(mid))
+    const h = Number(parts.find((p) => p.type === 'hour')?.value ?? 0)
+    const m = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
+    const sec = Number(parts.find((p) => p.type === 'second')?.value ?? 0)
+    if (h > 0 || m > 0 || sec > 0) lo = mid + 1
+    else hi = mid
+  }
+  return hi
+}
+
 function normalizePeriodKey(period: string, gridSec: number): 'day' | 'week' | 'month' | 'year' | null {
   const p = period.toLowerCase().trim()
   if (p === 'day' || p === 'today' || p === '86400') return 'day'
@@ -185,8 +207,31 @@ function mergeDailySum(target: Record<string, number>, add: Record<string, numbe
   }
 }
 
-/** Wh nur für Buckets, die auf den heutigen Kalendertag (Berlin) enden — entspricht 0:00 bis jetzt. */
-function sumWhBucketsForToday(values: number[], gridSec: number, endMs: number): number {
+/** Tages-Serie FRITZ!Box: Bucket 0 = erste Rasterzeit ab 0:00 Uhr (Berlin), nicht rollierend 24 h. */
+function dailyFromBucketsCalendarDay(values: number[], gridSec: number, endMs: number): Record<string, number> {
+  const daily: Record<string, number> = {}
+  if (gridSec <= 0 || values.length === 0) return daily
+  const sod = startOfBerlinDayMs(endMs)
+  const spanMs = gridSec * 1000
+  for (let i = 0; i < values.length; i++) {
+    const wh = values[i]
+    if (!Number.isFinite(wh) || wh <= 0) continue
+    const bucketEnd = sod + (i + 1) * spanMs
+    if (bucketEnd > endMs) continue
+    const key = berlinDateKey(bucketEnd)
+    daily[key] = (daily[key] ?? 0) + wh / 1000
+  }
+  return daily
+}
+
+function sumWhTodayCalendarDay(values: number[], gridSec: number, endMs: number): number {
+  const daily = dailyFromBucketsCalendarDay(values, gridSec, endMs)
+  const todayKey = berlinDateKey(endMs)
+  return Math.round((daily[todayKey] ?? 0) * 1000)
+}
+
+/** Rollierendes Fenster (Fallback, falls die Box so liefert). */
+function sumWhBucketsRollingToday(values: number[], gridSec: number, endMs: number): number {
   if (gridSec <= 0 || values.length === 0) return 0
   const todayKey = berlinDateKey(endMs)
   const spanMs = gridSec * 1000
@@ -254,39 +299,41 @@ function periodKwhFromSeries(energies: EnergySeries[]): FritzBoxPeriodKwh {
   for (const s of energies) {
     const grid = s.interval || 900
     const kind = normalizePeriodKey(s.period, grid)
-    const buckets = dailyFromBuckets(s.values, grid, now)
+    const bucketsRolling = dailyFromBuckets(s.values, grid, now)
 
     if (kind === 'day') {
-      const todayWh = sumWhBucketsForToday(s.values, grid, now)
-      if (todayWh > 0) todayKwh = todayWh / 1000
-      mergeDailySum(dailyKwh, buckets)
+      const calKwh = sumWhTodayCalendarDay(s.values, grid, now) / 1000
+      const rollKwh = sumWhBucketsRollingToday(s.values, grid, now) / 1000
+      const seriesKwh = sumWhToKwh(s.values)
+      todayKwh = Math.max(todayKwh, calKwh, rollKwh, seriesKwh)
+      mergeDailySum(dailyKwh, dailyFromBucketsCalendarDay(s.values, grid, now))
+      mergeDailySum(dailyKwh, bucketsRolling)
     } else if (kind === 'week') {
       hasWeekSeries = true
       weekSeriesKwh = sumWhToKwh(s.values)
-      mergeDailySum(dailyKwh, buckets)
+      mergeDailySum(dailyKwh, bucketsRolling)
     } else if (kind === 'month') {
       hasMonthSeries = true
       monthSeriesKwh = sumWhToKwh(s.values)
-      mergeDailySum(dailyKwh, buckets)
+      mergeDailySum(dailyKwh, bucketsRolling)
       mergeDailyMax(monthlyKwh, monthlyFromBuckets(s.values, grid, now))
     } else if (kind === 'year') {
       mergeDailyMax(monthlyKwh, monthlyFromBuckets(s.values, grid, now))
+    } else {
+      mergeDailySum(dailyKwh, bucketsRolling)
     }
   }
 
   if (todayKwh <= 0) todayKwh = Math.max(0, dailyKwh[todayKey] ?? 0)
 
   const last7FromDaily = sumLast7CalendarDays(dailyKwh, todayKey)
-  const last7DaysKwh =
-    last7FromDaily > 0 ? last7FromDaily : hasWeekSeries ? Math.max(0, weekSeriesKwh) : 0
+  let last7DaysKwh = last7FromDaily
+  if (last7DaysKwh <= 0 && hasWeekSeries && weekSeriesKwh > 0) last7DaysKwh = weekSeriesKwh
 
   const monthFromDaily = sumCurrentMonthToDate(dailyKwh, todayKey)
-  const monthKwh =
-    monthFromDaily > 0
-      ? monthFromDaily
-      : hasMonthSeries
-        ? Math.max(0, monthSeriesKwh)
-        : Math.max(0, monthlyKwh[berlinMonthKey(now)] ?? 0)
+  let monthKwh = monthFromDaily
+  if (monthKwh <= 0 && hasMonthSeries && monthSeriesKwh > 0) monthKwh = monthSeriesKwh
+  if (monthKwh <= 0) monthKwh = Math.max(0, monthlyKwh[berlinMonthKey(now)] ?? 0)
 
   return { todayKwh, last7DaysKwh, monthKwh, dailyKwh, monthlyKwh }
 }
