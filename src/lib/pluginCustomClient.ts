@@ -9,6 +9,8 @@ export type PluginVolumeClientInfo = {
   widgetOverrideIds: string[]
   customWidgetIds: string[]
   customServerIds: string[]
+  missingWidgetJs?: string[]
+  hint?: string
 }
 
 export async function fetchPluginVolumeInfo(): Promise<PluginVolumeClientInfo> {
@@ -34,8 +36,17 @@ function loadScript(src: string): Promise<void> {
 export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void> {
   installPluginExternalBridge()
   const t = Date.now()
+  const failed: string[] = []
   for (const id of pluginIds) {
-    await loadScript(`/api/plugins/custom-assets/${encodeURIComponent(id)}/widget.js?t=${t}`)
-    console.info(`[SelfDashboard] Volume widget loaded: ${id}`)
+    try {
+      await loadScript(`/api/plugins/custom-assets/${encodeURIComponent(id)}/widget.js?t=${t}`)
+      console.info(`[SelfDashboard] Volume widget loaded: ${id}`)
+    } catch (e) {
+      failed.push(id)
+      console.error(`[SelfDashboard] Volume widget failed: ${id}`, e)
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(`volume_widgets_failed:${failed.join(',')}`)
   }
 }

@@ -105,16 +105,37 @@ export function PluginStoreModal({ open, onClose }: Props) {
   }, [locale])
 
   const handleAdd = (pluginId: string) => {
-    const plugin = pluginRegistry.get(pluginId)
-    if (!plugin) return
-    const baseLayout = { x: 0, y: Infinity, w: 4, h: 4 }
-    const fromMeta = plugin.meta.defaultLayout ?? {}
-    addPlugin({
-      instanceId: nanoid(),
-      pluginId,
-      config: {},
-      layout: { ...baseLayout, ...fromMeta },
-    })
+    try {
+      const plugin = pluginRegistry.get(pluginId)
+      if (!plugin) return
+      let nextY = 0
+      for (const p of existingPlugins) {
+        const y = p.layout?.y
+        const h = p.layout?.h ?? 4
+        if (typeof y === 'number' && Number.isFinite(y)) nextY = Math.max(nextY, y + h)
+      }
+      const fromMeta = plugin.meta.defaultLayout ?? {}
+      const w = Math.max(1, Math.round(Number(fromMeta.w) || 4))
+      const h = Math.max(1, Math.round(Number(fromMeta.h) || 4))
+      addPlugin({
+        instanceId: nanoid(),
+        pluginId,
+        config: {},
+        layout: {
+          x: 0,
+          y: nextY,
+          w,
+          h,
+          minW: fromMeta.minW,
+          minH: fromMeta.minH,
+          maxW: fromMeta.maxW,
+          maxH: fromMeta.maxH,
+        },
+      })
+    } catch (e) {
+      console.error('[SelfDashboard] addPlugin failed', pluginId, e)
+      return
+    }
     setAdded((prev) => new Set(prev).add(pluginId))
     // Reset checkmark after 1.5s
     setTimeout(() => setAdded((prev) => { const n = new Set(prev); n.delete(pluginId); return n }), 1500)
@@ -236,7 +257,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                         className="text-xs px-2 py-0.5 rounded-full"
                         style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
                       >
-                        {CATEGORY_LABELS[meta.category]}
+                        {CATEGORY_LABELS[meta.category as PluginCategory] ?? meta.category}
                       </span>
                     </div>
                     <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>

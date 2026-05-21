@@ -41,7 +41,7 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
 ENV CROWDSEC_DATA_DIR=/crowdsec-data
-ENV SELFDASHBOARD_PLUGINS_MODE=volume
+ENV SELFDASHBOARD_PLUGINS_MODE=hybrid
 ENV SELFDASHBOARD_PLUGIN_PACK_ZIP=/app/plugin-pack/default-plugins.zip
 
 RUN mkdir -p /app/data /crowdsec-data
