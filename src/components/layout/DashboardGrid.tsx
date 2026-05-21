@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import GridLayout, { Layout } from 'react-grid-layout'
 import { useDashboardStore } from '@/lib/store'
-import { pluginRegistry } from '@/lib/pluginRegistry'
+import { getPluginRegistryVersion, pluginRegistry, subscribePluginRegistry } from '@/lib/pluginRegistry'
 import { WidgetWrapper } from '@/components/plugins/WidgetWrapper'
 import { LayoutGrid } from 'lucide-react'
 import { t } from '@/lib/i18n'
@@ -93,6 +93,8 @@ function buildTabletLayout(plugins: PluginInstance[]): Layout[] {
 }
 
 export function DashboardGrid() {
+  useSyncExternalStore(subscribePluginRegistry, getPluginRegistryVersion, () => 0)
+
   const {
     activeDashboard,
     editMode,

@@ -5,12 +5,11 @@ import { fetchPluginVolumeInfo, loadVolumeWidgetScripts } from '@/lib/pluginCust
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { registerCorePluginSettingsPanels } from '@/lib/registerCorePluginSettings'
 
-let loaded = false
+let loadGeneration = 0
 
 export function PluginBootstrap() {
   useEffect(() => {
-    if (loaded) return
-    loaded = true
+    const gen = ++loadGeneration
     void (async () => {
       installPluginExternalBridge()
       registerCorePluginSettingsPanels()
@@ -25,6 +24,9 @@ export function PluginBootstrap() {
         }
         if (customWidgets.length > 0) {
           await loadVolumeWidgetScripts(customWidgets)
+        }
+        if (gen === loadGeneration) {
+          window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
         }
       } catch (e) {
         console.warn('[SelfDashboard] Plugin volume load failed', e)

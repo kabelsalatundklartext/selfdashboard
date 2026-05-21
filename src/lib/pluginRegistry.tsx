@@ -25,6 +25,23 @@ function wrapWidgetWithLogging(meta: PluginMeta, Widget: ComponentType<PluginWid
   return SafeWidget
 }
 
+let registryVersion = 0
+const registryListeners = new Set<() => void>()
+
+function notifyPluginRegistry() {
+  registryVersion += 1
+  for (const fn of registryListeners) fn()
+}
+
+export function subscribePluginRegistry(onStoreChange: () => void): () => void {
+  registryListeners.add(onStoreChange)
+  return () => registryListeners.delete(onStoreChange)
+}
+
+export function getPluginRegistryVersion(): number {
+  return registryVersion
+}
+
 class PluginRegistry {
   private plugins: Map<string, RegisteredPlugin> = new Map()
 
@@ -41,6 +58,7 @@ class PluginRegistry {
     console.info(
       `[SelfDashboard] Plugin registered: ${meta.name} v${meta.version} (id=${meta.id}, errors → Protokoll)`,
     )
+    notifyPluginRegistry()
   }
 
   get(id: string): RegisteredPlugin | undefined {
@@ -60,7 +78,7 @@ class PluginRegistry {
   }
 
   unregister(id: string): void {
-    this.plugins.delete(id)
+    if (this.plugins.delete(id)) notifyPluginRegistry()
   }
 }
 

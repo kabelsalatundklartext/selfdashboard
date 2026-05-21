@@ -228,8 +228,8 @@ export function Navbar() {
         ) : null}
       </nav>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <PluginStoreModal open={storeOpen} onClose={() => setStoreOpen(false)} />
+      {settingsOpen ? <SettingsModal open onClose={() => setSettingsOpen(false)} /> : null}
+      {storeOpen ? <PluginStoreModal open onClose={() => setStoreOpen(false)} /> : null}
     </>
   )
 }

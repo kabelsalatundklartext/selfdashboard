@@ -182,7 +182,7 @@ export function SettingsModal({ open, onClose }: Props) {
 
   if (!open) return null
 
-  const currentTheme = themes.find((th) => th.id === dash.theme)
+  const currentTheme = themes.find((th) => th.id === dash?.theme ?? 'dark')
 
   const handleLogoUpload = (file: File) => {
     const reader = new FileReader()
