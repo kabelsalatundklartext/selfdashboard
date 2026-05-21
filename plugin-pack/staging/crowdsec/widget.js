@@ -1643,7 +1643,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       void fetchData();
       const id = window.setInterval(() => void fetchData(), cfg.refreshSeconds * 1e3);
       return () => window.clearInterval(id);
-    }, [fetchData, cfg.refreshSeconds]);
+    }, [fetchData, cfg.refreshSeconds, cfg.daysBack, cfg.maxAlerts]);
     const q = search.trim().toLowerCase();
     const baseFeed = (0, import_react7.useMemo)(() => {
       if (!data) return [];
@@ -1934,7 +1934,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "crowdsec",
     name: "CrowdSec",
     description: "Kompaktes CrowdSec-Dashboard aus crowdsec.db: \xDCbersicht, Banns, L\xE4nder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.",
-    version: "1.3.7",
+    version: "1.3.8",
     author: "SelfDashboard",
     category: "security",
     icon: "\u{1F6E1}\uFE0F",

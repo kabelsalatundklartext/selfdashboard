@@ -179,16 +179,31 @@ function countActiveDecisions(db: Database.Database): number {
   return Number(row?.c ?? 0)
 }
 
+/** Normalize CrowdSec `created_at` (unix sec/ms or ISO text) to unix seconds for SQL filters. */
+function createdAtUnixSecExpr(alias = 'a'): string {
+  const col = `${alias}.created_at`
+  return `CAST(
+    CASE
+      WHEN ${col} IS NULL OR TRIM(CAST(${col} AS TEXT)) = '' THEN NULL
+      WHEN CAST(${col} AS INTEGER) > 10000000000000 THEN CAST(${col} AS INTEGER) / 1000000
+      WHEN CAST(${col} AS INTEGER) > 1000000000000 THEN CAST(${col} AS INTEGER) / 1000
+      WHEN CAST(${col} AS INTEGER) > 1000000000 THEN CAST(${col} AS INTEGER)
+      ELSE strftime('%s', REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${col} AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
+    END AS INTEGER
+  )`
+}
+
 function countAlertsSince(db: Database.Database, cutoffUnix: number): number {
   const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
   const names = new Set(cols.map((c) => c.name))
   if (!names.has('created_at')) return 0
   const base =
     "a.scenario IS NOT NULL AND TRIM(a.scenario) != '' AND TRIM(a.scenario) != 'unknown'"
+  const ts = createdAtUnixSecExpr('a')
   const row =
     cutoffUnix > 0
       ? (db
-          .prepare(`SELECT COUNT(*) AS c FROM alerts a WHERE a.created_at >= ? AND ${base}`)
+          .prepare(`SELECT COUNT(*) AS c FROM alerts a WHERE ${ts} >= ? AND ${base}`)
           .get(cutoffUnix) as { c: number } | undefined)
       : (db.prepare(`SELECT COUNT(*) AS c FROM alerts a WHERE ${base}`).get() as { c: number } | undefined)
   return Number(row?.c ?? 0)
@@ -243,7 +258,7 @@ function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: strin
   const whereParts = ["TRIM(COALESCE(a.scenario, '')) != ''", "TRIM(a.scenario) != 'unknown'"]
   const params: number[] = []
   if (cutoffUnix > 0) {
-    whereParts.unshift('a.created_at >= ?')
+    whereParts.unshift(`${createdAtUnixSecExpr('a')} >= ?`)
     params.push(cutoffUnix)
   }
 
