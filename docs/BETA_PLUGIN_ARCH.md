@@ -1,6 +1,20 @@
 # Beta: Plugin-Architektur (SelfDashboard)
 
-Dieser Umbau läuft auf dem Git-Branch **`Beta`** im bestehenden Repo — kein separates „Beta-Ordner“-Projekt.
+Dieser Umbau läuft auf dem Git-Branch **`beta`** im bestehenden Repo — kein separates „Beta-Ordner“-Projekt.
+
+## Docker-Image (automatisch)
+
+Bei jedem **Push auf `beta`** baut GitHub Actions das Image und pusht es nach GHCR:
+
+```text
+ghcr.io/kabelsalatundklartext/selfdashboard:beta
+```
+
+- **`main`** → weiterhin `:latest` (stabile Nutzer / Unraid-Template)
+- **`beta`** → nur `:beta` (Plugin-Umbau testen)
+- Workflow: `.github/workflows/docker-publish.yml` (Tab **Actions** auf GitHub)
+
+**Unraid / Docker:** Repository-Tag von `:latest` auf `:beta` stellen, Container neu erstellen oder mit Watchtower aktualisieren.
 
 ## Ziel
 
