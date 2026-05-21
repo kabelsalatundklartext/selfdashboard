@@ -88,18 +88,37 @@ const reactShim = {
   name: 'sd-react-shim',
   setup(build) {
     const ns = 'sd-react'
-    const spec = /^(react|react-dom|react-dom\/client|react\/jsx-runtime)$/
-    build.onResolve({ filter: spec }, (args) => ({
-      path: args.path,
+    build.onResolve({ filter: /^react$/ }, () => ({ path: 'react', namespace: ns }))
+    build.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({
+      path: 'react/jsx-runtime',
       namespace: ns,
     }))
-    build.onLoad({ filter: /.*/, namespace: ns }, (args) => ({
-      contents:
-        args.path === 'react'
-          ? 'module.exports = globalThis.SelfDashboard.React'
-          : 'module.exports = globalThis.SelfDashboard.React',
-      loader: 'js',
+    build.onResolve({ filter: /^react\/jsx-dev-runtime$/ }, () => ({
+      path: 'react/jsx-dev-runtime',
+      namespace: ns,
     }))
+    build.onResolve({ filter: /^react-dom/ }, () => ({ path: 'react-dom', namespace: ns }))
+    build.onLoad({ filter: /.*/, namespace: ns }, (args) => {
+      if (args.path === 'react/jsx-runtime' || args.path === 'react/jsx-dev-runtime') {
+        return {
+          contents: `
+const R = globalThis.SelfDashboard.React;
+function jsx(type, props, key) {
+  if (key !== undefined) return R.createElement(type, { ...props, key });
+  return R.createElement(type, props);
+}
+exports.jsx = jsx;
+exports.jsxs = jsx;
+exports.Fragment = R.Fragment;
+`.trim(),
+          loader: 'js',
+        }
+      }
+      return {
+        contents: 'module.exports = globalThis.SelfDashboard.React',
+        loader: 'js',
+      }
+    })
   },
 }
 
@@ -117,6 +136,9 @@ async function bundleWidget(pluginId, destDir) {
     platform: 'browser',
     target: 'es2020',
     jsx: 'automatic',
+    banner: {
+      js: "if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');",
+    },
     alias: { '@': path.join(root, 'src') },
     loader: { '.tsx': 'tsx', '.ts': 'ts', '.svg': 'file' },
     plugins: [reactShim],

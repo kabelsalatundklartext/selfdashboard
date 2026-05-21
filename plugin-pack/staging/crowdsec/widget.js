@@ -1,3 +1,4 @@
+if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');
 "use strict";
 (() => {
   var __create = Object.create;
@@ -190,8 +191,15 @@
 
   // sd-react:react/jsx-runtime
   var require_jsx_runtime = __commonJS({
-    "sd-react:react/jsx-runtime"(exports, module) {
-      module.exports = globalThis.SelfDashboard.React;
+    "sd-react:react/jsx-runtime"(exports) {
+      var R = globalThis.SelfDashboard.React;
+      function jsx6(type, props, key) {
+        if (key !== void 0) return R.createElement(type, { ...props, key });
+        return R.createElement(type, props);
+      }
+      exports.jsx = jsx6;
+      exports.jsxs = jsx6;
+      exports.Fragment = R.Fragment;
     }
   });
 
