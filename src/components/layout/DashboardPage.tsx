@@ -8,6 +8,7 @@ import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 import { PluginUpdateBanner } from '@/components/plugins/PluginUpdateBanner'
+import { PluginMissingBanner } from '@/components/plugins/PluginMissingBanner'
 
 export function DashboardPage({ id }: { id: string }) {
   const { dashboards, setActiveDashboard, activeDashboardId, locale } = useDashboardStore()
@@ -28,6 +29,7 @@ export function DashboardPage({ id }: { id: string }) {
       <PluginBootstrap />
       <KioskNavbarShell locale={locale}>
         <Navbar />
+        <PluginMissingBanner />
         <PluginUpdateBanner />
       </KioskNavbarShell>
       <main
