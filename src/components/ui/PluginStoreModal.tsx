@@ -186,10 +186,31 @@ export function PluginStoreModal({ open, onClose }: Props) {
   )
 
   const handleAdd = useCallback(
-    (pluginId: string) => {
+    async (pluginId: string) => {
       try {
-        const plugin = pluginRegistry.get(pluginId)
-        if (!plugin) return
+        let plugin = pluginRegistry.get(pluginId)
+        if (!plugin) {
+          const row = remotePlugins.find((p) => p.id === pluginId)
+          if (githubConfigured && row && !row.installed) {
+            setReloadMsgKind('info')
+            setReloadMsg(
+              locale === 'de'
+                ? `„${row.name ?? pluginId}“ wird zuerst von GitHub installiert…`
+                : `Installing “${row.name ?? pluginId}” from GitHub first…`,
+            )
+            await handleInstallRemote(pluginId)
+            plugin = pluginRegistry.get(pluginId)
+          }
+        }
+        if (!plugin) {
+          setReloadMsgKind('error')
+          setReloadMsg(
+            locale === 'de'
+              ? `Plugin „${pluginId}“ nicht geladen. Zuerst „Installieren“, dann Strg+F5, dann „Hinzufügen“. Plugins-Ordner auf der Platte prüfen.`
+              : `Plugin “${pluginId}” not loaded. Use Install, then Ctrl+F5, then Add. Check plugins folder on disk.`,
+          )
+          return
+        }
         let nextY = 0
         for (const p of existingPlugins) {
           const y = p.layout?.y
@@ -226,7 +247,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
         console.error('[SelfDashboard] addPlugin failed', pluginId, e)
       }
     },
-    [addPlugin, existingPlugins],
+    [addPlugin, existingPlugins, githubConfigured, remotePlugins, handleInstallRemote, locale],
   )
 
   const categoryLabel = useCallback(
@@ -532,7 +553,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       <ExternalLink size={13} />
                       {t(locale, 'pluginReadme')}
                     </a>
-                    <button type="button" onClick={() => handleAdd(meta.id)} className="btn-accent">
+                    <button type="button" onClick={() => void handleAdd(meta.id)} className="btn-accent">
                     {added.has(meta.id)
                       ? <><Check size={14} />{t(locale, 'add')}</>
                       : <><Plus size={14} />{t(locale, 'add')}</>
