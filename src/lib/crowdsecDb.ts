@@ -100,13 +100,94 @@ function extractMetaFromSerialized(raw: string | null): { country: string; city:
   return { country, city }
 }
 
-function parseCreatedAt(row: AlertRow): Date | null {
-  for (const v of [row.created_at, row.started_at, row.stopped_at]) {
-    if (!v) continue
-    const d = new Date(String(v).replace(' ', 'T'))
+function parseTimestampValue(v: unknown): Date | null {
+  if (v === null || v === undefined || v === '') return null
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    const ms = v < 1e12 ? v * 1000 : v
+    const d = new Date(ms)
     if (!Number.isNaN(d.getTime())) return d
   }
+  const s = String(v).trim()
+  if (/^\d{10,13}$/.test(s)) {
+    const n = Number(s)
+    const ms = n < 1e12 ? n * 1000 : n
+    const d = new Date(ms)
+    if (!Number.isNaN(d.getTime())) return d
+  }
+  const d = new Date(s.replace(' ', 'T'))
+  if (!Number.isNaN(d.getTime())) return d
   return null
+}
+
+function parseCreatedAt(row: AlertRow): Date | null {
+  for (const v of [row.created_at, row.started_at, row.stopped_at]) {
+    const d = parseTimestampValue(v)
+    if (d) return d
+  }
+  return null
+}
+
+function pickCol(names: Set<string>, candidates: string[], fallback = "''"): string {
+  for (const c of candidates) {
+    if (names.has(c)) return `a.${c}`
+  }
+  return fallback
+}
+
+function decisionUntilClause(alias = 'd'): string {
+  return `(
+    ${alias}.until IS NULL OR TRIM(CAST(${alias}.until AS TEXT)) = ''
+    OR datetime(REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${alias}.until AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
+       > datetime('now')
+  )`
+}
+
+function decisionLinkMeta(db: Database.Database): {
+  hasDecisions: boolean
+  linkCol: 'alert_decisions' | 'alert_id' | null
+  hasUntil: boolean
+} {
+  const decisionTables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
+    .all() as { name: string }[]
+  if (decisionTables.length === 0) {
+    return { hasDecisions: false, linkCol: null, hasUntil: false }
+  }
+  const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
+  const dNames = new Set(dCols.map((c) => c.name))
+  const linkCol = dNames.has('alert_decisions')
+    ? 'alert_decisions'
+    : dNames.has('alert_id')
+      ? 'alert_id'
+      : null
+  return { hasDecisions: Boolean(linkCol), linkCol, hasUntil: dNames.has('until') }
+}
+
+function activeBanExistsExpr(db: Database.Database): string {
+  const meta = decisionLinkMeta(db)
+  if (!meta.linkCol) return '0'
+  const until = meta.hasUntil ? ` AND ${decisionUntilClause('d')}` : ''
+  return `CASE WHEN EXISTS (SELECT 1 FROM decisions d WHERE d.${meta.linkCol} = a.id${until}) THEN 1 ELSE 0 END`
+}
+
+function countActiveDecisions(db: Database.Database): number {
+  const meta = decisionLinkMeta(db)
+  if (!meta.hasDecisions) return 0
+  const where = meta.hasUntil ? `WHERE ${decisionUntilClause('d')}` : ''
+  const row = db.prepare(`SELECT COUNT(*) AS c FROM decisions d ${where}`).get() as
+    | { c: number }
+    | undefined
+  return Number(row?.c ?? 0)
+}
+
+function countAlertsSince(db: Database.Database, cutoffUnix: number): number {
+  const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
+  const names = new Set(cols.map((c) => c.name))
+  if (!names.has('created_at')) return 0
+  const row = db
+    .prepare('SELECT COUNT(*) AS c FROM alerts a WHERE a.created_at >= ? AND a.scenario IS NOT NULL AND TRIM(a.scenario) != \'\' AND TRIM(a.scenario) != \'unknown\'')
+    .get(cutoffUnix) as { c: number } | undefined
+  return Number(row?.c ?? 0)
 }
 
 function formatAsNumber(v: string): string {
@@ -127,7 +208,7 @@ function cleanScenario(s: string): string {
   return s.replace(/^crowdsecurity\//i, '').trim() || 'unknown'
 }
 
-function buildAlertsSql(db: Database.Database): string {
+function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: string; params: number[] } {
   const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
   const names = new Set(cols.map((c) => c.name))
 
@@ -136,28 +217,16 @@ function buildAlertsSql(db: Database.Database): string {
   if (names.has('source_value')) ipParts.push('a.source_value')
   const ipExpr = ipParts.length ? `COALESCE(${ipParts.join(', ')})` : "''"
 
-  const countryCol = names.has('country') ? 'a.country' : "''"
-  const asNameCol = names.has('as_name') ? 'a.as_name' : "''"
-  const asNumCol = names.has('as_number') ? 'a.as_number' : "''"
-  const rangeCol = names.has('ip_range') ? 'a.ip_range' : "''"
-  const latCol = names.has('latitude') ? 'a.latitude' : '0'
-  const lonCol = names.has('longitude') ? 'a.longitude' : '0'
+  const countryCol = pickCol(names, ['source_country', 'country'])
+  const asNameCol = pickCol(names, ['source_as_name', 'as_name'])
+  const asNumCol = pickCol(names, ['source_as_number', 'as_number'])
+  const rangeCol = pickCol(names, ['source_range', 'ip_range'])
+  const latCol = pickCol(names, ['source_latitude', 'latitude'], '0')
+  const lonCol = pickCol(names, ['source_longitude', 'longitude'], '0')
   const startedCol = names.has('started_at') ? 'a.started_at' : 'NULL'
   const stoppedCol = names.has('stopped_at') ? 'a.stopped_at' : 'NULL'
 
-  let activeBanExpr = '0'
-  const decisionTables = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
-    .all() as { name: string }[]
-  if (decisionTables.length > 0) {
-    const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
-    const dNames = new Set(dCols.map((c) => c.name))
-    if (dNames.has('alert_decisions')) {
-      activeBanExpr = `CASE WHEN EXISTS (SELECT 1 FROM decisions d WHERE d.alert_decisions = a.id) THEN 1 ELSE 0 END`
-    } else if (dNames.has('alert_id')) {
-      activeBanExpr = `CASE WHEN EXISTS (SELECT 1 FROM decisions d WHERE d.alert_id = a.id) THEN 1 ELSE 0 END`
-    }
-  }
+  const activeBanExpr = activeBanExistsExpr(db)
 
   const eventTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
@@ -167,7 +236,10 @@ function buildAlertsSql(db: Database.Database): string {
       ? `(SELECT e.serialized FROM events e WHERE e.alert_events = a.id ORDER BY e.id DESC LIMIT 1)`
       : 'NULL'
 
-  return `
+  const whereParts = ['a.created_at >= ?', "TRIM(COALESCE(a.scenario, '')) != ''", "TRIM(a.scenario) != 'unknown'"]
+  const params: number[] = [cutoffUnix]
+
+  const sql = `
 SELECT
   a.id,
   a.scenario,
@@ -184,9 +256,10 @@ SELECT
   ${stoppedCol} AS stopped_at,
   ${eventSerializedExpr} AS event_serialized
 FROM alerts a
-ORDER BY a.id DESC
-LIMIT ?
+WHERE ${whereParts.join(' AND ')}
+ORDER BY a.created_at DESC
 `
+  return { sql, params }
 }
 
 const ALLOWED_DB_ROOTS = () => {
@@ -217,24 +290,25 @@ export async function loadCrowdsecDashboard(
   opts: CrowdsecDbOptions = {},
 ): Promise<CrowdsecDashboardData> {
   const daysBack = Math.min(3650, Math.max(1, opts.daysBack ?? 30))
-  const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 500))
-  const statsHours = Math.min(168, Math.max(1, opts.statsHours ?? 24))
-  const cutoffMs = Date.now() - daysBack * 86400_000
-  const cutoff24h = Date.now() - statsHours * 3600_000
+  const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 2000))
+  const statsHours = Math.min(168, Math.max(1, opts.statsHours ?? 1))
+  const cutoffUnix = Math.floor((Date.now() - daysBack * 86400_000) / 1000)
+  const statsCutoffUnix = Math.floor((Date.now() - statsHours * 3600_000) / 1000)
 
   const geoip = await createGeoipLookup()
 
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
   try {
-    const sql = buildAlertsSql(db)
-    const rows = db.prepare(sql).all(maxAlerts) as AlertRow[]
+    const alertsInRange = countAlertsSince(db, cutoffUnix)
+    const alertsLast24h = countAlertsSince(db, statsCutoffUnix)
+    const activeBans = countActiveDecisions(db)
+
+    const { sql, params } = buildAlertsSql(db, cutoffUnix)
+    const rows = db.prepare(`${sql}\nLIMIT ?`).all(...params, maxAlerts) as AlertRow[]
     const feed: CrowdsecFeedItem[] = []
     const feedSeen = new Set<string>()
     const countryMap = new Map<string, number>()
     const scenarios = new Set<string>()
-    let alertsInRange = 0
-    let alertsLast24h = 0
-    let activeBans = 0
 
     for (const row of rows) {
       const scenario = row.scenario ? String(row.scenario).trim() : ''
@@ -246,11 +320,6 @@ export async function loadCrowdsecDashboard(
 
       const dt = parseCreatedAt(row)
       if (!dt) continue
-      const t = dt.getTime()
-      if (t < cutoffMs) continue
-
-      alertsInRange += 1
-      if (t >= cutoff24h) alertsLast24h += 1
 
       const meta = extractMetaFromSerialized(row.event_serialized)
       let country = row.country ? String(row.country).trim().toUpperCase() : ''
@@ -260,7 +329,6 @@ export async function loadCrowdsecDashboard(
       country = geo.country
       city = geo.city
       const isBan = Number(row.active_ban) === 1
-      if (isBan) activeBans += 1
 
       scenarios.add(cleanScenario(scenario))
       countryMap.set(country, (countryMap.get(country) || 0) + 1)
