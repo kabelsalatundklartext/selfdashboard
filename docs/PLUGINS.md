@@ -82,6 +82,10 @@ Env (im Image `:beta` bereits gesetzt):
 
 ---
 
+## Plugin-Katalog (alle Plugins)
+
+**[plugins/README.md](./plugins/README.md)** — Tabelle mit Link zur Anleitung jedes Plugins (Mail, Docker, Unraid, …).
+
 ## Weitere Doku
 
 - **[PLUGIN_DEV.md](./PLUGIN_DEV.md)** — Plugin schreiben (Widget, API, Store, ZIP)

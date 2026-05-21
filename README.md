@@ -80,28 +80,13 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 ---
 
-## Available Plugins
+## Plugins
 
-Icons match the assets in the app under [`public/plugin-logos/`](public/plugin-logos/) (same as in the plugin store). Plugins without a dedicated file still use emoji in the table below.
+Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Full catalog with setup guides per plugin:
 
-| Plugin | Category | Description | Status |
-|---|---|---|---|
-| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | 📦 Plugin Store |
-| 📅 Calendar | Productivity | CalDAV two-way + ICS feeds; accounts in `/api/calendar`, data in `data/calendar/` | 📦 Plugin Store |
-| 🕐 Clock & Date | Utility | Time, date, timezone and city name | 📦 Plugin Store |
-| 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | 📦 Plugin Store |
-| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | 📦 Plugin Store |
-| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Active sessions — who is watching what | 📦 Plugin Store |
-| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container list via Engine API (socket mount) | 📦 Plugin Store |
-| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | 📦 Plugin Store |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection; 2×2 tiles stretch to widget height; toggle protection (`/api/adguard`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ!Box Internet** | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Network | Smart-outlet power: current W, today / 7 days / month kWh via TR-064 Homeauto (`POST /api/fritz-energy`) | 📦 Plugin Store |
-| 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | 📦 Plugin Store |
-| 📝 Scratchpad | Utility | Short notes widget, editable in place | 📦 Plugin Store |
-| <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
+**[docs/plugins/README.md](docs/plugins/README.md)** (AdGuard, Calendar, Docker, Mail, Unraid, FRITZ!Box, …)
+
+Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
 
 ## Quick Start
 
@@ -137,54 +122,13 @@ cd selfdashboard
 docker-compose up -d
 ```
 
-## Docker widget & Unraid template
+## Docker & Unraid template
 
-- **Shared configuration (`dashboard.json`):** when **`/app/data`** is mounted (Unraid: *Config Storage*), SelfDashboard saves **`dashboard.json`** on the server after changes (`PUT /api/dashboard-state`) and loads it on startup (`GET`). Every browser then sees the same dashboards and widgets; **`localStorage`** remains a fast local cache. **Back up** your host appdata folder. Optional **`SELFDASHBOARD_DATA_DIR`** changes the directory *inside* the container where the file is written (the official image sets **`/app/data`**).
-- The **Unraid Community Apps** template (`unraid/selfdashboard.xml`) includes a **Docker Socket** mapping (host `/var/run/docker.sock` → container `/var/run/docker.sock`, read-only), equivalent to `-v /var/run/docker.sock:/var/run/docker.sock`. It is shown **by default** in the template (not hidden under “more settings”). Clear the path if you do not want the Docker widget.
-- **CrowdSec Data (optional)** maps a host folder with `crowdsec.db` to `/crowdsec-data` (read-only). **Leave empty** if you do not use the CrowdSec widget — SelfDashboard does not require CrowdSec. See **CrowdSec widget (optional)** below.
-- **Plugins Storage** maps a host folder to **`/app/plugins/custom`**. Each plugin is a subfolder with **`plugin.json`** and **`widget.js`** (install from **Plugin Store → From GitHub** or upload a ZIP). TypeScript/`index.tsx` from the repo does **not** run on the volume — see **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
-- The Docker plugin uses **`/api/docker-containers`** on the **same machine** where SelfDashboard runs. It talks to the **local** Docker Engine via that socket only.
-- **Permission denied (`EACCES`)** on the socket: the container user must be allowed to open the mounted socket (host `root:docker`). The Unraid template sets **`ExtraParams` `--group-add=281`** (common Unraid `docker` GID). If yours differs, run `stat -c '%g' /var/run/docker.sock` on the host and adjust. Newer SelfDashboard images run as **root** in the container so the socket usually works without tuning.
-- **Start / stop / restart:** **`POST /api/docker-containers`** (two-step confirmation). Plugin settings: master **Buttons**, then **Start** / **Stop** / **Restart** individually. Anyone who can open the dashboard can trigger actions when the socket is mounted — turn the master off on shared setups.
-- **CPU & RAM:** **`GET …&stats=1`** merges **`sdStats`** for running containers. Master **Docker-Stats**, then **CPU** and **RAM** separately; stats requests run only if at least one of CPU/RAM is enabled (while the stats master is on). In the widget, values can appear as **compact bars** (toggle **CPU/RAM als Balken**) or as one-line text; layout is **Name : runtime : stats : actions** on a single row, with the double-confirm panel on a second line when needed.
-- **Stats alignment (Docker plugin ≥ 1.7.9):** RAM follows the same rule as **`docker stats`** / Docker Desktop (page cache subtracted: cgroup v1 `total_inactive_file`, v2 `inactive_file`), not raw `memory_stats.usage`. CPU % uses the standard Engine delta formula; very short `system_cpu_usage` sampling windows are ignored to reduce spikes. Stats requests prefer **`stream=false&one-shot=false`** so the daemon can prime **precpu_stats** (falls back to `stream=false` only if the daemon returns HTTP 400).
-
-### Remote / “external” Docker
-
-The current implementation **does not** list containers on **another** server. A Unix socket is **local to one host** and cannot reach Docker on a different machine over the network. Practical options: install SelfDashboard **on** that other host (and mount its socket), or use a separate **HTTP API** (e.g. Portainer) — that would be a different plugin/feature, not the socket-based widget.
-
----
-
-## CrowdSec widget (optional)
-
-**You do not need CrowdSec to run SelfDashboard.** This plugin is only for users who already run [CrowdSec](https://www.crowdsec.net/) on the **same server** and want a compact dashboard widget (overview, bans, countries, searchable IP feed).
-
-| What | Details |
-|---|---|
-| **Purpose** | Read-only view of alerts/bans from CrowdSec’s local SQLite file `crowdsec.db` — no LAPI, no CrowdSec container API |
-| **Required?** | **No** — skip all CrowdSec mounts if you do not use the widget |
-| **Data source** | File `crowdsec.db` on a bind-mounted folder (default in widget: `/crowdsec-data/crowdsec.db`) |
-| **Unraid template** | **CrowdSec Data (optional)** — map your CrowdSec appdata/data folder to `/crowdsec-data` (read-only). Leave **empty** if unused |
-| **Unban (optional)** | Enable in plugin settings; requires **Docker Socket** mount and the CrowdSec container name (e.g. `crowdsec`) so SelfDashboard can run `cscli` via `docker exec` |
-| **Time range** | Selectable in the widget (1 / 7 / 30 / 90 / 365 days); plugin settings set defaults |
-| **GeoIP / flags** | Countries resolved from **GeoLite2** `.mmdb` on disk (same as CrowdSec threat-map setups). Auto-search in `/crowdsec-data` for `GeoLite2-City.mmdb` or `GeoLite2-Country.mmdb`. Install via CrowdSec (`cscli hub` / geoip collection) or mount the file next to `crowdsec.db`. Flag images use emoji + optional `flagcdn.com` |
-| **Env (optional)** | `CROWDSEC_DATA_DIR`, `CROWDSEC_GEOIP_PATH` (direct path to `.mmdb`), `CROWDSEC_DB_PATH`, `CROWDSEC_CONTAINER` |
-
-**Docker run example (optional CrowdSec mount):**
-
-```bash
-docker run -d \
-  --name selfdashboard \
-  --restart unless-stopped \
-  -p 3000:3000 \
-  -e TZ=Europe/Berlin \
-  -v /mnt/user/appdata/selfdashboard:/app/data \
-  -v /mnt/user/appdata/crowdsec/data:/crowdsec-data:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:latest
-```
-
-After install: add the **CrowdSec** widget from the store, confirm the DB path, pick a time range. Enable unban only if you understand the security impact (same as allowing Docker control from the dashboard).
+- **`/app/data`** — `dashboard.json` and calendar data. **Back up** appdata.
+- **`/app/plugins/custom`** — installed plugins. See **[docs/PLUGINS.md](docs/PLUGINS.md)**.
+- Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
+- **Docker plugin:** local socket only — **[docs/plugins/docker.md](docs/plugins/docker.md)**.
+- **CrowdSec plugin:** optional — **[docs/plugins/crowdsec.md](docs/plugins/crowdsec.md)**.
 
 ---
 
@@ -236,109 +180,6 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 
 ---
 
-## Bookmarks Plugin
-
-| Feature | Description |
-|---|---|
-| Groups | Create multiple groups, each collapsible |
-| Hide groups | Toggle visibility per group with 👁️ |
-| Custom icons | Emoji or upload PNG/JPG image |
-| Drag & drop | Reorder apps within and across groups |
-| Layout | **Grid** (responsive columns) or **horizontal row** (scroll) |
-| Tile width | Min/max width in px; optional **fixed** column width (no stretch-to-fill in grid) |
-| New tab | Per-app setting to open in new tab or same tab |
-
----
-
-## Calendar plugin
-
-| Feature | Description |
-|---|---|
-| CalDAV | Two-way sync (iCloud, Nextcloud, Fastmail, WEB.DE with app password, …) |
-| ICS | Read-only subscription URLs (WEB.DE share link, Google, …) |
-| Storage | `data/calendar/store.json` on the server; credentials encrypted (AES-256-GCM) |
-| UI | Compact tile + full-screen month/agenda; account setup in the modal |
-| Sync | Background sync every 5 min (env `CALENDAR_SYNC_INTERVAL_SECONDS`) |
-
-Accounts are configured in the calendar modal (cog on the tile), not in the old widget JSON config.
-
----
-
-## Navbar mail (IMAP) — plugin `mail`
-
-Install the **E-Mail / IMAP** plugin from the store first. Then configure under **Settings → Email**; toggle the icon under **Settings → General → Navbar email**.
-
-| Topic | Details |
-|---|---|
-| **Purpose** | Poll one or more IMAP accounts and show **total unread** as a badge on the mail icon; click opens your **webmail URL** |
-| **API** | `GET /api/mail/status` (read cache), `?refresh=1` (run IMAP sync now), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Storage** | `plugins/custom/mail/mail.json` on the volume (legacy: `data/mail/mail.json` is migrated); passwords **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`) |
-| **Accounts** | Multiple accounts; per account: label, host, port, SSL, user, password, mailbox mode, webmail URL, **Poll this account** (enabled) |
-| **How counts work** | Each sync runs a **fresh IMAP query** and **replaces** the stored total (no tracking of deleted mail). Unread = `SEARCH` unseen + flag check (`\Seen`/`\Deleted` ignored); messages older than the **age filter** are skipped (**Settings → Email → Unread age filter**, default **30 days**, `0` = off). Docker env `MAIL_UNREAD_MAX_AGE_DAYS` applies only when no value is stored yet. `STATUS` is only a fallback if search fails (important on Synology — parent folders can show stale STATUS) |
-| **Mailbox `*`** | All folders with unread mail, **trash excluded** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Leaf folders preferred when a parent has subfolders (avoids double-count / ghost unread on `INBOX.Account`) |
-| **Mailbox `@accounts`** | MailPlus-style: only `INBOX.AccountName` (`@accounts`, `accounts`, `mailplus`, `konten`) — closer to the MailPlus sidebar |
-| **Single folder** | Any other name (e.g. `INBOX`) counts only that mailbox |
-| **Poll interval** | **1–900 s** (default **120 s**); save with **Save interval**. Server scheduler syncs in the background; navbar and email settings UI read the cache on each tick |
-| **Manual refresh** | **Refresh all accounts** or **Test** → `?refresh=1` / test endpoint (immediate IMAP) |
-| **Status UI** | Total unread, last sync time, per-account breakdown, and **which folders** still have unread (up to 12 per account) |
-| **Logs** | **Settings → Logs**, filter plugin **`mail`** |
-
-**Synology example:** host `192.168.1.15`, port **993**, SSL on, webmail `http://192.168.1.15:5000/mail/#inbox` — do **not** put `:5000` in the IMAP host field.
-
-**After Docker restart:** re-enter the password and click **Save** — otherwise sync cannot decrypt credentials (yellow dot in navbar).
-
-**If the badge does not match MailPlus:** MailPlus may show per-account sidebar counts while `*` sums many IMAP folders; use `@accounts` or mark mail read in the folder shown in the status breakdown (e.g. `Web Mail SSchmidt`).
-
----
-
-## Selfstream plugin
-
-| Topic | Details |
-|---|---|
-| **Purpose** | Show **active IPTV streams** from a [Selfstream](https://github.com/kabelsalatundklartext/selfstream) admin instance (who is watching which channel/program and for how long). |
-| **API** | Browser → `POST /api/selfstream` (SelfDashboard server calls the Selfstream admin API; admin password is sent in the request body and used as the API token server-side). |
-| **Settings** | Selfstream **base URL** (e.g. `http://host:8080`, without `/admin` suffix), **admin password**, refresh interval (seconds), optional display of client IP. |
-| **Requirements** | Selfstream must be reachable from the SelfDashboard container (same host or LAN). |
-
----
-
-## FRITZ!Box WAN throughput plugin
-
-| Topic | Details |
-|---|---|
-| **Purpose** | Live **download / upload** throughput chart for the WAN, using FRITZ!Box **TR-064** total byte counters (no extra daemon on the router). |
-| **API** | Browser → `POST /api/fritzbox` (SelfDashboard server calls your box). Optional `lite: true` for counter-only refresh between full polls. |
-| **Auth** | TR-064 username + password; optional **HTTPS with self-signed** allowed. |
-| **Refresh** | **0–300 s** full TR-064 poll: **`0`** = no interval (only when the dashboard loads). Use **Live counters** for lighter, frequent counter updates. |
-| **Live counters** | **0** = samples only on the full refresh interval; **3–15 s** = extra counter polls for a smoother curve. |
-| **History cache** | Last curve points are stored in **browser `localStorage`** (per **base URL + username**), up to **7 days**, so the widget is not empty after a reload while new samples arrive. |
-| **Layout** | **Vertical** (chart above stat tiles) or **horizontal** (chart beside tiles — works best in a **wide** tile). |
-| **Visibility** | Toggle title, legend, live values, chart, time-axis hint (“older / newer”), and each stat tile (averages & peaks) independently in plugin settings. |
-| **Plot height** | **`0`** = built-in default height (**168 px**). **`1–220`** = exact height in **1 px** steps. |
-| **Y-axis** | **`0` Mbit/s max** = scale from data; fixed max clips values at the top. |
-| **Samples** | **16–120** history points kept for the chart. |
-| **Sanity cap** | Optional **max measured rate (Mbit/s)** in settings: **exact** ceiling for both directions when &gt; 0 (e.g. **1000** on a 1 Gbit/s line). **0** = only TR-064 **Layer1** max bit rates from the box (when present) + **3%** headroom. |
-| **Language** | Display strings: **auto** (match dashboard), **German**, or **English**. |
-
----
-
-## FRITZ! smart plug energy plugin
-
-| Topic | Details |
-|---|---|
-| **Purpose** | Power use for a **FRITZ!Smart Energy** outlet (or compatible smart plug with multimeter) — **current W**, **today**, **last 7 days**, and **month** kWh. |
-| **API** | Browser → `POST /api/fritz-energy` (SelfDashboard server calls TR-064 **Homeauto** on the same FRITZ!Box as the WAN plugin). |
-| **Setup** | Base URL, TR-064 user + password (Smart Home rights on the FRITZ!Box user), **AIN** of the outlet (load devices in settings or copy from FRITZ!Box Smart Home). |
-| **History** | On each poll, today / week / month are synced from the box where available; samples stored server-side under `data/fritz-energy/` (per box + AIN). |
-| **Widget layout** | **Grid** (four tiles at once, fills 2×2 height) or **carousel** (one value with arrows). Optional compact UI. |
-| **Refresh** | **15–300 s** poll interval in plugin settings. |
-| **UI** | No flashing “Updating…” line on reload — values refresh silently in the background. |
-| **Language** | Auto / German / English (plugin setting). |
-
-Separate from **FRITZ!Box Internet** (WAN chart): different API route and TR-064 services; both can run on the same router credentials.
-
----
-
 ## Kiosk mode (wall tablet)
 
 | Topic | Details |
@@ -366,18 +207,6 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 **Logs (Protokoll)** — Central error log for support and debugging: filter by level, source, plugin; download `.txt` / JSONL; retention 3 / 7 / 30 days. Every plugin registered via `registerPlugin` logs render failures and failed `/api/*` calls automatically. Mail uses the same log with plugin id **`mail`**. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
 
 ---
-
-## Plugins & developing your own
-
-| Topic | Document |
-|---|---|
-| Install (Store, ZIP, folders) | **[docs/PLUGINS.md](docs/PLUGINS.md)** |
-| Write a plugin (widget, API, publish) | **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** |
-| Error logging | **[docs/LOGGING.md](docs/LOGGING.md)** |
-
-**Summary:** Plugins live under **`/app/plugins/custom/<id>/`** as **`plugin.json`** + **`widget.js`**. Users install from the **Plugin Store** (GitHub `plugins-pack/`) or upload a **ZIP**. Developers work in **`plugins/<id>/index.tsx`** (often **beside** the app repo), run **`npm run publish:plugin-pack`**, and push **`plugins-pack/`** including **`plugins-index.json`** (store catalog).
-
-**No image rebuild** for new widgets — only publish + install. Core APIs (e.g. mail, adguard) may still ship in the app image; see PLUGIN_DEV.md for server options.
 
 ---
 
@@ -500,28 +329,13 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 ---
 
-## Verfügbare Plugins
+## Plugins
 
-Die Icons entsprechen den Dateien in [`public/plugin-logos/`](public/plugin-logos/) (wie im Plugin-Store). Plugins ohne eigene Logo-Datei nutzen weiterhin ein Emoji in der Tabelle.
+Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Katalog mit Anleitung pro Plugin:
 
-| Plugin | Kategorie | Beschreibung | Status |
-|---|---|---|---|
-| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | 📦 Plugin Store |
-| 📅 Kalender | Productivity | CalDAV Zwei-Wege + ICS-Feeds; Konten über `/api/calendar`, Daten unter `data/calendar/` | 📦 Plugin Store |
-| 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | 📦 Plugin Store |
-| 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | 📦 Plugin Store |
-| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | 📦 Plugin Store |
-| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Aktive Sessions — wer schaut gerade was | 📦 Plugin Store |
-| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container-Liste per Engine API (Socket-Mount) | 📦 Plugin Store |
-| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | 📦 Plugin Store |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz; 2×2-Kacheln füllen die Widget-Höhe; Schutz per Klick (`/api/adguard`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **Fritzbox Internet Verlauf** | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | 📦 Plugin Store |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Netzwerk | Steckdose: aktuell W, heute / 7 Tage / Monat kWh per TR-064 Homeauto (`POST /api/fritz-energy`) | 📦 Plugin Store |
-| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | 📦 Plugin Store |
-| 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | 📦 Plugin Store |
-| <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
+**[docs/plugins/README.md](docs/plugins/README.md)**
+
+Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
 
 ---
 
@@ -559,54 +373,13 @@ cd selfdashboard
 docker-compose up -d
 ```
 
-## Docker-Widget & Unraid-Template
+## Docker & Unraid-Template
 
-- **Gemeinsame Konfiguration (`dashboard.json`):** Ist **`/app/data`** gemappt (Unraid: *Config Storage*), schreibt SelfDashboard nach Änderungen **`dashboard.json`** auf den Server (`PUT /api/dashboard-state`) und lädt sie beim Start (`GET`). Alle Browser sehen dieselben Dashboards und Widgets; **`localStorage`** bleibt ein schneller lokaler Cache. **Backup** des Appdata-Ordners nicht vergessen. Optional setzt **`SELFDASHBOARD_DATA_DIR`** das Verzeichnis *im* Container für die Datei (offizielles Image: **`/app/data`**).
-- Das **Community-Apps-Template** (`unraid/selfdashboard.xml`) enthält einen Eintrag **Docker Socket** (Host `/var/run/docker.sock` → Container `/var/run/docker.sock`, **read-only**), entspricht **` -v /var/run/docker.sock:/var/run/docker.sock`**. Der Eintrag ist **standardmäßig sichtbar** (nicht nur unter „mehr Einstellungen“). Pfad leer lassen / Mapping entfernen, wenn du das Docker-Widget nicht brauchst.
-- **CrowdSec Data (optional)** mappt einen Host-Ordner mit `crowdsec.db` nach `/crowdsec-data` (**read-only**). **Leer lassen**, wenn du das CrowdSec-Widget nicht nutzt — SelfDashboard braucht CrowdSec **nicht**. Details: Abschnitt **CrowdSec-Widget (optional)**.
-- **Plugins Storage** mappt einen Host-Ordner nach **`/app/plugins/custom`**. Pro Plugin ein Unterordner mit **`plugin.json`** und **`widget.js`** (Installation über **Plugin-Store → Von GitHub** oder ZIP). **`index.tsx`** vom Repo funktioniert auf dem Volume **nicht** — siehe **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
-- Das Docker-Plugin ruft **`/api/docker-containers`** nur auf dem **gleichen Rechner** auf, auf dem SelfDashboard läuft, und spricht so die **lokale** Docker Engine über den Socket an.
-- **`EACCES` / Zugriff verweigert** auf dem Socket: Der Container-Prozess braucht Rechte auf den gemounteten Socket (Host `root:docker`). Das Unraid-Template setzt **`ExtraParams` `--group-add=281`** (typische Unraid-`docker`-GID). Abweichend: auf dem Host `stat -c '%g' /var/run/docker.sock` ausführen und anpassen. Neuere SelfDashboard-Images laufen im Container als **root**, dann klappt der Socket meist ohne Feintuning.
-- **Start / Stopp / Neustart:** **`POST /api/docker-containers`** (zweistufige Bestätigung). Plugin: Master **Buttons**, darunter **Start** / **Stopp** / **Neustart** einzeln. Wer das Dashboard öffnen kann, kann bei gemountetem Socket Aktionen auslösen — Master bei geteiltem Zugriff aus.
-- **CPU & RAM:** **`GET …&stats=1`** liefert **`sdStats`** für laufende Container. Master **Docker-Stats**, darunter **CPU** und **RAM** einzeln; die Stats-Abfrage läuft nur, wenn mindestens eine der beiden Anzeigen an ist (und der Stats-Master an ist). Im Widget optional **Balken** (Schalter **CPU/RAM als Balken**) oder Text in **einer Zeile**: **Name : Laufzeit : Auslastung : Aktionen**; die zweite Bestätigungszeile erscheint nur bei Bedarf darunter.
-- **Stats wie Unraid / `docker stats` (Docker-Plugin ≥ 1.7.9):** RAM entspricht der **Docker-CLI-Logik** (Datei-Cache wird abgezogen: cgroup v1 `total_inactive_file`, v2 `inactive_file`), nicht dem rohen `memory_stats.usage`. CPU-% nutzt die übliche Engine-Delta-Formel; bei **zu kurzem** `system_cpu_usage`-Messfenster wird kein CPU-Wert angezeigt (weniger Ausreißer). Abfrage bevorzugt **`stream=false&one-shot=false`**, damit **`precpu_stats`** zuverlässig gefüllt ist; bei HTTP **400** nur **`stream=false`** (ältere Daemons).
-
-### Anderes / „externes“ Docker
-
-Mit dem **aktuellen** Socket-Ansatz werden **keine** Container eines **anderen** Servers angezeigt. Ein Unix-Socket ist **lokal** und geht nicht übers Netz zu fremdem Docker. Praktisch: SelfDashboard **auf jenem Host** installieren (und dort den Socket mounten), oder später eine **HTTP-API** (z. B. Portainer) anbinden — das wäre ein anderes Feature als das Socket-Widget.
-
----
-
-## CrowdSec-Widget (optional)
-
-**SelfDashboard funktioniert ohne CrowdSec.** Das Plugin richtet sich an Nutzer, die [CrowdSec](https://www.crowdsec.net/) bereits auf **demselben Server** betreiben und Alerts/Banns im Dashboard sehen möchten (Übersicht, Banns, Länder, durchsuchbarer IP-Feed).
-
-| Thema | Details |
-|---|---|
-| **Zweck** | Nur-Lesen-Ansicht auf die lokale SQLite-Datei `crowdsec.db` — **kein** LAPI, **keine** CrowdSec-Container-API |
-| **Pflicht?** | **Nein** — alle CrowdSec-Mounts weglassen, wenn du das Widget nicht nutzt |
-| **Datenquelle** | Datei `crowdsec.db` per Bind-Mount (Standard im Widget: `/crowdsec-data/crowdsec.db`) |
-| **Unraid-Template** | **CrowdSec Data (optional)** — CrowdSec-Appdata/Data-Ordner nach `/crowdsec-data` (**read-only**). Feld **leer lassen**, wenn nicht genutzt |
-| **Entsperren (optional)** | In den Plugin-Einstellungen aktivieren; zusätzlich **Docker Socket** und Container-Name (z. B. `crowdsec`) für `cscli` per `docker exec` |
-| **Zeitraum** | Im Widget wählbar (1 / 7 / 30 / 90 / 365 Tage); Einstellungen liefern Standardwerte |
-| **GeoIP / Flaggen** | Länder aus **GeoLite2** `.mmdb` auf der Platte (wie beim CrowdSec Threat-Map). Automatische Suche in `/crowdsec-data` nach `GeoLite2-City.mmdb` / `GeoLite2-Country.mmdb` (CrowdSec Hub/geoip). Flaggen: Emoji + optional `flagcdn.com` |
-| **Env (optional)** | `CROWDSEC_DATA_DIR`, `CROWDSEC_GEOIP_PATH` (Pfad zur `.mmdb`), `CROWDSEC_DB_PATH`, `CROWDSEC_CONTAINER` |
-
-**Docker-Beispiel (optionaler CrowdSec-Mount):**
-
-```bash
-docker run -d \
-  --name selfdashboard \
-  --restart unless-stopped \
-  -p 3000:3000 \
-  -e TZ=Europe/Berlin \
-  -v /mnt/user/appdata/selfdashboard:/app/data \
-  -v /mnt/user/appdata/crowdsec/data:/crowdsec-data:ro \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:latest
-```
-
-Nach der Installation: **CrowdSec**-Widget im Store hinzufügen, DB-Pfad prüfen, Zeitraum wählen. Entsperren nur aktivieren, wenn dir bewusst ist, dass damit (wie beim Docker-Widget) Steuerung über den Socket möglich wird.
+- **`/app/data`** — `dashboard.json`, Kalender. **Backup** nicht vergessen.
+- **`/app/plugins/custom`** — installierte Plugins. Siehe **[docs/PLUGINS.md](docs/PLUGINS.md)**.
+- Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
+- **Docker-Plugin:** nur lokaler Socket — **[docs/plugins/docker.md](docs/plugins/docker.md)**.
+- **CrowdSec-Plugin:** optional — **[docs/plugins/crowdsec.md](docs/plugins/crowdsec.md)**.
 
 ---
 
@@ -658,107 +431,6 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
-## Bookmarks Plugin
-
-| Feature | Beschreibung |
-|---|---|
-| Gruppen | Mehrere Gruppen erstellen, einzeln ausblendbar |
-| Gruppen ausblenden | Sichtbarkeit pro Gruppe mit 👁️ togglen |
-| Eigene Icons | Emoji oder PNG/JPG hochladen |
-| Drag & Drop | Apps innerhalb und zwischen Gruppen verschieben |
-| Darstellung | **Raster** (responsive Spalten) oder **waagerechte Zeile** (scrollbar) |
-| Kachelbreite | Min./Max. in Pixel; optional **feste** Spaltenbreite (Raster streckt nicht mit) |
-| Neuer Tab | Pro App einstellbar ob neuer oder gleicher Tab |
-
----
-
-## Kalender-Plugin
-
-| Feature | Beschreibung |
-|---|---|
-| CalDAV | Zwei-Wege-Sync (iCloud, Nextcloud, WEB.DE mit App-Passwort, …) |
-| ICS | Nur lesen — z. B. WEB.DE „Kalender-URL zum Einbinden“ |
-| Speicher | `data/calendar/store.json` serverseitig; Zugangsdaten verschlüsselt |
-| UI | Kachel + Vollbild (Monat/Agenda); Konten im Modal (Zahnrad) |
-| Sync | Hintergrund-Sync alle 5 Min (`CALENDAR_SYNC_INTERVAL_SECONDS`) |
-
----
-
-## Navbar E-Mail (IMAP) — Plugin `mail`
-
-Zuerst Plugin **E-Mail / IMAP** aus dem Store installieren. Konfiguration unter **Einstellungen → E-Mail**; Schalter unter **Einstellungen → Allgemein → Navbar E-Mail**.
-
-| Thema | Details |
-|---|---|
-| **Zweck** | IMAP-Konten abfragen, **Summe ungelesen** als Badge; Klick öffnet die **Webmail-URL** |
-| **API** | `GET /api/mail/status` (Cache), `?refresh=1` (sofort IMAP-Sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Speicher** | `plugins/custom/mail/mail.json` auf dem Volume (Legacy `data/mail/` wird migriert); Passwörter **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`) |
-| **Konten** | Mehrere Konten: Name, Host, Port, SSL, Benutzer, Passwort, Ordner-Modus, Webmail-URL, **Dieses Konto abfragen** |
-| **Zählweise** | Jeder Sync = **neue IMAP-Abfrage**, Anzeige wird **ersetzt** (kein Tracking gelöschter Mails). Ungelesen per **SEARCH** + Flag-Prüfung (`\Seen`/`\Deleted` ignoriert); älter als der **Altersfilter** wird übersprungen (**Einstellungen → E-Mail → Altersfilter**, Standard **30**, **0** = aus). **STATUS** nur als Fallback (Synology: veralteter STATUS auf übergeordneten Ordnern) |
-| **Ordner `*`** | Alle Ordner mit Ungelesen, **ohne Papierkorb** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Unterordner statt übergeordnetem Ordner, wenn vorhanden |
-| **Ordner `@accounts`** | Wie MailPlus-Sidebar: nur `INBOX.Kontoname` (`@accounts`, `accounts`, `mailplus`, `konten`) |
-| **Einzelordner** | Anderer Name (z. B. `INBOX`) zählt nur diesen Ordner |
-| **Abfrage-Intervall** | **1–900 s** (Standard **120 s**); **Intervall speichern**. Server synct im Hintergrund; Navbar und E-Mail-Tab lesen den Cache |
-| **Sofort aktualisieren** | **Alle Konten aktualisieren** oder **Testen** |
-| **Status-Anzeige** | Gesamt, Sync-Zeit, pro Konto, **welche Ordner** noch Ungelesen (max. 12) |
-| **Protokoll** | **Einstellungen → Protokoll**, Filter **`mail`** |
-
-**Synology-Beispiel:** Host `192.168.1.15`, Port **993**, SSL an, Webmail `http://192.168.1.15:5000/mail/#inbox` — **:5000** nicht ins IMAP-Host-Feld.
-
-**Nach Docker-Neustart:** Passwort erneut **Speichern** (sonst Entschlüsselungsfehler, gelber Punkt).
-
-**Badge ≠ MailPlus:** MailPlus zeigt oft pro Sidebar-Konto; `*` summiert viele IMAP-Ordner. Bei Abweichung `@accounts` testen oder im angezeigten Ordner (z. B. `Web Mail SSchmidt`) als gelesen markieren.
-
----
-
-## Selfstream-Plugin
-
-| Thema | Details |
-|---|---|
-| **Zweck** | **Aktive IPTV-Streams** aus einer [Selfstream](https://github.com/kabelsalatundklartext/selfstream)-Admin-Instanz anzeigen (Nutzer, Sender/Sendung, Laufzeit). |
-| **API** | Browser → `POST /api/selfstream` (SelfDashboard-Server ruft die Selfstream-Admin-API auf; Admin-Passwort im Request, serverseitig als API-Token). |
-| **Einstellungen** | Selfstream-**Basis-URL** (z. B. `http://host:8080`, ohne `/admin`), **Admin-Passwort**, Aktualisierungsintervall (Sekunden), optional Client-IP anzeigen. |
-| **Voraussetzung** | Selfstream muss vom SelfDashboard-Container aus erreichbar sein (gleicher Host oder LAN). |
-
----
-
-## Fritzbox-Plugin (Internet-Verlauf)
-
-| Thema | Details |
-|---|---|
-| **Zweck** | **Download- und Upload-Durchsatz** am WAN als Kurve aus den FRITZ!Box-**TR-064**-Gesamtbyte-Zählern (ohne Extra-Dienst auf der Box). |
-| **API** | Browser → `POST /api/fritzbox` (SelfDashboard-Server spricht die Box an). Optional `lite: true` für nur Zähler zwischen vollen Abrufen. |
-| **Anmeldung** | TR-064-Benutzer + Passwort; optional **HTTPS mit selbstsigniertem Zertifikat** erlauben. |
-| **Aktualisieren** | **0–300 s** voller TR-064-Abruf: **`0`** = kein Intervall (nur beim Laden des Dashboards). Für laufende Messpunkte **Zähler-Takt** nutzen. |
-| **Zähler-Takt** | **0** = Messpunkte nur beim Intervall „Aktualisieren“; **3–15 s** = zusätzliche Zähler-Abfragen für flüssigere Kurve. |
-| **Verlauf-Cache** | Letzte Kurvenpunkte im **Browser-`localStorage`** (pro **Basis-URL + Benutzername**), bis **7 Tage**, damit nach einem Reload nicht sofort „zu wenige Messpunkte“ erscheint. |
-| **Layout** | **Vertikal** (Grafik über Karten) oder **waagerecht** (Grafik neben Karten — bei **breitem** Widget am schönsten). |
-| **Sichtbarkeit** | In den Plugin-Einstellungen: Überschrift, Legende, Live-Werte, Kurve, Zeitachsen-Hinweis und jede Statistik-Karte einzeln ein/aus. |
-| **Plot-Höhe** | **`0`** = interne Standardhöhe (**168 px**). **`1–220`** = exakte Höhe in **1-Pixel-Schritten**. |
-| **Y-Achse** | **`0` Mbit/s Maximum** = Skala aus den Daten; fester Wert schneidet oben ab. |
-| **Messpunkte** | **16–120** Werte für den Verlauf. |
-| **Ausreißer** | Optional **Max. Messrate (Mbit/s)**: bei **&gt; 0** **exakte** Kappung für beide Richtungen (z. B. **1000**). **0** = nur TR-064 **Layer1**-Maximalwerte (falls vorhanden) + **3 %** Puffer. |
-| **Sprache** | Anzeige: **auto** (wie Dashboard), **Deutsch** oder **Englisch**. |
-
----
-
-## FRITZ! Steckdose Energie (Plugin)
-
-| Thema | Details |
-|---|---|
-| **Zweck** | Stromverbrauch einer **FRITZ!Smart Energy**-Steckdose (oder kompatibler Steckdose mit Zähler) — **aktuell W**, **heute**, **letzte 7 Tage**, **Monat** kWh. |
-| **API** | Browser → `POST /api/fritz-energy` (SelfDashboard-Server ruft TR-064 **Homeauto** auf derselben Box wie beim Internet-Verlauf). |
-| **Einrichtung** | Basis-URL, TR-064-Benutzer + Passwort (FRITZ!-Benutzer mit **Smart Home**), **AIN** der Steckdose (Geräte laden in den Einstellungen oder aus der FRITZ!Box kopieren). |
-| **Verlauf** | Bei jedem Abruf werden heute / Woche / Monat von der Box übernommen, wo verfügbar; Messwerte serverseitig unter `data/fritz-energy/` (pro Box + AIN). |
-| **Widget** | **Raster** (vier Kacheln, füllt 2×2-Höhe) oder **Karussell** (ein Wert mit Pfeilen). Optional kompakte Darstellung. |
-| **Aktualisieren** | **15–300 s** Intervall in den Plugin-Einstellungen. |
-| **Anzeige** | Kein kurzes „Aktualisiere…“ beim Laden — Werte werden still im Hintergrund aktualisiert. |
-| **Sprache** | Auto / Deutsch / Englisch (Plugin-Einstellung). |
-
-Getrennt vom Plugin **Fritzbox Internet Verlauf** (WAN-Kurve): andere API-Route und TR-064-Dienste; gleiche Router-Zugangsdaten möglich.
-
----
-
 ## Kiosk-Modus (Wand-Tablet)
 
 | Thema | Details |
@@ -787,17 +459,6 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 
 ---
 
-## Plugins & eigene Plugins entwickeln
-
-| Thema | Dokument |
-|---|---|
-| Installation (Store, ZIP, Ordner) | **[docs/PLUGINS.md](docs/PLUGINS.md)** |
-| Plugin schreiben (Widget, API, Veröffentlichen) | **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** |
-| Fehlerprotokoll | **[docs/LOGGING.md](docs/LOGGING.md)** |
-
-**Kurz:** Plugins liegen unter **`/app/plugins/custom/<id>/`** als **`plugin.json`** + **`widget.js`**. Nutzer installieren über den **Plugin-Store** (GitHub `plugins-pack/`) oder **ZIP-Upload**. Entwickler arbeiten in **`plugins/<id>/index.tsx`** (oft **neben** dem App-Repo), führen **`npm run publish:plugin-pack`** aus und pushen **`plugins-pack/`** inkl. **`plugins-index.json`** (Store-Katalog).
-
-**Kein Image-Rebuild** für neue Widgets — nur Publish + Installation. Kern-APIs (z. B. Mail, AdGuard) können im App-Image bleiben — siehe PLUGIN_DEV.md.
 
 ---
 
