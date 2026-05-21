@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modulares Homelab-Dashboard. Schlankes Kern-Image; Plugins über Store „Von GitHub“ (plugins-pack) oder ZIP in den gemounteten Plugin-Ordner (/app/plugins/custom, je Plugin plugin.json + widget.js). Nach Install: Strg+F5. Config Storage (/app/data): dashboard.json. Plugin Mode volume (Standard): keine eingebauten Plugins aus dem Image. hybrid: zusätzlich Image-Bundle. „Plugin-Ordner befüllen“ nur bei hybrid. Doku: docs/PLUGIN_DISTRIBUTION.md — Image :beta.</Overview>
+  <Overview>SelfDashboard — modulares Homelab-Dashboard. Schlankes Kern-Image; Plugins nur über Store „Von GitHub“ (plugins-pack) oder ZIP nach /app/plugins/custom (plugin.json + widget.js). Nach Install: Strg+F5. Config Storage: dashboard.json unter /app/data. Doku: docs/PLUGINS.md und docs/PLUGIN_DEV.md — Image :beta.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/unraid/selfdashboard.xml</TemplateURL>
@@ -70,13 +70,13 @@
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- Plugin mode -->
+  <!-- Plugin mode (legacy env — app is volume-only) -->
   <Config
     Name="Plugin Mode"
     Target="SELFDASHBOARD_PLUGINS_MODE"
     Default="volume"
     Mode=""
-    Description="Nur zwei Werte: volume = nur Plugins im gemounteten Ordner / von GitHub (empfohlen, kein Image-Bundle). hybrid = zusätzlich eingebaute Plugins aus dem Image. Exakt volume oder hybrid eingeben."
+    Description="Legacy-Variable (wird ignoriert): SelfDashboard nutzt nur Plugins aus dem gemounteten Ordner / GitHub-Store. Wert volume belassen."
     Type="Variable"
     Display="always"
     Required="false"

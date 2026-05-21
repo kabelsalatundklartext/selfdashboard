@@ -1,589 +1,355 @@
-# 🧩 SelfDashboard — Plugin-Entwicklung
+# Plugin entwickeln — Anleitung
 
-[🇬🇧 English](#english) | [🇩🇪 Deutsch](#deutsch)
+Diese Anleitung erklärt, **wie Plugins für SelfDashboard aufgebaut sind**, was du selbst schreiben musst und wie du sie **im Store** oder per **ZIP** verteilst.
 
----
-
-# 🇩🇪 Deutsch
-
-## Was ist ein Plugin?
-
-Ein Plugin ist eine React-Komponente die sich beim SelfDashboard Plugin-Registry registriert. Danach erscheint es automatisch im Plugin Store und kann auf jedem Dashboard hinzugefügt werden.
+Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
 
 ---
 
-## Plugin erstellen — Schritt für Schritt
+## 1. Grundidee
 
-### 1. Ordner anlegen
+| Rolle | Was passiert |
+|--------|----------------|
+| **SelfDashboard (Image)** | Dashboard, Store, API-Gateway, ein paar **Kern-Server** (z. B. Mail, AdGuard) |
+| **Plugin auf dem Volume** | `plugin.json` + `widget.js` (+ optional `server.js`) unter `/app/plugins/custom/<id>/` |
+| **Du als Entwickler** | Schreibst TypeScript in `plugins/<id>/`, baust mit `npm run publish:plugin-pack`, pushst `plugins-pack/` |
 
+Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume (Store oder ZIP), nicht aus dem Docker-Image.
+
+---
+
+## 2. Ordner auf deinem PC
+
+```text
+SelfDashboard/
+├── plugins/
+│   ├── _template/          ← Vorlage kopieren
+│   ├── mail/
+│   ├── adguard/
+│   └── meinplugin/
+└── selfdashboard/          ← Git-Repo
+    ├── plugins-pack/       ← wird beim Publish gefüllt
+    │   ├── plugins-index.json
+    │   └── adguard/
+    │       ├── plugin.json
+    │       └── widget.js
+    └── src/                ← App-Code
 ```
-plugins/
-└── meinplugin/
-    └── index.tsx
+
+Skripte suchen `plugins/` automatisch:
+
+1. `selfdashboard/plugins/` (falls vorhanden)
+2. sonst `../plugins/` (Geschwisterordner — dein Setup)
+
+Optional: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`
+
+---
+
+## 3. Dateien pro Plugin
+
+### Pflicht für den Store
+
+| Datei | Beschreibung |
+|--------|----------------|
+| `plugin.json` | Metadaten (ID, Name, Version, Kategorie, Layout-Defaults) |
+| `index.tsx` | Quellcode — wird zu `widget.js` gebündelt |
+| `widget.js` | **Ergebnis** des Builds — das lädt der Browser |
+
+### Optional
+
+| Datei | Beschreibung |
+|--------|----------------|
+| `server.ts` | Server-Logik — nur nötig, wenn du **eigene** API-Routen brauchst, die **nicht** schon im Image sind |
+| `server.js` | Kompilierte Server-Datei fürs Volume (selten; Mail/AdGuard laufen im Image) |
+
+### `plugin.json` — Beispiel
+
+```json
+{
+  "id": "meinplugin",
+  "name": "Mein Plugin",
+  "description": "Kurzbeschreibung für den Store.",
+  "version": "1.0.0",
+  "author": "Dein Name",
+  "category": "utility",
+  "icon": "✨",
+  "iconUrl": "/plugin-logos/meinplugin.png",
+  "defaultLayout": { "w": 3, "h": 2, "minW": 2, "minH": 2 }
+}
 ```
 
-### 2. Minimales Plugin
+**Regeln für `id`:** nur Kleinbuchstaben, Ziffern, Bindestrich — z. B. `mein-plugin`.
+
+**Kategorien (`category`):**  
+`media` | `system` | `network` | `storage` | `security` | `productivity` | `utility`
+
+`hasServer` in `plugin.json` nur setzen, wenn ihr wirklich eine `server.js` auf GitHub mitliefert.
+
+---
+
+## 4. Widget schreiben (`index.tsx`)
+
+Jedes Plugin ist eine **Client-Komponente** (`'use client'`).
+
+### Mindeststruktur
 
 ```tsx
 'use client'
 
 import type { PluginComponent, PluginMeta, PluginWidgetProps } from '@/types'
-
-// Metadaten — erscheinen im Plugin Store
-export const meta: PluginMeta = {
-  id: 'meinplugin',              // Eindeutige ID (nur a-z, 0-9, -)
-  name: 'Mein Plugin',           // Anzeigename im Store
-  description: 'Zeigt etwas.',   // Kurze Beschreibung
-  version: '1.0.0',
-  author: 'Dein Name',
-  category: 'utility',           // Kategorie (siehe unten)
-  icon: '✨',                    // Emoji oder Bild-URL
-}
-
-// Widget — wird auf dem Dashboard angezeigt
-function Widget({ config }: PluginWidgetProps) {
-  return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: 'var(--text)' }}>Hallo Welt!</p>
-    </div>
-  )
-}
-
-export const component: PluginComponent = { Widget }
-```
-
-### 3. Plugin registrieren
-
-In `src/lib/pluginLoader.ts` **zwei Zeilen** hinzufügen:
-
-```ts
-import * as meinPlugin from '../../plugins/meinplugin'   // ← Zeile 1
-
-export function loadBuiltinPlugins() {
-  // ... andere Plugins ...
-  registerPlugin(meinPlugin.meta, meinPlugin.component)  // ← Zeile 2
-}
-```
-
-**Das war's!** Das Plugin erscheint jetzt im Plugin Store. 🎉
-
----
-
-## Checkliste: Was du implementierst — was automatisch kommt
-
-### Selbst umsetzen (Plugin-Code)
-
-| Thema | Kurzbeschreibung |
-|---|---|
-| **Datei** | `plugins/<id>/index.tsx` — `'use client'`, `export const meta`, `export const component` |
-| **Widget** | React-Komponente, die **`PluginWidgetProps`** nutzt; typisch **`height: '100%'`**, **`minWidth: 0`**, **`overflow`**, damit die Kachel sauber clippt |
-| **Theming** | Farben über **`var(--background)`**, **`var(--text)`**, **`var(--accent)`**, … (siehe Abschnitt CSS-Variablen) |
-| **Einstellungen** | Optional zweite Komponente **`Settings`** mit **`PluginSettingsProps`**; Felder schreiben per **`onChange('schlüssel', wert)`** in **`config`** |
-| **Daten / APIs** | **`fetch`** im Browser nur **same-origin** ohne CORS-Probleme; für externe URLs meist eine **Route unter `src/app/api/…`** im Hauptprojekt bauen und vom Widget `/api/…` aufrufen (wie bestehende Plugins) |
-| **Responsiv** | Optional Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'desktop'`) für unterschiedliche Darstellung — rein optional |
-| **Release** | **`src/lib/pluginLoader.ts`**: `import` + **`registerPlugin(meta, component)`**, dann **`npm run build`** bzw. Docker-Image neu bauen |
-
-### Automatisch vom Host (ohne Extra-Code im Plugin)
-
-| Thema | Kurzbeschreibung |
-|---|---|
-| **Store** | Nach erfolgreicher Registrierung erscheint das Plugin in der **Plugin-Auswahl** (`+` / Plugin-Store) |
-| **Kachel-UI** | **Verschieben**, **Größe ziehen**, **Bearbeiten-Rahmen**; **Zoom**, **Innenabstand**, **Höhe** pro Instanz; **⚙️** öffnet dein Settings-Modal (falls vorhanden); **Entfernen** |
-| **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** werden an **`Widget`** übergeben |
-| **Speichern** | Nutzer-**`config`** und Layout hängen am Dashboard und landen in **`dashboard.json`** (wenn `/app/data` gemountet) bzw. im lokalen Cache |
-| **Start-Layout** | **`meta.defaultLayout`** / **`stackedExtraH`** werden beim Hinzufügen mit Defaults gemischt |
-| **Fehlerprotokoll** | Nach **`registerPlugin`**: Render-Fehler in der Kachel + fehlgeschlagene **`fetch('/api/…')`** landen unter **Einstellungen → Protokoll** (Plugin-ID = **`meta.id`**) — siehe **[docs/LOGGING.md](LOGGING.md)** |
-
-### Passiert nicht „von alleine“
-
-| Thema | Erklärung |
-|---|---|
-| **Custom-Pfad Unraid** | Dateien nur unter **`/app/plugins/custom`** legen **registriert** im **offiziellen Image** **kein** neues TypeScript-Plugin — der Code muss beim **Build** in `pluginLoader.ts` stecken |
-| **Eigene Server-API** | Es gibt keinen generischen Proxy; **serverseitige** Logik = **eigene** `src/app/api/...`-Route (oder bestehende wiederverwenden) |
-| **`configSchema` in `meta`** | Feld ist im Typ vorgesehen; die UI generiert daraus aktuell **kein** Formular automatisch — Einstellungen bleiben bei **`Settings`-Komponente** |
-| **Externe URLs direkt im Browser** | `fetch('https://fremd.example')` wird **nicht** automatisch ins Protokoll geschrieben — dafür eine **`/api/<dein-plugin>/`**-Route im Hauptprojekt |
-
----
-
-## Fehlerprotokoll (für Nutzer & Entwickler)
-
-Vollständige Referenz: **[docs/LOGGING.md](LOGGING.md)**.
-
-### Was du als Autor tun musst
-
-1. **`meta.id`** stabil und eindeutig wählen (wird als **`pluginId`** im Protokoll verwendet).
-2. In **`pluginLoader.ts`** registrieren — danach ist das **Widget** automatisch abgesichert.
-3. Server-Zugriff: Route unter **`src/app/api/<meta.id>/`** (oder Unterpfad wie `calendar`) und im Widget **`fetch('/api/…')`** oder **`pluginApiJson`** aus **`@/lib/pluginDev`**.
-4. In **`catch`**: optional **`reportPluginCatch('deine-id', e, 'kategorie')`** für Kontext (z. B. Sync-Schritt).
-
-### Starter-Vorlage
-
-Ordner **`plugins/_template/`** kopieren nach **`plugins/<id>/`**, `meta.id` anpassen, in **`pluginLoader.ts`** eintragen.
-
-### Server-API-Route (Beispiel)
-
-```ts
-import { NextResponse } from 'next/server'
-import { withApiRouteLog } from '@/lib/apiRouteLog'
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
-
-export const dynamic = 'force-dynamic'
-
-export async function POST(req: Request) {
-  return withApiRouteLog(req, 'POST', async () => {
-    try {
-      // … deine Logik …
-      return NextResponse.json({ ok: true })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      await logPluginApiFailure('meinplugin', 'POST', msg)
-      return NextResponse.json({ error: msg }, { status: 502 })
-    }
-  }, 'meinplugin')
-}
-```
-
-**Niemals** `@/lib/pluginLogServer` oder `@/lib/errorLog` in **`plugins/**/index.tsx`** importieren (bricht den Webpack-Build).
-
----
-
-## Builtin vs. Docker / Unraid (wichtig)
-
-- **`pluginLoader.ts`** liegt im **Quellcode** und wird beim **`next build`** / Docker-Image in die App **eingebunden**. Auf dem Server (Unraid, Docker) hängt man diese Datei **nicht** per Volume ein, um neue Plugins „nachzuladen“.
-- **Neues Plugin nutzen:** Ordner unter `plugins/<id>/` anlegen, in **`src/lib/pluginLoader.ts`** importieren und **`registerPlugin(...)`** aufrufen (siehe oben), dann **Image neu bauen** und ausrollen (oder PR ins Haupt-Repository).
-- **Unraid „Custom Plugins Path“** → `/app/plugins/custom`: Im **Standard-Image** werden daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit geladen. Das Volume ist **optional** (eigene Dateien, selbst gebautes Image, o. Ä.). Wer nur Dateien auf die Platte legt und das offizielle Image unverändert nutzt, sieht **keine** neuen Store-Einträge.
-
----
-
-## Plugin mit Einstellungen
-
-Plugins können eigene Einstellungen haben die der Nutzer über das ⚙️ Icon konfiguriert:
-
-```tsx
-'use client'
-
-import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { registerPlugin } from '@/lib/pluginRegistry'
 
 export const meta: PluginMeta = {
   id: 'meinplugin',
   name: 'Mein Plugin',
-  description: 'Plugin mit Einstellungen.',
+  description: 'Was das Widget macht.',
   version: '1.0.0',
   author: 'Dein Name',
-  category: 'utility',
-  icon: '⚙️',
-}
-
-// Widget liest Werte aus config
-function Widget({ config }: PluginWidgetProps) {
-  const titel = (config.titel as string) || 'Standard'
-  const farbe = (config.farbe as string) || 'var(--accent)'
-
-  return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: farbe, fontSize: '1.2em', fontWeight: 700 }}>{titel}</p>
-    </div>
-  )
-}
-
-// Settings — wird im Einstellungs-Modal angezeigt
-function Settings({ config, onChange }: PluginSettingsProps) {
-  const inp: React.CSSProperties = {
-    background: 'var(--surface)', border: '1px solid var(--border)',
-    color: 'var(--text)', borderRadius: '6px', padding: '6px 10px',
-    fontSize: '13px', outline: 'none', width: '100%',
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-          Titel
-        </label>
-        <input
-          style={inp}
-          value={(config.titel as string) || ''}
-          onChange={(e) => onChange('titel', e.target.value)}
-          placeholder="Mein Titel"
-        />
-      </div>
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-          Farbe
-        </label>
-        <input
-          type="color"
-          value={(config.farbe as string) || '#6366f1'}
-          onChange={(e) => onChange('farbe', e.target.value)}
-          style={{ width: '48px', height: '32px', borderRadius: '6px', border: '1px solid var(--border)', cursor: 'pointer' }}
-        />
-      </div>
-    </div>
-  )
-}
-
-// Beide exportieren!
-export const component: PluginComponent = { Widget, Settings }
-```
-
----
-
-## Daten von einer API laden
-
-```tsx
-'use client'
-
-import { useEffect, useState } from 'react'
-import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
-import { reportPluginCatch } from '@/lib/pluginDev'
-
-export const meta: PluginMeta = {
-  id: 'mein-api-plugin',
-  name: 'API Plugin',
-  description: 'Lädt Daten von einer API.',
-  version: '1.0.0',
-  author: 'Dein Name',
-  category: 'utility',
-  icon: '🌐',
-}
-
-function Widget({ config }: PluginWidgetProps) {
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const apiUrl = config.apiUrl as string
-  const apiKey = config.apiKey as string
-  const interval = ((config.refresh as number) ?? 30) * 1000
-
-  useEffect(() => {
-    if (!apiUrl) { setLoading(false); return }
-
-    const load = async () => {
-      try {
-        const res = await fetch(apiUrl, {
-          headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {},
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        setData(await res.json())
-        setError(null)
-      } catch (e: unknown) {
-        reportPluginCatch('mein-api-plugin', e, 'fetch')
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    load()
-    const id = setInterval(load, interval)
-    return () => clearInterval(id)
-  }, [apiUrl, apiKey, interval])
-
-  if (!apiUrl) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-      <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>API URL eintragen</p>
-    </div>
-  )
-
-  if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: '14px', borderRadius: '4px' }} />)}
-    </div>
-  )
-
-  if (error) return (
-    <p style={{ color: '#ef4444', fontSize: '12px' }}>⚠️ {error}</p>
-  )
-
-  return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      <pre style={{ fontSize: '11px', color: 'var(--text)' }}>
-        {JSON.stringify(data, null, 2)}
-      </pre>
-    </div>
-  )
-}
-
-function Settings({ config, onChange }: PluginSettingsProps) {
-  const inp: React.CSSProperties = {
-    background: 'var(--surface)', border: '1px solid var(--border)',
-    color: 'var(--text)', borderRadius: '6px', padding: '6px 10px',
-    fontSize: '13px', outline: 'none', width: '100%',
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>API URL</label>
-        <input style={inp} value={(config.apiUrl as string) || ''} onChange={(e) => onChange('apiUrl', e.target.value)} placeholder="http://..." />
-      </div>
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>API Key (optional)</label>
-        <input style={inp} type="password" value={(config.apiKey as string) || ''} onChange={(e) => onChange('apiKey', e.target.value)} placeholder="••••••••" />
-      </div>
-      <div>
-        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Aktualisierung (Sekunden)</label>
-        <input style={inp} type="number" value={(config.refresh as number) ?? 30} onChange={(e) => onChange('refresh', Number(e.target.value))} min={5} />
-      </div>
-    </div>
-  )
-}
-
-export const component: PluginComponent = { Widget, Settings }
-```
-
----
-
-## CSS Variablen (Themes)
-
-Immer CSS-Variablen verwenden damit das Plugin alle Themes unterstützt:
-
-| Variable | Verwendung |
-|---|---|
-| `var(--background)` | Seitenhintergrund |
-| `var(--surface)` | Karten-/Panel-Hintergrund |
-| `var(--surface-2)` | Leicht hellere Oberfläche |
-| `var(--border)` | Rahmen |
-| `var(--text)` | Haupttext |
-| `var(--text-muted)` | Gedimmter/sekundärer Text |
-| `var(--accent)` | Akzentfarbe (Buttons, Highlights) |
-
----
-
-## CSS Klassen
-
-| Klasse | Beschreibung |
-|---|---|
-| `.widget-panel` | Standard Widget-Container |
-| `.btn-accent` | Primärer Button (lila) |
-| `.btn-ghost` | Sekundärer/Outline Button |
-| `.skeleton` | Lade-Shimmer-Effekt |
-
----
-
-## Kategorien
-
-| ID | Anzeige |
-|---|---|
-| `utility` | 🔧 Dienstprogramm |
-| `system` | 🖥️ System |
-| `media` | 🎬 Medien |
-| `network` | 🌐 Netzwerk |
-| `storage` | 💾 Speicher |
-| `security` | 🔒 Sicherheit |
-| `productivity` | 📋 Produktivität |
-
----
-
-## Typ-Referenz (`@/types`)
-
-### `PluginMeta` (wichtigste Felder)
-
-| Feld | Pflicht | Hinweis |
-|---|---|---|
-| `id`, `name`, `description`, `version`, `author`, `category` | ja | `id` stabil halten (gespeichert im Dashboard) |
-| `icon` | nein | Emoji oder Bild-URL |
-| `defaultLayout`, `minW`, … | nein | Startgröße beim Einfügen |
-| `stackedExtraH` | nein | Zusatzhöhe nur Anzeige im **gestapelten** Raster |
-| `configSchema` | nein | Reserviert; **keine** automatisch generierte Einstellungs-UI |
-
-### `PluginWidgetProps`
-
-| Prop | Typ | Beschreibung |
-|---|---|---|
-| `instanceId` | `string` | Eindeutige Instanz-ID |
-| `config` | `Record<string, unknown>` | Nutzer-Konfiguration |
-| `theme` | `ThemeId` | Aktives Farbschema |
-| `editMode` | `boolean?` | `true`, wenn Layout bearbeitet wird |
-| `layoutMode` | `'phone' \| 'tablet' \| 'desktop'?` | Raster-Modus des Dashboards (optional) |
-
-### `PluginSettingsProps`
-
-| Prop | Beschreibung |
-|---|---|
-| `config` | Aktuelle Werte |
-| `onChange` | `(key, value) => void` |
-
----
-
-## Plugin veröffentlichen
-
-1. GitHub Repo erstellen: `selfdashboard-plugin-meinname`
-2. Topic `selfdashboard-plugin` hinzufügen
-3. **Mit ins Haupt-Repo mergen:** Ordner nach `plugins/` kopieren und `pluginLoader.ts` wie oben ergänzen → PR. **Oder eigenes Docker-Image** bauen (Fork), mit gleicher Registrierung — Konsumenten brauchen dann **dein** Image, nicht nur einen Datei-Kopier-Schritt auf der Platte.
-
----
-
-# 🇬🇧 English
-
-## What is a Plugin?
-
-A plugin is a React component that registers itself with the SelfDashboard Plugin Registry. It then automatically appears in the Plugin Store and can be added to any dashboard.
-
----
-
-## Creating a Plugin — Step by Step
-
-### 1. Create folder
-
-```
-plugins/
-└── myplugin/
-    └── index.tsx
-```
-
-### 2. Minimal plugin
-
-```tsx
-'use client'
-
-import type { PluginComponent, PluginMeta, PluginWidgetProps } from '@/types'
-
-export const meta: PluginMeta = {
-  id: 'myplugin',
-  name: 'My Plugin',
-  description: 'Shows something.',
-  version: '1.0.0',
-  author: 'Your Name',
   category: 'utility',
   icon: '✨',
+  defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, theme, editMode, layoutMode }: PluginWidgetProps) {
   return (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: 'var(--text)' }}>Hello World!</p>
+    <div
+      style={{
+        height: '100%',
+        minWidth: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--text)',
+      }}
+    >
+      Hallo!
     </div>
   )
 }
 
 export const component: PluginComponent = { Widget }
+
+registerPlugin(meta, component, { replace: true })
 ```
 
-### 3. Register the plugin
+### Props (`PluginWidgetProps`)
 
-In `src/lib/pluginLoader.ts` add **two lines**:
+| Prop | Bedeutung |
+|------|-----------|
+| `instanceId` | Eindeutige Kachel-ID auf dem Dashboard |
+| `config` | Gespeicherte Einstellungen (Objekt) |
+| `theme` | Aktives Theme (`dark`, `light`, …) |
+| `editMode` | `true` im Bearbeitungsmodus |
+| `layoutMode` | `'phone'` \| `'tablet'` \| `'desktop'` — optional für responsive UI |
 
-```ts
-import * as myPlugin from '../../plugins/myplugin'      // ← Line 1
+### Styling
 
-export function loadBuiltinPlugins() {
-  // ... other plugins ...
-  registerPlugin(myPlugin.meta, myPlugin.component)     // ← Line 2
+Nutze CSS-Variablen des Themes:
+
+- `var(--background)`, `var(--surface)`, `var(--border)`
+- `var(--text)`, `var(--text-muted)`, `var(--accent)`
+
+Wichtig: `height: '100%'`, `minWidth: 0`, bei Scrollen `overflow: 'auto'`.
+
+### Einstellungen pro Kachel (`Settings`)
+
+```tsx
+function Settings({ config, onChange }: PluginSettingsProps) {
+  return (
+    <input
+      value={String(config.url ?? '')}
+      onChange={(e) => onChange('url', e.target.value)}
+    />
+  )
+}
+
+export const component: PluginComponent = { Widget, Settings }
+```
+
+Nutzer öffnen **⚙️** am Widget im Bearbeitungsmodus.
+
+---
+
+## 5. API vom Widget aufrufen
+
+### Gleiche Domain (empfohlen)
+
+```tsx
+import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
+
+async function load() {
+  try {
+    const data = await pluginApiJson<{ ok: boolean }>('meinplugin', '/status')
+    // → GET /api/plugins/meinplugin/status
+  } catch (e) {
+    reportPluginCatch('meinplugin', e, 'load')
+  }
 }
 ```
 
-**That's it!** The plugin now appears in the Plugin Store. 🎉
+| Aufruf | URL |
+|--------|-----|
+| `pluginApiJson('adguard', '/')` | `POST/GET /api/plugins/adguard/…` |
+| `pluginApiJson('mail', '/settings')` | `/api/plugins/mail/settings` |
+
+Legacy-Routen wie `/api/mail/…` existieren teils noch — neu besser `/api/plugins/<id>/…`.
+
+### Eigene Server-API
+
+**Variante A — im Image (nur Core-Team):** Handler unter `src/lib/pluginServers/` + Eintrag in `src/lib/pluginServerLoader.ts` (Mail, AdGuard).
+
+**Variante B — fürs Volume:** `server.ts` im Plugin-Ordner, zu `server.js` bauen, auf GitHub in `plugins-pack/<id>/server.js` — wird dynamisch geladen.
+
+**Variante C — Proxy im Hauptprojekt:** `src/app/api/meinplugin/route.ts` (wie ältere Plugins).
+
+Für Homelab-Plugins reicht meist **Variante C** oder ein bestehendes Gateway über `pluginApiJson`.
 
 ---
 
-## Checklist: what you build vs. what is automatic
+## 6. Erweitert: Navbar & App-Einstellungen
 
-### You implement (plugin code)
+Manche Plugins (z. B. **Mail**) brauchen kein klassisches Widget, sondern:
 
-| Topic | Notes |
-|---|---|
-| **File** | `plugins/<id>/index.tsx` — `'use client'`, `export const meta`, `export const component` |
-| **Widget** | React component using **`PluginWidgetProps`**; usually **`height: '100%'`**, **`minWidth: 0`**, sensible **`overflow`** so the tile clips cleanly |
-| **Theming** | Prefer **`var(--background)`**, **`var(--text)`**, **`var(--accent)`**, … (see CSS variables below) |
-| **Settings** | Optional **`Settings`** component with **`PluginSettingsProps`**; write user fields via **`onChange('key', value)`** into **`config`** |
-| **Data / APIs** | Browser **`fetch`** is straightforward **same-origin**; for third-party URLs you typically add a **`src/app/api/...`** route in the main app and call **`/api/...`** from the widget (same pattern as built-in plugins) |
-| **Responsive** | Optional **`layoutMode`** (`'phone' \| 'tablet' \| 'desktop'`) — use if the widget should adapt to dashboard breakpoints |
-| **Shipping** | **`src/lib/pluginLoader.ts`**: `import` + **`registerPlugin(meta, component)`**, then **`npm run build`** / rebuild your Docker image |
+- Icon in der **Navbar**
+- eigener Tab unter **Einstellungen**
 
-### Provided by the host app (no extra plugin code)
+Dafür beim Laden des Plugins (in `index.tsx`, läuft auch in `widget.js`):
 
-| Topic | Notes |
-|---|---|
-| **Store** | After registration the plugin shows up in the **plugin picker** / store |
-| **Tile chrome** | **Drag**, **resize**, edit outline; per-instance **zoom**, **padding**, **height**; **⚙️** opens your `Settings` when exported; **remove** |
-| **Props** | **`instanceId`**, **`config`**, **`theme`**, **`editMode`**, **`layoutMode`** are passed to **`Widget`** |
-| **Persistence** | User **`config`** and layout are tied to the dashboard and saved to **`dashboard.json`** (when `/app/data` is mounted) plus local cache |
-| **Initial layout** | **`meta.defaultLayout`** / **`stackedExtraH`** are merged with defaults when the user adds a widget |
-| **Error log** | After **`registerPlugin`**: render errors in the tile + failed **`fetch('/api/…')`** go to **Settings → Logs** (`pluginId` = **`meta.id`**) — see **[docs/LOGGING.md](LOGGING.md)** |
+```tsx
+import { registerNavbarSlot } from '@/lib/pluginNavbarRegistry'
+import { registerAppSettingsPanel } from '@/lib/pluginAppSettingsRegistry'
 
-### Not automatic
+registerNavbarSlot('mail', NavbarMail)
+registerAppSettingsPanel('mail', { de: 'E-Mail', en: 'Email' }, MailSettingsPanel)
+```
 
-| Topic | Explanation |
-|---|---|
-| **Unraid custom path** | Dropping TS sources into **`/app/plugins/custom`** **does not** register a new plugin in the **stock** image — code must be linked in **`pluginLoader.ts`** at **build** time |
-| **Server API** | There is no generic proxy; **server-side** work means your own **`src/app/api/...`** route (or reuse an existing one) |
-| **`configSchema` on `meta`** | The field exists on the type; the UI **does not** auto-generate a form from it today — use a **`Settings`** component |
-| **Direct browser fetch to third-party URLs** | Not auto-logged — add a **`/api/your-plugin/`** route in the main app instead |
+Diese Funktionen sind über `window.SelfDashboard` in gebündelten `widget.js` verfügbar (Bridge wird vor dem Script geladen).
 
 ---
 
-## Error log (for users & developers)
+## 7. Veröffentlichen (GitHub Store)
 
-Full reference: **[docs/LOGGING.md](LOGGING.md)**.
+### Schritte
 
-### What you must do as an author
+```bash
+cd selfdashboard
+npm run publish:plugin-pack
+```
 
-1. Choose a stable **`meta.id`** (used as **`pluginId`** in the log).
-2. Register in **`pluginLoader.ts`** — the **Widget** is then wrapped automatically.
-3. Server access: **`src/app/api/<meta.id>/`** and call **`fetch('/api/…')`** or **`pluginApiJson`** from **`@/lib/pluginDev`** in the widget.
-4. In **`catch`**: optionally **`reportPluginCatch('your-id', e, 'category')`** for extra context.
+Das Skript:
 
-### Starter template
+1. Liest alle Plugins aus `../plugins/` (oder `SELFDASHBOARD_PLUGINS_SRC`)
+2. Baut pro Plugin `widget.js` (esbuild)
+3. Kopiert nach `plugins-pack/<id>/`
+4. Schreibt **`plugins-pack/plugins-index.json`** neu
 
-Copy **`plugins/_template/`** to **`plugins/<id>/`**, set **`meta.id`**, register in **`pluginLoader.ts`**.
+### Git push
 
-### Server API route (example)
+```bash
+git add plugins-pack/
+git commit -m "Plugins: Update Store-Paket"
+git push origin beta
+```
 
-Same pattern as the German section above — use **`withApiRouteLog`** and **`logPluginApiFailure`** from **`@/lib/pluginLogServer`** only in **`src/app/api/**`**.
+Nutzer mit Image `:beta` sehen neue Plugins im Store nach ein paar Minuten (Index-Cache ~5 Min).
 
-**Never** import server log modules in **`plugins/**/index.tsx`**.
+### Neues Plugin in den Index
 
----
-
-## Builtin vs. Docker / Unraid (important)
-
-- **`pluginLoader.ts`** is **source code** bundled at **`next build`** / Docker image build time. You **do not** bind-mount it on Unraid or Docker to “inject” new plugins at runtime.
-- **To ship a new plugin:** add `plugins/<id>/`, import and **`registerPlugin(...)`** in **`src/lib/pluginLoader.ts`**, then **rebuild and deploy** the image (or open a PR to the main repo).
-- **Unraid “Custom Plugins Path”** → `/app/plugins/custom`: the **stock** image **does not** auto-load arbitrary TypeScript plugins from that folder at runtime. The volume is **optional** (your files, a custom-built image, etc.). Dropping files on disk alone into a mapped folder **will not** register new store entries on the official image.
-
----
-
-## PluginMeta Fields
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `id` | string | ✅ | Unique ID (a-z, 0-9, - only) |
-| `name` | string | ✅ | Display name in Plugin Store |
-| `description` | string | ✅ | Short description |
-| `version` | string | ✅ | Semver (e.g. `1.0.0`) |
-| `author` | string | ✅ | Your name |
-| `category` | string | ✅ | See categories table |
-| `icon` | string | — | Emoji or image URL |
-| `defaultLayout` | object | — | Merged with defaults when adding a widget (`w`, `h`, `minW`, …) |
-| `stackedExtraH` | number | — | Extra display rows in stacked (phone) grid only |
-| `configSchema` | array | — | Reserved; **no** auto-generated settings UI yet |
+1. Ordner `plugins/meinplugin/` mit `plugin.json` + `index.tsx`
+2. `npm run publish:plugin-pack` — wenn der Build für `meinplugin` fehlschlägt, steht es **nicht** im Index
+3. `plugins-pack/meinplugin/` und `plugins-index.json` pushen
 
 ---
 
-## PluginWidgetProps
+## 8. ZIP verteilen (ohne GitHub)
 
-| Prop | Type | Description |
-|---|---|---|
-| `instanceId` | string | Unique instance ID |
-| `config` | object | User-configured settings |
-| `theme` | `ThemeId` | Current theme id |
-| `editMode` | `boolean?` | `true` while the dashboard layout is being edited |
-| `layoutMode` | `'phone' \| 'tablet' \| 'desktop'?` | Dashboard grid mode (optional for responsive widgets) |
+ZIP-Struktur:
 
----
+```text
+meinplugin/
+  plugin.json
+  widget.js
+```
 
-## PluginSettingsProps
+Im Store **ZIP hochladen** → entpackt nach `/app/plugins/custom/meinplugin/`.
 
-| Prop | Type | Description |
-|---|---|---|
-| `config` | object | Current config values |
-| `onChange` | function | `(key, value) => void` — call to update a value |
+Kein Eintrag in `plugins-index.json` nötig.
 
 ---
 
-## Publishing Your Plugin
+## 9. Was SelfDashboard automatisch macht
 
-1. Create a GitHub repo: `selfdashboard-plugin-yourname`
-2. Add topic `selfdashboard-plugin`
-3. **Upstream:** copy your folder into `plugins/` and extend `pluginLoader.ts` as above → open a PR. **Or** publish a **forked Docker image** with the same registration — consumers need **your** image rebuild, not only copying files on disk.
+| Automatisch | Du musst … |
+|-------------|------------|
+| Plugin im Store anzeigen (wenn in `plugins-index.json`) | `publish` + push |
+| Kachel: verschieben, zoomen, ⚙️, entfernen | Widget + optional Settings liefern |
+| `config` & Layout in `dashboard.json` speichern | `onChange` in Settings nutzen |
+| Fehler unter **Einstellungen → Protokoll** | `reportPluginCatch` in `catch` |
+| `layoutMode` übergeben | optional auswerten |
+
+| Nicht automatisch | |
+|------------------|---|
+| TypeScript/`index.tsx` direkt auf dem Volume | nur `widget.js` |
+| Plugin nur in `plugins/` legen ohne Publish | erscheint nicht im Store |
+| CORS zu fremden URLs vom Browser | Server-Route oder Gateway bauen |
+
+---
+
+## 10. Checkliste: neues Plugin
+
+- [ ] `plugins/<id>/` von `_template` kopieren
+- [ ] `id` in `plugin.json` und `meta` identisch (Kleinbuchstaben, `-`)
+- [ ] `category` gesetzt (eine der 7 Kategorien)
+- [ ] Widget: `height: 100%`, Theme-Variablen
+- [ ] Optional: Settings, `pluginApiJson`, Server-Route
+- [ ] `npm run publish:plugin-pack` ohne Fehler
+- [ ] `plugins-pack/<id>/widget.js` vorhanden
+- [ ] `plugins-index.json` enthält Eintrag
+- [ ] Git push (`beta` o. ä.)
+- [ ] Im Container testen: Install → Strg+F5
+
+---
+
+## 11. Typische Fehler
+
+| Problem | Lösung |
+|---------|--------|
+| Plugin im Store, Widget leer | `widget.js` fehlt auf GitHub oder nicht installiert → Publish + Install |
+| `jsx is not a function` | Altes `widget.js` — neu `publish:plugin-pack` |
+| `fetch_failed:plugin.json:404` | `plugins-pack/<id>/` nicht gepusht |
+| Build: `Can't resolve plugins/...` | `plugins/` liegt nicht unter Repo oder `../plugins` |
+| API 404 | Pfad `/api/plugins/<id>/…`, Handler registriert? |
+| Navbar/Settings fehlt | Mail-Plugin installiert? `registerNavbarSlot` in `index.tsx`? |
+
+---
+
+## 12. Vorlage & Beispiele
+
+| Pfad | Inhalt |
+|------|--------|
+| `plugins/_template/` | Minimales Starter-Plugin |
+| `plugins/mail/` | Navbar + Einstellungen-Tab + Status-Widget |
+| `plugins/adguard/` | Widget + Server-API |
+
+---
+
+## 13. Umgebungsvariablen (Entwicklung)
+
+| Variable | Zweck |
+|----------|--------|
+| `SELFDASHBOARD_PLUGINS_SRC` | Absoluter Pfad zu `plugins/` |
+| `SELFDASHBOARD_PLUGIN_PACK_DIR` | Absoluter Pfad zu `plugin-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | für `generate-plugins-index` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | Branch im Index (default `beta`) |
+
+---
+
+## 14. English summary
+
+- Plugins are **folders on the volume**: `plugin.json` + `widget.js` (+ optional `server.js`).
+- **Develop** in `plugins/<id>/index.tsx` (outside or beside the app repo).
+- **Publish** with `npm run publish:plugin-pack` → updates `plugins-pack/` and `plugins-index.json`.
+- **Users install** via GitHub Store or ZIP upload; hard-reload after install.
+- **No `pluginLoader.ts`** — widgets are not compiled into the Docker image anymore.
+- Call APIs with `pluginApiJson(pluginId, path)` → `/api/plugins/<id>/…`.
+- See **[LOGGING.md](./LOGGING.md)** for error reporting.

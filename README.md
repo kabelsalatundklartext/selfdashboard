@@ -40,9 +40,9 @@
 | 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server |
 | 📺 **Kiosk / wall tablet** | Navbar auto-hides — show again only via the accent **Menu** button |
 | 📺 **Emby / SelfStream** | Is anything streaming right now? |
-| ✉️ **Navbar mail** | Unread count as a badge — click opens webmail |
+| ✉️ **Navbar mail** | Unread IMAP badge (install **E-Mail** plugin from the store) — click opens webmail |
 
-Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — and every widget comes from the **plugin system** (built-in or self-built).
+Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — and every widget comes from the **plugin system** (install via **Plugin Store** or ZIP, then arrange on the dashboard).
 
 ---
 
@@ -52,7 +52,7 @@ Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/h
 
 > **See the [overview](#overview) above** for a full screenshot walkthrough.
 
-SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. Plugins can be developed by anyone and installed later.
+SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. **Plugins are installed from the GitHub store or via ZIP** into a mounted folder (`/app/plugins/custom`); see **[docs/PLUGINS.md](docs/PLUGINS.md)** and **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 
 ## Features
 
@@ -86,21 +86,21 @@ Icons match the assets in the app under [`public/plugin-logos/`](public/plugin-l
 
 | Plugin | Category | Description | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | ✅ Included |
-| 📅 Calendar | Productivity | CalDAV two-way + ICS feeds; accounts in `/api/calendar`, data in `data/calendar/` | ✅ Included |
-| 🕐 Clock & Date | Utility | Time, date, timezone and city name | ✅ Included |
-| 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | ✅ Included |
-| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Included |
-| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Active sessions — who is watching what | ✅ Included |
-| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | ✅ Included |
-| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container list via Engine API (socket mount) | ✅ Included |
-| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | ✅ Included |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection; 2×2 tiles stretch to widget height; toggle protection (`/api/adguard`) | ✅ Included |
-| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | ✅ Included |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ!Box Internet** | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | ✅ Included |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Network | Smart-outlet power: current W, today / 7 days / month kWh via TR-064 Homeauto (`POST /api/fritz-energy`) | ✅ Included |
-| 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | ✅ Included |
-| 📝 Scratchpad | Utility | Short notes widget, editable in place | ✅ Included |
+| 🔖 Bookmarks | Utility | Quick links with groups, custom icons, drag & drop, responsive grid or row | 📦 Plugin Store |
+| 📅 Calendar | Productivity | CalDAV two-way + ICS feeds; accounts in `/api/calendar`, data in `data/calendar/` | 📦 Plugin Store |
+| 🕐 Clock & Date | Utility | Time, date, timezone and city name | 📦 Plugin Store |
+| 🌤️ Weather | Utility | City or postal code — current conditions (Open-Meteo, no API key) | 📦 Plugin Store |
+| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | 📦 Plugin Store |
+| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Active sessions — who is watching what | 📦 Plugin Store |
+| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Live IPTV streams from Selfstream admin — user, channel/program, duration (`POST /api/selfstream`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container list via Engine API (socket mount) | 📦 Plugin Store |
+| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container list via Unraid GraphQL API (no Docker socket on Unraid host) | 📦 Plugin Store |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Network | DNS stats & protection; 2×2 tiles stretch to widget height; toggle protection (`/api/adguard`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Network | Pi-hole v6 style stats (queries, blocked %, lists); toggle blocking (`/api/pihole`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ!Box Internet** | Network | WAN throughput chart from TR-064 byte counters (`POST /api/fritzbox`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Network | Smart-outlet power: current W, today / 7 days / month kWh via TR-064 Homeauto (`POST /api/fritz-energy`) | 📦 Plugin Store |
+| 🖼️ Iframe | Utility | Embed any URL (iframe) or as a link — dashboards, internal tools, maps | 📦 Plugin Store |
+| 📝 Scratchpad | Utility | Short notes widget, editable in place | 📦 Plugin Store |
 | <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Security | Alerts & bans from local `crowdsec.db` (optional volume); IP feed, lookup links, optional unban via Docker/`cscli` | ✅ Included (optional setup) |
 
 ## Quick Start
@@ -122,11 +122,12 @@ docker run -d \
   -p 3000:3000 \
   -e TZ=Europe/Berlin \
   -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
-*(Optional `-v /var/run/docker.sock:…` — Docker widget only; same host as the container. The **`-v …:/app/data`** mount stores **`dashboard.json`** on disk so all browsers share the same configuration.)*
+*(**`/app/data`** → `dashboard.json`. **`/app/plugins/custom`** → installed plugins (`plugin.json` + `widget.js`). Install widgets in the UI via **Plugin Store → From GitHub** or ZIP upload, then hard-reload (Ctrl+F5). Optional Docker socket — Docker widget only.)*
 
 ### Option 3 — docker-compose
 
@@ -141,7 +142,7 @@ docker-compose up -d
 - **Shared configuration (`dashboard.json`):** when **`/app/data`** is mounted (Unraid: *Config Storage*), SelfDashboard saves **`dashboard.json`** on the server after changes (`PUT /api/dashboard-state`) and loads it on startup (`GET`). Every browser then sees the same dashboards and widgets; **`localStorage`** remains a fast local cache. **Back up** your host appdata folder. Optional **`SELFDASHBOARD_DATA_DIR`** changes the directory *inside* the container where the file is written (the official image sets **`/app/data`**).
 - The **Unraid Community Apps** template (`unraid/selfdashboard.xml`) includes a **Docker Socket** mapping (host `/var/run/docker.sock` → container `/var/run/docker.sock`, read-only), equivalent to `-v /var/run/docker.sock:/var/run/docker.sock`. It is shown **by default** in the template (not hidden under “more settings”). Clear the path if you do not want the Docker widget.
 - **CrowdSec Data (optional)** maps a host folder with `crowdsec.db` to `/crowdsec-data` (read-only). **Leave empty** if you do not use the CrowdSec widget — SelfDashboard does not require CrowdSec. See **CrowdSec widget (optional)** below.
-- The **Custom plugins** path is a **bind-mount**: files on the Unraid disk only appear inside the container when that host folder is mapped to `/app/plugins/custom`. The **stock** image does **not** auto-register new TypeScript plugins from that folder — see **Building Your Own Plugin** and rebuild the image (or use a custom image that reads it).
+- **Plugins Storage** maps a host folder to **`/app/plugins/custom`**. Each plugin is a subfolder with **`plugin.json`** and **`widget.js`** (install from **Plugin Store → From GitHub** or upload a ZIP). TypeScript/`index.tsx` from the repo does **not** run on the volume — see **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 - The Docker plugin uses **`/api/docker-containers`** on the **same machine** where SelfDashboard runs. It talks to the **local** Docker Engine via that socket only.
 - **Permission denied (`EACCES`)** on the socket: the container user must be allowed to open the mounted socket (host `root:docker`). The Unraid template sets **`ExtraParams` `--group-add=281`** (common Unraid `docker` GID). If yours differs, run `stat -c '%g' /var/run/docker.sock` on the host and adjust. Newer SelfDashboard images run as **root** in the container so the socket usually works without tuning.
 - **Start / stop / restart:** **`POST /api/docker-containers`** (two-step confirmation). Plugin settings: master **Buttons**, then **Start** / **Stop** / **Restart** individually. Anyone who can open the dashboard can trigger actions when the socket is mounted — turn the master off on shared setups.
@@ -263,15 +264,15 @@ Accounts are configured in the calendar modal (cog on the tile), not in the old 
 
 ---
 
-## Navbar mail (IMAP)
+## Navbar mail (IMAP) — plugin `mail`
 
-Built-in feature (not a dashboard widget). Configure under **Settings → Email**; toggle the icon under **Settings → General → Navbar email**.
+Install the **E-Mail / IMAP** plugin from the store first. Then configure under **Settings → Email**; toggle the icon under **Settings → General → Navbar email**.
 
 | Topic | Details |
 |---|---|
 | **Purpose** | Poll one or more IMAP accounts and show **total unread** as a badge on the mail icon; click opens your **webmail URL** |
 | **API** | `GET /api/mail/status` (read cache), `?refresh=1` (run IMAP sync now), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Storage** | `data/mail/mail.json` (or `MAIL_DATA_DIR`); passwords **AES-256-GCM** (same key as calendar — `SELFDASHBOARD_CALENDAR_KEY`) |
+| **Storage** | `plugins/custom/mail/mail.json` on the volume (legacy: `data/mail/mail.json` is migrated); passwords **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`) |
 | **Accounts** | Multiple accounts; per account: label, host, port, SSL, user, password, mailbox mode, webmail URL, **Poll this account** (enabled) |
 | **How counts work** | Each sync runs a **fresh IMAP query** and **replaces** the stored total (no tracking of deleted mail). Unread = `SEARCH` unseen + flag check (`\Seen`/`\Deleted` ignored); messages older than the **age filter** are skipped (**Settings → Email → Unread age filter**, default **30 days**, `0` = off). Docker env `MAIL_UNREAD_MAX_AGE_DAYS` applies only when no value is stored yet. `STATUS` is only a fallback if search fails (important on Synology — parent folders can show stale STATUS) |
 | **Mailbox `*`** | All folders with unread mail, **trash excluded** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Leaf folders preferred when a parent has subfolders (avoids double-count / ghost unread on `INBOX.Account`) |
@@ -366,43 +367,17 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 
 ---
 
-## Building Your Own Plugin
+## Plugins & developing your own
 
-Anyone can create plugins for SelfDashboard. **Full walkthrough, examples, and types:** [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md).
-
-### What you ship vs. what SelfDashboard does automatically
-
-| You (plugin author) | SelfDashboard (after `registerPlugin` + rebuild) |
+| Topic | Document |
 |---|---|
-| Folder `plugins/<id>/index.tsx` exporting **`meta`** and **`component`** (`Widget`, optional **`Settings`**) | **Plugin Store** listing; user can add/remove instances on dashboards |
-| One-time **import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, then **`next build` / new Docker image** | **Widget chrome** in edit mode: drag handle, per-widget zoom / padding / height, ⚙️ opens your `Settings` when exported, remove button |
-| Optional **`src/app/api/...`** route if the browser must call a service **without CORS** (same pattern as Docker, FRITZ!Box, …) | **`Widget` props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — persist user settings via existing store / `dashboard.json` |
-| Responsive UI yourself (CSS variables, `minWidth: 0`, optional `layoutMode`) | Initial tile size from **`meta.defaultLayout`** and phone stack hint **`stackedExtraH`** |
-| Optional **`reportPluginCatch`** in `catch` blocks; server route with **`logPluginApiFailure`** | **Error log**: widget render errors + failed **`fetch('/api/…')`** under **Settings → Logs** (`meta.id` = plugin id) |
+| Install (Store, ZIP, folders) | **[docs/PLUGINS.md](docs/PLUGINS.md)** |
+| Write a plugin (widget, API, publish) | **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** |
+| Error logging | **[docs/LOGGING.md](docs/LOGGING.md)** |
 
-**Not automatic:** copying TypeScript into Unraid **Custom Plugins** (`/app/plugins/custom`) **does not** register plugins in the **stock** image — the loader is compiled at build time. Use a **custom image** or fork with `pluginLoader.ts` updated, then rebuild.
+**Summary:** Plugins live under **`/app/plugins/custom/<id>/`** as **`plugin.json`** + **`widget.js`**. Users install from the **Plugin Store** (GitHub `plugins-pack/`) or upload a **ZIP**. Developers work in **`plugins/<id>/index.tsx`** (often **beside** the app repo), run **`npm run publish:plugin-pack`**, and push **`plugins-pack/`** including **`plugins-index.json`** (store catalog).
 
-**Starter:** copy **`plugins/_template/`** → **`plugins/<id>/`**, register in **`pluginLoader.ts`**. See **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** and **[docs/LOGGING.md](docs/LOGGING.md)**.
-
-### Builtin plugins, `pluginLoader.ts`, and Unraid
-
-- **Shipped plugins** (Bookmarks, Calendar, Clock, Weather, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, FRITZ!Box Internet, FRITZ! Steckdose Energie, Iframe, Scratchpad, CrowdSec, …) are **compiled into the Docker image**. They are registered in **`src/lib/pluginLoader.ts`** together with the folder **`plugins/<id>/`**. This file is **not** bind-mounted on Unraid — changing it means **editing the Git repo and rebuilding** the image (or opening a PR upstream).
-- The Unraid template option **“Custom Plugins Path”** maps a host folder to **`/app/plugins/custom`**. The **stock** SelfDashboard image **does not** automatically load arbitrary TypeScript plugins from that path at runtime. Treat the mount as **optional** (e.g. for your own assets or for **custom images** you build yourself that read that directory). To add a new plugin today, follow **PLUGIN_DEV.md** and **rebuild** the container image.
-
-**Minimal example** (full types and steps in [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)):
-
-`plugins/myplugin/index.tsx` — export `meta` and `component` as in PLUGIN_DEV.
-
-`src/lib/pluginLoader.ts` — add import and one line inside `loadBuiltinPlugins()`:
-
-```ts
-import * as myPlugin from '../../plugins/myplugin'
-
-// inside loadBuiltinPlugins():
-registerPlugin(myPlugin.meta, myPlugin.component)
-```
-
-Then rebuild the Docker image (builtin plugins are compiled in, not loaded from a host folder at runtime).
+**No image rebuild** for new widgets — only publish + install. Core APIs (e.g. mail, adguard) may still ship in the app image; see PLUGIN_DEV.md for server options.
 
 ---
 
@@ -414,7 +389,11 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | `NODE_ENV` | `production` | Node.js environment |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (in the official image) | Directory inside the container where **`dashboard.json`** is stored. Must match your **`/app/data`** bind-mount unless you intentionally use another path. |
 | `SELFDASHBOARD_CALENDAR_KEY` | auto-generated file in data dir | **Stable secret** for encrypting calendar and **mail** passwords. Set explicitly in Docker so credentials survive container recreation. |
-| `MAIL_DATA_DIR` | `<dataDir>/mail` | Directory for **`mail.json`** (optional override) |
+| `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Directory for **`mail.json`** (optional override) |
+| `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installed plugins (Unraid: map host folder here) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | — | GitHub repo for store, e.g. `owner/selfdashboard` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch for `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Path in repo to plugin files |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Allowed root for DB paths (CrowdSec widget only; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
 | `CROWDSEC_DB_PATH` | — | Default DB file if widget path is empty (optional) |
@@ -487,13 +466,13 @@ Then rebuild the Docker image (builtin plugins are compiled in, not loaded from 
 | 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
 | 📺 **Kiosk / Wand-Tablet** | Navbar blendet sich aus — nur Button **Leiste** holt sie zurück |
 | 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
-| ✉️ **Navbar E-Mail** | Ungelesene Mails als Badge — Klick öffnet Webmail |
+| ✉️ **Navbar E-Mail** | IMAP-Badge (Plugin **E-Mail** aus dem Store installieren) — Klick öffnet Webmail |
 
-Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — und jedes Widget kommt aus dem **Plugin-System** (mitgeliefert oder selbst gebaut).
+Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — Widgets kommen aus dem **Plugin-System** (Installation über **Plugin-Store** oder ZIP).
 
 ## Was ist SelfDashboard?
 
-SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. Plugins können von jedem entwickelt und nachträglich installiert werden.
+SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. **Plugins installierst du über den GitHub-Store oder per ZIP** in den gemounteten Ordner `/app/plugins/custom` — siehe **[docs/PLUGINS.md](docs/PLUGINS.md)** und **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 
 ## Features
 
@@ -527,21 +506,21 @@ Die Icons entsprechen den Dateien in [`public/plugin-logos/`](public/plugin-logo
 
 | Plugin | Kategorie | Beschreibung | Status |
 |---|---|---|---|
-| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | ✅ Enthalten |
-| 📅 Kalender | Productivity | CalDAV Zwei-Wege + ICS-Feeds; Konten über `/api/calendar`, Daten unter `data/calendar/` | ✅ Enthalten |
-| 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | ✅ Enthalten |
-| 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | ✅ Enthalten |
-| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | ✅ Enthalten |
-| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Aktive Sessions — wer schaut gerade was | ✅ Enthalten |
-| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | ✅ Enthalten |
-| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container-Liste per Engine API (Socket-Mount) | ✅ Enthalten |
-| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | ✅ Enthalten |
-| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz; 2×2-Kacheln füllen die Widget-Höhe; Schutz per Klick (`/api/adguard`) | ✅ Enthalten |
-| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | ✅ Enthalten |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **Fritzbox Internet Verlauf** | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | ✅ Enthalten |
-| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Netzwerk | Steckdose: aktuell W, heute / 7 Tage / Monat kWh per TR-064 Homeauto (`POST /api/fritz-energy`) | ✅ Enthalten |
-| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | ✅ Enthalten |
-| 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | ✅ Enthalten |
+| 🔖 Bookmarks | Utility | Schnelllinks mit Gruppen, Icons, Drag & Drop, Raster oder waagerechte Zeile | 📦 Plugin Store |
+| 📅 Kalender | Productivity | CalDAV Zwei-Wege + ICS-Feeds; Konten über `/api/calendar`, Daten unter `data/calendar/` | 📦 Plugin Store |
+| 🕐 Uhr & Datum | Utility | Uhrzeit, Datum, Zeitzone und Stadtname | 📦 Plugin Store |
+| 🌤️ Wetter | Utility | Stadt oder PLZ — aktuelle Werte (Open-Meteo, ohne API-Key) | 📦 Plugin Store |
+| <img src="public/plugin-logos/unraid.svg" width="28" height="28" alt="" /> **Unraid** | System | CPU, RAM, Array & Pool per GraphQL API | 📦 Plugin Store |
+| <img src="public/plugin-logos/emby.png" width="28" height="28" alt="" /> **Emby** | Media | Aktive Sessions — wer schaut gerade was | 📦 Plugin Store |
+| <img src="public/plugin-logos/selfstream.png" width="28" height="28" alt="" /> **Selfstream** | Media | Aktive IPTV-Streams aus dem Selfstream-Admin — Nutzer, Sender/Sendung, Laufzeit (`POST /api/selfstream`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/docker.png" width="28" height="28" alt="" /> **Docker** | System | Container-Liste per Engine API (Socket-Mount) | 📦 Plugin Store |
+| <img src="public/plugin-logos/unraid-docker.png" width="28" height="28" alt="" /> **Unraid Docker** | System | Container über Unraid GraphQL API (ohne Docker-Socket auf dem Unraid-Host) | 📦 Plugin Store |
+| <img src="public/plugin-logos/adguard.png" width="28" height="28" alt="" /> **AdGuard Home** | Netzwerk | DNS-Statistik & Schutz; 2×2-Kacheln füllen die Widget-Höhe; Schutz per Klick (`/api/adguard`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/pihole.png" width="28" height="28" alt="" /> **Pi-hole** | Netzwerk | Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen); Blocking per Klick (`/api/pihole`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **Fritzbox Internet Verlauf** | Netzwerk | WAN-Durchsatz-Kurve per TR-064, Byte-Zähler (`POST /api/fritzbox`) | 📦 Plugin Store |
+| <img src="public/plugin-logos/fritzbox.svg" width="28" height="28" alt="" /> **FRITZ! Steckdose Energie** | Netzwerk | Steckdose: aktuell W, heute / 7 Tage / Monat kWh per TR-064 Homeauto (`POST /api/fritz-energy`) | 📦 Plugin Store |
+| 🖼️ Iframe | Utility | Beliebige URL einbetten (iframe) oder als Link | 📦 Plugin Store |
+| 📝 Notizzettel | Utility | Kurzer Merkzettel, direkt im Widget bearbeitbar | 📦 Plugin Store |
 | <img src="public/plugin-logos/crowdsec.png" width="28" height="28" alt="" /> **CrowdSec** | Sicherheit | Alerts & Banns aus lokaler `crowdsec.db` (optionales Volume); IP-Feed, Lookup-Links, optional Entsperren per Docker/`cscli` | ✅ Enthalten (Setup optional) |
 
 ---
@@ -565,11 +544,12 @@ docker run -d \
   -p 3000:3000 \
   -e TZ=Europe/Berlin \
   -v /mnt/user/appdata/selfdashboard:/app/data \
+  -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
-*(Optional `-v /var/run/docker.sock:…` — nur Docker-Widget; Socket vom **gleichen** Host wie der Container. Der **`-v …:/app/data`**-Mount speichert **`dashboard.json`** auf der Platte, damit alle Browser dieselbe Konfiguration nutzen.)*
+*(**`/app/data`** → `dashboard.json`. **`/app/plugins/custom`** → installierte Plugins. Im UI: **Plugin-Store → Von GitHub** oder ZIP, danach **Strg+F5**. Docker-Socket optional — nur Docker-Widget.)*
 
 ### Option 3 — docker-compose
 
@@ -584,7 +564,7 @@ docker-compose up -d
 - **Gemeinsame Konfiguration (`dashboard.json`):** Ist **`/app/data`** gemappt (Unraid: *Config Storage*), schreibt SelfDashboard nach Änderungen **`dashboard.json`** auf den Server (`PUT /api/dashboard-state`) und lädt sie beim Start (`GET`). Alle Browser sehen dieselben Dashboards und Widgets; **`localStorage`** bleibt ein schneller lokaler Cache. **Backup** des Appdata-Ordners nicht vergessen. Optional setzt **`SELFDASHBOARD_DATA_DIR`** das Verzeichnis *im* Container für die Datei (offizielles Image: **`/app/data`**).
 - Das **Community-Apps-Template** (`unraid/selfdashboard.xml`) enthält einen Eintrag **Docker Socket** (Host `/var/run/docker.sock` → Container `/var/run/docker.sock`, **read-only**), entspricht **` -v /var/run/docker.sock:/var/run/docker.sock`**. Der Eintrag ist **standardmäßig sichtbar** (nicht nur unter „mehr Einstellungen“). Pfad leer lassen / Mapping entfernen, wenn du das Docker-Widget nicht brauchst.
 - **CrowdSec Data (optional)** mappt einen Host-Ordner mit `crowdsec.db` nach `/crowdsec-data` (**read-only**). **Leer lassen**, wenn du das CrowdSec-Widget nicht nutzt — SelfDashboard braucht CrowdSec **nicht**. Details: Abschnitt **CrowdSec-Widget (optional)**.
-- **Custom Plugins:** der konfigurierte Pfad ist ein **Bind-Mount** — Dateien auf der Unraid-Platte sind im Container nur sichtbar, wenn dieser Host-Ordner nach **`/app/plugins/custom`** gemappt ist. Das **Standard-Image** lädt daraus **keine** neuen TypeScript-Plugins automatisch in den Store — siehe **Eigenes Plugin entwickeln** und Image neu bauen (oder eigenes Image, das den Ordner auswertet).
+- **Plugins Storage** mappt einen Host-Ordner nach **`/app/plugins/custom`**. Pro Plugin ein Unterordner mit **`plugin.json`** und **`widget.js`** (Installation über **Plugin-Store → Von GitHub** oder ZIP). **`index.tsx`** vom Repo funktioniert auf dem Volume **nicht** — siehe **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 - Das Docker-Plugin ruft **`/api/docker-containers`** nur auf dem **gleichen Rechner** auf, auf dem SelfDashboard läuft, und spricht so die **lokale** Docker Engine über den Socket an.
 - **`EACCES` / Zugriff verweigert** auf dem Socket: Der Container-Prozess braucht Rechte auf den gemounteten Socket (Host `root:docker`). Das Unraid-Template setzt **`ExtraParams` `--group-add=281`** (typische Unraid-`docker`-GID). Abweichend: auf dem Host `stat -c '%g' /var/run/docker.sock` ausführen und anpassen. Neuere SelfDashboard-Images laufen im Container als **root**, dann klappt der Socket meist ohne Feintuning.
 - **Start / Stopp / Neustart:** **`POST /api/docker-containers`** (zweistufige Bestätigung). Plugin: Master **Buttons**, darunter **Start** / **Stopp** / **Neustart** einzeln. Wer das Dashboard öffnen kann, kann bei gemountetem Socket Aktionen auslösen — Master bei geteiltem Zugriff aus.
@@ -704,15 +684,15 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ---
 
-## Navbar E-Mail (IMAP)
+## Navbar E-Mail (IMAP) — Plugin `mail`
 
-Eingebaute Funktion (kein Dashboard-Widget). Konfiguration unter **Einstellungen → E-Mail**; Schalter unter **Einstellungen → Allgemein → Navbar E-Mail**.
+Zuerst Plugin **E-Mail / IMAP** aus dem Store installieren. Konfiguration unter **Einstellungen → E-Mail**; Schalter unter **Einstellungen → Allgemein → Navbar E-Mail**.
 
 | Thema | Details |
 |---|---|
 | **Zweck** | IMAP-Konten abfragen, **Summe ungelesen** als Badge; Klick öffnet die **Webmail-URL** |
 | **API** | `GET /api/mail/status` (Cache), `?refresh=1` (sofort IMAP-Sync), `PUT /api/mail/settings`, `POST /api/mail/test` |
-| **Speicher** | `data/mail/mail.json` (oder `MAIL_DATA_DIR`); Passwörter **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`, wie Kalender) |
+| **Speicher** | `plugins/custom/mail/mail.json` auf dem Volume (Legacy `data/mail/` wird migriert); Passwörter **AES-256-GCM** (`SELFDASHBOARD_CALENDAR_KEY`) |
 | **Konten** | Mehrere Konten: Name, Host, Port, SSL, Benutzer, Passwort, Ordner-Modus, Webmail-URL, **Dieses Konto abfragen** |
 | **Zählweise** | Jeder Sync = **neue IMAP-Abfrage**, Anzeige wird **ersetzt** (kein Tracking gelöschter Mails). Ungelesen per **SEARCH** + Flag-Prüfung (`\Seen`/`\Deleted` ignoriert); älter als der **Altersfilter** wird übersprungen (**Einstellungen → E-Mail → Altersfilter**, Standard **30**, **0** = aus). **STATUS** nur als Fallback (Synology: veralteter STATUS auf übergeordneten Ordnern) |
 | **Ordner `*`** | Alle Ordner mit Ungelesen, **ohne Papierkorb** (`*`, `ALL`, `ALLE`, `ALL_FOLDERS`). Unterordner statt übergeordnetem Ordner, wenn vorhanden |
@@ -807,28 +787,17 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 
 ---
 
-## Eigenes Plugin entwickeln
+## Plugins & eigene Plugins entwickeln
 
-Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beispiele und Typen:** [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md).
-
-### Was du lieferst vs. was die App automatisch macht
-
-| Du (Plugin-Autor) | SelfDashboard (nach `registerPlugin` + neuem Build) |
+| Thema | Dokument |
 |---|---|
-| Ordner `plugins/<id>/index.tsx` mit Export **`meta`** und **`component`** (`Widget`, optional **`Settings`**) | **Plugin-Store**-Eintrag; Nutzer kann Instanzen auf Dashboards legen/entfernen |
-| **Import + `registerPlugin(...)`** in `src/lib/pluginLoader.ts`, danach **`next build` / neues Docker-Image** | **Widget-Chrome** im Bearbeiten-Modus: Griff, Zoom / Innenabstand / Höhe, ⚙️ öffnet dein `Settings` (falls exportiert), Entfernen |
-| Optional **`src/app/api/...`**, wenn der Browser einen Dienst **ohne CORS** ansprechen soll (wie Docker, Fritzbox, …) | **`Widget`-Props:** `instanceId`, `config`, `theme`, `editMode`, `layoutMode` — Konfiguration läuft über Store / `dashboard.json` |
-| Responsives Layout selbst (CSS-Variablen, `minWidth: 0`, optional `layoutMode`) | Start-Layout aus **`meta.defaultLayout`** und Stapel-Hinweis **`stackedExtraH`** |
-| Optional **`reportPluginCatch`** in `catch`; Server-Route mit **`logPluginApiFailure`** | **Protokoll**: Render-Fehler + fehlgeschlagene **`fetch('/api/…')`** unter **Einstellungen → Protokoll** (`meta.id` = Plugin-ID) |
+| Installation (Store, ZIP, Ordner) | **[docs/PLUGINS.md](docs/PLUGINS.md)** |
+| Plugin schreiben (Widget, API, Veröffentlichen) | **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** |
+| Fehlerprotokoll | **[docs/LOGGING.md](docs/LOGGING.md)** |
 
-**Nicht automatisch:** TypeScript-Dateien nur nach **`/app/plugins/custom`** legen **registriert** im **Standard-Image** **keine** neuen Plugins — der Loader wird beim **Build** eingebunden. Dafür **eigenes Image** / Fork mit angepasstem `pluginLoader.ts` bauen.
+**Kurz:** Plugins liegen unter **`/app/plugins/custom/<id>/`** als **`plugin.json`** + **`widget.js`**. Nutzer installieren über den **Plugin-Store** (GitHub `plugins-pack/`) oder **ZIP-Upload**. Entwickler arbeiten in **`plugins/<id>/index.tsx`** (oft **neben** dem App-Repo), führen **`npm run publish:plugin-pack`** aus und pushen **`plugins-pack/`** inkl. **`plugins-index.json`** (Store-Katalog).
 
-**Vorlage:** **`plugins/_template/`** nach **`plugins/<id>/`** kopieren, in **`pluginLoader.ts`** registrieren. Siehe **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** und **[docs/LOGGING.md](docs/LOGGING.md)**.
-
-### Builtin-Plugins, `pluginLoader.ts` und Unraid
-
-- **Mitgelieferte Plugins** (Bookmarks, Kalender, Uhr, Wetter, Docker, Unraid, Unraid Docker, Emby, Selfstream, AdGuard Home, Pi-hole, Fritzbox Internet Verlauf, FRITZ! Steckdose Energie, Iframe, Notizzettel, CrowdSec, …) stecken **fest im Docker-Image**. Das **CrowdSec-Widget** ist **optional** — siehe Abschnitt **CrowdSec-Widget (optional)**; ohne Mount funktioniert SelfDashboard normal. Sie werden in **`src/lib/pluginLoader.ts`** registriert, der Code liegt unter **`plugins/<id>/`**. Diese Datei wird auf Unraid **nicht** per Volume „eingehängt“ — wer etwas hinzufügen will, braucht eine **eigene Image-Build** (oder einen PR ins Haupt-Repo).
-- Im Unraid-Template gibt es **„Custom Plugins Path“** → **`/app/plugins/custom`**. Das **Standard-Image** lädt daraus **keine** beliebigen TypeScript-Plugins zur Laufzeit automatisch. Das Mapping ist **optional** (z. B. eigene Dateien oder ein **selbst gebautes** Image, das diesen Ordner auswertet). Neuen Plugin-Code so einbinden wie in **PLUGIN_DEV.md** beschrieben, dann **Image neu bauen**.
+**Kein Image-Rebuild** für neue Widgets — nur Publish + Installation. Kern-APIs (z. B. Mail, AdGuard) können im App-Image bleiben — siehe PLUGIN_DEV.md.
 
 ---
 
@@ -840,7 +809,11 @@ Plugins für SelfDashboard kann jeder schreiben. **Ausführliche Anleitung, Beis
 | `NODE_ENV` | `production` | Node.js Umgebung |
 | `SELFDASHBOARD_DATA_DIR` | `/app/data` (im offiziellen Image) | Verzeichnis **im** Container für **`dashboard.json`**. Muss zum **`/app/data`-Bind-Mount** passen, außer du nutzt bewusst einen anderen Pfad. |
 | `SELFDASHBOARD_CALENDAR_KEY` | Datei im Data-Ordner | **Fester Schlüssel** für Kalender- und **E-Mail**-Passwörter. In Docker setzen, damit Zugangsdaten Container-Neustarts überleben. |
-| `MAIL_DATA_DIR` | `<dataDir>/mail` | Verzeichnis für **`mail.json`** (optional) |
+| `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Verzeichnis für **`mail.json`** (optional) |
+| `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installierte Plugins (Unraid: Host-Ordner hierher mappen) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | — | GitHub-Repo für Store, z. B. `owner/selfdashboard` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch für `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Pfad im Repo zu den Plugin-Dateien |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Erlaubtes Wurzelverzeichnis für DB-Pfade (nur CrowdSec-Widget; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
 | `CROWDSEC_DB_PATH` | — | Standard-DB-Datei, wenn im Widget kein Pfad gesetzt ist (optional) |
