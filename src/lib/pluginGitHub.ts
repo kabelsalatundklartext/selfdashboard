@@ -4,6 +4,7 @@ import type { PluginManifest } from '@/types/pluginManifest'
 import type { PluginCategory } from '@/types'
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
 import { listInstalledVolumePluginIds } from '@/lib/pluginVolumeInfo'
+import { installPluginFromBundledPack, readBundledPackCatalogEntries } from '@/lib/pluginBundledPack'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',
@@ -100,12 +101,16 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
   pluginId: string
   written: string[]
   error?: string
+  source?: 'github' | 'bundled_pack'
 }> {
   const cfg = getGitHubPluginConfig()
   if (!cfg) return { ok: false, pluginId, written: [], error: 'github_not_configured' }
 
   const index = await fetchGitHubPluginIndex(true)
-  const entry = index?.plugins.find((p) => p.id === pluginId)
+  let entry = index?.plugins.find((p) => p.id === pluginId)
+  if (!entry) {
+    entry = readBundledPackCatalogEntries().find((p) => p.id === pluginId)
+  }
   if (!entry) return { ok: false, pluginId, written: [], error: 'plugin_not_in_index' }
 
   const files = (entry.files ?? ['plugin.json', 'widget.js']).filter((f) => INSTALL_FILES.has(f))
@@ -113,24 +118,54 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
   fs.mkdirSync(destDir, { recursive: true })
   const written: string[] = []
 
+  const missingFromGitHub: string[] = []
+
   for (const file of files) {
     const rel = `${cfg.basePath}/${pluginId}/${file}`
     const url = githubRawUrl(rel)
-    if (!url) continue
+    if (!url) {
+      missingFromGitHub.push(file)
+      continue
+    }
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) {
-      return { ok: false, pluginId, written, error: `fetch_failed:${file}:${res.status}` }
+      missingFromGitHub.push(file)
+      continue
     }
     const buf = Buffer.from(await res.arrayBuffer())
     fs.writeFileSync(path.join(destDir, file), buf)
     written.push(file)
   }
 
+  if (missingFromGitHub.length > 0) {
+    const bundled = installPluginFromBundledPack(pluginId, missingFromGitHub)
+    for (const f of bundled.written) {
+      if (!written.includes(f)) written.push(f)
+    }
+    if (!bundled.ok) {
+      const ghErr = missingFromGitHub.includes('plugin.json')
+        ? 'fetch_failed:plugin.json:404'
+        : `fetch_failed:${missingFromGitHub[0]}:404`
+      return {
+        ok: false,
+        pluginId,
+        written,
+        error: bundled.error === 'bundled_pack_missing' ? `${ghErr} (GitHub-Pack leer — Image-ZIP fehlt)` : ghErr,
+      }
+    }
+  }
+
   if (!written.includes('plugin.json')) {
     return { ok: false, pluginId, written, error: 'missing_plugin_json' }
   }
 
-  return { ok: true, pluginId, written }
+  const fromBundled = missingFromGitHub.length > 0
+  return {
+    ok: true,
+    pluginId,
+    written,
+    ...(fromBundled ? { source: 'bundled_pack' as const } : {}),
+  }
 }
 
 export async function listRemoteCatalogWithInstallState(): Promise<{
@@ -144,10 +179,16 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
   }
   const index = await fetchGitHubPluginIndex()
   const installed = new Set(listInstalledVolumePluginIds())
-  const available = (index?.plugins ?? []).map((p) => ({
-    ...p,
-    installed: installed.has(p.id),
-  }))
+  const byId = new Map<string, GitHubPluginIndexEntry & { installed: boolean }>()
+  for (const p of index?.plugins ?? []) {
+    byId.set(p.id, { ...p, installed: installed.has(p.id) })
+  }
+  for (const p of readBundledPackCatalogEntries()) {
+    if (!byId.has(p.id)) {
+      byId.set(p.id, { ...p, installed: installed.has(p.id) })
+    }
+  }
+  const available = Array.from(byId.values()).sort((a, b) => a.id.localeCompare(b.id))
   return {
     configured: true,
     indexUrl: githubRawUrl(cfg.indexPath),

@@ -8,6 +8,7 @@
     "build": "next build",
     "build:plugin-pack": "node scripts/build-plugin-pack.mjs",
     "generate:plugins-index": "node scripts/generate-plugins-index.mjs",
+    "publish:plugin-pack": "npm run build:plugin-pack",
     "start": "next start",
     "lint": "next lint"
   },

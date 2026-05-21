@@ -14,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
 const pluginsRoot = path.join(root, 'plugins')
 const outDir = path.join(root, 'plugin-pack', 'staging')
+const packPublishDir = path.join(root, 'plugins-pack')
 const zipPath = path.join(root, 'plugin-pack', 'default-plugins.zip')
 const skip = new Set(['_template', 'custom', 'node_modules'])
 
@@ -91,6 +92,19 @@ function copyFileIfExists(src, dest) {
   }
 }
 
+function copyDirToPublish(pluginId) {
+  const src = path.join(outDir, pluginId)
+  const dest = path.join(packPublishDir, pluginId)
+  if (!fs.existsSync(path.join(src, 'widget.js'))) return false
+  fs.rmSync(dest, { recursive: true, force: true })
+  fs.mkdirSync(dest, { recursive: true })
+  for (const name of fs.readdirSync(src)) {
+    if (name === 'README-server.txt' || name === 'server.ts.txt') continue
+    copyFileIfExists(path.join(src, name), path.join(dest, name))
+  }
+  return true
+}
+
 async function main() {
   fs.rmSync(outDir, { recursive: true, force: true })
   fs.mkdirSync(path.join(root, 'plugin-pack'), { recursive: true })
@@ -142,6 +156,18 @@ async function main() {
   }
   console.log(`Pack: ${built.length} ok, ${failed.length} failed → ${zipPath}`)
   if (failed.length) console.log('Failed:', failed.join(', '))
+
+  fs.mkdirSync(packPublishDir, { recursive: true })
+  let published = 0
+  for (const id of built) {
+    if (copyDirToPublish(id)) published++
+  }
+  console.log(`plugins-pack/: ${published} plugin(s) ready for GitHub push`)
+
+  execFileSync(process.execPath, [path.join(__dirname, 'generate-plugins-index.mjs')], {
+    stdio: 'inherit',
+    cwd: root,
+  })
 }
 
 main().catch((e) => {

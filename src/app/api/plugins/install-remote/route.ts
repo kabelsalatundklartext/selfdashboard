@@ -27,10 +27,15 @@ export async function POST(req: Request) {
   await reloadCustomPluginServers()
   const catalog = reloadPluginCatalog(getWidgetLoadedIdsForCatalog())
 
+  const hint =
+    'source' in result && result.source === 'bundled_pack'
+      ? 'Aus Image-Pack installiert (GitHub plugins-pack noch ohne Dateien). Seite neu laden (Strg+F5).'
+      : 'Seite neu laden (Strg+F5), damit das Widget im Store aktiv wird.'
+
   return NextResponse.json({
     ...result,
     ok: true,
-    hint: 'Seite neu laden (Strg+F5), damit das Widget im Store aktiv wird.',
+    hint,
     catalog,
   })
 }

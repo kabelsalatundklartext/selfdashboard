@@ -23,12 +23,9 @@ for (const name of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
   const manifestPath = path.join(pluginsRoot, name.name, 'plugin.json')
   if (!fs.existsSync(manifestPath)) continue
   const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-  const files = ['plugin.json']
   const packDir = path.join(packRoot, name.name)
-  if (fs.existsSync(path.join(packDir, 'widget.js'))) files.push('widget.js')
-  else if (fs.existsSync(path.join(pluginsRoot, name.name, 'index.tsx'))) {
-    files.push('widget.js')
-  }
+  if (!fs.existsSync(path.join(packDir, 'widget.js'))) continue
+  const files = ['plugin.json', 'widget.js']
   if (
     fs.existsSync(path.join(packDir, 'server.js')) ||
     fs.existsSync(path.join(pluginsRoot, name.name, 'server.ts'))
