@@ -1312,7 +1312,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit Tagesabschnitten (0\u20136, 6\u201312, 12\u201318, 18\u201324) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key.",
-    version: "1.3.1",
+    version: "1.3.2",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1487,18 +1487,19 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const maxT = d.temperature_2m_max ?? [];
     const minT = d.temperature_2m_min ?? [];
     const out = [];
-    const n = Math.min(maxDays, d.time.length, codes.length, maxT.length, minT.length);
-    for (let i = 0; i < n; i++) {
+    const available = Math.min(d.time.length, codes.length, maxT.length, minT.length);
+    for (let i = 1; i < available && out.length < maxDays; i++) {
       const date = d.time[i];
       const code = num(codes[i], 0);
-      out.push({
+      const day = {
         date,
         code,
         max: num(maxT[i], NaN),
         min: num(minT[i], NaN)
-      });
+      };
+      if (Number.isFinite(day.max) && Number.isFinite(day.min)) out.push(day);
     }
-    return out.filter((x) => Number.isFinite(x.max) && Number.isFinite(x.min));
+    return out;
   }
   function todayDateKeyFromHourly(times) {
     const now = Date.now();
@@ -2197,7 +2198,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "7-Tage-Vorschau" : "7-day forecast" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Unter dem aktuellen Wetter bleiben die Tagesabschnitte (0\u20136 \u2026 18\u201324); hier die 7-Tage-Karten mit Symbol und Max/Min." : "Day blocks (0\u20136 \u2026 18\u201324) stay under current weather; this enables the 7-day cards with icon and high/low." })
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Tagesabschnitte (0\u20136 \u2026 18\u201324) bleiben links beim aktuellen Wetter. Rechts: die n\xE4chsten 7 Tage ab morgen (heute nicht doppelt)." : "Day blocks (0\u20136 \u2026 18\u201324) stay on the left. Right: next 7 days starting tomorrow (today omitted)." })
             ] })
           ]
         }

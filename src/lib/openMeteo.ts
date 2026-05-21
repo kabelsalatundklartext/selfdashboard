@@ -54,7 +54,8 @@ export async function openMeteoForecast(params: {
   if (params.includeDaily) {
     q.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
   }
-  const days = params.includeDaily ? 7 : params.includeHourly ? 2 : 1
+  /** 8 Tage daily: heute (für API) + 7 Folgetage in der Vorschau (heute wird im Widget ausgeblendet). */
+  const days = params.includeDaily ? 8 : params.includeHourly ? 2 : 1
   q.set('forecast_days', String(days))
 
   const res = await fetchOpenMeteo(`${FORECAST_BASE}?${q}`)
