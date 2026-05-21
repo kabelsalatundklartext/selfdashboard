@@ -5,6 +5,11 @@ import {
   pickPersistedDashboardState,
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
+import {
+  clampDashboardBackgroundOverlay,
+  parseDashboardBackgroundMode,
+  type DashboardBackgroundMode,
+} from '@/lib/dashboardBackground'
 import { stripRemovedPlugins } from '@/lib/removedPlugins'
 import type { Locale } from './i18n'
 import type { SearchProviderId } from './searchProviders'
@@ -76,6 +81,10 @@ interface DashboardStore {
   navbarBackgroundImage: string
   /** 0–80: Overlay-Stärke über dem Hintergrundbild */
   navbarBackgroundOverlay: number
+  dashboardBackgroundMode: DashboardBackgroundMode
+  dashboardBackgroundImage: string
+  dashboardBackgroundImage2: string
+  dashboardBackgroundOverlay: number
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -122,6 +131,10 @@ interface DashboardStore {
   setKioskModeIdleSeconds: (seconds: number) => void
   setNavbarBackgroundImage: (url: string) => void
   setNavbarBackgroundOverlay: (pct: number) => void
+  setDashboardBackgroundMode: (mode: DashboardBackgroundMode) => void
+  setDashboardBackgroundImage: (url: string) => void
+  setDashboardBackgroundImage2: (url: string) => void
+  setDashboardBackgroundOverlay: (pct: number) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -148,6 +161,10 @@ export const useDashboardStore = create<DashboardStore>()(
       kioskModeIdleSeconds: 5,
       navbarBackgroundImage: '',
       navbarBackgroundOverlay: 45,
+      dashboardBackgroundMode: 'off',
+      dashboardBackgroundImage: '',
+      dashboardBackgroundImage2: '',
+      dashboardBackgroundOverlay: 50,
 
       activeDashboard: () => {
         const s = get()
@@ -312,6 +329,13 @@ export const useDashboardStore = create<DashboardStore>()(
         const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw) : 45
         set({ navbarBackgroundOverlay: Math.min(80, Math.max(0, n)) })
       },
+      setDashboardBackgroundMode: (dashboardBackgroundMode) =>
+        set({ dashboardBackgroundMode: parseDashboardBackgroundMode(dashboardBackgroundMode) }),
+      setDashboardBackgroundImage: (dashboardBackgroundImage) =>
+        set({ dashboardBackgroundImage: dashboardBackgroundImage ?? '' }),
+      setDashboardBackgroundImage2: (dashboardBackgroundImage2) =>
+        set({ dashboardBackgroundImage2: dashboardBackgroundImage2 ?? '' }),
+      setDashboardBackgroundOverlay: (raw) => set({ dashboardBackgroundOverlay: clampDashboardBackgroundOverlay(raw) }),
     }),
     {
       name: 'selfdashboard-v2',
@@ -360,6 +384,10 @@ export const useDashboardStore = create<DashboardStore>()(
           } else {
             state.navbarBackgroundOverlay = Math.min(80, Math.max(0, Math.round(ov)))
           }
+          state.dashboardBackgroundMode = parseDashboardBackgroundMode(state.dashboardBackgroundMode)
+          if (typeof state.dashboardBackgroundImage !== 'string') state.dashboardBackgroundImage = ''
+          if (typeof state.dashboardBackgroundImage2 !== 'string') state.dashboardBackgroundImage2 = ''
+          state.dashboardBackgroundOverlay = clampDashboardBackgroundOverlay(state.dashboardBackgroundOverlay)
           state.dashboards = stripRemovedPlugins(state.dashboards)
         }
       },

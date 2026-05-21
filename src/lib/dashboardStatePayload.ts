@@ -35,6 +35,10 @@ export type DashboardStatePersisted = {
   navbarBackgroundImage: string
   /** 0–80: Abdunkeln über dem Bild für lesbare Icons/Text */
   navbarBackgroundOverlay: number
+  dashboardBackgroundMode: 'off' | 'single' | 'dual'
+  dashboardBackgroundImage: string
+  dashboardBackgroundImage2: string
+  dashboardBackgroundOverlay: number
 }
 
 const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
@@ -170,6 +174,18 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
     if (typeof data.navbarBackgroundOverlay !== 'number' || !Number.isFinite(data.navbarBackgroundOverlay)) return false
     if (data.navbarBackgroundOverlay < 0 || data.navbarBackgroundOverlay > 80) return false
   }
+  if (data.dashboardBackgroundMode !== undefined) {
+    const m = data.dashboardBackgroundMode
+    if (m !== 'off' && m !== 'single' && m !== 'dual') return false
+  }
+  if (data.dashboardBackgroundImage !== undefined && typeof data.dashboardBackgroundImage !== 'string') return false
+  if (data.dashboardBackgroundImage && data.dashboardBackgroundImage.length > 5_000_000) return false
+  if (data.dashboardBackgroundImage2 !== undefined && typeof data.dashboardBackgroundImage2 !== 'string') return false
+  if (data.dashboardBackgroundImage2 && data.dashboardBackgroundImage2.length > 5_000_000) return false
+  if (data.dashboardBackgroundOverlay !== undefined) {
+    if (typeof data.dashboardBackgroundOverlay !== 'number' || !Number.isFinite(data.dashboardBackgroundOverlay)) return false
+    if (data.dashboardBackgroundOverlay < 0 || data.dashboardBackgroundOverlay > 80) return false
+  }
   return true
 }
 
@@ -200,5 +216,15 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
       typeof s.navbarBackgroundOverlay === 'number' && Number.isFinite(s.navbarBackgroundOverlay)
         ? Math.min(80, Math.max(0, Math.round(s.navbarBackgroundOverlay)))
         : 45,
+    dashboardBackgroundMode:
+      s.dashboardBackgroundMode === 'single' || s.dashboardBackgroundMode === 'dual'
+        ? s.dashboardBackgroundMode
+        : 'off',
+    dashboardBackgroundImage: typeof s.dashboardBackgroundImage === 'string' ? s.dashboardBackgroundImage : '',
+    dashboardBackgroundImage2: typeof s.dashboardBackgroundImage2 === 'string' ? s.dashboardBackgroundImage2 : '',
+    dashboardBackgroundOverlay:
+      typeof s.dashboardBackgroundOverlay === 'number' && Number.isFinite(s.dashboardBackgroundOverlay)
+        ? Math.min(80, Math.max(0, Math.round(s.dashboardBackgroundOverlay)))
+        : 50,
   }
 }

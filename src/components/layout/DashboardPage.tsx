@@ -6,6 +6,7 @@ import { useDashboardStore } from '@/lib/store'
 import { Navbar } from '@/components/layout/Navbar'
 import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
+import { DashboardMain } from '@/components/layout/DashboardMain'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 import { PluginUpdateBanner } from '@/components/plugins/PluginUpdateBanner'
 import { PluginMissingBanner } from '@/components/plugins/PluginMissingBanner'
@@ -32,20 +33,9 @@ export function DashboardPage({ id }: { id: string }) {
         <PluginMissingBanner />
         <PluginUpdateBanner />
       </KioskNavbarShell>
-      <main
-        style={{
-          width: '100%',
-          minWidth: 0,
-          minHeight: 0,
-          background: 'var(--background)',
-          display: 'block',
-          paddingBottom: 0,
-          paddingLeft: 'env(safe-area-inset-left, 0)',
-          paddingRight: 'env(safe-area-inset-right, 0)',
-        }}
-      >
+      <DashboardMain>
         <DashboardGrid />
-      </main>
+      </DashboardMain>
     </>
   )
 }
