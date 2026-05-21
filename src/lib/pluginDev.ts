@@ -11,7 +11,7 @@ export type { PluginLogOptions } from '@/lib/pluginLog'
  * Failed responses are logged automatically (Settings → Protokoll) via the global fetch hook.
  *
  * @param pluginId — must match `meta.id`
- * @param path — e.g. `/status` → `/api/<pluginId>/status`, or full `/api/...`
+ * @param path — e.g. `/` → `/api/plugins/<pluginId>/`, or full `/api/...`
  */
 export async function pluginApiJson<T>(
   pluginId: string,
@@ -20,7 +20,7 @@ export async function pluginApiJson<T>(
 ): Promise<T> {
   const url = path.startsWith('/api/')
     ? path
-    : `/api/${pluginId}${path.startsWith('/') ? path : `/${path}`}`
+    : `/api/plugins/${pluginId}${path.startsWith('/') ? path : `/${path}`}`
   const res = await fetch(url, {
     ...init,
     headers: {

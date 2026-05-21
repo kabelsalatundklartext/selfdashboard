@@ -34,6 +34,7 @@
     "src/**/*.tsx",
     "plugins/**/*.ts",
     "plugins/**/*.tsx",
+    "plugins/**/*.json",
     ".next/types/**/*.ts"
   ],
   "exclude": [

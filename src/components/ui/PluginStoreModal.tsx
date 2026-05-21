@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus, Check, Search } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { X, Plus, Check, Search, RefreshCw } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
@@ -15,6 +15,8 @@ interface Props { open: boolean; onClose: () => void }
 export function PluginStoreModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
   const [added, setAdded] = useState<Set<string>>(new Set())
+  const [reloadBusy, setReloadBusy] = useState(false)
+  const [reloadMsg, setReloadMsg] = useState<string | null>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
   const existingPlugins = activeDashboard().plugins
 
@@ -39,6 +41,25 @@ export function PluginStoreModal({ open, onClose }: Props) {
       return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
     }
   )
+
+  const handleReloadPlugins = useCallback(async () => {
+    setReloadBusy(true)
+    setReloadMsg(null)
+    try {
+      const res = await fetch('/api/plugins/reload', { method: 'POST' })
+      const j = (await res.json()) as { count?: number; hint?: string }
+      if (!res.ok) throw new Error('reload_failed')
+      setReloadMsg(
+        locale === 'de'
+          ? `${j.count ?? 0} Manifest(e) geladen. ${j.hint ?? ''}`
+          : `${j.count ?? 0} manifest(s) loaded. ${j.hint ?? ''}`,
+      )
+    } catch {
+      setReloadMsg(locale === 'de' ? 'Neuladen fehlgeschlagen.' : 'Reload failed.')
+    } finally {
+      setReloadBusy(false)
+    }
+  }, [locale])
 
   const handleAdd = (pluginId: string) => {
     const plugin = pluginRegistry.get(pluginId)
@@ -78,10 +99,26 @@ export function PluginStoreModal({ open, onClose }: Props) {
               {allPlugins.length} {t(locale, 'pluginsAvailable')}
             </p>
           </div>
-          <button className="btn-ghost p-1.5" onClick={onClose}>
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="btn-ghost p-1.5"
+              title={t(locale, 'reloadPluginsHint')}
+              disabled={reloadBusy}
+              onClick={() => void handleReloadPlugins()}
+            >
+              <RefreshCw size={16} className={reloadBusy ? 'animate-spin' : undefined} />
+            </button>
+            <button className="btn-ghost p-1.5" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
+        {reloadMsg && (
+          <p className="px-6 -mt-2 pb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {reloadMsg}
+          </p>
+        )}
 
         {/* Search */}
         <div className="px-6 pb-4">

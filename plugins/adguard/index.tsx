@@ -5,7 +5,7 @@ import { Activity, Ban, Network, Percent, Shield, ShieldOff, type LucideIcon } f
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
-import { reportPluginCatch } from '@/lib/pluginLog'
+import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
 
 export const meta: PluginMeta = {
   id: 'adguard',
@@ -180,26 +180,10 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     try {
-      const res = await fetch('/api/adguard', {
+      const j = await pluginApiJson<ApiOk & ApiErr>('adguard', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
         body: JSON.stringify({ url: base, username, password }),
       })
-      const j = (await res.json()) as ApiOk & ApiErr
-      if (!res.ok) {
-        const code = j.status ?? res.status
-        if (res.status === 401 || res.status === 403) {
-          setError(de ? 'Anmeldung fehlgeschlagen (Benutzer/Passwort).' : 'Login failed (user/password).')
-        } else if (j.error === 'timeout') {
-          setError(de ? 'Zeitüberschreitung — AdGuard erreichbar?' : 'Timeout — is AdGuard reachable?')
-        } else {
-          const d = j.detail ? ` ${j.detail}` : ''
-          setError(de ? `API-Fehler (${code}).${d}` : `API error (${code}).${d}`)
-        }
-        setData(null)
-        return
-      }
       setData({
         stats: (j.stats ?? {}) as Record<string, unknown>,
         status: (j.status ?? null) as Record<string, unknown> | null,
@@ -208,7 +192,14 @@ function Widget({ config }: PluginWidgetProps) {
       setError(null)
     } catch (e) {
       reportPluginCatch('adguard', e, 'fetch')
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('401') || msg.includes('403')) {
+        setError(de ? 'Anmeldung fehlgeschlagen (Benutzer/Passwort).' : 'Login failed (user/password).')
+      } else if (msg.includes('timeout')) {
+        setError(de ? 'Zeitüberschreitung — AdGuard erreichbar?' : 'Timeout — is AdGuard reachable?')
+      } else {
+        setError(de ? `API-Fehler: ${msg}` : `API error: ${msg}`)
+      }
       setData(null)
     } finally {
       setLoading(false)
@@ -222,18 +213,10 @@ function Widget({ config }: PluginWidgetProps) {
     setProtBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/adguard', {
+      await pluginApiJson('adguard', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
         body: JSON.stringify({ action: 'protection', url: base, username, password, enabled: next }),
       })
-      const j = (await res.json()) as { error?: string; detail?: string }
-      if (!res.ok) {
-        const d = j.detail ? ` ${j.detail}` : ''
-        setError(de ? `Schutz konnte nicht geändert werden (${res.status}).${d}` : `Could not change protection (${res.status}).${d}`)
-        return
-      }
       await fetch_()
     } catch (e) {
       reportPluginCatch('adguard', e, 'fetch')

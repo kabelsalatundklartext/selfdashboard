@@ -1,6 +1,7 @@
-// Registers built-in plugins at app startup (compiled into the image — not bind-mounted on Unraid).
+// Registers built-in plugin widgets at app startup (compiled into the image).
+// Metadata: `plugins/<id>/plugin.json` (scanned on server — see docs/BETA_PLUGIN_ARCH.md).
+// Server APIs: `plugins/<id>/server.ts` + `/api/plugins/<id>/…` gateway.
 // To add a plugin: copy plugins/_template, import + registerPlugin() below, rebuild the image.
-// See docs/PLUGIN_DEV.md and docs/LOGGING.md (automatic error log per meta.id).
 
 import { registerPlugin } from '@/lib/pluginRegistry'
 

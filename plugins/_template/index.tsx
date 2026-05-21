@@ -1,8 +1,9 @@
 'use client'
 
 /**
- * Copy this folder to plugins/<your-id>/ and adjust meta.id.
- * Register in src/lib/pluginLoader.ts — see docs/PLUGIN_DEV.md
+ * Copy this folder to plugins/<your-id>/, edit plugin.json + meta.id.
+ * Register widget in src/lib/pluginLoader.ts; optional server.ts + pluginServerLoader.ts.
+ * See docs/BETA_PLUGIN_ARCH.md and docs/PLUGIN_DEV.md
  */
 
 import { useCallback, useEffect, useState } from 'react'
