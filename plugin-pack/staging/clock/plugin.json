@@ -1,9 +1,0 @@
-{
-  "id": "clock",
-  "name": "Clock & Date",
-  "description": "Displays the current time and date with timezone support.",
-  "version": "1.2.1",
-  "author": "SelfDashboard",
-  "category": "utility",
-  "icon": "🕐"
-}

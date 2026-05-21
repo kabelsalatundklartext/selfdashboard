@@ -1,9 +1,0 @@
-{
-  "id": "bookmarks",
-  "name": "App Bookmarks",
-  "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.",
-  "version": "1.6.2",
-  "author": "SelfDashboard",
-  "category": "utility",
-  "icon": "🔖"
-}
