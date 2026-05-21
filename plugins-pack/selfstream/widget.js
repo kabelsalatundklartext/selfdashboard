@@ -1,5 +1,4 @@
 if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');
-"use strict";
 (() => {
   var __create = Object.create;
   var __defProp = Object.defineProperty;
@@ -203,7 +202,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     }
   });
 
-  // plugins/selfstream/index.tsx
+  // ../plugins/selfstream/index.tsx
   var import_react2 = __toESM(require_react());
 
   // node_modules/zustand/esm/vanilla.mjs
@@ -814,7 +813,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         kioskModeIdleSeconds: 5,
         activeDashboard: () => {
           const s = get();
-          return s.dashboards.find((d) => d.id === s.activeDashboardId) ?? s.dashboards[0];
+          const found = s.dashboards.find((d) => d.id === s.activeDashboardId);
+          if (found) return found;
+          if (s.dashboards[0]) return s.dashboards[0];
+          return DEFAULT_DASHBOARD;
         },
         addDashboard: (name, icon) => {
           const existing = get().dashboards.map((d) => d.id);
@@ -1107,7 +1109,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     });
   }
 
-  // plugins/selfstream/index.tsx
+  // ../plugins/selfstream/index.tsx
   var import_jsx_runtime = __toESM(require_jsx_runtime());
   var meta = {
     id: "selfstream",
@@ -1411,10 +1413,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   }
   var component = { Widget, Settings };
 
-  // plugin-pack/staging/.entries/selfstream.tsx
+  // ../plugin-pack/staging/.entries/selfstream.tsx
   (function(SD) {
     if (!SD || !SD.registerPlugin) throw new Error("SelfDashboard bridge missing");
     SD.registerPlugin(meta, component, { replace: true });
+    if (typeof void 0 === "function") (void 0)();
   })(typeof window !== "undefined" ? window.SelfDashboard : globalThis.SelfDashboard);
 })();
 /*! Bundled license information:

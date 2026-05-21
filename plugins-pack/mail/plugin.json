@@ -6,7 +6,6 @@
   "author": "SelfDashboard",
   "category": "productivity",
   "icon": "✉️",
-  "hasServer": true,
   "defaultLayout": {
     "w": 3,
     "h": 2,

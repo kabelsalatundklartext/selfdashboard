@@ -1,5 +1,4 @@
 if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');
-"use strict";
 (() => {
   var __create = Object.create;
   var __defProp = Object.defineProperty;
@@ -48,7 +47,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     }
   });
 
-  // plugins/mail/index.tsx
+  // ../plugins/mail/index.tsx
   var import_react8 = __toESM(require_react());
 
   // src/components/plugins/WidgetErrorBoundary.tsx
@@ -205,32 +204,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   var registerPlugin = (meta2, component2, opts) => {
     pluginRegistry.register(meta2, component2, opts);
   };
-
-  // src/lib/pluginNavbarRegistry.ts
-  var slots = /* @__PURE__ */ new Map();
-  var listeners = /* @__PURE__ */ new Set();
-  var version = 0;
-  function notifyNavbarSlots() {
-    version += 1;
-    for (const fn of listeners) fn();
-  }
-  function registerNavbarSlot(id, component2) {
-    slots.set(id, component2);
-    notifyNavbarSlots();
-  }
-
-  // src/lib/pluginAppSettingsRegistry.ts
-  var panels = /* @__PURE__ */ new Map();
-  var listeners2 = /* @__PURE__ */ new Set();
-  var version2 = 0;
-  function notifyAppSettings() {
-    version2 += 1;
-    for (const fn of listeners2) fn();
-  }
-  function registerAppSettingsPanel(id, labels, component2) {
-    panels.set(id, { label: labels, component: component2 });
-    notifyAppSettings();
-  }
 
   // src/components/layout/NavbarMail.tsx
   var import_react5 = __toESM(require_react());
@@ -1665,7 +1638,7 @@ This cannot be undone from SelfDashboard (you would need to mark them unread aga
     return res.json();
   }
 
-  // plugins/mail/index.tsx
+  // ../plugins/mail/index.tsx
   var import_jsx_runtime6 = __toESM(require_jsx_runtime());
   var meta = {
     id: "mail",
@@ -1702,19 +1675,21 @@ This cannot be undone from SelfDashboard (you would need to mark them unread aga
     );
   }
   function registerMailPluginSurfaces() {
-    registerNavbarSlot(meta.id, NavbarMail);
-    registerAppSettingsPanel(meta.id, { de: "E-Mail", en: "Email" }, MailSettingsPanel);
+    const SD = typeof window !== "undefined" ? window.SelfDashboard : void 0;
+    if (!SD?.registerNavbarSlot || !SD.registerAppSettingsPanel) return;
+    SD.registerNavbarSlot(meta.id, NavbarMail);
+    SD.registerAppSettingsPanel(meta.id, { de: "E-Mail", en: "Email" }, MailSettingsPanel);
   }
-  registerMailPluginSurfaces();
   var component = {
     Widget: MailStatusWidget
   };
   registerPlugin(meta, component, { replace: true });
 
-  // plugin-pack/staging/.entries/mail.tsx
+  // ../plugin-pack/staging/.entries/mail.tsx
   (function(SD) {
     if (!SD || !SD.registerPlugin) throw new Error("SelfDashboard bridge missing");
     SD.registerPlugin(meta, component, { replace: true });
+    if (typeof registerMailPluginSurfaces === "function") registerMailPluginSurfaces();
   })(typeof window !== "undefined" ? window.SelfDashboard : globalThis.SelfDashboard);
 })();
 /*! Bundled license information:

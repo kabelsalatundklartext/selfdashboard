@@ -143,7 +143,10 @@ export const useDashboardStore = create<DashboardStore>()(
 
       activeDashboard: () => {
         const s = get()
-        return s.dashboards.find((d) => d.id === s.activeDashboardId) ?? s.dashboards[0]
+        const found = s.dashboards.find((d) => d.id === s.activeDashboardId)
+        if (found) return found
+        if (s.dashboards[0]) return s.dashboards[0]
+        return DEFAULT_DASHBOARD
       },
       addDashboard: (name, icon) => {
         const existing = get().dashboards.map((d) => d.id)

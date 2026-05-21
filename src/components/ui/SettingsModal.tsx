@@ -228,7 +228,7 @@ export function SettingsModal({ open, onClose }: Props) {
     { id: 'design', label: 'Design' },
     ...appSettingsPanels.map(p => ({
       id: `plugin-${p.id}` as TabId,
-      label: p.label[locale],
+      label: p.label[locale] ?? p.label.en ?? p.id,
     })),
     { id: 'logs', label: locale === 'de' ? 'Protokoll' : 'Logs' },
   ]
@@ -908,6 +908,15 @@ export function SettingsModal({ open, onClose }: Props) {
             {appSettingsPanels.map(p => {
               if (tab !== `plugin-${p.id}`) return null
               const Panel = p.component
+              if (typeof Panel !== 'function') {
+                return (
+                  <p key={p.id} style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                    {locale === 'de'
+                      ? `Einstellungen für „${p.id}“ konnten nicht geladen werden. Plugin neu installieren und Seite neu laden.`
+                      : `Settings for “${p.id}” failed to load. Reinstall the plugin and reload the page.`}
+                  </p>
+                )
+              }
               return (
                 <Panel
                   key={p.id}
