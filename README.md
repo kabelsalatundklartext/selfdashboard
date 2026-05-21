@@ -42,7 +42,7 @@
 | 📺 **Emby / SelfStream** | Is anything streaming right now? |
 | ✉️ **Navbar mail** | Unread IMAP badge (install **E-Mail** plugin from the store) — click opens webmail |
 
-Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — and every widget comes from the **plugin system** (install via **Plugin Store** or ZIP, then arrange on the dashboard).
+Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — widgets come from the **volume-only plugin system** (install via **Plugin Store** or ZIP, update without rebuilding the image). See **[How SelfDashboard is built](#how-selfdashboard-is-built)**.
 
 ---
 
@@ -52,7 +52,67 @@ Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/h
 
 > **See the [overview](#overview) above** for a full screenshot walkthrough.
 
-SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services. **Plugins are installed from the GitHub store or via ZIP** into a mounted folder (`/app/plugins/custom`); see **[docs/PLUGINS.md](docs/PLUGINS.md)** and **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
+SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful plugin system — running as a single Docker container. Manage multiple dashboards, customize every detail, and add widgets for your self-hosted services.
+
+**Plugins are not bundled in the image.** You install them from the **Plugin Store (GitHub)** or **ZIP** into a mounted folder (`/app/plugins/custom`). The Docker image only ships the **core app** (UI, store, shared APIs). Details: **[docs/PLUGINS.md](docs/PLUGINS.md)** · **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
+
+## How SelfDashboard is built
+
+```mermaid
+flowchart TB
+  subgraph image["Docker image (core)"]
+    UI["Next.js UI · Plugin Store · dashboards"]
+    CORE["Built-in APIs: calendar, mail, docker, crowdsec, fritzbox, …"]
+    GW["Gateway /api/plugins/{id}/…"]
+  end
+  subgraph vol["Volume /app/plugins/custom"]
+    W["per plugin: plugin.json + widget.js (+ optional server.js)"]
+  end
+  subgraph gh["GitHub branch e.g. beta"]
+    IDX["plugins-pack/plugins-index.json"]
+    PACK["plugins-pack/{id}/widget.js"]
+  end
+  gh -->|"Store: Install / Update"| vol
+  vol -->|"browser loads widget.js"| UI
+  W --> GW
+  CORE --> UI
+```
+
+| Layer | Location | Purpose |
+|--------|----------|---------|
+| **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:beta` or `:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
+| **Installed plugins** | Host → `/app/plugins/custom/<id>/` | Widgets the browser runs (`widget.js`); survives image updates |
+| **Plugin catalog** | GitHub `plugins-pack/` on branch `beta` (configurable) | `plugins-index.json` + files the store downloads on install/update |
+| **Plugin source (dev)** | Sibling folder `plugins/<id>/` (TypeScript) | **Not** on the server — build with `npm run publish:plugin-pack`, then push `plugins-pack/` |
+| **App data** | Host → `/app/data` | `dashboard.json`, calendar DB, central log |
+
+### App update vs plugin update
+
+| You change… | New Docker image? | What to do |
+|-------------|-------------------|------------|
+| A **plugin** (new `widget.js` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
+| **SelfDashboard core** (UI, APIs, store, loader) | **Yes** | `docker pull` + restart container; keep `/app/data` and `/app/plugins/custom` mounts |
+
+## What's new (beta / volume-only model)
+
+- **Volume-only plugins** — widgets are no longer compiled into the image; only `plugin.json` + `widget.js` on disk count.
+- **GitHub Plugin Store** — installs from `plugins-pack/` (default branch **`beta`** in the official image and Unraid template).
+- **In-app updates** — version compare, orange badge on **+**, banner **Update all**; no image rebuild for plugin bumps.
+- **Loading state** — widgets show “Loading plugin…” while the volume scan finishes.
+- **Mail as a plugin** — install **Email** from the store for navbar IMAP badge + settings tab.
+- **Central log** — **Settings → Logs** for app, API, and plugin errors.
+
+Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
+
+## Documentation
+
+| Topic | Document |
+|--------|----------|
+| Install & update plugins | [docs/PLUGINS.md](docs/PLUGINS.md) |
+| Write & publish plugins | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
+| Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
+| Recent API/plugin changes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
+| Error log | [docs/LOGGING.md](docs/LOGGING.md) |
 
 ## Features
 
@@ -60,7 +120,8 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 | Feature | Description |
 |---|---|
-| 🧩 **Plugin System** | Add, remove and configure widgets for any service |
+| 🧩 **Plugin System** | Volume-only widgets — install from GitHub store or ZIP; no widgets baked into the image |
+| 🔄 **Plugin updates** | Store compares versions; badge + **Update all** — **no** image rebuild; **Ctrl+F5** after update |
 | 📋 **Multiple Dashboards** | Create unlimited dashboards, each with its own URL (`/dashboard/home`, `/dashboard/server`) |
 | 🎨 **6 Color Themes** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
 | 🖌️ **Custom Colors** | Override any color individually per dashboard |
@@ -108,13 +169,18 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 
 ## Quick Start
 
+**Required:** map **`/app/data`** and **`/app/plugins/custom`**. Without the plugins folder, the store can install files but they will not persist.
+
+**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:beta`** (matches default GitHub branch `beta`). For stable releases use **`:latest`** and set `SELFDASHBOARD_PLUGINS_GITHUB_REF=main` if your catalog lives on `main`.
+
 ### Option 1 — Unraid Community Apps (recommended)
 
 1. Open Community Apps → search for **SelfDashboard**
-2. Install and set your port (default: `3000`)
+2. Install — set **Config Storage**, **Plugins Storage**, port (default `3000`)
 3. Open `http://YOUR-IP:3000`
-4. Click **+** to add plugins and start building
-5. Done ✓
+4. **Plugin Store → From GitHub** — install widgets you need (Calendar, Bookmarks, …)
+5. Click **+** to place widgets on the dashboard → **Ctrl+F5** if a widget stays blank
+6. Done ✓
 
 ### Option 2 — Docker run
 
@@ -127,10 +193,10 @@ docker run -d \
   -v /mnt/user/appdata/selfdashboard:/app/data \
   -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:latest
+  ghcr.io/kabelsalatundklartext/selfdashboard:beta
 ```
 
-*(**`/app/data`** → `dashboard.json`. **`/app/plugins/custom`** → installed plugins (`plugin.json` + `widget.js`). Install widgets in the UI via **Plugin Store → From GitHub** or ZIP upload, then hard-reload (Ctrl+F5). Optional Docker socket — Docker widget only.)*
+*(**`/app/data`** → `dashboard.json`, calendar, logs. **`/app/plugins/custom`** → installed plugins. **Store → From GitHub** or ZIP, then **Ctrl+F5**. Docker socket optional — **Docker** plugin only. CrowdSec mount optional — **CrowdSec** plugin only.)*
 
 ### Option 3 — docker-compose
 
@@ -142,11 +208,17 @@ docker-compose up -d
 
 ## Docker & Unraid template
 
-- **`/app/data`** — `dashboard.json` and calendar data. **Back up** appdata.
-- **`/app/plugins/custom`** — installed plugins. See **[docs/PLUGINS.md](docs/PLUGINS.md)**.
-- Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
-- **Docker plugin:** local socket only — **[docs/plugins/docker/README.md](docs/plugins/docker/README.md)**.
-- **CrowdSec plugin:** optional — **[docs/plugins/crowdsec/README.md](docs/plugins/crowdsec/README.md)**.
+| Mount / setting | Content |
+|-----------------|--------|
+| **`/app/data`** | `dashboard.json`, `data/calendar/`, central log — **back up** regularly |
+| **`/app/plugins/custom`** | Installed plugins (`<id>/plugin.json`, `widget.js`) — **back up** with appdata |
+| **GitHub env vars** | Pre-set in `:beta` image: repo `kabelsalatundklartext/selfdashboard`, ref `beta`, path `plugins-pack` |
+| **Docker Socket** (optional) | Local host only — **[Docker plugin](docs/plugins/docker/README.md)** |
+| **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec plugin](docs/plugins/crowdsec/README.md)** |
+
+Unraid: **`unraid/selfdashboard.xml`** on branch **`beta`** — **Config Storage**, **Plugins Storage** (both required for a normal setup).
+
+After a **plugin** update: Store → **Update** → **Ctrl+F5**. After an **app** update: pull new image, restart — layouts and installed plugins stay on the volumes.
 
 ---
 
@@ -224,10 +296,6 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 
 **Logs (Protokoll)** — Central error log for support and debugging: filter by level, source, plugin; download `.txt` / JSONL; retention 3 / 7 / 30 days. Every plugin registered via `registerPlugin` logs render failures and failed `/api/*` calls automatically. Mail uses the same log with plugin id **`mail`**. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
 
----
-
----
-
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -238,8 +306,8 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | `SELFDASHBOARD_CALENDAR_KEY` | auto-generated file in data dir | **Stable secret** for encrypting calendar and **mail** passwords. Set explicitly in Docker so credentials survive container recreation. |
 | `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Directory for **`mail.json`** (optional override) |
 | `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installed plugins (Unraid: map host folder here) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | — | GitHub repo for store, e.g. `owner/selfdashboard` |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch for `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` in `:beta` image | GitHub repo for store (`owner/repo`) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch/tag for `plugins-pack/` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Path in repo to plugin files |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Allowed root for DB paths (CrowdSec widget only; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
@@ -253,7 +321,11 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | Problem | Solution |
 |---|---|
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
-| Config lost after update | Image updates do not remove your appdata volume; **`dashboard.json`** and **`localStorage`** keep your layout. If a **new browser** shows an empty dashboard, check that **`/app/data`** is mounted and writable (see *Shared configuration* above). |
+| Config lost after update | Image updates do not remove your appdata volume; **`dashboard.json`** and **`localStorage`** keep your layout. If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
+| Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:beta` image defaults |
+| Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
+| Update installed, UI unchanged | **Ctrl+F5** (hard reload) — browser caches `widget.js` |
+| Plugin not found after install | Confirm **Plugins Storage** mount; folder must contain `plugin.json` + `widget.js` (not `index.tsx`) |
 | Port already in use | Change host port: `-p 3001:3000` |
 | Widgets invisible in edit mode | Try refreshing the page |
 | Theme not applying | Hard refresh: Ctrl+Shift+R |
@@ -273,8 +345,9 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 - **Frontend:** Next.js 15, React 18, Tailwind CSS
 - **State:** Zustand — persisted to **`localStorage`** (cache) and to **`dashboard.json`** on the server when **`/app/data`** (or **`SELFDASHBOARD_DATA_DIR`**) is available
 - **Grid:** react-grid-layout
-- **Container:** Node.js 20 Alpine
-- **Plugin System:** Custom registry, zero external dependencies
+- **Container:** Node.js 22 Alpine (multi-stage build, Next.js standalone)
+- **Plugins:** Volume-only — dynamic `widget.js` load + `pluginRegistry`; catalog from GitHub `plugins-pack/`
+- **Develop:** `npm run dev` in repo root; publish plugins with `npm run publish:plugin-pack`
 
 ---
 
@@ -315,11 +388,71 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
 | ✉️ **Navbar E-Mail** | IMAP-Badge (Plugin **E-Mail** aus dem Store installieren) — Klick öffnet Webmail |
 
-Alles ist **Drag & Drop**, **mehrere Dashboards** möglich (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — Widgets kommen aus dem **Plugin-System** (Installation über **Plugin-Store** oder ZIP).
+Alles ist **Drag & Drop**, **mehrere Dashboards** (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — Widgets kommen aus dem **Volume-only Plugin-System** (Store oder ZIP, Updates ohne Image-Rebuild). Siehe **[Aufbau von SelfDashboard](#aufbau-von-selfdashboard)**.
 
 ## Was ist SelfDashboard?
 
-SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu. **Plugins installierst du über den GitHub-Store oder per ZIP** in den gemounteten Ordner `/app/plugins/custom` — siehe **[docs/PLUGINS.md](docs/PLUGINS.md)** und **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
+SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu.
+
+**Plugins stecken nicht im Image.** Installation über **Plugin-Store (GitHub)** oder **ZIP** nach `/app/plugins/custom`. Das Image enthält nur die **Kern-App** (UI, Store, gemeinsame APIs). Details: **[docs/PLUGINS.md](docs/PLUGINS.md)** · **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
+
+## Aufbau von SelfDashboard
+
+```mermaid
+flowchart TB
+  subgraph image["Docker-Image (Kern)"]
+    UI["Next.js UI · Plugin-Store · Dashboards"]
+    CORE["Eingebaute APIs: Kalender, Mail, Docker, CrowdSec, FRITZ!, …"]
+    GW["Gateway /api/plugins/{id}/…"]
+  end
+  subgraph vol["Volume /app/plugins/custom"]
+    W["pro Plugin: plugin.json + widget.js (+ optional server.js)"]
+  end
+  subgraph gh["GitHub z. B. Branch beta"]
+    IDX["plugins-pack/plugins-index.json"]
+    PACK["plugins-pack/{id}/widget.js"]
+  end
+  gh -->|"Store: Installieren / Aktualisieren"| vol
+  vol -->|"Browser lädt widget.js"| UI
+  W --> GW
+  CORE --> UI
+```
+
+| Schicht | Ort | Zweck |
+|--------|-----|--------|
+| **Kern-App** | Image `ghcr.io/…/selfdashboard` (`:beta` oder `:latest`) | UI, Einstellungen, Protokoll, Plugin-Store, die meisten `/api/*`-Routen |
+| **Installierte Plugins** | Host → `/app/plugins/custom/<id>/` | Widgets im Browser (`widget.js`); überlebt Image-Updates |
+| **Plugin-Katalog** | GitHub `plugins-pack/` auf Branch `beta` (konfigurierbar) | `plugins-index.json` + Dateien für Install/Update |
+| **Plugin-Quellcode (Dev)** | Ordner `plugins/<id>/` (TypeScript) | **Nicht** auf dem Server — Build mit `npm run publish:plugin-pack`, dann `plugins-pack/` pushen |
+| **App-Daten** | Host → `/app/data` | `dashboard.json`, Kalender-DB, zentrales Protokoll |
+
+### App-Update vs Plugin-Update
+
+| Du änderst… | Neues Docker-Image? | Vorgehen |
+|-------------|---------------------|----------|
+| Ein **Plugin** (neues `widget.js` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
+| **SelfDashboard-Kern** (UI, APIs, Store, Loader) | **Ja** | `docker pull` + Container neu starten; Mounts `/app/data` und `/app/plugins/custom` behalten |
+
+## Neu (Beta / Volume-only)
+
+- **Nur Plugins vom Volume** — keine Widgets mehr im Image; zählen nur `plugin.json` + `widget.js` auf der Platte.
+- **GitHub Plugin-Store** — Installation aus `plugins-pack/` (Standard-Branch **`beta`** im offiziellen Image und Unraid-Template).
+- **Updates in der App** — Versionsvergleich, orangener Punkt am **+**, Leiste **Alle aktualisieren** — kein Image-Rebuild für Plugin-Versionen.
+- **Ladezustand** — „Plugin wird geladen…“, während der Volume-Scan läuft.
+- **E-Mail als Plugin** — **E-Mail** aus dem Store installieren für Navbar-Badge und Einstellungs-Tab.
+- **Zentrales Protokoll** — **Einstellungen → Protokoll** für App-, API- und Plugin-Fehler.
+
+API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
+
+## Dokumentation
+
+| Thema | Datei |
+|--------|--------|
+| Installation & Plugin-Updates | [docs/PLUGINS.md](docs/PLUGINS.md) |
+| Plugins entwickeln & veröffentlichen | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
+| Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
+| Aktuelle API-/Plugin-Änderungen | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
+| Fehlerprotokoll | [docs/LOGGING.md](docs/LOGGING.md) |
 
 ## Features
 
@@ -327,7 +460,8 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 | Feature | Beschreibung |
 |---|---|
-| 🧩 **Plugin-System** | Widgets für beliebige Dienste hinzufügen, entfernen und konfigurieren |
+| 🧩 **Plugin-System** | Nur Volume-Plugins — Store (GitHub) oder ZIP; keine Widgets im Image |
+| 🔄 **Plugin-Updates** | Versionsvergleich im Store; Badge + **Alle aktualisieren** — **kein** Image-Rebuild; danach **Strg+F5** |
 | 📋 **Mehrere Dashboards** | Unbegrenzt viele Dashboards, jedes mit eigener URL (`/dashboard/home`, `/dashboard/server`) |
 | 🎨 **6 Farbthemen** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
 | 🖌️ **Eigene Farben** | Jede Farbe einzeln pro Dashboard anpassbar |
@@ -377,13 +511,18 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 
 ## Schnellstart
 
+**Pflicht:** **`/app/data`** und **`/app/plugins/custom`** mounten. Ohne Plugin-Ordner gehen Store-Installationen beim Neustart verloren.
+
+**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:beta`** (passt zum Standard-Branch `beta`). Für Stable: **`:latest`** und ggf. `SELFDASHBOARD_PLUGINS_GITHUB_REF=main`.
+
 ### Option 1 — Unraid Community Apps (empfohlen)
 
-1. Community Apps öffnen → nach **SelfDashboard** suchen
-2. Installieren, Port einstellen (Standard: `3000`)
+1. Community Apps → **SelfDashboard** suchen
+2. Installieren — **Config Storage**, **Plugins Storage**, Port (Standard `3000`)
 3. `http://DEINE-IP:3000` öffnen
-4. **+** klicken, Plugins hinzufügen, Dashboard aufbauen
-5. Fertig ✓
+4. **Plugin-Store → Von GitHub** — benötigte Widgets installieren (Kalender, Lesezeichen, …)
+5. **+** — Widgets aufs Dashboard legen → **Strg+F5**, falls ein Widget leer bleibt
+6. Fertig ✓
 
 ### Option 2 — Docker run
 
@@ -396,10 +535,10 @@ docker run -d \
   -v /mnt/user/appdata/selfdashboard:/app/data \
   -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:latest
+  ghcr.io/kabelsalatundklartext/selfdashboard:beta
 ```
 
-*(**`/app/data`** → `dashboard.json`. **`/app/plugins/custom`** → installierte Plugins. Im UI: **Plugin-Store → Von GitHub** oder ZIP, danach **Strg+F5**. Docker-Socket optional — nur Docker-Widget.)*
+*(**`/app/data`** → `dashboard.json`, Kalender, Protokoll. **`/app/plugins/custom`** → installierte Plugins. **Store → Von GitHub** oder ZIP, dann **Strg+F5**. Docker-Socket optional — **Docker**-Plugin. CrowdSec-Mount optional — **CrowdSec**-Plugin.)*
 
 ### Option 3 — docker-compose
 
@@ -411,11 +550,17 @@ docker-compose up -d
 
 ## Docker & Unraid-Template
 
-- **`/app/data`** — `dashboard.json`, Kalender. **Backup** nicht vergessen.
-- **`/app/plugins/custom`** — installierte Plugins. Siehe **[docs/PLUGINS.md](docs/PLUGINS.md)**.
-- Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
-- **Docker-Plugin:** nur lokaler Socket — **[docs/plugins/docker/README.md](docs/plugins/docker/README.md)**.
-- **CrowdSec-Plugin:** optional — **[docs/plugins/crowdsec/README.md](docs/plugins/crowdsec/README.md)**.
+| Mount / Einstellung | Inhalt |
+|---------------------|--------|
+| **`/app/data`** | `dashboard.json`, `data/calendar/`, Protokoll — **Backup** |
+| **`/app/plugins/custom`** | Installierte Plugins (`<id>/plugin.json`, `widget.js`) — **mit Appdata sichern** |
+| **GitHub-Env** | Im `:beta`-Image voreingestellt: Repo `kabelsalatundklartext/selfdashboard`, Ref `beta`, Pfad `plugins-pack` |
+| **Docker Socket** (optional) | Nur lokaler Host — **[Docker-Plugin](docs/plugins/docker/README.md)** |
+| **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec-Plugin](docs/plugins/crowdsec/README.md)** |
+
+Unraid: **`unraid/selfdashboard.xml`** auf Branch **`beta`** — **Config Storage** und **Plugins Storage** (für den Normalbetrieb beide nötig).
+
+Nach **Plugin**-Update: Store → **Aktualisieren** → **Strg+F5**. Nach **App**-Update: neues Image pullen, neu starten — Layout und installierte Plugins bleiben auf den Volumes.
 
 ---
 
@@ -493,11 +638,6 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 
 **Protokoll** — Zentrales Fehlerprotokoll für Support und Fehlersuche: Filter nach Stufe, Quelle, Plugin; Download `.txt` / JSONL; Aufbewahrung 3 / 7 / 30 Tage. Jedes per `registerPlugin` eingebundene Plugin loggt Render-Fehler und fehlgeschlagene `/api/*`-Aufrufe automatisch. E-Mail nutzt dasselbe Protokoll mit Plugin-ID **`mail`**. Details: **[docs/LOGGING.md](docs/LOGGING.md)**.
 
----
-
-
----
-
 ## Umgebungsvariablen
 
 | Variable | Standard | Beschreibung |
@@ -508,8 +648,8 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | `SELFDASHBOARD_CALENDAR_KEY` | Datei im Data-Ordner | **Fester Schlüssel** für Kalender- und **E-Mail**-Passwörter. In Docker setzen, damit Zugangsdaten Container-Neustarts überleben. |
 | `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Verzeichnis für **`mail.json`** (optional) |
 | `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installierte Plugins (Unraid: Host-Ordner hierher mappen) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | — | GitHub-Repo für Store, z. B. `owner/selfdashboard` |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch für `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` im `:beta`-Image | GitHub-Repo für Store (`owner/repo`) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch/Tag für `plugins-pack/` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Pfad im Repo zu den Plugin-Dateien |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Erlaubtes Wurzelverzeichnis für DB-Pfade (nur CrowdSec-Widget; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
@@ -526,7 +666,11 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
-| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Zeigt ein **neuer Browser** ein leeres Dashboard, prüfe ob **`/app/data`** gemappt und beschreibbar ist (Abschnitt *Gemeinsame Konfiguration* oben). |
+| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
+| Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:beta`-Image mit Defaults nutzen |
+| Widget hängt bei „Plugin wird geladen…“ | Kurz warten; **Plugin-Store → Plugins neu laden**; prüfen: `/app/plugins/custom/<id>/widget.js` |
+| Update installiert, UI unverändert | **Strg+F5** — Browser cached `widget.js` |
+| Plugin nicht gefunden nach Install | **Plugins Storage** gemountet? Ordner braucht `plugin.json` + `widget.js` (nicht `index.tsx`) |
 | Port bereits belegt | Host-Port ändern: `-p 3001:3000` |
 | Widgets im Bearbeitungsmodus unsichtbar | Seite neu laden |
 | Theme wird nicht übernommen | Browser-Cache leeren: Strg+Shift+R |
@@ -543,8 +687,9 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 - **Frontend:** Next.js 15, React 18, Tailwind CSS
 - **State:** Zustand — im **`localStorage`** (Cache) und in **`dashboard.json`** auf dem Server, sobald **`/app/data`** bzw. **`SELFDASHBOARD_DATA_DIR`** verfügbar ist
 - **Grid:** react-grid-layout
-- **Container:** Node.js 20 Alpine
-- **Plugin-System:** Eigene Registry, keine externen Abhängigkeiten
+- **Container:** Node.js 22 Alpine (Multi-Stage, Next.js standalone)
+- **Plugins:** Nur Volume — dynamisches `widget.js` + `pluginRegistry`; Katalog von GitHub `plugins-pack/`
+- **Entwicklung:** `npm run dev` im Repo; Plugins veröffentlichen mit `npm run publish:plugin-pack`
 
 ---
 
