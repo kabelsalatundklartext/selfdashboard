@@ -4,6 +4,7 @@
  */
 import { registerPluginServerHandler } from '@/lib/pluginServerRegistry'
 import { adguardServerHandler } from '../../plugins/adguard/server'
+import { reloadCustomPluginServers } from '@/lib/pluginCustomServer'
 
 let loaded = false
 
@@ -14,4 +15,9 @@ export function loadBuiltinPluginServers(): void {
   registerPluginServerHandler('adguard', adguardServerHandler)
 
   // TODO (Beta): fritzbox, fritz-energy, crowdsec, docker, calendar, …
+}
+
+export async function loadAllPluginServers(): Promise<void> {
+  loadBuiltinPluginServers()
+  await reloadCustomPluginServers()
 }

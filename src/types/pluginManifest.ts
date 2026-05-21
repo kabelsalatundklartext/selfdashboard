@@ -17,6 +17,10 @@ export interface PluginManifest {
   stackedExtraH?: number
   /** Plugin exposes server routes via `plugins/<id>/server.ts` and the API gateway. */
   hasServer?: boolean
+  /** `widget.js` present on volume (`plugins/custom/<id>/`). */
+  hasWidgetFile?: boolean
+  /** Volume widget replaces built-in widget for the same id. */
+  overridesBuiltin?: boolean
   /** `builtin` = shipped in image; `custom` = under plugins/custom (volume on Unraid). */
   source?: 'builtin' | 'custom'
 }

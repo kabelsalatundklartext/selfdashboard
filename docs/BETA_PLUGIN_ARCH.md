@@ -16,6 +16,14 @@ ghcr.io/kabelsalatundklartext/selfdashboard:beta
 
 **Unraid / Docker:** Repository-Tag von `:latest` auf `:beta` stellen, Container neu erstellen oder mit Watchtower aktualisieren.
 
+## Plugins nur im gemounteten Ordner (ohne Image-Rebuild)
+
+Siehe **[CUSTOM_PLUGINS_VOLUME.md](./CUSTOM_PLUGINS_VOLUME.md)**.
+
+- Host → `/app/plugins/custom` (z. B. `/mnt/user/Docker/selfdashboard/plugins`)
+- Store: **Plugin-Ordner befüllen** kopiert `plugin.json`-Vorlagen aus dem Image
+- **`widget.js`** / **`server.js`** auf dem Volume überschreiben UI bzw. API — TSX läuft nicht direkt vom Share
+
 ## Ziel
 
 Alles zu einem Plugin gehört in **einen Ordner** unter `plugins/<id>/`:

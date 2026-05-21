@@ -42,6 +42,27 @@ export function PluginStoreModal({ open, onClose }: Props) {
     }
   )
 
+  const handleSeedPlugins = useCallback(async () => {
+    setReloadBusy(true)
+    setReloadMsg(null)
+    try {
+      const res = await fetch('/api/plugins/seed-custom', { method: 'POST' })
+      const j = (await res.json()) as { copied?: string[]; skipped?: string[]; hint?: string }
+      if (!res.ok) throw new Error('seed_failed')
+      const c = (j.copied ?? []).length
+      const s = (j.skipped ?? []).length
+      setReloadMsg(
+        locale === 'de'
+          ? `${c} neu, ${s} übersprungen. ${j.hint ?? ''}`
+          : `${c} new, ${s} skipped. ${j.hint ?? ''}`,
+      )
+    } catch {
+      setReloadMsg(locale === 'de' ? 'Befüllen fehlgeschlagen.' : 'Seed failed.')
+    } finally {
+      setReloadBusy(false)
+    }
+  }, [locale])
+
   const handleReloadPlugins = useCallback(async () => {
     setReloadBusy(true)
     setReloadMsg(null)
@@ -100,6 +121,15 @@ export function PluginStoreModal({ open, onClose }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="btn-ghost px-2 py-1.5 text-xs"
+              title={t(locale, 'seedPluginsHint')}
+              disabled={reloadBusy}
+              onClick={() => void handleSeedPlugins()}
+            >
+              {t(locale, 'seedPlugins')}
+            </button>
             <button
               type="button"
               className="btn-ghost p-1.5"

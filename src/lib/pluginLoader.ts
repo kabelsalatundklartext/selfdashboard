@@ -22,21 +22,25 @@ import * as weather from '../../plugins/weather'
 import * as crowdsec from '../../plugins/crowdsec'
 import * as selfstream from '../../plugins/selfstream'
 
-export function loadBuiltinPlugins() {
-  registerPlugin(bookmarks.meta, bookmarks.component)
-  registerPlugin(calendarPlugin.meta, calendarPlugin.component)
-  registerPlugin(clock.meta, clock.component)
-  registerPlugin(iframe.meta, iframe.component)
-  registerPlugin(docker.meta, docker.component)
-  registerPlugin(emby.meta, emby.component)
-  registerPlugin(adguard.meta, adguard.component)
-  registerPlugin(pihole.meta, pihole.component)
-  registerPlugin(fritzbox.meta, fritzbox.component)
-  registerPlugin(fritzEnergy.meta, fritzEnergy.component)
-  registerPlugin(scratchpad.meta, scratchpad.component)
-  registerPlugin(unraid.meta, unraid.component)
-  registerPlugin(unraidDocker.meta, unraidDocker.component)
-  registerPlugin(weather.meta, weather.component)
-  registerPlugin(crowdsec.meta, crowdsec.component)
-  registerPlugin(selfstream.meta, selfstream.component)
+export function loadBuiltinPlugins(skipIds?: ReadonlySet<string>) {
+  const reg = (meta: typeof bookmarks.meta, component: typeof bookmarks.component) => {
+    if (skipIds?.has(meta.id)) return
+    registerPlugin(meta, component)
+  }
+  reg(bookmarks.meta, bookmarks.component)
+  reg(calendarPlugin.meta, calendarPlugin.component)
+  reg(clock.meta, clock.component)
+  reg(iframe.meta, iframe.component)
+  reg(docker.meta, docker.component)
+  reg(emby.meta, emby.component)
+  reg(adguard.meta, adguard.component)
+  reg(pihole.meta, pihole.component)
+  reg(fritzbox.meta, fritzbox.component)
+  reg(fritzEnergy.meta, fritzEnergy.component)
+  reg(scratchpad.meta, scratchpad.component)
+  reg(unraid.meta, unraid.component)
+  reg(unraidDocker.meta, unraidDocker.component)
+  reg(weather.meta, weather.component)
+  reg(crowdsec.meta, crowdsec.component)
+  reg(selfstream.meta, selfstream.component)
 }

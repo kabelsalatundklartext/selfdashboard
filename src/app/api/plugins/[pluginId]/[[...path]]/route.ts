@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
-import { loadBuiltinPluginServers } from '@/lib/pluginServerLoader'
+import { loadAllPluginServers } from '@/lib/pluginServerLoader'
 import { getPluginServerHandler } from '@/lib/pluginServerRegistry'
 
 export const dynamic = 'force-dynamic'
 
-loadBuiltinPluginServers()
+let serversReady: Promise<void> | null = null
+function ensureServers(): Promise<void> {
+  if (!serversReady) serversReady = loadAllPluginServers()
+  return serversReady
+}
+void ensureServers()
 
 type RouteParams = { pluginId: string; path?: string[] }
 
 async function dispatch(req: Request, params: RouteParams): Promise<Response> {
+  await ensureServers()
   const pluginId = params.pluginId
   const path = params.path ?? []
   const handler = getPluginServerHandler(pluginId)

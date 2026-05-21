@@ -28,8 +28,8 @@ function wrapWidgetWithLogging(meta: PluginMeta, Widget: ComponentType<PluginWid
 class PluginRegistry {
   private plugins: Map<string, RegisteredPlugin> = new Map()
 
-  register(meta: PluginMeta, component: PluginComponent) {
-    if (this.plugins.has(meta.id)) {
+  register(meta: PluginMeta, component: PluginComponent, opts?: { replace?: boolean }) {
+    if (this.plugins.has(meta.id) && !opts?.replace) {
       console.warn(`[SelfDashboard] Plugin "${meta.id}" is already registered. Skipping.`)
       return
     }
@@ -58,12 +58,20 @@ class PluginRegistry {
   isRegistered(id: string): boolean {
     return this.plugins.has(id)
   }
+
+  unregister(id: string): void {
+    this.plugins.delete(id)
+  }
 }
 
 // Singleton – one registry for the whole app
 export const pluginRegistry = new PluginRegistry()
 
 /** Register a plugin — Widget is wrapped for automatic error logging (see docs/LOGGING.md). */
-export const registerPlugin = (meta: PluginMeta, component: PluginComponent) => {
-  pluginRegistry.register(meta, component)
+export const registerPlugin = (
+  meta: PluginMeta,
+  component: PluginComponent,
+  opts?: { replace?: boolean },
+) => {
+  pluginRegistry.register(meta, component, opts)
 }

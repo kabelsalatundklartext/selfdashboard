@@ -4,6 +4,7 @@ import type { PluginManifest, PluginCatalogEntry } from '@/types/pluginManifest'
 import type { PluginCategory } from '@/types'
 import { getBuiltinPluginsRoot, getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
 import { getRegisteredPluginServerIds } from '@/lib/pluginServerRegistry'
+import { getCustomServerPluginIds, getCustomWidgetOverrideIds, hasVolumeFile } from '@/lib/pluginVolumeInfo'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',
@@ -19,6 +20,13 @@ let catalogCache: PluginCatalogEntry[] | null = null
 
 function isValidId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-]*$/.test(id)
+}
+
+export function parseManifestFromPath(
+  manifestPath: string,
+  source: 'builtin' | 'custom',
+): PluginManifest | null {
+  return parseManifestFile(manifestPath, source)
 }
 
 function parseManifestFile(filePath: string, source: 'builtin' | 'custom'): PluginManifest | null {
@@ -80,11 +88,29 @@ export function scanPluginManifests(): PluginManifest[] {
   }))
 }
 
-export function buildPluginCatalog(widgetLoadedIds: Set<string>): PluginCatalogEntry[] {
-  return scanPluginManifests().map((m) => ({
+function enrichManifest(m: PluginManifest): PluginManifest {
+  const onVolume = m.source === 'custom'
+  return {
     ...m,
-    widgetLoaded: widgetLoadedIds.has(m.id),
-  }))
+    hasServer:
+      m.hasServer ||
+      getRegisteredPluginServerIds().includes(m.id) ||
+      (onVolume && (hasVolumeFile(m.id, 'server.js') || hasVolumeFile(m.id, 'server.mjs'))),
+    hasWidgetFile: onVolume && hasVolumeFile(m.id, 'widget.js'),
+    overridesBuiltin: getCustomWidgetOverrideIds().includes(m.id),
+  }
+}
+
+export function buildPluginCatalog(widgetLoadedIds: Set<string>): PluginCatalogEntry[] {
+  return scanPluginManifests().map((m) => {
+    const enriched = enrichManifest(m)
+    const volumeWidget = enriched.hasWidgetFile === true
+    const builtinWidget = widgetLoadedIds.has(m.id) && !getCustomWidgetOverrideIds().includes(m.id)
+    return {
+      ...enriched,
+      widgetLoaded: volumeWidget || builtinWidget,
+    }
+  })
 }
 
 export function getPluginCatalogCached(widgetLoadedIds: Set<string>): PluginCatalogEntry[] {
