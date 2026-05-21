@@ -3,57 +3,227 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "generatedAt": "2026-05-21T13:59:41.206Z",
   "plugins": [
     {
       "id": "adguard",
       "name": "AdGuard Home",
-      "description": "DNS-Statistik und Schutzstatus per AdGuard-Home-API.",
+      "description": "DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth).",
       "version": "1.1.6",
       "author": "SelfDashboard",
       "category": "network",
+      "icon": "🛡️",
       "iconUrl": "/plugin-logos/adguard.png",
-      "files": ["plugin.json", "widget.js"]
+      "hasServer": true,
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "server.js"
+      ]
     },
     {
       "id": "bookmarks",
       "name": "App Bookmarks",
-      "description": "Quick links to your self-hosted services.",
-      "version": "1.0.0",
+      "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.",
+      "version": "1.6.2",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🔖",
-      "files": ["plugin.json", "widget.js"]
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
     },
     {
       "id": "calendar",
-      "name": "Calendar",
-      "description": "CalDAV and ICS calendar widget.",
-      "version": "1.4.0",
-      "author": "SelfDashboard",
+      "name": "Kalender",
+      "description": "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …",
+      "version": "1.2.2",
+      "author": "SelfDashboard Community",
       "category": "productivity",
       "icon": "📅",
-      "files": ["plugin.json", "widget.js"]
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
     },
     {
       "id": "clock",
       "name": "Clock & Date",
-      "description": "Time and date with timezone support.",
+      "description": "Displays the current time and date with timezone support.",
       "version": "1.2.1",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🕐",
-      "files": ["plugin.json", "widget.js"]
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "crowdsec",
+      "name": "CrowdSec",
+      "description": "Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.",
+      "version": "1.3.3",
+      "author": "SelfDashboard",
+      "category": "security",
+      "icon": "🛡️",
+      "iconUrl": "/plugin-logos/crowdsec.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "docker",
+      "name": "Docker",
+      "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.",
+      "version": "1.8.10",
+      "author": "SelfDashboard",
+      "category": "system",
+      "icon": "🐳",
+      "iconUrl": "/plugin-logos/docker.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "emby",
+      "name": "Emby",
+      "description": "Aktive Wiedergaben per Emby-/Jellyfin-kompatibler API: Nutzer, Titel, Gerät, Pause (Basis-URL + API-Key).",
+      "version": "1.0.5",
+      "author": "SelfDashboard",
+      "category": "media",
+      "icon": "🎬",
+      "iconUrl": "/plugin-logos/emby.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "fritz-energy",
+      "name": "FRITZ! Steckdose Energie",
+      "description": "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).",
+      "version": "1.1.8",
+      "author": "SelfDashboard",
+      "category": "network",
+      "icon": "⚡",
+      "iconUrl": "/plugin-logos/fritzbox.svg",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "fritzbox",
+      "name": "Fritzbox Internet Verlauf",
+      "description": "WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.",
+      "version": "2.4.3",
+      "author": "SelfDashboard",
+      "category": "network",
+      "icon": "📈",
+      "iconUrl": "/plugin-logos/fritzbox.svg",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "iframe",
+      "name": "Iframe",
+      "description": "Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.",
+      "version": "2.1.4",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "🖼️",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "pihole",
+      "name": "Pi-hole",
+      "description": "Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/pihole.",
+      "version": "1.1.1",
+      "author": "SelfDashboard",
+      "category": "network",
+      "icon": "🕳️",
+      "iconUrl": "/plugin-logos/pihole.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "scratchpad",
+      "name": "Notizzettel",
+      "description": "Kurzer Merkzettel — direkt im Widget bearbeitbar, Speichern mit Sicherheitsabfrage.",
+      "version": "1.1.1",
+      "author": "Du",
+      "category": "utility",
+      "icon": "📝",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "selfstream",
+      "name": "Selfstream",
+      "description": "Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt.",
+      "version": "1.0.3",
+      "author": "SelfDashboard",
+      "category": "media",
+      "icon": "📺",
+      "iconUrl": "/plugin-logos/selfstream.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "unraid",
+      "name": "Unraid",
+      "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
+      "version": "1.5.3",
+      "author": "SelfDashboard",
+      "category": "system",
+      "icon": "🖥️",
+      "iconUrl": "/plugin-logos/unraid.svg",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
+    },
+    {
+      "id": "unraid-docker",
+      "name": "Unraid Docker",
+      "description": "Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).",
+      "version": "0.4.15",
+      "author": "SelfDashboard",
+      "category": "system",
+      "icon": "🧱",
+      "iconUrl": "/plugin-logos/unraid-docker.png",
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
     },
     {
       "id": "weather",
       "name": "Weather",
-      "description": "Current weather via Open-Meteo.",
-      "version": "1.0.0",
+      "description": "Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.",
+      "version": "1.2.3",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🌤️",
-      "files": ["plugin.json", "widget.js"]
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
     }
   ]
 }

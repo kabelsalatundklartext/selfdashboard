@@ -52,7 +52,7 @@
     Target="/app/data"
     Default="/mnt/user/appdata/selfdashboard"
     Mode="rw"
-    Description="Persistente Daten: dashboard.json (Dashboards, Widgets, Einstellungen). Backup dieses Ordners empfohlen. SELFDASHBOARD_DATA_DIR kann den Pfad im Container überschreiben (Standard: /app/data)."
+    Description="App-Daten (/app/data): dashboard.json, optional mail/ und calendar/ (Navbar-Mail &amp; Kalender-Daten — gehören NICHT in den Plugin-Ordner). Backup empfohlen. Liegt neben dem Plugin-Mount, z. B. …/selfdashboard/ mit mail/ + plugins/ als Geschwister auf dem Host."
     Type="Path"
     Display="always"
     Required="true"

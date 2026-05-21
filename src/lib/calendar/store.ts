@@ -26,15 +26,15 @@ const DEFAULT_ROOT =
 let dataDirCache: string | null = null
 
 export function getDataDir(): string {
-  if (dataDirCache) return dataDirCache
-  if (!existsSync(DEFAULT_ROOT)) {
-    mkdirSync(DEFAULT_ROOT, { recursive: true })
-  }
-  dataDirCache = DEFAULT_ROOT
-  return dataDirCache
+  return DEFAULT_ROOT
 }
 
-const storePath = () => join(getDataDir(), 'store.json')
+function ensureDataDir(): void {
+  if (!existsSync(DEFAULT_ROOT)) mkdirSync(DEFAULT_ROOT, { recursive: true })
+  dataDirCache = DEFAULT_ROOT
+}
+
+const storePath = () => join(DEFAULT_ROOT, 'store.json')
 
 // ---------------------------------------------------------------------------
 // async mutex
@@ -74,6 +74,7 @@ function readSyncOrEmpty(): CalendarStore {
 }
 
 function writeSync(store: CalendarStore): void {
+  ensureDataDir()
   const path = storePath()
   const tmp = path + '.tmp'
   writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')

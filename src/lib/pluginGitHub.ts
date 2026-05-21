@@ -5,6 +5,8 @@ import type { PluginCategory } from '@/types'
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
 import { listInstalledVolumePluginIds } from '@/lib/pluginVolumeInfo'
 import { installPluginFromBundledPack, readBundledPackCatalogEntries } from '@/lib/pluginBundledPack'
+import { getBuiltinPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
+import { readPluginMetaFromDir } from '@/lib/pluginMetaExtract'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',
@@ -108,9 +110,8 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
   const index = await fetchGitHubPluginIndex(true)
   let entry = index?.plugins.find((p) => p.id === pluginId)
-  if (!entry) {
-    entry = readBundledPackCatalogEntries().find((p) => p.id === pluginId)
-  }
+  if (!entry) entry = readBundledPackCatalogEntries().find((p) => p.id === pluginId)
+  if (!entry) entry = readImagePluginCatalogEntries().find((p) => p.id === pluginId)
   if (!entry) return { ok: false, pluginId, written: [], error: 'plugin_not_in_index' }
 
   const files = (entry.files ?? ['plugin.json', 'widget.js']).filter((f) => INSTALL_FILES.has(f))
@@ -168,6 +169,23 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
   }
 }
 
+/** All built-in manifests still shipped in the image (for store list + bundled install). */
+export function readImagePluginCatalogEntries(): GitHubPluginIndexEntry[] {
+  const root = getBuiltinPluginsRoot()
+  if (!fs.existsSync(root)) return []
+  const out: GitHubPluginIndexEntry[] = []
+  for (const name of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!name.isDirectory() || PLUGIN_SCAN_SKIP_DIRS.has(name.name)) continue
+    if (!fs.existsSync(path.join(root, name.name, 'index.tsx'))) continue
+    const m = readPluginMetaFromDir(path.join(root, name.name), name.name, 'builtin')
+    if (!m) continue
+    const files = ['plugin.json', 'widget.js']
+    if (fs.existsSync(path.join(root, name.name, 'server.ts'))) files.push('server.js')
+    out.push({ ...m, files })
+  }
+  return out.sort((a, b) => a.id.localeCompare(b.id))
+}
+
 export async function listRemoteCatalogWithInstallState(): Promise<{
   configured: boolean
   indexUrl: string | null
@@ -184,6 +202,11 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
     byId.set(p.id, { ...p, installed: installed.has(p.id) })
   }
   for (const p of readBundledPackCatalogEntries()) {
+    if (!byId.has(p.id)) {
+      byId.set(p.id, { ...p, installed: installed.has(p.id) })
+    }
+  }
+  for (const p of readImagePluginCatalogEntries()) {
     if (!byId.has(p.id)) {
       byId.set(p.id, { ...p, installed: installed.has(p.id) })
     }

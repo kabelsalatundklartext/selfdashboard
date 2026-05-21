@@ -27,11 +27,9 @@ import {
 const ROOT = process.env.MAIL_DATA_DIR || join(dataDir(), 'mail')
 const FILE = () => join(ROOT, 'mail.json')
 
-let dirReady = false
+/** Only create `mail/` when persisting — not on every scheduler read at startup. */
 function ensureDir() {
-  if (dirReady) return
   if (!existsSync(ROOT)) mkdirSync(ROOT, { recursive: true })
-  dirReady = true
 }
 
 let chain: Promise<unknown> = Promise.resolve()
@@ -128,7 +126,6 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
 }
 
 function readSync(): MailStoreFile {
-  ensureDir()
   const path = FILE()
   if (!existsSync(path)) return defaultStore()
 
