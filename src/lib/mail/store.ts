@@ -1,9 +1,10 @@
 import 'server-only'
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { dataDir } from '@/lib/dataDir'
+import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 import { encrypt } from '@/lib/secretCrypto'
 import { normalizeMailConnection, resolveWebmailUrl } from './normalize'
 import {
@@ -24,8 +25,29 @@ import {
   type MailStoreFile,
 } from './types'
 
-const ROOT = process.env.MAIL_DATA_DIR || join(dataDir(), 'mail')
+/** Plugin data: `<plugins/custom>/mail/mail.json` (legacy: `<data>/mail/mail.json`). */
+function resolveMailDataRoot(): string {
+  if (process.env.MAIL_DATA_DIR?.trim()) return process.env.MAIL_DATA_DIR.trim()
+  return join(getCustomPluginsRoot(), 'mail')
+}
+
+const ROOT = resolveMailDataRoot()
 const FILE = () => join(ROOT, 'mail.json')
+const LEGACY_FILE = () => join(dataDir(), 'mail', 'mail.json')
+
+function migrateLegacyMailStoreIfNeeded(): void {
+  const next = FILE()
+  if (existsSync(next)) return
+  const legacy = LEGACY_FILE()
+  if (!existsSync(legacy)) return
+  ensureDir()
+  try {
+    copyFileSync(legacy, next)
+    console.info('[SelfDashboard] Migrated mail store to plugin folder:', next)
+  } catch (e) {
+    console.warn('[SelfDashboard] mail store migration failed', e)
+  }
+}
 
 /** Only create `mail/` when persisting — not on every scheduler read at startup. */
 function ensureDir() {
@@ -126,6 +148,7 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
 }
 
 function readSync(): MailStoreFile {
+  migrateLegacyMailStoreIfNeeded()
   const path = FILE()
   if (!existsSync(path)) return defaultStore()
 

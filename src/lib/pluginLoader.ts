@@ -21,6 +21,7 @@ import * as fritzEnergy from '../../plugins/fritz-energy'
 import * as weather from '../../plugins/weather'
 import * as crowdsec from '../../plugins/crowdsec'
 import * as selfstream from '../../plugins/selfstream'
+import * as mail from '../../plugins/mail'
 
 export function loadBuiltinPlugins(skipIds?: ReadonlySet<string>) {
   const reg = (meta: typeof bookmarks.meta, component: typeof bookmarks.component) => {
@@ -43,4 +44,5 @@ export function loadBuiltinPlugins(skipIds?: ReadonlySet<string>) {
   reg(weather.meta, weather.component)
   reg(crowdsec.meta, crowdsec.component)
   reg(selfstream.meta, selfstream.component)
+  reg(mail.meta, mail.component)
 }

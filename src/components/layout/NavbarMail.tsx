@@ -11,6 +11,7 @@ import {
   type MailAccountStatus,
 } from '@/lib/mail/types'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
+import { mailApiUrl } from '@/lib/mail/clientApi'
 
 interface MailStatusResponse {
   ok?: boolean
@@ -44,7 +45,7 @@ export function NavbarMail({ locale }: { locale: Locale }) {
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
     try {
       const q = opts?.refresh ? '?refresh=1' : ''
-      const res = await fetch(`/api/mail/status${q}`, { cache: 'no-store' })
+      const res = await fetch(mailApiUrl('/status', q), { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as MailStatusResponse
       const unread = j.unread ?? 0

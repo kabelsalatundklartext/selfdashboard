@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Locale } from '@/lib/i18n'
 import { dispatchMailConfigChanged } from '@/lib/mail/events'
+import { mailApiUrl } from '@/lib/mail/clientApi'
 
 function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
@@ -33,7 +34,7 @@ function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: b
 }
 
 export async function saveMailNavbarEnabled(enabled: boolean): Promise<void> {
-  const res = await fetch('/api/mail/settings', {
+  const res = await fetch(mailApiUrl('/settings'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ navbarEnabled: enabled }),
@@ -58,7 +59,7 @@ export function MailNavbarToggle({ locale, enabled: enabledProp, onEnabledChange
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/mail/settings', { cache: 'no-store' })
+        const res = await fetch(mailApiUrl('/settings'), { cache: 'no-store' })
       if (!res.ok) return
       const j = (await res.json()) as { navbarEnabled?: boolean; config?: { enabled?: boolean } }
       setInternalEnabled(Boolean(j.navbarEnabled ?? j.config?.enabled))

@@ -24,6 +24,7 @@ import {
   formatMailFolderLabel,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
+import { mailApiUrl } from '@/lib/mail/clientApi'
 
 type MailStatus = MailAggregateStatus
 
@@ -98,7 +99,7 @@ export function MailSettingsPanel({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/mail/settings', { cache: 'no-store' })
+      const res = await fetch('/api/plugins/mail/settings', { cache: 'no-store' })
       if (!res.ok) return
       const j = await res.json() as {
         navbarEnabled?: boolean
@@ -140,7 +141,7 @@ export function MailSettingsPanel({
   /** Liest den vom Server-Scheduler aktualisierten Cache (kein zusätzliches IMAP pro Tick) */
   const refreshStatusFromCache = useCallback(async () => {
     try {
-      const res = await fetch('/api/mail/status', { cache: 'no-store' })
+      const res = await fetch('/api/plugins/mail/status', { cache: 'no-store' })
       if (!res.ok) return
       const j = await res.json() as MailStatus & { pollIntervalSeconds?: number }
       setStatus({
@@ -205,7 +206,7 @@ export function MailSettingsPanel({
     setErr(null)
     setMsg(null)
     try {
-      const res = await fetch('/api/mail/settings', {
+      const res = await fetch('/api/plugins/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pollIntervalSeconds: sec }),
@@ -243,7 +244,7 @@ export function MailSettingsPanel({
     setErr(null)
     setMsg(null)
     try {
-      const res = await fetch('/api/mail/settings', {
+      const res = await fetch('/api/plugins/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ unreadMaxAgeDays: days }),
@@ -300,7 +301,7 @@ export function MailSettingsPanel({
     if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
     try {
-      const res = await fetch('/api/mail/settings', {
+      const res = await fetch('/api/plugins/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -342,7 +343,7 @@ export function MailSettingsPanel({
   const addAccount = async () => {
     setBusy(true); setErr(null); setMsg(null)
     try {
-      const res = await fetch('/api/mail/settings', {
+      const res = await fetch('/api/plugins/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -378,7 +379,7 @@ export function MailSettingsPanel({
     if (!window.confirm(de ? `„${selected.label}" wirklich löschen?` : `Delete "${selected.label}"?`)) return
     setBusy(true); setErr(null)
     try {
-      const res = await fetch('/api/mail/settings', {
+      const res = await fetch('/api/plugins/mail/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deleteAccountId: selected.id }),
@@ -408,7 +409,7 @@ export function MailSettingsPanel({
     setPreviewBusy(true)
     setPreviewErr(null)
     try {
-      const res = await fetch('/api/mail/unread-preview', {
+      const res = await fetch('/api/plugins/mail/unread-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
@@ -466,7 +467,7 @@ export function MailSettingsPanel({
     setErr(null)
     setMsg(null)
     try {
-      const res = await fetch('/api/mail/mark-all-read', {
+      const res = await fetch('/api/plugins/mail/mark-all-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
@@ -507,7 +508,7 @@ export function MailSettingsPanel({
     if (!selected) return
     setBusy(true); setErr(null); setMsg(null)
     try {
-      const res = await fetch('/api/mail/test', {
+      const res = await fetch('/api/plugins/mail/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accountId: selected.id, ...accountBody() }),
@@ -567,7 +568,7 @@ export function MailSettingsPanel({
   const syncNow = async () => {
     setBusy(true); setErr(null)
     try {
-      const res = await fetch('/api/mail/status?refresh=1', { cache: 'no-store' })
+      const res = await fetch('/api/plugins/mail/status?refresh=1', { cache: 'no-store' })
       const j = await res.json() as MailStatus & { openUrl?: string | null }
       setStatus(j)
       await load()
@@ -595,7 +596,7 @@ export function MailSettingsPanel({
     setErr(null)
     setMsg(null)
     try {
-      const res = await fetch('/api/mail/reset-cache', { method: 'POST', cache: 'no-store' })
+      const res = await fetch('/api/plugins/mail/reset-cache', { method: 'POST', cache: 'no-store' })
       const j = await res.json() as MailStatus & { ok?: boolean; error?: string; openUrl?: string | null }
       if (!res.ok || j.ok === false) throw new Error(j.error ?? `HTTP ${res.status}`)
       setStatus({

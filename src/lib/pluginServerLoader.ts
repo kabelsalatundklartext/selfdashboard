@@ -4,6 +4,8 @@
  */
 import { registerPluginServerHandler } from '@/lib/pluginServerRegistry'
 import { adguardServerHandler } from '../../plugins/adguard/server'
+import { mailServerHandler } from '../../plugins/mail/server'
+import { startMailScheduler } from '@/lib/mail/sync'
 import { reloadCustomPluginServers } from '@/lib/pluginCustomServer'
 
 let loaded = false
@@ -13,8 +15,8 @@ export function loadBuiltinPluginServers(): void {
   loaded = true
 
   registerPluginServerHandler('adguard', adguardServerHandler)
-
-  // TODO (Beta): fritzbox, fritz-energy, crowdsec, docker, calendar, …
+  registerPluginServerHandler('mail', mailServerHandler)
+  startMailScheduler()
 }
 
 export async function loadAllPluginServers(): Promise<void> {

@@ -16,4 +16,5 @@ export const BUILTIN_PLUGIN_IDS = [
   'weather',
   'crowdsec',
   'selfstream',
+  'mail',
 ] as const

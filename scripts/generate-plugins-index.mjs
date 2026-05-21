@@ -69,7 +69,8 @@ for (const name of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
     files.push('server.js')
   }
   const hasServer = files.includes('server.js')
-  plugins.push({ ...m, id: m.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
+  const { hasServer: _manifestHasServer, ...meta } = m
+  plugins.push({ ...meta, id: meta.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }
 
 plugins.sort((a, b) => a.id.localeCompare(b.id))

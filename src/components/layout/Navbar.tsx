@@ -7,7 +7,7 @@ import { useDashboardStore } from '@/lib/store'
 import { SettingsModal } from '@/components/ui/SettingsModal'
 import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
-import { NavbarMail } from '@/components/layout/NavbarMail'
+import { getNavbarSlots, getNavbarSlotsVersion, subscribeNavbarSlots } from '@/lib/pluginNavbarRegistry'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 import { t } from '@/lib/i18n'
 import { anySearchProviderEnabled } from '@/lib/searchProviders'
@@ -67,6 +67,9 @@ export function Navbar() {
   const searchInTopRow = showNavbarSearch && !stackSearchBar
   const searchFullWidthRow = showNavbarSearch && stackSearchBar
   const { compact: navbarCompact, phone: navbarPhone } = useNavbarCompact()
+
+  useSyncExternalStore(subscribeNavbarSlots, getNavbarSlotsVersion, () => 0)
+  const navbarSlots = getNavbarSlots()
 
   return (
     <>
@@ -133,7 +136,10 @@ export function Navbar() {
 
         <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: navbarPhone ? '4px' : '8px', flexShrink: 0 }}>
           {searchInTopRow && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
-          <NavbarMail locale={locale} />
+          {navbarSlots.map(({ id, component: Slot }) => {
+            const C = Slot
+            return <C key={id} locale={locale} />
+          })}
           <div className="navbar-zoom" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
             <button
               onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}

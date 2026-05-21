@@ -13,7 +13,5 @@ export async function register() {
     await loadAllPluginServers()
     const { startScheduler } = await import('@/lib/calendar/sync')
     startScheduler()
-    const { startMailScheduler } = await import('@/lib/mail/sync')
-    startMailScheduler()
   }
 }

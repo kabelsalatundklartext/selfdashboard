@@ -1,0 +1,16 @@
+{
+  "id": "mail",
+  "name": "E-Mail / IMAP",
+  "description": "Navbar-Badge mit ungelesenen Mails, mehrere IMAP-Konten, Einstellungen unter E-Mail.",
+  "version": "1.0.0",
+  "author": "SelfDashboard",
+  "category": "productivity",
+  "icon": "✉️",
+  "hasServer": true,
+  "defaultLayout": {
+    "w": 3,
+    "h": 2,
+    "minW": 2,
+    "minH": 2
+  }
+}
