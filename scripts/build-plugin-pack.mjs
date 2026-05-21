@@ -167,6 +167,10 @@ function copyDirToPublish(pluginId) {
     if (name === 'README-server.txt' || name === 'server.ts.txt') continue
     copyFileIfExists(path.join(src, name), path.join(dest, name))
   }
+  const userReadme = path.join(root, 'docs', 'plugins', id, 'README.md')
+  if (fs.existsSync(userReadme)) {
+    fs.copyFileSync(userReadme, path.join(dest, 'README.md'))
+  }
   return true
 }
 

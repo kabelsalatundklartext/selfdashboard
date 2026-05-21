@@ -1,26 +1,17 @@
-# plugins-pack (GitHub Plugin-Verteilung)
+# plugins-pack (GitHub store artifacts)
 
-**Kein ZIP nötig.** Der Store installiert Dateien einzeln von GitHub:
+This folder is the **remote plugin store** on GitHub — not user documentation.
 
-```text
-plugins-pack/
-  plugins-index.json    ← Katalog (Store-Liste)
-  clock/
-    plugin.json
-    widget.js
-  docker/
-    plugin.json
-    widget.js
-  …
-```
+| File / folder | Purpose |
+|---------------|---------|
+| `plugins-index.json` | Catalog for **Plugin Store → From GitHub** |
+| `<plugin-id>/plugin.json` | Metadata |
+| `<plugin-id>/widget.js` | Bundled widget (required) |
+| `<plugin-id>/README.md` | Optional copy of user docs (see `docs/plugins/<id>/`) |
 
-Raw-URL-Beispiel:
+**User-facing plugin list and setup guides:** main [README — Plugins](../README.md#plugins) and per-plugin [docs/plugins/](../docs/plugins/README.md).
 
-```text
-https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/plugins-pack/clock/widget.js
-```
-
-## Maintainer: Pack aktualisieren
+## Maintainer: update the pack
 
 ```bash
 npm run publish:plugin-pack
@@ -29,6 +20,6 @@ git commit -m "Update plugins-pack for GitHub install"
 git push origin beta
 ```
 
-Nach dem Push: im Container Plugin-Store ↻ oder Seite Strg+F5.
+After push: **Plugin Store** ↻ or hard-reload (Ctrl+F5).
 
-Der Ordner `plugin-pack/` (Singular) mit `default-plugins.zip` ist nur ein Docker-Build-Artefakt — **nicht** für den GitHub-Store.
+`plugin-pack/` (singular) with `default-plugins.zip` is a local build artifact only — **not** used by the GitHub store.

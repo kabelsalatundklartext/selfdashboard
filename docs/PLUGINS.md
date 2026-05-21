@@ -84,7 +84,7 @@ Env (im Image `:beta` bereits gesetzt):
 
 ## Plugin-Katalog (alle Plugins)
 
-**[plugins/README.md](./plugins/README.md)** — Tabelle mit Link zur Anleitung jedes Plugins (Mail, Docker, Unraid, …).
+**[README — Plugins](../README.md#plugins)** — Katalogtabelle · **[plugins/README.md](./plugins/README.md)** — Index mit Link zu `docs/plugins/<id>/README.md` (DE/EN pro Plugin).
 
 ## Weitere Doku
 

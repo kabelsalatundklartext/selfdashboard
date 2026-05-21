@@ -1,6 +1,6 @@
 # Plugin: FRITZ! Steckdose Energie (`fritz-energy`)
 
-[← Katalog](README.md)
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 

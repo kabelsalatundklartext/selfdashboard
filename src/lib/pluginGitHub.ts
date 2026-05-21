@@ -312,6 +312,10 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
 
   indexUrl: string | null
 
+  repository: string | null
+
+  ref: string | null
+
   available: (GitHubPluginIndexEntry & { installed: boolean })[]
 
 }> {
@@ -320,7 +324,7 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
 
   if (!cfg) {
 
-    return { configured: false, indexUrl: null, available: [] }
+    return { configured: false, indexUrl: null, repository: null, ref: null, available: [] }
 
   }
 
@@ -341,6 +345,10 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
     configured: true,
 
     indexUrl: githubRawUrl(cfg.indexPath),
+
+    repository: `${cfg.owner}/${cfg.repo}`,
+
+    ref: cfg.ref,
 
     available,
 

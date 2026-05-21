@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { PluginMeta } from '@/types'
-import { X, Plus, Check, Search, RefreshCw } from 'lucide-react'
+import { X, Plus, Check, Search, RefreshCw, ExternalLink } from 'lucide-react'
+import { pluginReadmeDocUrl, PLUGIN_CATALOG_DOC_URL, PLUGIN_CATALOG_DOC_URL_DE } from '@/lib/pluginDocUrl'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
@@ -29,6 +30,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const existingPlugins = activeDashboard()?.plugins ?? []
   const [remotePlugins, setRemotePlugins] = useState<RemotePluginRow[]>([])
   const [githubConfigured, setGithubConfigured] = useState(false)
+  const [githubRepo, setGithubRepo] = useState('kabelsalatundklartext/selfdashboard')
+  const [githubRef, setGithubRef] = useState('beta')
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
 
@@ -46,9 +49,13 @@ export function PluginStoreModal({ open, onClose }: Props) {
       const j = (await res.json()) as {
         configured?: boolean
         available?: RemotePluginRow[]
+        repository?: string | null
+        ref?: string | null
       }
       setGithubConfigured(!!j.configured)
       setRemotePlugins(j.available ?? [])
+      if (j.repository) setGithubRepo(j.repository)
+      if (j.ref) setGithubRef(j.ref)
     } catch {
       setGithubConfigured(false)
       setRemotePlugins([])
@@ -231,13 +238,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
   const remoteFiltered = useMemo(() => {
     const q = search.toLowerCase()
-    return remotePlugins
-      .filter((p) => !p.installed)
-      .filter((p) => {
-        const name = String(p.name ?? p.id ?? '')
-        const desc = String(p.description ?? '')
-        return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
-      })
+    return remotePlugins.filter((p) => {
+      const name = String(p.name ?? p.id ?? '')
+      const desc = String(p.description ?? '')
+      return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+    })
   }, [remotePlugins, search])
 
   const filtered = useMemo(() => {
@@ -249,7 +254,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
     })
   }, [allPlugins, locale, search])
 
-  const sectionTitle = volumeOnly ? t(locale, 'pluginsOnVolume') : t(locale, 'pluginsFromImage')
+  const sectionTitle = volumeOnly ? t(locale, 'pluginsOnVolume') : t(locale, 'pluginsInstalledLocal')
+  const catalogDocUrl = locale === 'de' ? PLUGIN_CATALOG_DOC_URL_DE : PLUGIN_CATALOG_DOC_URL
 
   if (!open) return null
 
@@ -273,10 +279,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
               {t(locale, 'pluginStore')}
             </h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {volumeOnly
-                ? `${volumeInstalledIds.length} auf Platte · ${allPlugins.length} nutzbar`
-                : `${allPlugins.length} ${t(locale, 'pluginsAvailable')}`}
-              {volumeOnly ? ' · volume' : ''}
+              {githubConfigured
+                ? `${remotePlugins.length} ${t(locale, 'pluginsCatalogAvailable')}`
+                : `0 ${t(locale, 'pluginsCatalogAvailable')}`}
+              {' · '}
+              {allPlugins.length} {t(locale, 'pluginsInstalledLocal')}
+              {volumeOnly ? ` · ${volumeInstalledIds.length} ${locale === 'de' ? 'auf Platte' : 'on disk'}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -361,7 +369,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
           {githubConfigured && remoteFiltered.length > 0 && (
             <div>
               <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-                {t(locale, 'pluginsFromGitHub')}
+                {t(locale, 'pluginsCatalogAvailable')} · {t(locale, 'pluginsFromGitHub')}
               </p>
               <div className="space-y-2">
                 {remoteFiltered.map((meta) => (
@@ -372,32 +380,59 @@ export function PluginStoreModal({ open, onClose }: Props) {
                   >
                     <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
                     <div className="flex-1 min-w-0">
-                      <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name ?? meta.id}</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name ?? meta.id}</span>
+                        {meta.installed ? (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full"
+                            style={{ background: 'var(--accent)22', color: 'var(--accent)', border: '1px solid var(--accent)44' }}
+                          >
+                            {t(locale, 'installPluginDone')}
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description ?? ''}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>GitHub · v{meta.version ?? '?'}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {categoryLabel(meta.category)} · v{meta.version ?? '?'}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      className="btn-accent"
-                      title={t(locale, 'installPluginHint')}
-                      disabled={reloadBusy}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void handleInstallRemote(meta.id)
-                      }}
-                    >
-                      {installingId === meta.id ? (
-                        <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          {t(locale, 'pluginInstallBusy')}
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={14} />
-                          {t(locale, 'installPlugin')}
-                        </>
-                      )}
-                    </button>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <a
+                        href={pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-ghost text-xs"
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                        title={t(locale, 'pluginReadme')}
+                      >
+                        <ExternalLink size={13} />
+                        {t(locale, 'pluginReadme')}
+                      </a>
+                      {!meta.installed ? (
+                        <button
+                          type="button"
+                          className="btn-accent"
+                          title={t(locale, 'installPluginHint')}
+                          disabled={reloadBusy}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            void handleInstallRemote(meta.id)
+                          }}
+                        >
+                          {installingId === meta.id ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              {t(locale, 'pluginInstallBusy')}
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} />
+                              {t(locale, 'installPlugin')}
+                            </>
+                          )}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -452,24 +487,71 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       by {meta.author} · v{meta.version}
                     </p>
                   </div>
-                  <button type="button" onClick={() => handleAdd(meta.id)} className="btn-accent">
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <a
+                      href={pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-ghost text-xs"
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
+                    >
+                      <ExternalLink size={13} />
+                      {t(locale, 'pluginReadme')}
+                    </a>
+                    <button type="button" onClick={() => handleAdd(meta.id)} className="btn-accent">
                     {added.has(meta.id)
                       ? <><Check size={14} />{t(locale, 'add')}</>
                       : <><Plus size={14} />{t(locale, 'add')}</>
                     }
-                  </button>
+                    </button>
+                  </div>
                 </div>
               )
             })
           )}
         </div>
 
-        <div className="px-6 py-3 text-xs text-center" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-          💡 {t(locale, 'devHint')}{' '}
-          <a href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DISTRIBUTION.md"
-            target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
-            {t(locale, 'readTheDocs')}
-          </a>
+        <div className="px-6 py-3" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-center">
+            {t(locale, 'pluginCatalogNav')}
+          </p>
+          <div
+            className="flex flex-wrap gap-2 justify-center max-h-24 overflow-y-auto"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            {remotePlugins.map((p) => (
+              <a
+                key={`nav-${p.id}`}
+                href={pluginReadmeDocUrl(p.id, { repository: githubRepo, ref: githubRef })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-2 py-1 rounded-md"
+                style={{
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  textDecoration: 'none',
+                }}
+              >
+                {p.name ?? p.id}
+              </a>
+            ))}
+          </div>
+          <p className="text-xs text-center mt-3">
+            <a href={catalogDocUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
+              {t(locale, 'pluginCatalogNav')}
+            </a>
+            {' · '}
+            💡 {t(locale, 'devHint')}{' '}
+            <a
+              href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DEV.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: 'var(--accent)' }}
+            >
+              {t(locale, 'readTheDocs')}
+            </a>
+          </p>
         </div>
       </div>
     </div>

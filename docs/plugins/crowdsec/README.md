@@ -1,6 +1,6 @@
 # Plugin: CrowdSec (`crowdsec`)
 
-[← Katalog](README.md)
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 

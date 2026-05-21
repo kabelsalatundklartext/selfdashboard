@@ -1,5 +1,5 @@
 # Plugin: Uhr (`clock`)
 
-[← Katalog](README.md)
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 Zeigt Uhrzeit, Datum, Zeitzone und optional Ortsname. Konfiguration im Widget (⚙️): Zeitzone/Stadt.

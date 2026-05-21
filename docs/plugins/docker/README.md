@@ -1,6 +1,6 @@
 # Plugin: Docker (`docker`)
 
-[← Katalog](README.md)
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 

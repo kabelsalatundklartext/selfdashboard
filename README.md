@@ -82,11 +82,29 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 ## Plugins
 
-Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Full catalog with setup guides per plugin:
+Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Each plugin has its own **README (EN/DE)** under `docs/plugins/<id>/`.
 
-**[docs/plugins/README.md](docs/plugins/README.md)** (AdGuard, Calendar, Docker, Mail, Unraid, FRITZ!Box, …)
+Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
 
-Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+| Plugin | Category | Description | README |
+|--------|----------|-------------|--------|
+| [AdGuard Home](docs/plugins/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
+| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
+| [Calendar](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
+| [Clock](docs/plugins/clock/README.md) | Utility | Time, date, timezone | EN/DE |
+| [CrowdSec](docs/plugins/crowdsec/README.md) | Security | Alerts & bans (optional) | EN/DE |
+| [Docker](docs/plugins/docker/README.md) | System | Containers via socket | EN/DE |
+| [Emby](docs/plugins/emby/README.md) | Media | Active sessions | EN/DE |
+| [FRITZ! WAN](docs/plugins/fritzbox/README.md) | Network | Throughput chart | EN/DE |
+| [FRITZ! Energy](docs/plugins/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
+| [Iframe](docs/plugins/iframe/README.md) | Utility | Embed URLs | EN/DE |
+| [Email](docs/plugins/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
+| [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
+| [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
+| [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
+| [Unraid](docs/plugins/unraid/README.md) | System | System overview | EN/DE |
+| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
+| [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo | EN/DE |
 
 ## Quick Start
 
@@ -127,8 +145,8 @@ docker-compose up -d
 - **`/app/data`** — `dashboard.json` and calendar data. **Back up** appdata.
 - **`/app/plugins/custom`** — installed plugins. See **[docs/PLUGINS.md](docs/PLUGINS.md)**.
 - Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
-- **Docker plugin:** local socket only — **[docs/plugins/docker.md](docs/plugins/docker.md)**.
-- **CrowdSec plugin:** optional — **[docs/plugins/crowdsec.md](docs/plugins/crowdsec.md)**.
+- **Docker plugin:** local socket only — **[docs/plugins/docker/README.md](docs/plugins/docker/README.md)**.
+- **CrowdSec plugin:** optional — **[docs/plugins/crowdsec/README.md](docs/plugins/crowdsec/README.md)**.
 
 ---
 
@@ -331,11 +349,29 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 ## Plugins
 
-Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Katalog mit Anleitung pro Plugin:
+Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Pro Plugin eine eigene **README (DE/EN)** unter `docs/plugins/<id>/`.
 
-**[docs/plugins/README.md](docs/plugins/README.md)**
+Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
 
-Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+| Plugin | Kategorie | Kurzbeschreibung | README |
+|--------|-----------|------------------|--------|
+| [AdGuard Home](docs/plugins/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
+| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
+| [Kalender](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
+| [Uhr](docs/plugins/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
+| [CrowdSec](docs/plugins/crowdsec/README.md) | Sicherheit | Alerts & Banns (optional) | DE/EN |
+| [Docker](docs/plugins/docker/README.md) | System | Container per Socket | DE/EN |
+| [Emby](docs/plugins/emby/README.md) | Media | Aktive Sessions | DE/EN |
+| [FRITZ! Internet](docs/plugins/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
+| [FRITZ! Energie](docs/plugins/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
+| [Iframe](docs/plugins/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
+| [E-Mail](docs/plugins/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
+| [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
+| [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
+| [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
+| [Unraid](docs/plugins/unraid/README.md) | System | CPU, RAM, Array | DE/EN |
+| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
+| [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo | DE/EN |
 
 ---
 
@@ -378,8 +414,8 @@ docker-compose up -d
 - **`/app/data`** — `dashboard.json`, Kalender. **Backup** nicht vergessen.
 - **`/app/plugins/custom`** — installierte Plugins. Siehe **[docs/PLUGINS.md](docs/PLUGINS.md)**.
 - Unraid: **`unraid/selfdashboard.xml`** — **Plugins Storage**, optional **Docker Socket**, optional **CrowdSec Data**.
-- **Docker-Plugin:** nur lokaler Socket — **[docs/plugins/docker.md](docs/plugins/docker.md)**.
-- **CrowdSec-Plugin:** optional — **[docs/plugins/crowdsec.md](docs/plugins/crowdsec.md)**.
+- **Docker-Plugin:** nur lokaler Socket — **[docs/plugins/docker/README.md](docs/plugins/docker/README.md)**.
+- **CrowdSec-Plugin:** optional — **[docs/plugins/crowdsec/README.md](docs/plugins/crowdsec/README.md)**.
 
 ---
 

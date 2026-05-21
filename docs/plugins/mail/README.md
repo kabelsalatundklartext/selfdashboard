@@ -1,6 +1,6 @@
 # Plugin: E-Mail / IMAP (`mail`)
 
-[← Katalog](README.md)
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 
