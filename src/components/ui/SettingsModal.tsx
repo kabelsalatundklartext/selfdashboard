@@ -42,9 +42,9 @@ const EMOJIS = ['🏠', '🖥️', '🎬', '📊', '🌐', '🔒', '☁️', '�
 
 type TabId = 'general' | 'dashboards' | 'design' | 'mail' | 'logs' | string
 
-/** Fixed size so tabs (Protokoll is largest) do not resize the modal when switching. */
+/** Fixed width; height uses viewport so tall screens rarely need outer scroll (Protokoll list scrolls inside). */
 const SETTINGS_MODAL_WIDTH = '720px'
-const SETTINGS_MODAL_HEIGHT = 'min(88vh, 780px)'
+const SETTINGS_MODAL_HEIGHT = 'min(94dvh, calc(100dvh - 2rem))'
 
 const RETENTION_OPTIONS: { days: LogRetentionDays; label: { de: string; en: string } }[] = [
   { days: 3, label: { de: '3 Tage', en: '3 days' } },
@@ -274,7 +274,18 @@ export function SettingsModal({ open, onClose }: Props) {
             ))}
           </div>
 
-          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div
+            style={{
+              flex: '1 1 auto',
+              minHeight: 0,
+              overflowY: tab === 'logs' ? 'hidden' : 'auto',
+              overflowX: 'hidden',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+            }}
+          >
 
             {/* ── Allgemein ── */}
             {tab === 'general' && (<>
@@ -950,7 +961,8 @@ export function SettingsModal({ open, onClose }: Props) {
               )
             })}
 
-            {tab === 'logs' && (<>
+            {tab === 'logs' && (
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
                   {locale === 'de' ? 'Aufbewahrung' : 'Retention'}
@@ -1057,13 +1069,14 @@ export function SettingsModal({ open, onClose }: Props) {
                 </button>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px', flexShrink: 0 }}>
                   {locale === 'de' ? 'Letzte Einträge' : 'Recent entries'}
                   {logsLoading ? ' …' : ` (${logEntries.length})`}
                 </label>
                 <div style={{
-                  maxHeight: '360px',
+                  flex: '1 1 auto',
+                  minHeight: 0,
                   overflowY: 'auto',
                   borderRadius: '10px',
                   border: '1px solid var(--border)',
@@ -1119,7 +1132,8 @@ export function SettingsModal({ open, onClose }: Props) {
                   })}
                 </div>
               </div>
-            </>)}
+            </div>
+            )}
           </div>
         </div>
       </div>

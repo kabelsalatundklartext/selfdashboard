@@ -36,7 +36,10 @@ export async function openMeteoGeocode(params: {
 export async function openMeteoForecast(params: {
   latitude: number
   longitude: number
-  includeDaily: boolean
+  /** Stündlicher Verlauf (heute / nächste 24h). */
+  includeHourly?: boolean
+  /** @deprecated 7-Tage — nicht mehr vom Wetter-Plugin genutzt */
+  includeDaily?: boolean
 }): Promise<unknown> {
   const q = new URLSearchParams({
     latitude: String(params.latitude),
@@ -45,7 +48,10 @@ export async function openMeteoForecast(params: {
     current:
       'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m',
   })
-  if (params.includeDaily) {
+  if (params.includeHourly) {
+    q.set('hourly', 'temperature_2m,weather_code,is_day')
+    q.set('forecast_days', '2')
+  } else if (params.includeDaily) {
     q.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
     q.set('forecast_days', '7')
   }

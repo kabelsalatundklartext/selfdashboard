@@ -1116,7 +1116,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "unraid",
     name: "Unraid",
     description: "System-\xDCbersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1\u2212verf\xFCgbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
-    version: "1.5.4",
+    version: "1.5.5",
     author: "SelfDashboard",
     category: "system",
     icon: "\u{1F5A5}\uFE0F",
@@ -1261,17 +1261,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const map = de ? mapDe : mapEn;
     return map[t] ?? t;
   }
-  function parsePoolDiskLabelMode(v) {
-    const s = String(v ?? "fsType").trim();
+  function parseDiskSuffixLabelMode(v, fallback) {
+    const s = String(v ?? fallback).trim();
     if (s === "off" || s === "cache" || s === "fsType" || s === "comment") return s;
-    return "fsType";
+    return fallback;
   }
   function fsTypeLabel(fsType) {
     const t = fsType?.trim();
     if (!t) return "";
     return t.toUpperCase();
   }
-  function poolDiskSecondaryLabel(disk, mode, de) {
+  function diskSuffixLabel(disk, mode, de) {
     switch (mode) {
       case "off":
         return "";
@@ -1425,11 +1425,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   function DiskVolumeRow({
     disk,
     de,
-    poolLabelMode
+    suffixLabelMode
   }) {
     const used = Math.max(0, disk.fsSize - disk.fsFree);
     const p = pct(used, disk.fsSize);
-    const kind = poolLabelMode !== void 0 ? poolDiskSecondaryLabel(disk, poolLabelMode, de) : diskTypeLabel(disk.diskType, de);
+    const kind = diskSuffixLabel(disk, suffixLabelMode, de);
     const title = [disk.name, kind, formatDiskStatus(disk.status, de)].filter(Boolean).join(" \u2014 ");
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
@@ -1640,7 +1640,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const showPoolsTotal = flag(config, "showPoolsTotal");
     const showPoolsDisks = flag(config, "showPoolsDisks");
     const ramMode = parseRamDisplayMode(config.ramDisplayMode);
-    const poolLabelMode = parsePoolDiskLabelMode(config.poolDiskLabelMode);
+    const arrayLabelMode = parseDiskSuffixLabelMode(
+      config.arrayDiskLabelMode,
+      "cache"
+    );
+    const poolLabelMode = parseDiskSuffixLabelMode(
+      config.poolDiskLabelMode,
+      "fsType"
+    );
     const fetch_ = (0, import_react2.useCallback)(async () => {
       if (!url || !apiKey) {
         setLoading(false);
@@ -1748,12 +1755,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       showArray && data?.array && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heading, { text: arrayHeading(data.array.state, locale) }),
         showArrayTotal && arrayKb && num(arrayKb.total) > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: de ? "Gesamt" : "Total", value: `${fmtKb(num(arrayKb.used))} / ${fmtKb(num(arrayKb.total))}`, bar: true, pct: pct(num(arrayKb.used), num(arrayKb.total)) }),
-        showArrayDisks && data.array.disks?.filter((d) => d.status !== "DISK_NP" && d.fsSize > 0).map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de }, disk.id))
+        showArrayDisks && data.array.disks?.filter((d) => d.status !== "DISK_NP" && d.fsSize > 0).map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de, suffixLabelMode: arrayLabelMode }, disk.id))
       ] }),
       showPools && poolDisks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heading, { text: de ? "Pools / Cache" : "Pools / cache" }),
         showPoolsTotal && poolAgg.total > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: de ? "Gesamt (Cache)" : "Total (cache)", value: `${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`, bar: true, pct: poolPct }),
-        showPoolsDisks && poolDisks.map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de, poolLabelMode }, disk.id))
+        showPoolsDisks && poolDisks.map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de, suffixLabelMode: poolLabelMode }, disk.id))
       ] })
     ] });
   }
@@ -1856,7 +1863,25 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               on: sub("showArrayDisks"),
               onToggle: () => onChange("showArrayDisks", !sub("showArrayDisks"))
             }
-          )
+          ),
+          sub("showArrayDisks") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: "4px" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }, children: de ? "Zusatzlabel (in Klammern)" : "Suffix label (in parentheses)" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+              "select",
+              {
+                style: { ...inp, cursor: "pointer" },
+                value: parseDiskSuffixLabelMode(config.arrayDiskLabelMode, "cache"),
+                onChange: (e) => onChange("arrayDiskLabelMode", e.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "off", children: de ? "Aus \u2014 nur Diskname" : "Off \u2014 disk name only" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "cache", children: de ? "Disk-Rolle (Daten/Parity \u2026)" : "Disk role (data/parity \u2026)" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "fsType", children: de ? "Dateisystem (fsType)" : "Filesystem (fsType)" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "comment", children: de ? "Kommentar (falls gesetzt)" : "Comment (if set)" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.45, margin: "8px 0 0" }, children: de ? "Standard: Disk-Rolle (z. B. disk1 (Daten)). fsType zeigt XFS/ZFS, falls die API es liefert." : "Default: disk role (e.g. disk1 (Data)). fsType shows XFS/ZFS when the API provides it." })
+          ] })
         ] })
       ] }),
       sub("showPools") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
@@ -1877,7 +1902,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               "select",
               {
                 style: { ...inp, cursor: "pointer" },
-                value: parsePoolDiskLabelMode(config.poolDiskLabelMode),
+                value: parseDiskSuffixLabelMode(config.poolDiskLabelMode, "fsType"),
                 onChange: (e) => onChange("poolDiskLabelMode", e.target.value),
                 children: [
                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "off", children: de ? "Aus \u2014 nur Poolname" : "Off \u2014 pool name only" }),

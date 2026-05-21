@@ -6,7 +6,7 @@
 
 ### Kurzbeschreibung
 
-**Open-Meteo** — Stadt oder PLZ, **kein API-Key**. Aktuelles Wetter + optional **7-Tage-Vorschau**.
+**Open-Meteo** — Stadt oder PLZ, **kein API-Key**. Aktuelles Wetter + optional **stündlicher Tagesverlauf**.
 
 ### Installation
 
@@ -19,7 +19,7 @@ Plugin-Store → **Wetter** → **Strg+F5** → Ort in **⚙️**.
 | **Stadt / PLZ** | z. B. `Berlin`, `10115` |
 | **Land** | Optional `DE` für PLZ |
 | **Intervall** | Minuten |
-| **7-Tage** | Ein/Aus, Kartenbreite % |
+| **Tagesverlauf** | Stündlich ein/Aus, Kartenbreite % |
 | **Ort anzeigen** | Ein/Aus |
 
 ### Technik
@@ -37,7 +37,7 @@ Ort nicht gefunden → Schreibweise, Ländercode. Keine Daten → Internet/DNS a
 
 ### Summary
 
-**Open-Meteo** — city or postal code, **no API key**. Current weather + optional **7-day forecast**.
+**Open-Meteo** — city or postal code, **no API key**. Current weather + optional **hourly timeline**.
 
 ### Installation
 
@@ -50,7 +50,7 @@ Plugin Store → **Weather** → **Ctrl+F5** → location in **⚙️**.
 | **City / ZIP** | e.g. `Berlin`, `10115` |
 | **Country** | Optional `DE` for ZIP |
 | **Interval** | Minutes |
-| **7-day** | On/off, card width % |
+| **Timeline** | Hourly on/off, card width % |
 | **Show place** | On/off |
 
 ### Technical notes

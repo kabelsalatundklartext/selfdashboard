@@ -26,14 +26,19 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'invalid_coordinates' }, { status: 400 })
       }
       const dailyParam = sp.get('daily')
+      const includeHourly =
+        sp.get('includeHourly') === '1' ||
+        sp.get('includeHourly') === 'true' ||
+        sp.has('hourly')
       const includeDaily =
-        sp.get('includeDaily') === '1' ||
-        sp.get('includeDaily') === 'true' ||
-        dailyParam === '1' ||
-        dailyParam === 'true' ||
-        sp.has('forecast_days') ||
-        Boolean(dailyParam?.includes('weather_code'))
-      const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeDaily })
+        !includeHourly &&
+        (sp.get('includeDaily') === '1' ||
+          sp.get('includeDaily') === 'true' ||
+          dailyParam === '1' ||
+          dailyParam === 'true' ||
+          sp.has('forecast_days') ||
+          Boolean(dailyParam?.includes('weather_code')))
+      const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeHourly, includeDaily })
       return NextResponse.json(data)
     }
 

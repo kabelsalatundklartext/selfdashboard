@@ -2,7 +2,7 @@
   "id": "unraid",
   "name": "Unraid",
   "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "author": "SelfDashboard",
   "category": "system",
   "icon": "🖥️",
