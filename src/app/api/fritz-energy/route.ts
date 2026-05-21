@@ -105,9 +105,11 @@ export async function POST(req: Request) {
 
     const forceImport = body.action === 'importHistory' || body.importHistory === true
     let store = await readEnergyStore(key)
+    let boxSynced = false
     try {
       const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal)
       if (box) {
+        boxSynced = true
         store =
           forceImport || storeNeedsHistoryImport(store)
             ? await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
@@ -130,6 +132,7 @@ export async function POST(req: Request) {
       recent: storeFinal.recent.slice(-288),
       historyImported: Boolean(storeFinal.historyImportedAt),
       boxPeriods: storeFinal.boxPeriodKwh ?? null,
+      periodsFromBox: boxSynced && storeFinal.boxPeriodKwh != null,
     })
   } catch (e) {
     const name = e instanceof Error ? e.name : ''

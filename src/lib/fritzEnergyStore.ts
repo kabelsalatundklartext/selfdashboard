@@ -14,7 +14,7 @@ export type EnergySample = {
 export type EnergyStoreFile = {
   ain: string
   baseUrl: string
-  /** YYYY-MM-DD (Europe/Berlin) → kWh (aus Zählerstand minus Tages-Baseline) */
+  /** YYYY-MM-DD (Europe/Berlin) → kWh (von FRITZ!Box-Statistik, nicht lokal gezählt) */
   dailyKwh: Record<string, number>
   /** YYYY-MM → kWh (von FRITZ!Box Jahr-/Monats-Serien) */
   monthlyKwh: Record<string, number>
@@ -25,7 +25,7 @@ export type EnergyStoreFile = {
   updatedAt: string
   /** Einmalig aus FRITZ!Box importiert (REST / getbasicdevicestats) */
   historyImportedAt?: string
-  /** Letzte Perioden-Summen von der Box (Fallback bis genug Tageswerte lokal) */
+  /** Letzte Perioden-Summen von der FRITZ!Box (Quelle für Heute / 7 Tage / Monat im Widget) */
   boxPeriodKwh?: { today: number; week: number; month: number }
 }
 
@@ -135,22 +135,17 @@ function monthKeysFromDaily(daily: Record<string, number>): Record<string, numbe
 function computeAggregates(store: EnergyStoreFile, sample: EnergySample): EnergyAggregates {
   const todayKey = berlinDateKey(sample.t)
   const monthPrefix = berlinMonthPrefix(sample.t)
+  const box = store.boxPeriodKwh
 
-  const todayFromDaily = store.dailyKwh[todayKey]
+  /** Dashboard läuft nicht 24/7 — Perioden immer von der Box, nicht aus lokaler Zähler-Differenz. */
   const todayKwh =
-    todayFromDaily != null && todayFromDaily > 0
-      ? todayFromDaily
-      : (store.boxPeriodKwh?.today ?? todayFromDaily ?? 0)
-
-  const last7FromDaily = sumLast7Days(store.dailyKwh, todayKey)
+    box != null ? Math.max(0, box.today) : Math.max(0, store.dailyKwh[todayKey] ?? 0)
   const last7DaysKwh =
-    last7FromDaily > 0
-      ? last7FromDaily
-      : Math.max(last7FromDaily, store.boxPeriodKwh?.week ?? 0)
-
-  const monthFromDaily = sumMonthFromDaily(store.dailyKwh, monthPrefix, todayKey)
+    box != null ? Math.max(0, box.week) : Math.max(0, sumLast7Days(store.dailyKwh, todayKey))
   const monthKwh =
-    monthFromDaily > 0 ? monthFromDaily : Math.max(monthFromDaily, store.boxPeriodKwh?.month ?? 0)
+    box != null
+      ? Math.max(0, box.month)
+      : Math.max(0, sumMonthFromDaily(store.dailyKwh, monthPrefix, todayKey))
 
   return {
     currentPowerW: sample.powerW,
@@ -249,7 +244,7 @@ export async function importBoxEnergyHistory(
 }
 
 /**
- * Neuen Messpunkt speichern und Tagesverbrauch aus Zähler-Delta aktualisieren.
+ * Live-Messpunkt für Leistungs-Verlauf (recent) — Heute/7 Tage/Monat kommen von syncBoxEnergyPeriods.
  */
 export async function appendEnergySample(
   key: string,
@@ -270,15 +265,6 @@ export async function appendEnergySample(
 
   if (!store.monthlyKwh) store.monthlyKwh = {}
   mergeMonthly(store.monthlyKwh, monthKeysFromDaily(store.dailyKwh))
-
-  const dayKey = berlinDateKey(sample.t)
-  if (store.dayBaselineWh[dayKey] == null) {
-    store.dayBaselineWh[dayKey] = sample.energyWh
-  }
-  const baseline = store.dayBaselineWh[dayKey]!
-  const todayKwh =
-    sample.energyWh >= baseline ? (sample.energyWh - baseline) / 1000 : 0
-  store.dailyKwh[dayKey] = todayKwh
 
   store.recent = pruneRecent([...store.recent, sample])
   store.dailyKwh = pruneDaily(store.dailyKwh)

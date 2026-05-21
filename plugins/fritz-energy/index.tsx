@@ -10,7 +10,7 @@ export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
   description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.4',
+  version: '1.1.5',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -694,13 +694,13 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <>
             Stromverbrauch per <strong>TR-064</strong> (Port <code style={{ fontSize: '10px' }}>49000</code> bei{' '}
             <code style={{ fontSize: '10px' }}>http</code>). Basis-URL z. B.{' '}
-            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — bei HTTPS Haken „selbstsigniert“. Beim ersten Abruf werden heute / 7 Tage / Monat von der Box übernommen.
+            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — bei HTTPS Haken „selbstsigniert“. Heute / 7 Tage / Monat kommen bei jedem Abruf von der FRITZ!Box (nicht lokal mitgezählt).
           </>
         ) : (
           <>
             Power use via <strong>TR-064</strong> (port <code style={{ fontSize: '10px' }}>49000</code> for{' '}
             <code style={{ fontSize: '10px' }}>http</code>). Base URL e.g.{' '}
-            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — for HTTPS enable self-signed TLS. History stored on the server.
+            <code style={{ fontSize: '10px' }}>http://192.168.1.1</code> — for HTTPS enable self-signed TLS. Today / 7 days / month are read from the FRITZ!Box on every poll (not counted locally).
           </>
         )}
       </p>
