@@ -139,8 +139,8 @@ function computeAggregates(store: EnergyStoreFile, sample: EnergySample): Energy
   const last7Daily = sumLast7Days(store.dailyKwh, todayKey)
   const monthDaily = sumMonthFromDaily(store.dailyKwh, monthPrefix, todayKey)
 
-  /** Perioden von der FRITZ!Box; Tages-Aufschlüsselung im Store als Fallback wenn Perioden 0 sind. */
-  const todayKwh = Math.max(0, box?.today ?? 0, store.dailyKwh[todayKey] ?? 0)
+  /** Heute nur aus Box-Perioden (0:00–jetzt), nicht aus gemischtem dailyKwh (Wochen-Serie würde sonst aufblähen). */
+  const todayKwh = Math.max(0, box?.today ?? 0)
   const last7DaysKwh = Math.max(0, box?.week ?? 0, last7Daily)
   const monthKwh = Math.max(0, box?.month ?? 0, monthDaily)
 

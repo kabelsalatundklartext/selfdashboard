@@ -224,10 +224,27 @@ function dailyFromBucketsCalendarDay(values: number[], gridSec: number, endMs: n
   return daily
 }
 
+/** Wh von 0:00 (Berlin) bis `endMs` — nur abgeschlossene Raster der Tages-Serie (wie Fritz „von/bis“). */
 function sumWhTodayCalendarDay(values: number[], gridSec: number, endMs: number): number {
-  const daily = dailyFromBucketsCalendarDay(values, gridSec, endMs)
-  const todayKey = berlinDateKey(endMs)
-  return Math.round((daily[todayKey] ?? 0) * 1000)
+  if (gridSec <= 0 || values.length === 0) return 0
+  const sod = startOfBerlinDayMs(endMs)
+  const spanMs = gridSec * 1000
+  let whSum = 0
+  let lastWh = 0
+  let slots = 0
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]
+    if (!Number.isFinite(v) || v <= 0) continue
+    const bucketEnd = sod + (i + 1) * spanMs
+    if (bucketEnd > endMs) break
+    whSum += v
+    lastWh = v
+    slots++
+  }
+  if (slots === 0) return 0
+  /** Manche FRITZ!OS-Builds liefern kumulative Wh pro Slot → letzter Wert ≈ „von 0:00 bis jetzt“. */
+  if (lastWh > 0 && whSum > lastWh * 1.35) return lastWh
+  return whSum
 }
 
 /** Rollierendes Fenster (Fallback, falls die Box so liefert). */
@@ -302,19 +319,22 @@ function periodKwhFromSeries(energies: EnergySeries[]): FritzBoxPeriodKwh {
     const bucketsRolling = dailyFromBuckets(s.values, grid, now)
 
     if (kind === 'day') {
-      const calKwh = sumWhTodayCalendarDay(s.values, grid, now) / 1000
-      const rollKwh = sumWhBucketsRollingToday(s.values, grid, now) / 1000
-      const seriesKwh = sumWhToKwh(s.values)
-      todayKwh = Math.max(todayKwh, calKwh, rollKwh, seriesKwh)
+      const calWh = sumWhTodayCalendarDay(s.values, grid, now)
+      const rollWh = sumWhBucketsRollingToday(s.values, grid, now)
+      if (calWh > 0) todayKwh = calWh / 1000
+      else if (rollWh > 0) todayKwh = rollWh / 1000
       mergeDailySum(dailyKwh, dailyFromBucketsCalendarDay(s.values, grid, now))
-      mergeDailySum(dailyKwh, bucketsRolling)
     } else if (kind === 'week') {
       hasWeekSeries = true
-      weekSeriesKwh = sumWhToKwh(s.values)
+      if (grid >= 86_400) {
+        weekSeriesKwh = sumWhToKwh(s.values)
+      }
       mergeDailySum(dailyKwh, bucketsRolling)
     } else if (kind === 'month') {
       hasMonthSeries = true
-      monthSeriesKwh = sumWhToKwh(s.values)
+      if (grid >= 86_400) {
+        monthSeriesKwh = sumWhToKwh(s.values)
+      }
       mergeDailySum(dailyKwh, bucketsRolling)
       mergeDailyMax(monthlyKwh, monthlyFromBuckets(s.values, grid, now))
     } else if (kind === 'year') {
@@ -323,8 +343,6 @@ function periodKwhFromSeries(energies: EnergySeries[]): FritzBoxPeriodKwh {
       mergeDailySum(dailyKwh, bucketsRolling)
     }
   }
-
-  if (todayKwh <= 0) todayKwh = Math.max(0, dailyKwh[todayKey] ?? 0)
 
   const last7FromDaily = sumLast7CalendarDays(dailyKwh, todayKey)
   let last7DaysKwh = last7FromDaily
