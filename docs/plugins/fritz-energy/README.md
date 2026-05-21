@@ -1,4 +1,4 @@
-# Plugin: FRITZ! Steckdose Energie (`fritz-energy`)
+# Plugin: FRITZ! Energy (`fritz-energy`)
 
 [← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
@@ -6,38 +6,36 @@
 
 ### Kurzbeschreibung
 
-Energie der **FRITZ!Smart Energy**-Steckdose (oder kompatibles Homeauto-Gerät): **aktuelle Leistung (W)**, **heute**, **7 Tage**, **Monat** in kWh — per **TR-064 Homeauto**.
-
-**Getrennt** vom Plugin **fritzbox** (WAN-Durchsatz-Kurve).
-
-### Installation
-
-Plugin installieren → **Strg+F5** → **⚙️** Box-Zugang + **AIN** der Steckdose eintragen.
+**FRITZ!Smart Energy**: aktuell **W**, **heute**, **7 Tage**, **Monat** kWh — TR-064 Homeauto. Getrennt vom **fritzbox**-WAN-Plugin.
 
 ### Einrichtung
 
-| Feld | Hinweis |
-|------|---------|
-| **FRITZ!Box URL / Login** | Wie beim WAN-Plugin (TR-064-Benutzer) |
-| **AIN** | Geräte-ID der Steckdose — in der FRITZ!Box unter **Smart Home** → Gerät → Eigenschaften |
-| **Layout** | Raster (2×2 Kacheln) oder **Karussell** |
-| **Intervall** | 15–300 Sekunden |
+Box-Login + **AIN** der Steckdose (Smart Home → Gerät). Layout: Raster oder Karussell. Intervall 15–300 s.
 
 ### Speicher
 
-Verlauf und Tageswerte unter **`/app/data`** → `data/fritz-energy/` (über **Config Storage**-Mount).
+`data/fritz-energy/` unter **`/app/data`**.
 
 ### API
 
-`POST /api/fritz-energy` — Abruf und Aggregation serverseitig.
-
-### Tipps
-
-- Mehrere Steckdosen = **mehrere Widget-Instanzen** mit unterschiedlicher AIN.  
-- Wenn Werte 0 bleiben: Steckdose in der Box online? AIN exakt kopiert?
+`POST /api/fritz-energy`
 
 ---
 
 ## English
 
-Smart plug energy via TR-064 Homeauto. Needs outlet AIN from FRITZ!Box Smart Home. History stored under `data/fritz-energy/`.
+### Summary
+
+**FRITZ!Smart Energy** outlet: current **W**, **today**, **7 days**, **month** kWh — TR-064 Homeauto. Separate from **fritzbox** WAN plugin.
+
+### Setup
+
+Box login + outlet **AIN** (Smart Home → device). Layout: grid or carousel. Interval 15–300 s.
+
+### Storage
+
+`data/fritz-energy/` on **`/app/data`**.
+
+### API
+
+`POST /api/fritz-energy`

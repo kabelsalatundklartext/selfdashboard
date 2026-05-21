@@ -6,48 +6,74 @@
 
 ### Kurzbeschreibung
 
-**System-Übersicht** für **Unraid 7.2+** per **GraphQL API**: CPU (Modell, Auslastung, Temperatur), RAM, **Array** und **Cache/Pool**-Laufwerke mit Status, Temperatur und Belegung.
+**Unraid 7.2+** per **GraphQL API**: CPU, RAM, Array, Cache/Pool-Disks mit Status, Temperatur, Belegung.
 
 ### Installation
 
-1. Plugin-Store → **Unraid** installieren → **Strg+F5**  
-2. In Unraid: **Einstellungen → Management Access → API** — API-Schlüssel erzeugen  
-3. Widget **⚙️** → URL der Unraid-Weboberfläche + API-Key
+1. Plugin-Store → **Unraid** → **Strg+F5**  
+2. Unraid: **Management Access → API** — Key erzeugen  
+3. Widget **⚙️**: URL + API-Key
 
 ### Einrichtung (Widget ⚙️)
 
-| Feld | Empfehlung |
-|------|------------|
-| **URL** | `https://192.168.x.x` oder Hostname — gleiche Origin wie im Browser |
-| **API-Key** | Unraid GraphQL API Key (nicht Root-Passwort) |
-| **RAM-Anzeige** | Modus wählbar: **belegt**, **verfügbar** oder **API-Prozent** — je nachdem, was du mit Unraid-UI vergleichen willst |
-| **Aktualisieren** | Intervall in Sekunden |
-
-### Anzeige
-
-- CPU-Auslastung und Paket-Temperatur (wenn von der API geliefert)  
-- RAM-Balken / Zahlen je nach gewähltem Modus  
-- **Array**- und **Cache**-Disks: Name, Status, Temp, Größe/Belegung  
-- Darstellung nutzt **Theme-Textfarben** von SelfDashboard
+| Feld | Hinweis |
+|------|---------|
+| **URL** | `https://IP` oder Hostname |
+| **API-Key** | GraphQL key (nicht Root-Passwort) |
+| **RAM-Modus** | Belegt / verfügbar / API-% |
+| **Intervall** | Sekunden |
 
 ### Voraussetzungen
 
-| Punkt | Details |
-|--------|---------|
-| **Unraid-Version** | **7.2+** mit GraphQL-API |
-| **Erreichbarkeit** | SelfDashboard muss Unraid im LAN erreichen (HTTPS-Zertifikat ggf. selbstsigniert) |
-| **Kein Docker-Socket nötig** | Anders als das Plugin **Unraid Docker** — hier nur HTTP-API |
+- Unraid **7.2+**  
+- API vom Container aus erreichbar  
+- **Kein** Docker-Socket nötig (anders als **Unraid Docker**)
 
 ### Mehrere Server
 
-Pro Unraid-Box **eine Widget-Instanz** mit eigener URL und eigenem API-Key (z. B. „Unraid NAS“ + „Unraid Backup“).
+Pro NAS eine Widget-Instanz mit eigener URL/Key.
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| GraphQL-Fehler | API in Unraid aktiv? Key korrekt? |
-| RAM „verfügbar“ fehlt | Ältere API-Antwort — anderen RAM-Modus wählen |
-| HTTPS | Im LAN testweise `http://` oder Zertifikat akzeptieren |
+GraphQL-Fehler → Key, API aktiv? HTTPS im LAN testen.
 
-**Protokoll:** Netzwerk- und API-Fehler unter **Einstellungen → Protokoll**.
+**Protokoll:** API-Fehler filtern.
+
+---
+
+## English
+
+### Summary
+
+**Unraid 7.2+** via **GraphQL API**: CPU, RAM, array and cache/pool disks with status, temperature, and usage.
+
+### Installation
+
+1. Plugin Store → **Unraid** → **Ctrl+F5**  
+2. On Unraid: **Management Access → API** — create key  
+3. Widget **⚙️**: URL + API key
+
+### Setup (widget ⚙️)
+
+| Field | Notes |
+|-------|-------|
+| **URL** | `https://IP` or hostname |
+| **API key** | GraphQL key (not root password) |
+| **RAM mode** | Used / available / API % |
+| **Interval** | Seconds |
+
+### Requirements
+
+- Unraid **7.2+**  
+- API reachable from container  
+- **No** Docker socket (unlike **Unraid Docker** plugin)
+
+### Multiple servers
+
+One widget instance per NAS with its own URL/key.
+
+### Troubleshooting
+
+GraphQL errors → check key, API enabled, HTTPS on LAN.
+
+**Logs:** filter API errors.

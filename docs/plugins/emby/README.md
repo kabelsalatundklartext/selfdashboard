@@ -6,40 +6,78 @@
 
 ### Kurzbeschreibung
 
-Zeigt **aktive Wiedergaben** auf deinem **Emby-** oder **Jellyfin-kompatiblen** Server: Nutzer, Titel/Serie, Gerät, Client, Pause-Status — mit periodischem Refresh.
+**Aktive Wiedergaben** auf Emby oder Jellyfin: Nutzer, Titel/Serie, Gerät, Client, Pause — mit Refresh-Intervall.
 
 ### Installation
 
-Plugin-Store → **Emby** installieren → **Strg+F5** → Widget **⚙️** konfigurieren.
+Plugin-Store → **Emby** → **Strg+F5** → **⚙️** URL + API-Key.
 
 ### Voraussetzungen
 
 | Punkt | Details |
 |--------|---------|
-| **Server** | Emby oder Jellyfin mit API-Zugang |
-| **API-Key** | In Emby: Dashboard → API-Keys; in Jellyfin: API-Schlüssel |
-| **Netzwerk** | SelfDashboard-Container muss die **Basis-URL** erreichen (LAN-IP, nicht nur `localhost` vom Host) |
+| **Server** | Emby oder Jellyfin mit API-Key |
+| **Netzwerk** | Container erreicht **Basis-URL** (LAN-IP, nicht `localhost` vom Host) |
 
 ### Einrichtung (Widget ⚙️)
 
 | Feld | Empfehlung |
 |------|------------|
-| **Basis-URL** | z. B. `http://192.168.1.20:8096` — ohne trailing slash |
-| **API-Key** | Emby- oder Jellyfin-Token |
-| **Aktualisieren** | Intervall in Sekunden |
+| **Basis-URL** | z. B. `http://192.168.1.20:8096` |
+| **API-Key** | Emby/Jellyfin API token |
+| **Aktualisieren** | Sekunden |
 
 ### Technik
 
-- Abfrage der **Sessions**-API (`/emby/Sessions` bzw. `/Sessions` bei Jellyfin)  
-- Anfrage vom **Browser** aus dem Widget — Server muss CORS oder gleiche Origin erlauben; bei Problemen LAN-HTTP nutzen  
-- Keine Speicherung des API-Keys im zentralen Fehlerprotokoll bei erfolgreichen Abrufen
+- Sessions-API (`/emby/Sessions` oder `/Sessions`)  
+- Anfrage vom Browser im Widget
 
 ### Fehlerbehebung
 
 | Problem | Lösung |
 |---------|--------|
-| Keine Sessions | Gerade niemand am Streamen — normal |
-| Verbindungsfehler | URL, Firewall, HTTPS; vom Container `curl` zur Emby-URL testen |
-| Jellyfin | Gleicher API-Key-Mechanismus; Plugin probiert beide Pfade |
+| Leer | Niemand streamt gerade |
+| Verbindungsfehler | URL, Firewall; vom Container testen |
 
-**Protokoll:** Plugin `emby` oder Netzwerkfehler filtern.
+**Protokoll:** Filter `emby`.
+
+---
+
+## English
+
+### Summary
+
+**Active playback sessions** on Emby or Jellyfin: user, title/series, device, client, pause state — with refresh interval.
+
+### Installation
+
+Plugin Store → **Emby** → **Ctrl+F5** → **⚙️** URL + API key.
+
+### Requirements
+
+| Item | Details |
+|------|---------|
+| **Server** | Emby or Jellyfin with API key |
+| **Network** | Container must reach **base URL** (LAN IP, not host-only `localhost`) |
+
+### Setup (widget ⚙️)
+
+| Field | Recommendation |
+|-------|----------------|
+| **Base URL** | e.g. `http://192.168.1.20:8096` |
+| **API key** | Emby/Jellyfin token |
+| **Refresh** | Seconds |
+
+### Technical notes
+
+- Sessions API (`/emby/Sessions` or `/Sessions`)  
+- Request from the browser inside the widget
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Empty | No active streams — normal |
+| Connection error | URL, firewall; test from container |
+
+**Logs:** filter `emby`.

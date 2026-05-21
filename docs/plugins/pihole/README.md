@@ -6,53 +6,56 @@
 
 ### Kurzbeschreibung
 
-**Pi-hole v6**-Statistik im Stil des Web-Dashboards: DNS-Anfragen, blockierte Anfragen, Block-Anteil, Domains auf Blocklisten. **Blocking** lässt sich per Klick im Widget ein- und ausschalten.
+**Pi-hole v6**-Statistik: Anfragen, blockiert, Anteil, Listen. **Blocking** per Klick umschaltbar.
 
 ### Installation
 
-1. Plugin-Store → **Pi-hole** installieren → **Strg+F5**  
-2. Widget **⚙️** → API-Zugang eintragen
+Plugin-Store → **Pi-hole** → **Strg+F5** → **⚙️** API-URL + **App-Passwort** (v6).
 
-### Voraussetzungen
+### Einrichtung
 
-| Punkt | Details |
-|--------|---------|
-| **Pi-hole v6** | API-Zugang über **App-Passwort** (nicht das alte Web-Passwort allein) |
-| **Erreichbarkeit** | SelfDashboard muss die Pi-hole-URL im LAN erreichen |
-| **HTTPS** | Bei selbstsigniertem Zertifikat ggf. HTTP im LAN nutzen |
-
-### Einrichtung (Widget ⚙️)
-
-| Feld | Empfehlung |
-|------|------------|
-| **API-URL** | Basis der Weboberfläche, z. B. `http://192.168.1.10` — `/admin` wird bei Bedarf entfernt |
-| **App-Passwort** | Aus Pi-hole: **Einstellungen → API** (v6) |
-| **Aktualisieren** | Intervall in Sekunden (wie bei AdGuard) |
-
-### Anzeige
-
-- Kacheln für Anfragen, blockiert, Prozent, Listen-Info  
-- Schalter für **Blocking enabled/disabled**  
-- Optik an SelfDashboard-Themes angepasst
+| Feld | Hinweis |
+|------|---------|
+| **API-URL** | z. B. `http://192.168.1.10` — `/admin` wird entfernt |
+| **App-Passwort** | Pi-hole v6 API settings |
+| **Intervall** | Sekunden |
 
 ### API
 
-| Aufruf | Zweck |
-|--------|--------|
-| `POST /api/pihole` | Server-Proxy zur Pi-hole-API |
+`POST /api/pihole`
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| 401 / Verbindung | App-Passwort neu erzeugen, in Widget speichern |
-| Falsche Zahlen | Pi-hole-Statistik-Zeitraum in Pi-hole prüfen |
-| HTTPS-Fehler | URL auf `http://` im LAN wechseln oder Zertifikat vertrauen |
+401 → neues App-Passwort. HTTPS → ggf. HTTP im LAN.
 
-**Protokoll:** Filter `pihole` oder API-Fehler in **Einstellungen → Protokoll**.
+**Protokoll:** Filter `pihole`.
 
 ---
 
 ## English
 
-Pi-hole v6 style dashboard stats. Toggle blocking from the widget. Configure API URL and password.
+### Summary
+
+**Pi-hole v6** stats: queries, blocked, percentage, lists. Toggle **blocking** from the widget.
+
+### Installation
+
+Plugin Store → **Pi-hole** → **Ctrl+F5** → **⚙️** API URL + **app password** (v6).
+
+### Setup
+
+| Field | Notes |
+|-------|-------|
+| **API URL** | e.g. `http://192.168.1.10` — `/admin` stripped if present |
+| **App password** | From Pi-hole v6 API settings |
+| **Interval** | Seconds |
+
+### API
+
+`POST /api/pihole`
+
+### Troubleshooting
+
+401 → regenerate app password. HTTPS issues → try HTTP on LAN.
+
+**Logs:** filter `pihole`.

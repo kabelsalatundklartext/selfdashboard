@@ -6,45 +6,54 @@
 
 ### Kurzbeschreibung
 
-Docker-Container auf **Unraid** über die **Unraid GraphQL API** — **ohne** Docker-Socket auf dem Unraid-Host. Optional **Live-Stats** (WebSocket), Tabellen- oder Zeilenansicht, **Start/Stopp/Neustart** mit Bestätigung.
+Docker-Container auf Unraid über **GraphQL API** — **ohne** Docker-Socket. Optional Live-Stats (WebSocket), Tabelle/Zeilen, Start/Stopp/Restart mit Bestätigung.
 
 ### Installation
 
-1. Plugin-Store → **Unraid Docker** installieren → **Strg+F5**  
-2. Unraid **API-Key** wie beim **Unraid**-System-Plugin  
-3. Widget **⚙️** → URL + Key + Darstellungsoptionen
+Plugin-Store → **Unraid Docker** → **Strg+F5** → URL + API-Key wie beim **Unraid**-Plugin.
 
-### Unraid Docker vs Docker-Plugin
+### Unraid Docker vs Docker (Socket)
 
-| | **Unraid Docker** | **Docker** (Socket) |
-|---|-------------------|---------------------|
-| **Zugang** | Unraid GraphQL API | `/var/run/docker.sock` |
-| **Host** | Unraid-API des NAS | Host, auf dem SelfDashboard läuft |
-| **Typisch** | SelfDashboard **auf demselben Unraid** | SelfDashboard in VM/Docker auf Unraid mit Socket-Mount |
-
-Wenn SelfDashboard **nicht** auf Unraid läuft, aber Unraid remote verwalten willst: nur möglich, wenn die **Unraid-API** vom Container aus erreichbar ist — nicht der Socket des NAS von außen.
+| | **Unraid Docker** | **Docker** |
+|---|-------------------|------------|
+| Zugang | Unraid GraphQL | `docker.sock` |
+| Host | Unraid NAS API | Host where SelfDashboard runs |
 
 ### Funktionen
 
-- Containerliste mit Status  
-- **Tabellen-** oder **Kompaktzeilen**-Layout  
-- Optional **CPU/RAM** (Live-Updates per WebSocket, wenn API unterstützt)  
-- **Start / Stopp / Restart** mit Sicherheitsabfrage
-
-### Einrichtung
-
-| Feld | Hinweis |
-|------|---------|
-| **URL + API-Key** | Wie Plugin **Unraid** |
-| **Buttons** | Steuerung ein/aus |
-| **Stats / Layout** | In den Widget-Einstellungen |
+- Containerliste, optional CPU/RAM  
+- Start/Stopp/Restart mit Abfrage  
+- Tabellen- oder Kompaktlayout
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| Keine Container | API-Key, Unraid-Version, Berechtigung |
-| Stats fehlen | WebSocket/Firewall; Stats-Option im Widget prüfen |
-| Steuerung wirkt nicht | Container-Name/ID aus API — Logs prüfen |
+Keine Container → API-Key, Version. Steuerung → **Protokoll**.
 
-**Protokoll:** **Einstellungen → Protokoll** bei API-Fehlern.
+---
+
+## English
+
+### Summary
+
+Docker containers on Unraid via **GraphQL API** — **no** Docker socket. Optional live stats (WebSocket), table/row layout, start/stop/restart with confirmation.
+
+### Installation
+
+Plugin Store → **Unraid Docker** → **Ctrl+F5** → URL + API key (same as **Unraid** system plugin).
+
+### Unraid Docker vs Docker (socket)
+
+| | **Unraid Docker** | **Docker** |
+|---|-------------------|------------|
+| Access | Unraid GraphQL | `docker.sock` |
+| Host | Unraid NAS API | Host where SelfDashboard runs |
+
+### Features
+
+- Container list, optional CPU/RAM  
+- Start/stop/restart with confirmation  
+- Table or compact row layout
+
+### Troubleshooting
+
+No containers → API key, version. Control issues → **Logs**.

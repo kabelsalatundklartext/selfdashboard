@@ -6,43 +6,36 @@
 
 ### Kurzbeschreibung
 
-Listet **aktive IPTV-Streams** aus einer **[Selfstream](https://github.com/kabelsalatundklartext/selfstream)**-Admin-Instanz: Nutzer, Kanal/Programm, Laufzeit, optional Client-IP.
+**Aktive IPTV-Streams** aus [Selfstream](https://github.com/kabelsalatundklartext/selfstream)-Admin: Nutzer, Kanal, Laufzeit, optional IP.
 
 ### Installation
 
-1. Selfstream im LAN betreiben  
-2. Plugin-Store → **Selfstream** installieren → **Strg+F5**  
-3. Widget **⚙️** → Basis-URL und Admin-Passwort
+Selfstream im LAN → Plugin installieren → **Strg+F5** → **⚙️** Basis-URL (ohne `/admin`) + Admin-Passwort.
 
-### Einrichtung (Widget ⚙️)
+### API
 
-| Feld | Hinweis |
-|------|---------|
-| **Basis-URL** | Root der Instanz, z. B. `http://192.168.1.30:8080` — **ohne** `/admin` am Ende |
-| **Admin-Passwort** | Selfstream-Admin-Zugang (wird serverseitig an die API weitergereicht, nicht im Fehlerprotokoll geloggt) |
-| **Intervall** | Aktualisierung in Sekunden |
-
-### Voraussetzungen
-
-| Punkt | Details |
-|--------|---------|
-| **Netzwerk** | SelfDashboard-Container muss Selfstream im **LAN** erreichen |
-| **API** | `POST /api/selfstream` — Proxy in der Kern-App |
-
-### Anzeige
-
-- Liste laufender Streams mit Refresh  
-- Leer, wenn niemand streamt — kein Fehler
+`POST /api/selfstream` — Container muss Selfstream erreichen.
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| Verbindung fehlgeschlagen | URL, Port, Firewall; vom Host `curl` zur Selfstream-URL |
-| 401 | Admin-Passwort in Widget prüfen |
+Verbindung → URL/Port/Firewall. 401 → Passwort.
 
 ---
 
 ## English
 
-Live streams from Selfstream admin API. Set base URL and admin password in widget settings.
+### Summary
+
+**Active IPTV streams** from [Selfstream](https://github.com/kabelsalatundklartext/selfstream) admin: user, channel, duration, optional IP.
+
+### Installation
+
+Run Selfstream on LAN → install plugin → **Ctrl+F5** → **⚙️** base URL (no `/admin`) + admin password.
+
+### API
+
+`POST /api/selfstream` — container must reach Selfstream.
+
+### Troubleshooting
+
+Connection → URL/port/firewall. 401 → password.

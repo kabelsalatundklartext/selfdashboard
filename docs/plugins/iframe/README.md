@@ -6,41 +6,56 @@
 
 ### Kurzbeschreibung
 
-Betten eine **beliebige Webseite** per URL ins Dashboard ein — oder öffnen sie als **Link**, wenn der Zielserver **X-Frame-Options** / **CSP** das Einbetten verbietet (typisch bei Admin-Oberflächen, Banken, manchen Cloud-UIs).
+**Webseite per URL** einbetten oder als **Link** öffnen, wenn **X-Frame-Options** / **CSP** Embedding blockieren.
 
 ### Installation
 
-Plugin-Store → **Iframe** installieren → **Strg+F5** → URL in **⚙️** setzen.
+Plugin-Store → **Iframe** → **Strg+F5** → URL in **⚙️**.
 
 ### Modi
 
-| Modus | Wann nutzen |
-|-------|-------------|
-| **Iframe** | Zielseite erlaubt Einbettung (`X-Frame-Options` nicht `DENY`/`SAMEORIGIN` von fremder Origin) |
-| **Nur Link** | Seite blockiert Frames — Button öffnet URL in neuem Tab |
-| **Viewport** | Optional getrennte Mobile/Desktop-URLs oder Skalierung (je nach Einstellungsversion) |
+| Modus | Wann |
+|-------|------|
+| **Iframe** | Ziel erlaubt Embedding |
+| **Nur Link** | Frame blockiert — öffnet neuen Tab |
+| **Viewport** | Optional Mobile/Desktop (je nach Version) |
 
-### Typische Anwendungen
+### Grenzen
 
-- Interne Tools (Grafana, Portainer-UI, Homarr, …) — wenn Embedding erlaubt ist  
-- Status-Seiten im LAN (`http://192.168.x.x/...`)  
-- Karten oder einfache HTML-Dashboards
-
-### Grenzen & Sicherheit
-
-| Thema | Details |
-|-------|---------|
-| **X-Frame-Options / CSP** | Viele Dienste verbieten iframes von anderen Origins — dann **Link-Modus** oder Reverse-Proxy auf **dieselbe Origin** wie SelfDashboard |
-| **Login in iframe** | Cookies/SSO funktionieren nicht immer im iframe — oft besser Link-Modus |
-| **HTTPS-Mixed-Content** | HTTPS-Dashboard + HTTP-iframe kann der Browser blockieren |
-| **Skripte** | SelfDashboard sandboxed das iframe soweit möglich — komplexe SPAs können trotzdem zicken |
-
-### Einrichtung
-
-1. URL in **⚙️** eintragen (mit `https://` oder `http://`)  
-2. Modus **Iframe** testen — bei leerem Rahmen auf **Link** wechseln  
-3. Widget groß genug ziehen (Bearbeitungsmodus)
+- Viele Admin-UIs verbieten iframes → **Link-Modus** oder Reverse-Proxy auf gleiche Origin  
+- Login/SSO im iframe oft problematisch  
+- HTTPS-Dashboard + HTTP-Ziel = Mixed-Content-Warnung
 
 ### Speicher
 
-Nur URL und Optionen in **`dashboard.json`** — kein Proxy durch SelfDashboard (Browser lädt die Seite direkt).
+Nur in **`dashboard.json`** — Browser lädt die Seite direkt.
+
+---
+
+## English
+
+### Summary
+
+Embed any **URL in an iframe** or open as a **link** when **X-Frame-Options** / **CSP** block embedding.
+
+### Installation
+
+Plugin Store → **Iframe** → **Ctrl+F5** → set URL in **⚙️**.
+
+### Modes
+
+| Mode | When |
+|------|------|
+| **Iframe** | Target allows embedding |
+| **Link only** | Frame blocked — opens new tab |
+| **Viewport** | Optional mobile/desktop (version-dependent) |
+
+### Limitations
+
+- Many admin UIs block iframes → **link mode** or reverse proxy on same origin  
+- Login/SSO inside iframe often fails  
+- HTTPS dashboard + HTTP target may cause mixed-content blocking
+
+### Storage
+
+Only in **`dashboard.json`** — browser loads the page directly.

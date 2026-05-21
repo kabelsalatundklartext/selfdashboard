@@ -6,42 +6,60 @@
 
 ### Kurzbeschreibung
 
-**Lesezeichen-Grid** für dein Homelab: Schnelllinks zu Unraid, DSM, Emby, Nextcloud, Vaultwarden und beliebigen URLs — mit Gruppen, Icons und zwei Layout-Modi.
+**Lesezeichen-Grid** für Homelab-Dienste: Gruppen, Icons, Drag & Drop, Raster oder horizontale Scroll-Zeile.
 
 ### Installation
 
-Plugin-Store → **Bookmarks** installieren → **Strg+F5** → Widget hinzufügen → Links und Gruppen unter **⚙️** pflegen.
+Plugin-Store → **Bookmarks** → **Strg+F5** → **⚙️** Links pflegen.
 
 ### Funktionen
 
 | Feature | Beschreibung |
 |---------|----------------|
-| **Gruppen** | Mehrere Gruppen (z. B. „Server“, „Media“); einzelne Gruppen per **👁️** ausblendbar |
-| **Icons** | Emoji oder Bild-URL (PNG/JPG) pro Link |
-| **Drag & Drop** | Sortieren **innerhalb** einer Gruppe und **zwischen** Gruppen (Bearbeitungsmodus) |
-| **Layout** | **Raster** (mehrspaltig) oder **waagerechte Zeile** mit Scroll |
-| **Kachelbreite** | Min-/Max-Breite in px; optional feste Spaltenanzahl |
-| **Neuer Tab** | Pro Link: im gleichen Tab oder neuem Tab öffnen |
-
-### Einrichtung
-
-1. **Bearbeitungsmodus** (✏️) aktivieren  
-2. Widget **⚙️** → Gruppen anlegen, Links mit **URL**, **Titel** und optional **Icon** hinzufügen  
-3. Layout und Abstände nach Geschmack einstellen  
-4. Gruppen, die du selten brauchst, nur ausblenden statt löschen
-
-### Tipps
-
-- Breite Widgets eignen sich für die **horizontale Scroll-Zeile** (viele Dienste in einer Reihe).  
-- Schmale Kacheln: **Raster** mit wenigen Spalten.  
-- Interne Dienste: `http://192.168.x.x` — SelfDashboard öffnet die URL im **Browser des Nutzers**, nicht im Container.
+| **Gruppen** | Mehrere Gruppen; per **👁️** ausblendbar |
+| **Icons** | Emoji oder Bild-URL |
+| **Drag & Drop** | Sortieren innerhalb/zwischen Gruppen (Bearbeitungsmodus) |
+| **Layout** | Raster oder waagerechte Zeile |
+| **Kachelbreite** | Min/Max px, feste Spalten |
+| **Neuer Tab** | Pro Link einstellbar |
 
 ### Speicher
 
-Alle Daten liegen in der **Dashboard-Konfiguration** (`dashboard.json` über `/app/data`) — pro Widget-Instanz, nicht in einer separaten Plugin-Datei.
+**`dashboard.json`** pro Widget-Instanz — kein separates Plugin-File.
+
+### Tipps
+
+- Breite Widgets → horizontale Zeile  
+- URLs öffnen im **Nutzer-Browser**, nicht im Container
 
 ---
 
 ## English
 
-Quick links with collapsible groups, custom icons, drag & drop, grid or horizontal row layout.
+### Summary
+
+**Bookmark grid** for homelab services: groups, icons, drag & drop, grid or horizontal scroll row.
+
+### Installation
+
+Plugin Store → **Bookmarks** → **Ctrl+F5** → manage links in **⚙️**.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Groups** | Multiple groups; hide with **👁️** |
+| **Icons** | Emoji or image URL |
+| **Drag & drop** | Reorder within/between groups (edit mode) |
+| **Layout** | Grid or horizontal row |
+| **Tile width** | Min/max px, fixed columns |
+| **New tab** | Per link |
+
+### Storage
+
+**`dashboard.json`** per widget instance — no separate plugin file.
+
+### Tips
+
+- Wide widgets → horizontal row  
+- URLs open in the **user’s browser**, not inside the container

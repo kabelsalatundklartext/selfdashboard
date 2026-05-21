@@ -1,4 +1,4 @@
-# Plugin: Wetter (`weather`)
+# Plugin: Weather (`weather`)
 
 [← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
@@ -6,39 +6,58 @@
 
 ### Kurzbeschreibung
 
-**Aktuelles Wetter** und optional **7-Tage-Vorschau** für eine **Stadt oder PLZ** — Daten von **Open-Meteo**, **ohne API-Key**.
+**Open-Meteo** — Stadt oder PLZ, **kein API-Key**. Aktuelles Wetter + optional **7-Tage-Vorschau**.
 
 ### Installation
 
-Plugin-Store → **Wetter** installieren → **Strg+F5** → Ort in **⚙️** eintragen.
+Plugin-Store → **Wetter** → **Strg+F5** → Ort in **⚙️**.
 
 ### Einrichtung (Widget ⚙️)
 
 | Feld | Hinweis |
 |------|---------|
-| **Stadt oder PLZ** | z. B. `Berlin`, `Hamburg`, `10115` |
-| **Land (ISO)** | Optional `DE` — hilft bei PLZ-Suche |
-| **Aktualisieren** | Minuten (Standard z. B. 15) |
-| **7-Tage-Vorschau** | Ein/Aus — Max/Min und Wetter-Symbol pro Tag |
-| **Ort anzeigen** | Stadtnamen unter der Temperatur ein/aus |
-| **Vorschau-Breite** | Kartenbreite der 7-Tage-Leiste in % |
-
-### Anzeige
-
-- Temperatur, gefühlt, Luftfeuchte, Wind  
-- Wetter-Icon passend zum Zustand  
-- Gestapelte Ansicht (schmales Widget): Plugin reserviert extra Zeilenhöhe, damit die Vorschau nicht abgeschnitten wird
+| **Stadt / PLZ** | z. B. `Berlin`, `10115` |
+| **Land** | Optional `DE` für PLZ |
+| **Intervall** | Minuten |
+| **7-Tage** | Ein/Aus, Kartenbreite % |
+| **Ort anzeigen** | Ein/Aus |
 
 ### Technik
 
-- Geocoding + Wetter **direkt vom Browser** zu Open-Meteo (kein SelfDashboard-API-Key)  
-- Internetzugang des **Clients** nötig (nicht nur LAN)  
-- Keine Speicherung auf dem Server — nur Widget-Config in `dashboard.json`
+- Abruf vom **Browser** zu Open-Meteo — Client braucht Internet  
+- Config nur in **`dashboard.json`**
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| Ort nicht gefunden | Schreibweise prüfen; `DE` als Ländercode setzen |
-| Keine Daten | Client ohne Internet? DNS? |
-| Vorschau abgeschnitten | Widget höher ziehen oder Vorschau-Breite reduzieren |
+Ort nicht gefunden → Schreibweise, Ländercode. Keine Daten → Internet/DNS am Client.
+
+---
+
+## English
+
+### Summary
+
+**Open-Meteo** — city or postal code, **no API key**. Current weather + optional **7-day forecast**.
+
+### Installation
+
+Plugin Store → **Weather** → **Ctrl+F5** → location in **⚙️**.
+
+### Setup (widget ⚙️)
+
+| Field | Notes |
+|-------|-------|
+| **City / ZIP** | e.g. `Berlin`, `10115` |
+| **Country** | Optional `DE` for ZIP |
+| **Interval** | Minutes |
+| **7-day** | On/off, card width % |
+| **Show place** | On/off |
+
+### Technical notes
+
+- Fetched from **browser** to Open-Meteo — client needs internet  
+- Config only in **`dashboard.json`**
+
+### Troubleshooting
+
+Location not found → spelling, country code. No data → client internet/DNS.

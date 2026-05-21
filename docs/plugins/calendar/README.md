@@ -1,4 +1,4 @@
-# Plugin: Kalender (`calendar`)
+# Plugin: Calendar (`calendar`)
 
 [← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
@@ -6,62 +6,68 @@
 
 ### Kurzbeschreibung
 
-Kalender-Widget mit **Monats- und Wochenansicht**, Tagesdetail und **Hintergrund-Synchronisation** für CalDAV- und ICS-Konten. Konten verwaltest du im **Kalender-Modal** (Zahnrad), nicht mehr in verstreuten Widget-JSON-Feldern.
+Kalender mit **Monat/Woche**, Tagesdetail, **CalDAV** (2-Wege) und **ICS** (read-only). Konten im **Kalender-Modal** (Zahnrad).
 
 ### Installation
 
-1. Plugin-Store → **Kalender** installieren → **Strg+F5**  
-2. Widget aufs Dashboard legen  
-3. Im Widget auf **⚙️** / Kalender-Icon → **Konten hinzufügen**
+Plugin-Store → **Kalender** → **Strg+F5** → Konten im Widget-Modal anlegen.
 
 ### Kontotypen
 
-| Typ | Richtung | Typische Quellen |
-|-----|----------|------------------|
-| **CalDAV** | Zwei-Wege (lesen + schreiben) | Nextcloud, Synology, iCloud (App-Passwort), WEB.DE, … |
-| **ICS / Webcal** | Nur lesen | Öffentliche oder private Abo-URL |
-
-ICS-Feeds werden **serverseitig** abgerufen — LAN-URLs ohne Browser-CORS-Problem.
+| Typ | Richtung | Beispiele |
+|-----|----------|-----------|
+| **CalDAV** | 2-Wege | Nextcloud, Synology, iCloud |
+| **ICS** | Nur lesen | Webcal-URL |
 
 ### Speicher & Sicherheit
 
-| Thema | Details |
-|-------|---------|
-| **Pfad** | `data/calendar/` unter **`/app/data`** (Bind-Mount sichern!) |
-| **Store** | `store.json` + Kalender-/Event-Daten |
-| **Passwörter** | **AES-256-GCM** mit `SELFDASHBOARD_CALENDAR_KEY` |
-| **Schlüssel** | In Docker **fest setzen**, damit Konten nach Container-Neustart entschlüsselbar bleiben |
+- Pfad: `data/calendar/` unter **`/app/data`**  
+- Passwörter: **AES-256-GCM** mit **`SELFDASHBOARD_CALENDAR_KEY`** (in Docker fest setzen)
 
-### Oberfläche
+### API
 
-- **Kachel:** kompakte Monatsansicht, Termine des Tages  
-- **Vollbild:** erweiterte Ansicht über das Widget  
-- **Sync:** Standard alle **5 Minuten** (`CALENDAR_SYNC_INTERVAL_SECONDS` am Server)  
-- **Konflikte / Zusammenfassung:** über die Kalender-API (`/api/calendar/conflicts`, `summary`)
+`/api/calendar/*` — accounts, events, calendars, sync, status, summary, conflicts
 
-### API (Kern-App)
+### Sync
 
-Einheitlich unter **`/api/calendar/*`** (keine alten `calendar-ics`-Routen mehr):
-
-| Bereich | Beispiel |
-|---------|----------|
-| Konten | `GET/POST /api/calendar/accounts`, `…/accounts/[id]/sync` |
-| Termine | `GET/POST /api/calendar/events` |
-| Kalender | `GET /api/calendar/calendars` |
-| Status | `GET /api/calendar/status` |
+Standard alle **5 Min** (`CALENDAR_SYNC_INTERVAL_SECONDS`).
 
 ### Fehlerbehebung
 
-| Problem | Lösung |
-|---------|--------|
-| Konten weg nach Update | `/app/data` gemountet? `SELFDASHBOARD_CALENDAR_KEY` unverändert? |
-| Sync schlägt fehl | URL, Benutzer, App-Passwort; bei Synology CalDAV-Pfad prüfen |
-| ICS leer | URL im Browser testen; Server muss Feed erreichen |
-
-**Protokoll:** Filter Quelle/API oder Plugin `calendar`.
+Konten weg → Mount `/app/data`, Schlüssel unverändert. Sync-Fehler → URL, App-Passwort.
 
 ---
 
 ## English
 
-CalDAV two-way + read-only ICS. Data in `data/calendar/` on the config volume. Account setup in the calendar modal (cog icon). Background sync every 5 minutes by default.
+### Summary
+
+Calendar with **month/week** views, day detail, **CalDAV** (two-way) and **ICS** (read-only). Accounts in the **calendar modal** (cog).
+
+### Installation
+
+Plugin Store → **Calendar** → **Ctrl+F5** → add accounts in widget modal.
+
+### Account types
+
+| Type | Direction | Examples |
+|------|-----------|----------|
+| **CalDAV** | Two-way | Nextcloud, Synology, iCloud |
+| **ICS** | Read-only | Webcal URL |
+
+### Storage & security
+
+- Path: `data/calendar/` on **`/app/data`**  
+- Passwords: **AES-256-GCM** with **`SELFDASHBOARD_CALENDAR_KEY`** (set fixed key in Docker)
+
+### API
+
+`/api/calendar/*` — accounts, events, calendars, sync, status, summary, conflicts
+
+### Sync
+
+Default every **5 min** (`CALENDAR_SYNC_INTERVAL_SECONDS`).
+
+### Troubleshooting
+
+Missing accounts → mount `/app/data`, same encryption key. Sync errors → URL, app password.

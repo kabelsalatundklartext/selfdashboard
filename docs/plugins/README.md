@@ -2,7 +2,7 @@
 
 The **full catalog table** (all official plugins) lives in the main **[README](../../README.md#plugins)** (English) and **[README — Deutsch](../../README.md#plugins)** (German section).
 
-Each plugin has its own **README with English and German** sections:
+Each plugin has a **README with German and English** sections:
 
 | Plugin | Doc |
 |--------|-----|

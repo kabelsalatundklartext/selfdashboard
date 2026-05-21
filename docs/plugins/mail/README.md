@@ -82,14 +82,76 @@ Passwort **erneut eingeben** und **Speichern**, wenn der Schlüssel fehlt oder g
 
 ## English
 
-Install **Email / IMAP** from the store, then hard-reload.
+### Summary
 
-Configure under **Settings → Email**; toggle **Settings → General → Navbar email**.
+**IMAP unread badge** in the navbar (optional subject preview) plus **Settings → Email** tab — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, badge click opens **webmail URL**.
 
-Storage: `plugins/custom/mail/mail.json`. API base: `/api/plugins/mail/…` (legacy `/api/mail/…` still works).
+### Prerequisites
 
-Mailbox modes: `*` (all folders), `@accounts` (MailPlus-style), or a single folder name.
+1. Install **Email / IMAP** from the **Plugin Store**  
+2. **Ctrl+F5** (hard reload)  
+3. **Settings → Email** — add and test at least one account  
+4. **Settings → General → Navbar email** — enable badge
 
-Synology: use host without webmail port in IMAP host field. Re-save password after container recreate.
+### Account setup
 
-Logs: **Settings → Logs**, filter `mail`.
+| Field | Notes |
+|-------|-------|
+| **IMAP host** | Hostname or IP only — **no** `:993` or webmail path in host field |
+| **Port** | Usually **993** with SSL |
+| **User / password** | Same as mail client |
+| **Webmail URL** | Opened when clicking navbar badge |
+| **Poll interval** | Seconds between background syncs |
+| **Folder mode** | See table below |
+
+### Storage & encryption
+
+| Topic | Details |
+|-------|---------|
+| **File** | `plugins/custom/mail/mail.json` on **plugins volume** |
+| **Migration** | Old `data/mail/` migrated on first access |
+| **Passwords** | **AES-256-GCM** with **`SELFDASHBOARD_CALENDAR_KEY`** (same as calendar) |
+| **Key** | Set a **fixed key** in Docker or decryption fails after recreate |
+
+### API
+
+| Call | Purpose |
+|------|---------|
+| `GET /api/plugins/mail/status` | Read cache (badge counts) |
+| `GET …/status?refresh=1` | Force IMAP sync |
+| `PUT /api/plugins/mail/settings` | Save accounts |
+| `POST /api/plugins/mail/test` | Test connection |
+| `GET /api/plugins/mail/unread-preview` | Subject preview (if enabled) |
+
+Legacy: **`/api/mail/…`** redirects to new paths.
+
+### Folder modes
+
+| Mode | Meaning |
+|------|---------|
+| `*` | All folders with unread (no trash) |
+| `@accounts` | MailPlus-style: `INBOX.AccountName` only |
+| `INBOX` etc. | Single folder only |
+
+### Age filter & Synology
+
+- **Unread age filter** (default **30 days**, **`0`** = off): ignores very old `UNSEEN` UIDs MailPlus no longer shows.  
+- **Synology MailPlus:** IMAP host `192.168.1.15`, port **993**, SSL on. Webmail e.g. `http://192.168.1.15:5000/mail/#inbox` — **do not** put `:5000` in IMAP host.
+
+### Navbar behaviour
+
+| Display | Meaning |
+|---------|---------|
+| Number, normal | Unread per IMAP |
+| Yellow / red | Connection or decryption issue — check **Settings → Email** |
+| Empty after OK test | **Navbar email** enabled? Unread > 0? |
+
+SelfDashboard filters **ghost** `\Deleted` / `\Seen` messages still marked `UNSEEN` — empty trash in MailPlus and **Refresh all accounts** if needed.
+
+### After container recreate
+
+Re-enter password and **Save** if the encryption key changed — otherwise yellow dot, count 0.
+
+### Logs
+
+**Settings → Logs**, filter plugin **`mail`** — IMAP errors, timeouts, auth.

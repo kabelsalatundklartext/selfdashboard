@@ -1,4 +1,4 @@
-# Plugin: Notizzettel (`scratchpad`)
+# Plugin: Scratchpad (`scratchpad`)
 
 [← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
@@ -6,27 +6,40 @@
 
 ### Kurzbeschreibung
 
-Ein **editierbarer Kurztext** direkt im Widget — für Notizen, IPs, To-dos oder Erinnerungen ohne externes Tool.
+**Editierbarer Kurztext** im Widget — Notizen, IPs, To-dos ohne externes Tool.
 
 ### Installation
 
-Plugin-Store → **Notizzettel** installieren → **Strg+F5** → Widget platzieren und Text eingeben.
+Plugin-Store → **Notizzettel** → **Strg+F5**.
 
 ### Nutzung
 
-- Text im Widget **anklicken und tippen** (im Bearbeitungsmodus oder je nach Fokus-Verhalten)  
-- Inhalt wird **automatisch** in der Plugin-Konfiguration der **Dashboard-Instanz** gespeichert  
-- Mehrere Notizzettel = mehrere Widgets mit getrenntem Inhalt
+- Text direkt im Widget bearbeiten  
+- Auto-Speicherung pro **Widget-Instanz**  
+- Mehrere Instanzen = getrennte Notizen
 
 ### Speicher
 
-| Thema | Details |
-|-------|---------|
-| **Wo** | `dashboard.json` unter `/app/data` (pro `instanceId`) |
-| **Backup** | Mit dem **Config Storage**-Mount sichern |
-| **Kein Sync** | Kein separates Cloud-Konto — nur lokales Dashboard |
+**`dashboard.json`** unter `/app/data` — mit Config-Volume sichern.
 
-### Tipps
+---
 
-- Für längere Dokumentation besser eigene Datei/Nextcloud — Notizzettel ist für **Kurzinfos**.  
-- Kleine Widget-Höhe reicht; bei viel Text Höhe im Bearbeitungsmodus erhöhen (↕).
+## English
+
+### Summary
+
+**Editable short text** in the widget — notes, IPs, todos without another app.
+
+### Installation
+
+Plugin Store → **Scratchpad** → **Ctrl+F5**.
+
+### Usage
+
+- Edit text in the widget  
+- Auto-saved per **widget instance**  
+- Multiple widgets = separate notes
+
+### Storage
+
+**`dashboard.json`** on `/app/data` — back up with config volume.
