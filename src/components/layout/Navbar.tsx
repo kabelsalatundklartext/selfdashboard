@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
@@ -42,6 +42,7 @@ export function Navbar() {
     activeDashboard, setTheme, showDashboardTabs, navbarStyle,
     dashboardZoom, setDashboardZoom,
     navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders, navbarSearchCustomProviders,
+    navbarBackgroundImage, navbarBackgroundOverlay,
   } = useDashboardStore()
   const dash = activeDashboard()
   const isLight = dash.theme === 'light'
@@ -93,12 +94,25 @@ export function Navbar() {
   useSyncExternalStore(subscribeNavbarSlots, getNavbarSlotsVersion, () => 0)
   const navbarSlots = getNavbarSlots()
 
+  const navBg = navbarBackgroundImage.trim()
+  const overlay = Math.min(80, Math.max(0, Math.round(navbarBackgroundOverlay)))
+  const navSurfaceStyle: CSSProperties = navBg
+    ? {
+        backgroundImage: `linear-gradient(color-mix(in srgb, var(--surface) ${overlay}%, transparent), color-mix(in srgb, var(--surface) ${Math.min(90, overlay + 12)}%, transparent)), url(${navBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : { background: 'var(--surface)' }
+
   return (
     <>
-      <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className={`flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}>
+      <nav
+        style={{ ...navSurfaceStyle, borderBottom: '1px solid var(--border)', position: 'relative' }}
+        className={`flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}
+      >
 
-        <div className="flex flex-wrap items-center gap-3 min-w-0 w-full">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 w-full" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
         <div className="flex items-center gap-2 flex-shrink-0">
           {showIcon && (

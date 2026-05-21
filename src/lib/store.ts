@@ -72,6 +72,10 @@ interface DashboardStore {
   kioskModeEnabled: boolean
   /** Sekunden ohne Eingabe bis die Navbar ausblendet (3–60) */
   kioskModeIdleSeconds: number
+  /** Navbar-Hintergrund (data URL / Bild-URL), leer = Standardfarbe */
+  navbarBackgroundImage: string
+  /** 0–80: Overlay-Stärke über dem Hintergrundbild */
+  navbarBackgroundOverlay: number
 
   activeDashboard: () => Dashboard
   addDashboard: (name: string, icon: string) => string
@@ -116,6 +120,8 @@ interface DashboardStore {
   removeNavbarSearchCustomProvider: (id: string) => void
   setKioskModeEnabled: (enabled: boolean) => void
   setKioskModeIdleSeconds: (seconds: number) => void
+  setNavbarBackgroundImage: (url: string) => void
+  setNavbarBackgroundOverlay: (pct: number) => void
 }
 
 const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
@@ -140,6 +146,8 @@ export const useDashboardStore = create<DashboardStore>()(
       navbarSearchCustomProviders: [],
       kioskModeEnabled: false,
       kioskModeIdleSeconds: 5,
+      navbarBackgroundImage: '',
+      navbarBackgroundOverlay: 45,
 
       activeDashboard: () => {
         const s = get()
@@ -299,6 +307,11 @@ export const useDashboardStore = create<DashboardStore>()(
         const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw) : 5
         set({ kioskModeIdleSeconds: Math.min(60, Math.max(3, n)) })
       },
+      setNavbarBackgroundImage: (navbarBackgroundImage) => set({ navbarBackgroundImage: navbarBackgroundImage ?? '' }),
+      setNavbarBackgroundOverlay: (raw) => {
+        const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.round(raw) : 45
+        set({ navbarBackgroundOverlay: Math.min(80, Math.max(0, n)) })
+      },
     }),
     {
       name: 'selfdashboard-v2',
@@ -339,6 +352,13 @@ export const useDashboardStore = create<DashboardStore>()(
             state.kioskModeIdleSeconds = 5
           } else {
             state.kioskModeIdleSeconds = Math.min(60, Math.max(3, Math.round(idle)))
+          }
+          if (typeof state.navbarBackgroundImage !== 'string') state.navbarBackgroundImage = ''
+          const ov = state.navbarBackgroundOverlay
+          if (typeof ov !== 'number' || !Number.isFinite(ov)) {
+            state.navbarBackgroundOverlay = 45
+          } else {
+            state.navbarBackgroundOverlay = Math.min(80, Math.max(0, Math.round(ov)))
           }
           state.dashboards = stripRemovedPlugins(state.dashboards)
         }

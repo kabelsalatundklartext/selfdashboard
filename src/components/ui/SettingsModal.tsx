@@ -40,7 +40,7 @@ const COLOR_FIELDS = [
 
 const EMOJIS = ['🏠', '🖥️', '🎬', '📊', '🌐', '🔒', '☁️', '🎮', '📱', '🔧', '⚡', '🌙', '📷', '🗂️', '🎵', '🏥']
 
-type TabId = 'general' | 'dashboards' | 'design' | 'mail' | 'logs' | string
+type TabId = 'general' | 'dashboards' | 'design' | 'plugins-nav' | 'mail' | 'logs' | string
 
 /** Fixed width; height uses viewport so tall screens rarely need outer scroll (Protokoll list scrolls inside). */
 const SETTINGS_MODAL_WIDTH = '720px'
@@ -88,6 +88,8 @@ export function SettingsModal({ open, onClose }: Props) {
     addNavbarSearchCustomProvider, removeNavbarSearchCustomProvider,
     kioskModeEnabled, setKioskModeEnabled,
     kioskModeIdleSeconds, setKioskModeIdleSeconds,
+    navbarBackgroundImage, setNavbarBackgroundImage,
+    navbarBackgroundOverlay, setNavbarBackgroundOverlay,
   } = store
   const dash = store.activeDashboard()
 
@@ -107,6 +109,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const [logFilterPlugin, setLogFilterPlugin] = useState('')
   const [logSearch, setLogSearch] = useState('')
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const navbarBgInputRef = useRef<HTMLInputElement>(null)
   const iconInputRef = useRef<HTMLInputElement>(null)
   const newIconInputRef = useRef<HTMLInputElement>(null)
 
@@ -194,6 +197,16 @@ export function SettingsModal({ open, onClose }: Props) {
     reader.readAsDataURL(file)
   }
 
+  const handleNavbarBgUpload = (file: File) => {
+    if (file.size > 2_500_000) {
+      window.alert(locale === 'de' ? 'Bild maximal ca. 2,5 MB.' : 'Image should be at most about 2.5 MB.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => setNavbarBackgroundImage((e.target?.result as string) ?? '')
+    reader.readAsDataURL(file)
+  }
+
   const handleDashIconUpload = (file: File, dashId: string) => {
     const reader = new FileReader()
     reader.onload = (e) => updateDashboard(dashId, { icon: e.target?.result as string })
@@ -231,6 +244,7 @@ export function SettingsModal({ open, onClose }: Props) {
     { id: 'general', label: locale === 'de' ? 'Allgemein' : 'General' },
     { id: 'dashboards', label: 'Dashboards' },
     { id: 'design', label: 'Design' },
+    { id: 'plugins-nav', label: locale === 'de' ? 'Plugins' : 'Plugins' },
     ...appSettingsPanels.map(p => ({
       id: `plugin-${p.id}` as TabId,
       label: p.label[locale] ?? p.label.en ?? p.id,
@@ -792,6 +806,83 @@ export function SettingsModal({ open, onClose }: Props) {
                 </button>
               </div>
             </>)}
+
+            {/* ── Plugins (Navbar & Store-Bereich) ── */}
+            {tab === 'plugins-nav' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {locale === 'de'
+                    ? 'Einstellungen für die obere Leiste (Logo, Plugin-Store, Bearbeiten). Gilt für alle Dashboards.'
+                    : 'Settings for the top bar (logo, plugin store, edit mode). Applies to all dashboards.'}
+                </p>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                    {locale === 'de' ? 'Navbar-Hintergrund' : 'Navbar background'}
+                  </label>
+                  <div
+                    style={{
+                      height: '72px',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      overflow: 'hidden',
+                      marginBottom: '10px',
+                      background: navbarBackgroundImage
+                        ? `center / cover no-repeat url(${navbarBackgroundImage})`
+                        : 'var(--surface-2)',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <button className="btn-ghost" style={{ flex: 1, fontSize: '13px', minWidth: '140px' }} onClick={() => navbarBgInputRef.current?.click()}>
+                      <Upload size={14} /> {locale === 'de' ? 'Bild hochladen' : 'Upload image'}
+                    </button>
+                    {navbarBackgroundImage ? (
+                      <button className="btn-ghost" style={{ padding: '0.5rem' }} onClick={() => setNavbarBackgroundImage('')} title={locale === 'de' ? 'Entfernen' : 'Remove'}>
+                        <X size={14} />
+                      </button>
+                    ) : null}
+                  </div>
+                  <input
+                    ref={navbarBgInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleNavbarBgUpload(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '8px 0 12px', lineHeight: 1.45 }}>
+                    {locale === 'de'
+                      ? 'PNG/JPG/WebP als Hintergrund der Navbar. Empfohlen: breites Querformat (z. B. 1920×200).'
+                      : 'PNG/JPG/WebP as navbar background. Wide landscape (e.g. 1920×200) works best.'}
+                  </p>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                    {locale === 'de' ? 'Lesbarkeit (Overlay)' : 'Readability (overlay)'}
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input
+                      type="range"
+                      min={0}
+                      max={80}
+                      step={1}
+                      value={navbarBackgroundOverlay}
+                      disabled={!navbarBackgroundImage}
+                      onChange={(e) => setNavbarBackgroundOverlay(Number(e.target.value))}
+                      style={{ flex: 1, accentColor: 'var(--accent)', opacity: navbarBackgroundImage ? 1 : 0.45 }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', minWidth: '40px', textAlign: 'right', fontFamily: 'monospace' }}>
+                      {navbarBackgroundOverlay}%
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0', lineHeight: 1.4 }}>
+                    {locale === 'de'
+                      ? 'Höherer Wert = dunkleres Overlay, damit Tabs und Icons lesbar bleiben.'
+                      : 'Higher value = darker overlay so tabs and icons stay readable.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* ── Design ── */}
             {tab === 'design' && (<>

@@ -31,6 +31,10 @@ export type DashboardStatePersisted = {
   navbarSearchCustomProviders: NavbarCustomSearchProvider[]
   kioskModeEnabled: boolean
   kioskModeIdleSeconds: number
+  /** data: URL or https — Navbar-Hintergrund */
+  navbarBackgroundImage: string
+  /** 0–80: Abdunkeln über dem Bild für lesbare Icons/Text */
+  navbarBackgroundOverlay: number
 }
 
 const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
@@ -160,6 +164,12 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
     if (typeof data.kioskModeIdleSeconds !== 'number' || !Number.isFinite(data.kioskModeIdleSeconds)) return false
     if (data.kioskModeIdleSeconds < 3 || data.kioskModeIdleSeconds > 60) return false
   }
+  if (data.navbarBackgroundImage !== undefined && typeof data.navbarBackgroundImage !== 'string') return false
+  if (data.navbarBackgroundImage && data.navbarBackgroundImage.length > 4_000_000) return false
+  if (data.navbarBackgroundOverlay !== undefined) {
+    if (typeof data.navbarBackgroundOverlay !== 'number' || !Number.isFinite(data.navbarBackgroundOverlay)) return false
+    if (data.navbarBackgroundOverlay < 0 || data.navbarBackgroundOverlay > 80) return false
+  }
   return true
 }
 
@@ -185,5 +195,10 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
       typeof s.kioskModeIdleSeconds === 'number' && Number.isFinite(s.kioskModeIdleSeconds)
         ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds)))
         : 5,
+    navbarBackgroundImage: typeof s.navbarBackgroundImage === 'string' ? s.navbarBackgroundImage : '',
+    navbarBackgroundOverlay:
+      typeof s.navbarBackgroundOverlay === 'number' && Number.isFinite(s.navbarBackgroundOverlay)
+        ? Math.min(80, Math.max(0, Math.round(s.navbarBackgroundOverlay)))
+        : 45,
   }
 }
