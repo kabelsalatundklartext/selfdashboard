@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { fetchPluginVolumeInfo, loadVolumeWidgetScripts } from '@/lib/pluginCustomClient'
+import { bootstrapVolumePlugins } from '@/lib/pluginCustomClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { registerCorePluginSettingsPanels } from '@/lib/registerCorePluginSettings'
 
@@ -14,22 +14,14 @@ export function PluginBootstrap() {
       installPluginExternalBridge()
       registerCorePluginSettingsPanels()
       try {
-        const info = await fetchPluginVolumeInfo()
-        const customWidgets = info.customWidgetIds
-        if (info.missingWidgetJs?.length) {
-          console.warn(
-            '[SelfDashboard] plugin.json ohne widget.js — nur Metadaten auf dem Volume:',
-            info.missingWidgetJs.join(', '),
-          )
-        }
-        if (customWidgets.length > 0) {
-          await loadVolumeWidgetScripts(customWidgets)
-        }
+        await bootstrapVolumePlugins()
         if (gen === loadGeneration) {
           window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
         }
-      } catch (e) {
-        console.warn('[SelfDashboard] Plugin volume load failed', e)
+      } catch {
+        if (gen === loadGeneration) {
+          window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
+        }
       }
     })()
   }, [])

@@ -1336,6 +1336,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       noWritableCalendar: "Kein beschreibbarer Kalender \u2014 zuerst ein CalDAV-Konto anlegen.",
       monthView: "Monatsansicht",
       addEvent: "Termin hinzuf\xFCgen",
+      setupCalendarFirst: "Kalender-Konto einrichten (CalDAV)",
       dayEvents: "Termine am",
       noEventsThisDay: "Keine Termine an diesem Tag",
       syncFailed: "Speichern ok, aber Upload zu CalDAV fehlgeschlagen",
@@ -1424,6 +1425,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       noWritableCalendar: "No writable calendar \u2014 add a CalDAV account first.",
       monthView: "Month view",
       addEvent: "Add event",
+      setupCalendarFirst: "Set up a calendar account (CalDAV)",
       dayEvents: "Events on",
       noEventsThisDay: "No events on this day",
       syncFailed: "Saved locally, but CalDAV upload failed",
@@ -1457,7 +1459,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "calendar",
     name: "Kalender",
     description: "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo \u2026",
-    version: "1.2.3",
+    version: "1.2.4",
     author: "SelfDashboard Community",
     category: "productivity",
     icon: "\u{1F4C5}",
@@ -1512,7 +1514,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       setMounted(true);
     }, []);
     if (!mounted || typeof document === "undefined") return null;
-    return (0, import_react_dom.createPortal)(children, document.body);
+    try {
+      if (typeof import_react_dom.createPortal === "function") {
+        return (0, import_react_dom.createPortal)(children, document.body);
+      }
+    } catch {
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { position: "fixed", inset: 0, zIndex: 3e4, pointerEvents: "none" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { pointerEvents: "auto", width: "100%", height: "100%" }, children }) });
   }
   function weekdayShortLabels(locale) {
     const tag = localeToBcp47(locale);
@@ -1623,10 +1631,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const [flash, setFlash] = (0, import_react4.useState)(null);
     const timerRef = (0, import_react4.useRef)(null);
     const flashTimerRef = (0, import_react4.useRef)(null);
-    const writableCalendars = (0, import_react4.useMemo)(
-      () => calendars.filter((c) => !c.readOnly && isCalendarVisible(c)),
-      [calendars]
-    );
+    const writableCalendars = (0, import_react4.useMemo)(() => calendars.filter((c) => !c.readOnly), [calendars]);
     const visibleCalendarIds = (0, import_react4.useMemo)(
       () => new Set(calendars.filter(isCalendarVisible).map((c) => c.id)),
       [calendars]
@@ -1845,7 +1850,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: "4px" }, children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("viewMonth"), active: tileView === "month", onClick: () => setTileViewPersist("month"), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LayoutGrid, { size: 14 }) }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("viewCompact"), active: tileView === "compact", onClick: () => setTileViewPersist("compact"), children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(List, { size: 14 }) }),
-            writableCalendars.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("addEvent"), onClick: openNewEvent, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { size: 14 }) }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              IconButton,
+              {
+                title: writableCalendars.length > 0 ? t2("addEvent") : t2("setupCalendarFirst"),
+                onClick: openNewEvent,
+                children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Plus, { size: 14 })
+              }
+            ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("monthView"), onClick: openMonthModal, children: ICONS.calendar }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("sync"), onClick: triggerSyncAll, busy: status === "syncing", children: ICONS.sync }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(IconButton, { title: t2("accounts"), onClick: () => {
@@ -1953,7 +1965,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               locale,
               day: selectedDay,
               events: selectedDayEvents,
-              canAdd: writableCalendars.length > 0,
+              canAdd: true,
               onAdd: openNewEvent,
               onClickEvent: openEventFromMonth,
               onOpenDayPopup: () => openDayPopup(selectedDay)
@@ -2039,7 +2051,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           locale,
           day: dayPopup,
           events: monthEventsByDay[dateKeyLocal(dayPopup)] ?? [],
-          canAdd: writableCalendars.length > 0,
+          canAdd: true,
           onClose: () => setDayPopup(null),
           onAdd: () => {
             setDayPopup(null);
@@ -2145,6 +2157,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const [accountDialog, setAccountDialog] = (0, import_react4.useState)(null);
     const [loading, setLoading] = (0, import_react4.useState)(false);
     const [selectedDay, setSelectedDay] = (0, import_react4.useState)(() => startOfLocalDay(/* @__PURE__ */ new Date()));
+    const [dayPopup, setDayPopup] = (0, import_react4.useState)(null);
     const range = (0, import_react4.useMemo)(() => {
       if (view === "agenda") {
         const start2 = /* @__PURE__ */ new Date();
@@ -2198,18 +2211,26 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       return map;
     }, [events]);
     const selectedDayEvents = eventsByDay[dateKeyLocal(selectedDay)] ?? [];
-    const writableCalendars = calendars.filter((c) => !c.readOnly && isCalendarVisible(c));
-    const allWritableCalendars = calendars.filter((c) => !c.readOnly);
+    const writableCalendars = calendars.filter((c) => !c.readOnly);
+    const allWritableCalendars = writableCalendars;
     const title = view === "agenda" ? t2("agendaTitle") : view === "accounts" ? t2("accounts") : cursor.toLocaleDateString(localeToBcp47(locale), { month: "long", year: "numeric" });
     const openNewOnDay = (day) => {
-      if (!writableCalendars[0]) return;
+      const pick = pickDefaultWritableCalendar(writableCalendars);
+      if (!pick) {
+        setView("accounts");
+        return;
+      }
       setEventDialog({
         event: {
-          calendarId: writableCalendars[0].id,
+          calendarId: pick.id,
           allDay: false,
           dtstart: startOfLocalDay(day).toISOString()
         }
       });
+    };
+    const openDayPopup = (day) => {
+      setSelectedDay(startOfLocalDay(day));
+      setDayPopup(startOfLocalDay(day));
     };
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalPortal, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
@@ -2222,7 +2243,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           inset: 0,
           background: "rgba(0,0,0,0.65)",
           backdropFilter: "blur(4px)",
-          zIndex: 2e4,
+          zIndex: 25e3,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -2280,7 +2301,23 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: () => setView("agenda"), active: view === "agenda", children: t2("agenda") }),
                     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: () => setView("accounts"), active: view === "accounts", children: t2("accounts") })
                   ] }),
-                  view !== "accounts" && writableCalendars.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { primary: true, onClick: () => setEventDialog({ event: { calendarId: writableCalendars[0].id, allDay: true, dtstart: (/* @__PURE__ */ new Date()).toISOString() } }), children: t2("newEvent") }),
+                  view !== "accounts" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                    ModalBtn,
+                    {
+                      primary: true,
+                      onClick: () => {
+                        const pick = pickDefaultWritableCalendar(writableCalendars);
+                        if (!pick) {
+                          setView("accounts");
+                          return;
+                        }
+                        setEventDialog({
+                          event: { calendarId: pick.id, allDay: true, dtstart: (/* @__PURE__ */ new Date()).toISOString() }
+                        });
+                      },
+                      children: t2("newEvent")
+                    }
+                  ),
                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { ghost: true, onClick: onClose, children: ICONS.close })
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }, children: [
@@ -2298,7 +2335,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           selectedDay,
                           eventsByDay,
                           onSelectDay: (day) => setSelectedDay(startOfLocalDay(day)),
-                          onClickDay: (day) => setSelectedDay(startOfLocalDay(day)),
+                          onClickDay: openDayPopup,
                           onClickEvent: (ev) => setEventDialog({ event: ev })
                         }
                       ),
@@ -2308,7 +2345,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           locale,
                           day: selectedDay,
                           events: selectedDayEvents,
-                          canAdd: writableCalendars.length > 0,
+                          canAdd: true,
                           onAdd: () => openNewOnDay(selectedDay),
                           onClickEvent: (ev) => setEventDialog({ event: ev })
                         }
@@ -2361,6 +2398,24 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               onSaved: () => {
                 setAccountDialog(null);
                 refresh();
+              }
+            }
+          ),
+          dayPopup && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            DayEventsPopup,
+            {
+              locale,
+              day: dayPopup,
+              events: eventsByDay[dateKeyLocal(dayPopup)] ?? [],
+              canAdd: true,
+              onClose: () => setDayPopup(null),
+              onAdd: () => {
+                setDayPopup(null);
+                openNewOnDay(dayPopup);
+              },
+              onClickEvent: (ev) => {
+                setDayPopup(null);
+                setEventDialog({ event: ev });
               }
             }
           )
@@ -2425,7 +2480,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           position: "fixed",
           inset: 0,
           background: "rgba(0,0,0,0.55)",
-          zIndex: 20001,
+          zIndex: 26e3,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3072,7 +3127,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           position: "fixed",
           inset: 0,
           background: "rgba(0,0,0,0.55)",
-          zIndex: 20001,
+          zIndex: 27e3,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

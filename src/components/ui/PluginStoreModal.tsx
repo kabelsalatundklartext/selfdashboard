@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { PluginMeta } from '@/types'
-import { X, Plus, Check, Search, RefreshCw, ExternalLink } from 'lucide-react'
+import { X, Plus, Check, Search, RefreshCw, ExternalLink, Upload, Package } from 'lucide-react'
 import { pluginReadmeDocUrl, PLUGIN_CATALOG_DOC_URL, PLUGIN_CATALOG_DOC_URL_DE } from '@/lib/pluginDocUrl'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
@@ -23,8 +23,198 @@ type RemotePluginRow = PluginMeta & {
   files?: string[]
 }
 
+type CatalogRow = {
+  meta: RemotePluginRow
+  inRegistry: boolean
+  onDashboard: boolean
+  fromRemote: boolean
+}
+
+type FilterTab = 'all' | 'updates' | 'ready'
+
+function displayMeta(meta: PluginMeta, locale: 'de' | 'en') {
+  if (meta.id === 'iframe') {
+    return { name: t(locale, 'iframeName'), description: t(locale, 'iframeDesc') }
+  }
+  return { name: meta.name ?? meta.id, description: meta.description ?? '' }
+}
+
+function PluginStoreCard({
+  row,
+  locale,
+  githubRepo,
+  githubRef,
+  categoryLabel,
+  reloadBusy,
+  installingId,
+  added,
+  onInstall,
+  onAdd,
+}: {
+  row: CatalogRow
+  locale: 'de' | 'en'
+  githubRepo: string
+  githubRef: string
+  categoryLabel: (cat: string | undefined) => string
+  reloadBusy: boolean
+  installingId: string | null
+  added: Set<string>
+  onInstall: (id: string) => void
+  onAdd: (id: string) => void
+}) {
+  const { meta, inRegistry, onDashboard } = row
+  const { name, description } = displayMeta(meta, locale)
+  const readmeHref = pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })
+
+  return (
+    <article
+      className="flex flex-col gap-2.5 rounded-xl p-3 min-h-0"
+      style={{
+        background: 'var(--surface-2)',
+        border: `1px solid ${meta.updateAvailable ? 'color-mix(in srgb, #f59e0b 35%, var(--border))' : 'var(--border)'}`,
+      }}
+    >
+      <div className="flex gap-3 min-w-0">
+        <PluginMetaIcon meta={meta} size={36} style={{ background: 'var(--surface)', flexShrink: 0 }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--text)', maxWidth: '100%' }}>
+              {name}
+            </h3>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-md shrink-0"
+              style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+            >
+              {categoryLabel(meta.category)}
+            </span>
+          </div>
+          <p
+            className="text-[11px] mt-1 leading-snug"
+            style={{
+              color: 'var(--text-muted)',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {description}
+          </p>
+          <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+            v{meta.version ?? '?'}
+            {meta.installed && meta.installedVersion && !meta.updateAvailable
+              ? ` · ${locale === 'de' ? 'Platte' : 'disk'} v${meta.installedVersion}`
+              : ''}
+            {meta.author ? ` · ${meta.author}` : ''}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {meta.updateAvailable && (
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+            style={{ background: '#f59e0b18', color: '#f59e0b', border: '1px solid #f59e0b44' }}
+          >
+            {t(locale, 'pluginUpdate')} v{meta.installedVersion ?? '?'} → v{meta.version ?? '?'}
+          </span>
+        )}
+        {meta.installed && !meta.updateAvailable && (
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full"
+            style={{ background: 'var(--accent)14', color: 'var(--accent)', border: '1px solid var(--accent)33' }}
+          >
+            {t(locale, 'installPluginDone')}
+          </span>
+        )}
+        {inRegistry && (
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full"
+            style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+          >
+            {locale === 'de' ? 'Widget geladen' : 'Widget loaded'}
+          </span>
+        )}
+        {onDashboard && (
+          <span
+            className="text-[10px] px-2 py-0.5 rounded-full"
+            style={{ background: '#4ade8018', color: '#4ade80', border: '1px solid #4ade8044' }}
+          >
+            {locale === 'de' ? 'Im Dashboard' : 'On dashboard'}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 pt-0.5">
+        <a
+          href={readmeHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-ghost text-xs px-2 py-1"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          title={t(locale, 'pluginReadme')}
+        >
+          <ExternalLink size={12} />
+          {t(locale, 'pluginReadme')}
+        </a>
+        {(meta.updateAvailable || !meta.installed) && row.fromRemote && (
+          <button
+            type="button"
+            className="btn-accent text-xs px-2.5 py-1"
+            disabled={reloadBusy}
+            onClick={() => onInstall(meta.id)}
+          >
+            {installingId === meta.id ? (
+              <>
+                <RefreshCw size={12} className="animate-spin" />
+                {t(locale, 'pluginInstallBusy')}
+              </>
+            ) : meta.updateAvailable ? (
+              <>
+                <RefreshCw size={12} />
+                {t(locale, 'pluginUpdate')}
+              </>
+            ) : (
+              <>
+                <Plus size={12} />
+                {t(locale, 'installPlugin')}
+              </>
+            )}
+          </button>
+        )}
+        {inRegistry && (
+          <button
+            type="button"
+            className="btn-accent text-xs px-2.5 py-1"
+            onClick={() => onAdd(meta.id)}
+            disabled={added.has(meta.id)}
+          >
+            {added.has(meta.id) ? (
+              <>
+                <Check size={12} />
+                {t(locale, 'add')}
+              </>
+            ) : (
+              <>
+                <Plus size={12} />
+                {t(locale, 'add')}
+              </>
+            )}
+          </button>
+        )}
+        {meta.installed && !inRegistry && (
+          <span className="text-[10px] self-center" style={{ color: 'var(--text-muted)' }}>
+            {locale === 'de' ? 'Strg+F5 nach Install' : 'Ctrl+F5 after install'}
+          </span>
+        )}
+      </div>
+    </article>
+  )
+}
+
 export function PluginStoreModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
+  const [filterTab, setFilterTab] = useState<FilterTab>('all')
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [reloadBusy, setReloadBusy] = useState(false)
   const [reloadMsg, setReloadMsg] = useState<string | null>(null)
@@ -107,8 +297,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
       if (!res.ok) throw new Error('upload_failed')
       setReloadMsg(
         locale === 'de'
-          ? `Installiert: ${(j.installed ?? []).join(', ') || '—'}. Seite neu laden (Strg+F5). ${j.hint ?? ''}`
-          : `Installed: ${(j.installed ?? []).join(', ') || '—'}. Reload page (Ctrl+F5). ${j.hint ?? ''}`,
+          ? `Installiert: ${(j.installed ?? []).join(', ') || '—'}. Strg+F5. ${j.hint ?? ''}`
+          : `Installed: ${(j.installed ?? []).join(', ') || '—'}. Ctrl+F5. ${j.hint ?? ''}`,
       )
     } catch {
       setReloadMsg(locale === 'de' ? 'ZIP-Upload fehlgeschlagen.' : 'ZIP upload failed.')
@@ -126,8 +316,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
       if (!res.ok) throw new Error('reload_failed')
       setReloadMsg(
         locale === 'de'
-          ? `${j.count ?? 0} Manifest(e) geladen. Seite neu laden (Strg+F5). ${j.hint ?? ''}`
-          : `${j.count ?? 0} manifest(s) loaded. Reload page (Ctrl+F5). ${j.hint ?? ''}`,
+          ? `${j.count ?? 0} Manifest(e). Strg+F5. ${j.hint ?? ''}`
+          : `${j.count ?? 0} manifest(s). Ctrl+F5. ${j.hint ?? ''}`,
       )
       const rc = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
       const rj = (await rc.json()) as { available?: RemotePluginRow[] }
@@ -141,8 +331,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
   const handleInstallRemote = useCallback(
     async (pluginId: string) => {
-      const label =
-        remotePlugins.find((p) => p.id === pluginId)?.name ?? pluginId
+      const label = remotePlugins.find((p) => p.id === pluginId)?.name ?? pluginId
       setReloadBusy(true)
       setInstallingId(pluginId)
       setReloadMsg(null)
@@ -206,8 +395,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
           setReloadMsgKind('error')
           setReloadMsg(
             locale === 'de'
-              ? `Plugin „${pluginId}“ nicht geladen. Zuerst „Installieren“, dann Strg+F5, dann „Hinzufügen“. Plugins-Ordner auf der Platte prüfen.`
-              : `Plugin “${pluginId}” not loaded. Use Install, then Ctrl+F5, then Add. Check plugins folder on disk.`,
+              ? `Plugin „${pluginId}“ nicht geladen. Installieren → Strg+F5 → Hinzufügen.`
+              : `Plugin “${pluginId}” not loaded. Install → Ctrl+F5 → Add.`,
           )
           return
         }
@@ -268,336 +457,279 @@ export function PluginStoreModal({ open, onClose }: Props) {
   )
 
   const allPlugins = pluginRegistry.getAll()
-
-  const remoteFiltered = useMemo(() => {
-    const q = search.toLowerCase()
-    return remotePlugins.filter((p) => {
-      const name = String(p.name ?? p.id ?? '')
-      const desc = String(p.description ?? '')
-      return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
-    })
-  }, [remotePlugins, search])
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return allPlugins.filter((p) => {
-      const displayName = p.meta.id === 'iframe' ? t(locale, 'iframeName') : p.meta.name
-      const displayDesc = p.meta.id === 'iframe' ? t(locale, 'iframeDesc') : p.meta.description
-      return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
-    })
-  }, [allPlugins, locale, search])
-
-  const sectionTitle = volumeOnly ? t(locale, 'pluginsOnVolume') : t(locale, 'pluginsInstalledLocal')
   const catalogDocUrl = locale === 'de' ? PLUGIN_CATALOG_DOC_URL_DE : PLUGIN_CATALOG_DOC_URL
+
+  const catalogRows = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    const matches = (meta: PluginMeta) => {
+      const d = displayMeta(meta, locale)
+      return (
+        !q ||
+        d.name.toLowerCase().includes(q) ||
+        d.description.toLowerCase().includes(q) ||
+        meta.id.toLowerCase().includes(q)
+      )
+    }
+
+    const seen = new Set<string>()
+    const rows: CatalogRow[] = []
+
+    for (const meta of remotePlugins) {
+      if (!matches(meta)) continue
+      seen.add(meta.id)
+      rows.push({
+        meta,
+        inRegistry: !!pluginRegistry.get(meta.id),
+        onDashboard: existingPlugins.some((p) => p.pluginId === meta.id),
+        fromRemote: true,
+      })
+    }
+
+    for (const { meta } of allPlugins) {
+      if (seen.has(meta.id) || !matches(meta)) continue
+      rows.push({
+        meta: {
+          ...meta,
+          installed: volumeInstalledIds.includes(meta.id),
+          installedVersion: meta.version,
+          updateAvailable: false,
+        },
+        inRegistry: true,
+        onDashboard: existingPlugins.some((p) => p.pluginId === meta.id),
+        fromRemote: false,
+      })
+    }
+
+    return rows
+  }, [remotePlugins, allPlugins, search, locale, existingPlugins, volumeInstalledIds])
+
+  const filteredRows = useMemo(() => {
+    if (filterTab === 'updates') {
+      return catalogRows.filter((r) => r.meta.updateAvailable)
+    }
+    if (filterTab === 'ready') {
+      return catalogRows.filter((r) => r.inRegistry && !r.onDashboard)
+    }
+    return catalogRows
+  }, [catalogRows, filterTab])
+
+  const readyCount = useMemo(
+    () => catalogRows.filter((r) => r.inRegistry && !r.onDashboard).length,
+    [catalogRows],
+  )
 
   if (!open) return null
 
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    padding: '6px 12px',
+    fontSize: '12px',
+    borderRadius: '8px',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+    background: active ? 'color-mix(in srgb, var(--accent) 18%, var(--surface))' : 'var(--surface-2)',
+    color: active ? 'var(--accent)' : 'var(--text-muted)',
+    cursor: 'pointer',
+    fontWeight: active ? 600 : 400,
+  })
+
   return (
     <Portal>
-    <div className="fixed inset-0 flex items-center justify-center p-4" style={{zIndex: 99999}}>
-      <div
-        className="absolute inset-0"
-        style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-        onClick={() => {
-          if (!reloadBusy) onClose()
-        }}
-      />
-      <div
-        className="relative flex flex-col w-full max-w-2xl rounded-2xl animate-fade-in overflow-hidden"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '80vh' }}
-      >
-        <div className="flex items-center justify-between p-6 pb-4">
-          <div>
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
-              {t(locale, 'pluginStore')}
-            </h2>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {githubConfigured
-                ? `${remotePlugins.length} ${t(locale, 'pluginsCatalogAvailable')}`
-                : `0 ${t(locale, 'pluginsCatalogAvailable')}`}
-              {' · '}
-              {allPlugins.length} {t(locale, 'pluginsInstalledLocal')}
-              {updatesCount > 0
-                ? ` · ${updatesCount} ${locale === 'de' ? 'Update(s)' : 'update(s)'}`
-                : ''}
-              {volumeOnly ? ` · ${volumeInstalledIds.length} ${locale === 'de' ? 'auf Platte' : 'on disk'}` : ''}
-            </p>
-          </div>
-          <div className="flex items-center gap-1">
-            <input
-              ref={zipInputRef}
-              type="file"
-              accept=".zip,application/zip"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void handleUploadZip(f)
-                e.target.value = ''
-              }}
-            />
-            <button
-              type="button"
-              className="btn-ghost px-2 py-1.5 text-xs"
-              title={t(locale, 'uploadPluginZipHint')}
-              disabled={reloadBusy}
-              onClick={() => zipInputRef.current?.click()}
-            >
-              {t(locale, 'uploadPluginZip')}
-            </button>
-            {!volumeOnly && (
-              <button
-                type="button"
-                className="btn-ghost px-2 py-1.5 text-xs"
-                title={t(locale, 'seedPluginsHint')}
-                disabled={reloadBusy}
-                onClick={() => void handleSeedPlugins()}
-              >
-                {t(locale, 'seedPlugins')}
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn-ghost p-1.5"
-              title={t(locale, 'reloadPluginsHint')}
-              disabled={reloadBusy}
-              onClick={() => void handleReloadPlugins()}
-            >
-              <RefreshCw size={16} className={reloadBusy ? 'animate-spin' : undefined} />
-            </button>
-            <button className="btn-ghost p-1.5" onClick={onClose}>
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        {reloadMsg && (
-          <p
-            className="px-6 -mt-2 pb-2 text-xs font-medium"
-            style={{
-              color:
-                reloadMsgKind === 'success'
-                  ? 'var(--accent)'
-                  : reloadMsgKind === 'error'
-                    ? '#f87171'
-                    : 'var(--text-muted)',
-            }}
+      <div className="fixed inset-0 flex items-center justify-center p-3 sm:p-5" style={{ zIndex: 99999 }}>
+        <div
+          className="absolute inset-0"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
+          onClick={() => {
+            if (!reloadBusy) onClose()
+          }}
+        />
+        <div
+          className="relative flex flex-col w-full rounded-2xl animate-fade-in overflow-hidden"
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            maxWidth: 'min(960px, 100%)',
+            maxHeight: 'min(88vh, 900px)',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.45)',
+          }}
+        >
+          {/* Header */}
+          <header
+            className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-3 shrink-0"
+            style={{ borderBottom: '1px solid var(--border)' }}
           >
-            {reloadMsg}
-          </p>
-        )}
-
-        <div className="px-6 pb-4">
-          <div
-            className="flex items-center gap-2 rounded-lg px-3 py-2"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-          >
-            <Search size={14} style={{ color: 'var(--text-muted)' }} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t(locale, 'searchPlugins')}
-              className="flex-1 bg-transparent text-sm outline-none"
-              style={{ color: 'var(--text)' }}
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
-          {githubConfigured && remoteFiltered.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-                {t(locale, 'pluginsCatalogAvailable')} · {t(locale, 'pluginsFromGitHub')}
-              </p>
-              <div className="space-y-2">
-                {remoteFiltered.map((meta) => (
-                  <div
-                    key={`gh-${meta.id}`}
-                    className="flex items-center gap-4 rounded-xl p-4"
-                    style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)' }}
-                  >
-                    <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name ?? meta.id}</span>
-                        {meta.updateAvailable ? (
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: '#f59e0b22', color: '#f59e0b', border: '1px solid #f59e0b55' }}
-                          >
-                            {t(locale, 'pluginUpdate')} v{meta.installedVersion ?? '?'} → v{meta.version ?? '?'}
-                          </span>
-                        ) : meta.installed ? (
-                          <span
-                            className="text-xs px-2 py-0.5 rounded-full"
-                            style={{ background: 'var(--accent)22', color: 'var(--accent)', border: '1px solid var(--accent)44' }}
-                          >
-                            {t(locale, 'installPluginDone')}
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description ?? ''}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {categoryLabel(meta.category)} · v{meta.version ?? '?'}
-                        {meta.installed && meta.installedVersion && !meta.updateAvailable
-                          ? ` · ${locale === 'de' ? 'installiert' : 'installed'} v${meta.installedVersion}`
-                          : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <a
-                        href={pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-ghost text-xs"
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
-                        title={t(locale, 'pluginReadme')}
-                      >
-                        <ExternalLink size={13} />
-                        {t(locale, 'pluginReadme')}
-                      </a>
-                      {meta.updateAvailable || !meta.installed ? (
-                        <button
-                          type="button"
-                          className="btn-accent"
-                          title={
-                            meta.updateAvailable
-                              ? t(locale, 'pluginUpdate')
-                              : t(locale, 'installPluginHint')
-                          }
-                          disabled={reloadBusy}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void handleInstallRemote(meta.id)
-                          }}
-                        >
-                          {installingId === meta.id ? (
-                            <>
-                              <RefreshCw size={14} className="animate-spin" />
-                              {t(locale, 'pluginInstallBusy')}
-                            </>
-                          ) : meta.updateAvailable ? (
-                            <>
-                              <RefreshCw size={14} />
-                              {t(locale, 'pluginUpdate')}
-                            </>
-                          ) : (
-                            <>
-                              <Plus size={14} />
-                              {t(locale, 'installPlugin')}
-                            </>
-                          )}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+                {t(locale, 'pluginStore')}
+              </h2>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  {remotePlugins.length} {t(locale, 'pluginsCatalogAvailable')}
+                </span>
+                <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  {allPlugins.length} {t(locale, 'pluginsInstalledLocal')}
+                </span>
+                {volumeOnly && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                    {volumeInstalledIds.length} {locale === 'de' ? 'auf Platte' : 'on disk'}
+                  </span>
+                )}
+                {updatesCount > 0 && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-md font-medium" style={{ background: '#f59e0b18', color: '#f59e0b' }}>
+                    {updatesCount} {locale === 'de' ? 'Update(s)' : 'update(s)'}
+                  </span>
+                )}
               </div>
             </div>
-          )}
-
-          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            {sectionTitle}
-          </p>
-          {volumeOnly && volumeInstalledIds.length > 0 && filtered.length === 0 && (
-            <p className="text-xs mb-2" style={{ color: 'var(--accent)' }}>
-              Ordner auf der Platte, aber ohne widget.js — unter „Von GitHub“ installieren oder ZIP mit widget.js hochladen, dann Strg+F5.
-            </p>
-          )}
-          {filtered.length === 0 && remoteFiltered.length === 0 ? (
-            <div className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
-              <p className="text-sm">{volumeOnly ? t(locale, 'pluginsVolumeEmpty') : t(locale, 'noPluginsFound')}</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>
-              {githubConfigured
-                ? t(locale, 'installPluginHint')
-                : t(locale, 'githubNotConfigured')}
-            </p>
-          ) : (
-            filtered.map(({ meta }) => {
-              const displayName = meta.id === 'iframe' ? t(locale, 'iframeName') : meta.name
-              const displayDesc = meta.id === 'iframe' ? t(locale, 'iframeDesc') : meta.description
-              return (
-                <div
-                  key={meta.id}
-                  className="flex items-center gap-4 rounded-xl p-4"
-                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            <div className="flex items-center gap-1 shrink-0">
+              <input
+                ref={zipInputRef}
+                type="file"
+                accept=".zip,application/zip"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) void handleUploadZip(f)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                className="btn-ghost p-2"
+                title={t(locale, 'uploadPluginZipHint')}
+                disabled={reloadBusy}
+                onClick={() => zipInputRef.current?.click()}
+              >
+                <Upload size={16} />
+              </button>
+              {!volumeOnly && (
+                <button
+                  type="button"
+                  className="btn-ghost p-2"
+                  title={t(locale, 'seedPluginsHint')}
+                  disabled={reloadBusy}
+                  onClick={() => void handleSeedPlugins()}
                 >
-                  <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>
-                        {displayName}
-                      </span>
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                      >
-                        {categoryLabel(meta.category)}
-                      </span>
-                    </div>
-                    <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
-                      {displayDesc}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      by {meta.author} · v{meta.version}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 shrink-0">
-                    <a
-                      href={pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-ghost text-xs"
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
-                    >
-                      <ExternalLink size={13} />
-                      {t(locale, 'pluginReadme')}
-                    </a>
-                    <button type="button" onClick={() => void handleAdd(meta.id)} className="btn-accent">
-                    {added.has(meta.id)
-                      ? <><Check size={14} />{t(locale, 'add')}</>
-                      : <><Plus size={14} />{t(locale, 'add')}</>
-                    }
-                    </button>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
+                  <Package size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-ghost p-2"
+                title={t(locale, 'reloadPluginsHint')}
+                disabled={reloadBusy}
+                onClick={() => void handleReloadPlugins()}
+              >
+                <RefreshCw size={16} className={reloadBusy ? 'animate-spin' : undefined} />
+              </button>
+              <button type="button" className="btn-ghost p-2" onClick={onClose} aria-label={locale === 'de' ? 'Schließen' : 'Close'}>
+                <X size={16} />
+              </button>
+            </div>
+          </header>
 
-        <div className="px-6 py-3" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-center">
-            {t(locale, 'pluginCatalogNav')}
-          </p>
-          <div
-            className="flex flex-wrap gap-2 justify-center max-h-24 overflow-y-auto"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {remotePlugins.map((p) => (
-              <a
-                key={`nav-${p.id}`}
-                href={pluginReadmeDocUrl(p.id, { repository: githubRepo, ref: githubRef })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs px-2 py-1 rounded-md"
+          {reloadMsg && (
+            <p
+              className="px-5 py-2 text-xs font-medium shrink-0"
+              style={{
+                borderBottom: '1px solid var(--border)',
+                color:
+                  reloadMsgKind === 'success'
+                    ? 'var(--accent)'
+                    : reloadMsgKind === 'error'
+                      ? '#f87171'
+                      : 'var(--text-muted)',
+              }}
+            >
+              {reloadMsg}
+            </p>
+          )}
+
+          {/* Toolbar: search + filters */}
+          <div className="px-5 py-3 shrink-0 flex flex-col sm:flex-row gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2 flex-1 min-w-[200px]"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            >
+              <Search size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t(locale, 'searchPlugins')}
+                className="flex-1 bg-transparent text-sm outline-none min-w-0"
+                style={{ color: 'var(--text)' }}
+              />
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              <button type="button" style={tabBtn(filterTab === 'all')} onClick={() => setFilterTab('all')}>
+                {locale === 'de' ? 'Alle' : 'All'} ({catalogRows.length})
+              </button>
+              {updatesCount > 0 && (
+                <button type="button" style={tabBtn(filterTab === 'updates')} onClick={() => setFilterTab('updates')}>
+                  {t(locale, 'pluginUpdate')} ({updatesCount})
+                </button>
+              )}
+              <button type="button" style={tabBtn(filterTab === 'ready')} onClick={() => setFilterTab('ready')}>
+                {locale === 'de' ? 'Hinzufügen' : 'Add'} ({readyCount})
+              </button>
+            </div>
+          </div>
+
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+            {!githubConfigured && (
+              <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: '#f8717114', color: '#f87171', border: '1px solid #f8717133' }}>
+                {t(locale, 'githubNotConfigured')}
+              </p>
+            )}
+            {volumeOnly && volumeInstalledIds.length > 0 && allPlugins.length === 0 && (
+              <p className="text-xs mb-3" style={{ color: 'var(--accent)' }}>
+                {locale === 'de'
+                  ? 'Dateien auf der Platte, aber widget.js fehlt — Installieren oder ZIP, dann Strg+F5.'
+                  : 'Files on disk but widget.js missing — Install or ZIP, then Ctrl+F5.'}
+              </p>
+            )}
+            {filteredRows.length === 0 ? (
+              <div className="py-16 text-center" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">{t(locale, 'noPluginsFound')}</p>
+              </div>
+            ) : (
+              <div
                 style={{
-                  background: 'var(--surface-2)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  textDecoration: 'none',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '10px',
                 }}
               >
-                {p.name ?? p.id}
-              </a>
-            ))}
+                {filteredRows.map((row) => (
+                  <PluginStoreCard
+                    key={row.meta.id}
+                    row={row}
+                    locale={locale}
+                    githubRepo={githubRepo}
+                    githubRef={githubRef}
+                    categoryLabel={categoryLabel}
+                    reloadBusy={reloadBusy}
+                    installingId={installingId}
+                    added={added}
+                    onInstall={(id) => void handleInstallRemote(id)}
+                    onAdd={(id) => void handleAdd(id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          <p className="text-xs text-center mt-3">
+
+          {/* Footer — compact */}
+          <footer
+            className="px-5 py-3 shrink-0 text-center text-[11px] leading-relaxed"
+            style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
+          >
             <a href={catalogDocUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
               {t(locale, 'pluginCatalogNav')}
             </a>
             {' · '}
-            💡 {t(locale, 'devHint')}{' '}
+            {githubRepo}@{githubRef}
+            {' · '}
+            {t(locale, 'devHint')}{' '}
             <a
               href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DEV.md"
               target="_blank"
@@ -606,10 +738,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
             >
               {t(locale, 'readTheDocs')}
             </a>
-          </p>
+          </footer>
         </div>
       </div>
-    </div>
     </Portal>
   )
 }

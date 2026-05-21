@@ -1,9 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { X, GripVertical, Settings, ZoomIn, ZoomOut, Box } from 'lucide-react'
+import { useState, useSyncExternalStore } from 'react'
+import { X, GripVertical, Settings, ZoomIn, ZoomOut, Box, Loader2 } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
+import {
+  getPluginVolumeLoadPhase,
+  getPluginVolumeLoadServerSnapshot,
+  getPluginVolumeLoadVersion,
+  subscribePluginVolumeLoad,
+} from '@/lib/pluginVolumeLoad'
 import { useDashboardStore } from '@/lib/store'
+import { t } from '@/lib/i18n'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
 import type { PluginInstance } from '@/types'
 
@@ -32,10 +39,17 @@ function coercePadding(v: unknown): number {
 export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Props) {
   const [hovering, setHovering] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
-  const { activeDashboard, removePlugin, updatePluginConfig, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet } =
+  const { activeDashboard, removePlugin, updatePluginConfig, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet, locale } =
     useDashboardStore()
+  const volumePhase = useSyncExternalStore(
+    subscribePluginVolumeLoad,
+    getPluginVolumeLoadPhase,
+    getPluginVolumeLoadServerSnapshot,
+  )
+  useSyncExternalStore(subscribePluginVolumeLoad, getPluginVolumeLoadVersion, () => 0)
   const dash = activeDashboard()
   const registered = pluginRegistry.get(instance.pluginId)
+  const volumeStillLoading = (volumePhase === 'pending' || volumePhase === 'loading') && !registered
 
   const pluginZoom = coercePluginZoom(instance.config.__zoom)
   const pluginPadding = coercePadding(instance.config.__padding)
@@ -84,10 +98,22 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
   }
 
   if (!registered) {
+    if (volumeStillLoading) {
+      return (
+        <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '8px' }}>
+          <Loader2 size={20} className="sd-widget-load-spin" style={{ color: 'var(--accent)' }} aria-hidden />
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t('pluginLoading', locale)}</p>
+        </div>
+      )
+    }
     return (
       <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Plugin <strong>{instance.pluginId}</strong> not found</p>
-        <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>Remove</button>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+          {t('pluginNotFound', locale)} <strong>{instance.pluginId}</strong>
+        </p>
+        <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>
+          {t('removeWidget', locale)}
+        </button>
       </div>
     )
   }

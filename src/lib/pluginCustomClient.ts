@@ -1,6 +1,7 @@
 'use client'
 
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
+import { setPluginVolumeLoadPhase } from '@/lib/pluginVolumeLoad'
 
 export type PluginVolumeClientInfo = {
   customRoot: string
@@ -61,18 +62,44 @@ async function loadPluginWidgetAssets(pluginId: string, cacheBust: number): Prom
 
 export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void> {
   installPluginExternalBridge()
+  if (pluginIds.length === 0) return
+
   const t = Date.now()
-  const failed: string[] = []
-  for (const id of pluginIds) {
-    try {
+  const results = await Promise.allSettled(
+    pluginIds.map(async (id) => {
       await loadPluginWidgetAssets(id, t)
       console.info(`[SelfDashboard] Volume widget loaded: ${id}`)
-    } catch (e) {
-      failed.push(id)
-      console.error(`[SelfDashboard] Volume widget failed: ${id}`, e)
-    }
-  }
+    }),
+  )
+  const failed = pluginIds.filter((_, i) => results[i].status === 'rejected')
   if (failed.length > 0) {
+    for (const id of failed) {
+      console.error(`[SelfDashboard] Volume widget failed: ${id}`, (results[pluginIds.indexOf(id)] as PromiseRejectedResult).reason)
+    }
     throw new Error(`volume_widgets_failed:${failed.join(',')}`)
+  }
+}
+
+/** Fetch volume info and load all custom widget.js (sets global load phase for UI). */
+export async function bootstrapVolumePlugins(): Promise<void> {
+  setPluginVolumeLoadPhase('loading')
+  installPluginExternalBridge()
+  try {
+    const info = await fetchPluginVolumeInfo()
+    const customWidgets = info.customWidgetIds
+    if (info.missingWidgetJs?.length) {
+      console.warn(
+        '[SelfDashboard] plugin.json ohne widget.js — nur Metadaten auf dem Volume:',
+        info.missingWidgetJs.join(', '),
+      )
+    }
+    if (customWidgets.length > 0) {
+      await loadVolumeWidgetScripts(customWidgets)
+    }
+    setPluginVolumeLoadPhase('ready')
+  } catch (e) {
+    console.warn('[SelfDashboard] Plugin volume load failed', e)
+    setPluginVolumeLoadPhase('error')
+    throw e
   }
 }
