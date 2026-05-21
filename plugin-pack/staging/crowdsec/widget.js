@@ -1516,6 +1516,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     if (value <= 0) return 0;
     return presets.reduce((best, v) => v > 0 && Math.abs(v - value) < Math.abs(best - value) ? v : best, 2e3);
   }
+  function alertRangeLabel(days, de) {
+    const hit = DAY_RANGE_PRESETS.find((p) => p.days === days);
+    if (hit) return de ? hit.de : hit.en;
+    if (days <= 0) return de ? "Alle" : "All";
+    if (days === 1) return de ? "1 Tag" : "1 day";
+    return de ? `${days} Tage` : `${days} days`;
+  }
 
   // ../plugins/crowdsec/CrowdsecWidget.tsx
   var import_jsx_runtime4 = __toESM(require_jsx_runtime());
@@ -1545,7 +1552,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       dbPath: cfgStr(raw.dbPath, "/crowdsec-data/crowdsec.db"),
       daysBack: nearestDayPreset(cfgNum(raw.daysBack, 30)),
       refreshSeconds: Math.min(600, Math.max(5, cfgNum(raw.refreshSeconds, 30))),
-      statsHours: Math.min(168, Math.max(1, cfgNum(raw.statsHours, 1))),
       maxAlerts: nearestMaxAlerts(cfgNum(raw.maxAlerts, 2e3)),
       dockerUnban: cfgBool(raw.dockerUnban, false),
       crowdsecContainer: cfgStr(raw.crowdsecContainer, "crowdsec"),
@@ -1608,7 +1614,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       const params = new URLSearchParams({
         dbPath: cfg.dbPath,
         daysBack: String(cfg.daysBack),
-        statsHours: String(cfg.statsHours),
         maxAlerts: String(cfg.maxAlerts)
       });
       try {
@@ -1632,7 +1637,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       } finally {
         setLoading(false);
       }
-    }, [cfg.dbPath, cfg.daysBack, cfg.statsHours, cfg.maxAlerts]);
+    }, [cfg.dbPath, cfg.daysBack, cfg.maxAlerts]);
     (0, import_react7.useEffect)(() => {
       setLoading(true);
       void fetchData();
@@ -1714,8 +1719,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                         de ? "\xDCbersicht" : "Overview"
                       ] }),
                       data && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-stat", children: formatInt(data.alertsLast24h, locale) }),
-                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-sub", children: de ? `Alerts (${cfg.statsHours}h)` : `Alerts (${cfg.statsHours}h)` })
+                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-stat", children: formatInt(data.alertsInRange, locale) }),
+                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-sub", children: de ? `Alerts (${alertRangeLabel(cfg.daysBack, true)})` : `Alerts (${alertRangeLabel(cfg.daysBack, false)})` })
                       ] })
                     ]
                   }
@@ -1929,7 +1934,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "crowdsec",
     name: "CrowdSec",
     description: "Kompaktes CrowdSec-Dashboard aus crowdsec.db: \xDCbersicht, Banns, L\xE4nder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.",
-    version: "1.3.6",
+    version: "1.3.7",
     author: "SelfDashboard",
     category: "security",
     icon: "\u{1F6E1}\uFE0F",
@@ -1966,19 +1971,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             value: cfg.daysBack,
             onChange: (e) => onChange("daysBack", Number(e.target.value)),
             children: DAY_RANGE_PRESETS.map((p) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: p.days, children: de ? p.de : p.en }, p.days))
-          }
-        )
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "cs-settings-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: de ? "Alerts-Zeitraum (Stunden)" : "Alert window (hours)" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "input",
-          {
-            type: "number",
-            min: 1,
-            max: 168,
-            value: cfg.statsHours,
-            onChange: (e) => onChange("statsHours", Number(e.target.value))
           }
         )
       ] }),

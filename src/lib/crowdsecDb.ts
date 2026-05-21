@@ -26,7 +26,6 @@ type AlertRow = {
 export type CrowdsecDbOptions = {
   daysBack?: number
   maxAlerts?: number
-  statsHours?: number
 }
 
 function isUsableIp(ip: string): boolean {
@@ -302,17 +301,15 @@ export async function loadCrowdsecDashboard(
   const daysBack = daysBackRaw === 0 ? 0 : Math.min(3650, Math.max(1, daysBackRaw))
   const maxAlertsRaw = opts.maxAlerts ?? 2000
   const maxAlerts = maxAlertsRaw === 0 ? 0 : Math.min(50_000, Math.max(50, maxAlertsRaw))
-  const statsHours = Math.min(168, Math.max(1, opts.statsHours ?? 1))
   const cutoffUnix =
     daysBack === 0 ? 0 : Math.floor((Date.now() - daysBack * 86400_000) / 1000)
-  const statsCutoffUnix = Math.floor((Date.now() - statsHours * 3600_000) / 1000)
 
   const geoip = await createGeoipLookup()
 
   const db = new Database(dbPath, { readonly: true, fileMustExist: true })
   try {
     const alertsInRange = countAlertsSince(db, cutoffUnix)
-    const alertsLast24h = countAlertsSince(db, statsCutoffUnix)
+    const alertsLast24h = alertsInRange
     const activeBans = countActiveDecisions(db)
 
     const { sql, params } = buildAlertsSql(db, cutoffUnix)

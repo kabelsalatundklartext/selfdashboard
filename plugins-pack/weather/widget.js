@@ -1296,7 +1296,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter (Temperatur, gef\xFChlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.",
-    version: "1.2.4",
+    version: "1.2.5",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1483,7 +1483,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m"
     });
     if (includeDaily) {
-      params.set("daily", "weather_code,temperature_2m_max,temperature_2m_min");
+      params.set("includeDaily", "1");
       params.set("forecast_days", "7");
     }
     const j = await pluginApiJson(

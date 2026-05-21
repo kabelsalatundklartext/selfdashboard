@@ -25,7 +25,14 @@ export async function GET(req: NextRequest) {
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
         return NextResponse.json({ error: 'invalid_coordinates' }, { status: 400 })
       }
-      const includeDaily = sp.get('daily') === '1' || sp.get('daily') === 'true'
+      const dailyParam = sp.get('daily')
+      const includeDaily =
+        sp.get('includeDaily') === '1' ||
+        sp.get('includeDaily') === 'true' ||
+        dailyParam === '1' ||
+        dailyParam === 'true' ||
+        sp.has('forecast_days') ||
+        Boolean(dailyParam?.includes('weather_code'))
       const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeDaily })
       return NextResponse.json(data)
     }

@@ -55,7 +55,7 @@ Plugin Store → **Weather** → **Ctrl+F5** → location in **⚙️**.
 
 ### Technical notes
 
-- Fetched from **browser** to Open-Meteo — client needs internet  
+- Fetched via **`/api/weather`** (server proxy to Open-Meteo) — **SelfDashboard container** needs outbound HTTPS, not necessarily the browser  
 - Config only in **`dashboard.json`**
 
 ### Troubleshooting

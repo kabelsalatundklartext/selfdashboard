@@ -11,14 +11,13 @@ export async function GET(req: NextRequest) {
   const daysBackRaw = Number(sp.get('daysBack') ?? 30)
   const daysBack =
     daysBackRaw === 0 ? 0 : Math.min(3650, Math.max(1, Number.isFinite(daysBackRaw) ? daysBackRaw : 30))
-  const statsHours = Math.min(168, Math.max(1, Number(sp.get('statsHours') || 1) || 1))
   const maxAlertsRaw = Number(sp.get('maxAlerts') ?? 2000)
   const maxAlerts =
     maxAlertsRaw === 0 ? 0 : Math.min(50_000, Math.max(50, Number.isFinite(maxAlertsRaw) ? maxAlertsRaw : 2000))
 
   try {
     const resolved = resolveCrowdsecDbPath(dbPath)
-    const data = await loadCrowdsecDashboard(resolved, { daysBack, statsHours, maxAlerts })
+    const data = await loadCrowdsecDashboard(resolved, { daysBack, maxAlerts })
     return NextResponse.json(data)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'crowdsec_error'
