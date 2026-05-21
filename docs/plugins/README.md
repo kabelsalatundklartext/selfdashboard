@@ -26,4 +26,6 @@ Each plugin has a **README with German and English** sections:
 
 **Installation:** [../PLUGINS.md](../PLUGINS.md) · **Develop:** [../PLUGIN_DEV.md](../PLUGIN_DEV.md)
 
+**Deinstallieren:** Plugin-Store → installiertes Plugin → **Deinstallieren** (löscht den Ordner unter `/app/plugins/custom/<id>/`). Widgets auf dem Dashboard danach im Bearbeitungsmodus entfernen.
+
 Store icons: [`public/plugin-logos/`](../../public/plugin-logos/).

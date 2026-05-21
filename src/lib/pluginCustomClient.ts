@@ -60,6 +60,19 @@ async function loadPluginWidgetAssets(pluginId: string, cacheBust: number): Prom
   await loadScript(`${base}/widget.js?t=${cacheBust}`)
 }
 
+/** Remove loaded widget.js / widget.css for one plugin (after uninstall). */
+export function unloadPluginWidgetAssets(pluginId: string): void {
+  const needle = `/custom-assets/${encodeURIComponent(pluginId)}/`
+  for (const el of document.querySelectorAll('script[data-sd-plugin]')) {
+    const src = el.getAttribute('data-sd-plugin') ?? ''
+    if (src.includes(needle)) el.remove()
+  }
+  for (const el of document.querySelectorAll('link[data-sd-plugin-css]')) {
+    const href = el.getAttribute('data-sd-plugin-css') ?? ''
+    if (href.includes(needle)) el.remove()
+  }
+}
+
 export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void> {
   installPluginExternalBridge()
   if (pluginIds.length === 0) return

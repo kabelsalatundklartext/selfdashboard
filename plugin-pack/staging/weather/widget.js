@@ -425,6 +425,29 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     });
   }
 
+  // src/lib/pluginDev.ts
+  async function pluginApiJson(pluginId, path, init) {
+    const url = path.startsWith("/api/") ? path : `/api/plugins/${pluginId}${path.startsWith("/") ? path : `/${path}`}`;
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      }
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const j = await res.json();
+        msg = j.error ?? j.message ?? msg;
+      } catch {
+      }
+      throw new Error(msg);
+    }
+    if (res.status === 204) return void 0;
+    return res.json();
+  }
+
   // node_modules/zustand/esm/vanilla.mjs
   var import_meta = {};
   var createStoreImpl = (createState) => {
@@ -1273,7 +1296,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter (Temperatur, gef\xFChlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.",
-    version: "1.2.3",
+    version: "1.2.4",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1423,9 +1446,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     });
     const cc = countryCode.trim().toUpperCase();
     if (cc.length === 2) params.set("countryCode", cc);
-    const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`, { signal, cache: "no-store" });
-    if (!res.ok) throw new Error(`Geocode HTTP ${res.status}`);
-    const j = await res.json();
+    const j = await pluginApiJson(
+      "weather",
+      `/api/weather?action=geocode&${params}`,
+      { signal, cache: "no-store" }
+    );
     const first = j.results?.[0];
     if (!first) return null;
     return first;
@@ -1461,9 +1486,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       params.set("daily", "weather_code,temperature_2m_max,temperature_2m_min");
       params.set("forecast_days", "7");
     }
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal, cache: "no-store" });
-    if (!res.ok) throw new Error(`Forecast HTTP ${res.status}`);
-    const j = await res.json();
+    const j = await pluginApiJson(
+      "weather",
+      `/api/weather?action=forecast&${params}`,
+      { signal, cache: "no-store" }
+    );
     if (!j.current) throw new Error(de ? "Keine aktuellen Werte" : "No current values");
     const daily = includeDaily ? parseDailyForecast(j, 7) : [];
     return { current: j.current, daily };
@@ -1515,7 +1542,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         } catch (e) {
           if (cancelled || e.name === "AbortError") return;
           reportPluginCatch("weather", e, "open-meteo");
-          setError(de ? "Netzwerk- oder API-Fehler." : "Network or API error.");
+          setError(
+            de ? "Wetter-API nicht erreichbar (Server braucht Internet zu Open-Meteo)." : "Weather API unreachable (server needs outbound internet to Open-Meteo)."
+          );
           setCurrent(null);
           setDaily([]);
         } finally {

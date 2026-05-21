@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { PluginMeta } from '@/types'
-import { X, Plus, Check, Search, RefreshCw, ExternalLink, Upload, Package } from 'lucide-react'
+import { X, Plus, Check, Search, RefreshCw, ExternalLink, Upload, Package, Trash2 } from 'lucide-react'
 import { pluginReadmeDocUrl, PLUGIN_CATALOG_DOC_URL, PLUGIN_CATALOG_DOC_URL_DE } from '@/lib/pluginDocUrl'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
@@ -11,7 +11,7 @@ import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
-import { fetchPluginVolumeInfo, loadVolumeWidgetScripts } from '@/lib/pluginCustomClient'
+import { fetchPluginVolumeInfo, loadVolumeWidgetScripts, unloadPluginWidgetAssets } from '@/lib/pluginCustomClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 
 interface Props { open: boolean; onClose: () => void }
@@ -47,8 +47,10 @@ function PluginStoreCard({
   categoryLabel,
   reloadBusy,
   installingId,
+  uninstallingId,
   added,
   onInstall,
+  onUninstall,
   onAdd,
 }: {
   row: CatalogRow
@@ -58,8 +60,10 @@ function PluginStoreCard({
   categoryLabel: (cat: string | undefined) => string
   reloadBusy: boolean
   installingId: string | null
+  uninstallingId: string | null
   added: Set<string>
   onInstall: (id: string) => void
+  onUninstall: (id: string, name: string, onDashboard: boolean) => void
   onAdd: (id: string) => void
 }) {
   const { meta, inRegistry, onDashboard } = row
@@ -103,7 +107,7 @@ function PluginStoreCard({
           <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
             v{meta.version ?? '?'}
             {meta.installed && meta.installedVersion && !meta.updateAvailable
-              ? ` · ${locale === 'de' ? 'Platte' : 'disk'} v${meta.installedVersion}`
+              ? ` · ${t(locale, 'installPluginDone')} v${meta.installedVersion}`
               : ''}
             {meta.author ? ` · ${meta.author}` : ''}
           </p>
@@ -132,7 +136,7 @@ function PluginStoreCard({
             className="text-[10px] px-2 py-0.5 rounded-full"
             style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
           >
-            {locale === 'de' ? 'Widget geladen' : 'Widget loaded'}
+            {t(locale, 'pluginWidgetLoaded')}
           </span>
         )}
         {onDashboard && (
@@ -140,7 +144,7 @@ function PluginStoreCard({
             className="text-[10px] px-2 py-0.5 rounded-full"
             style={{ background: '#4ade8018', color: '#4ade80', border: '1px solid #4ade8044' }}
           >
-            {locale === 'de' ? 'Im Dashboard' : 'On dashboard'}
+            {t(locale, 'pluginOnDashboard')}
           </span>
         )}
       </div>
@@ -204,8 +208,30 @@ function PluginStoreCard({
         )}
         {meta.installed && !inRegistry && (
           <span className="text-[10px] self-center" style={{ color: 'var(--text-muted)' }}>
-            {locale === 'de' ? 'Strg+F5 nach Install' : 'Ctrl+F5 after install'}
+            {t(locale, 'pluginHardReloadAfterDownload')}
           </span>
+        )}
+        {meta.installed && (
+          <button
+            type="button"
+            className="btn-ghost text-xs px-2.5 py-1"
+            style={{ color: '#f87171', borderColor: 'color-mix(in srgb, #f87171 35%, var(--border))' }}
+            disabled={reloadBusy}
+            title={t(locale, 'uninstallPlugin')}
+            onClick={() => onUninstall(meta.id, name, onDashboard)}
+          >
+            {uninstallingId === meta.id ? (
+              <>
+                <RefreshCw size={12} className="animate-spin" />
+                {t(locale, 'pluginUninstallBusy')}
+              </>
+            ) : (
+              <>
+                <Trash2 size={12} />
+                {t(locale, 'uninstallPlugin')}
+              </>
+            )}
+          </button>
         )}
       </div>
     </article>
@@ -220,6 +246,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [reloadMsg, setReloadMsg] = useState<string | null>(null)
   const [reloadMsgKind, setReloadMsgKind] = useState<'success' | 'error' | 'info'>('info')
   const [installingId, setInstallingId] = useState<string | null>(null)
+  const [uninstallingId, setUninstallingId] = useState<string | null>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
   const existingPlugins = activeDashboard()?.plugins ?? []
@@ -296,9 +323,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
       const j = (await res.json()) as { installed?: string[]; errors?: string[]; hint?: string }
       if (!res.ok) throw new Error('upload_failed')
       setReloadMsg(
-        locale === 'de'
-          ? `Installiert: ${(j.installed ?? []).join(', ') || '—'}. Strg+F5. ${j.hint ?? ''}`
-          : `Installed: ${(j.installed ?? []).join(', ') || '—'}. Ctrl+F5. ${j.hint ?? ''}`,
+        `${t(locale, 'pluginZipUploadSuccess')}: ${(j.installed ?? []).join(', ') || '—'}. ${locale === 'de' ? 'Strg+F5' : 'Ctrl+F5'}. ${j.hint ?? ''}`,
       )
     } catch {
       setReloadMsg(locale === 'de' ? 'ZIP-Upload fehlgeschlagen.' : 'ZIP upload failed.')
@@ -328,6 +353,46 @@ export function PluginStoreModal({ open, onClose }: Props) {
       setReloadBusy(false)
     }
   }, [locale])
+
+  const handleUninstall = useCallback(
+    async (pluginId: string, label: string, onDashboard: boolean) => {
+      const confirmText =
+        t(locale, 'pluginUninstallConfirm').replace('{name}', label) +
+        (onDashboard ? t(locale, 'pluginUninstallConfirmDashboard') : '')
+      if (!window.confirm(confirmText)) return
+
+      setReloadBusy(true)
+      setUninstallingId(pluginId)
+      setReloadMsg(null)
+      setReloadMsgKind('info')
+      try {
+        const res = await fetch('/api/plugins/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pluginId }),
+        })
+        const j = (await res.json()) as { ok?: boolean; error?: string; hint?: string }
+        if (!res.ok) throw new Error(j.error ?? 'uninstall_failed')
+
+        pluginRegistry.unregister(pluginId)
+        unloadPluginWidgetAssets(pluginId)
+        await refreshStoreData()
+
+        setReloadMsgKind('success')
+        setReloadMsg(`✓ ${label} — ${t(locale, 'pluginUninstallSuccess')}`)
+        window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
+      } catch (e) {
+        setReloadMsgKind('error')
+        setReloadMsg(
+          `${t(locale, 'pluginUninstallFailed')}: ${e instanceof Error ? e.message : String(e)}`,
+        )
+      } finally {
+        setUninstallingId(null)
+        setReloadBusy(false)
+      }
+    },
+    [locale, refreshStoreData],
+  )
 
   const handleInstallRemote = useCallback(
     async (pluginId: string) => {
@@ -362,9 +427,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
       } catch (e) {
         setReloadMsgKind('error')
         setReloadMsg(
-          locale === 'de'
-            ? `Installation fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
-            : `Install failed: ${e instanceof Error ? e.message : String(e)}`,
+          `${t(locale, 'pluginInstallFailed')}: ${e instanceof Error ? e.message : String(e)}`,
         )
       } finally {
         setInstallingId(null)
@@ -382,22 +445,14 @@ export function PluginStoreModal({ open, onClose }: Props) {
           const row = remotePlugins.find((p) => p.id === pluginId)
           if (githubConfigured && row && !row.installed) {
             setReloadMsgKind('info')
-            setReloadMsg(
-              locale === 'de'
-                ? `„${row.name ?? pluginId}“ wird zuerst von GitHub installiert…`
-                : `Installing “${row.name ?? pluginId}” from GitHub first…`,
-            )
+            setReloadMsg(`„${row.name ?? pluginId}“ ${t(locale, 'pluginInstallFromGitHubFirst')}`)
             await handleInstallRemote(pluginId)
             plugin = pluginRegistry.get(pluginId)
           }
         }
         if (!plugin) {
           setReloadMsgKind('error')
-          setReloadMsg(
-            locale === 'de'
-              ? `Plugin „${pluginId}“ nicht geladen. Installieren → Strg+F5 → Hinzufügen.`
-              : `Plugin “${pluginId}” not loaded. Install → Ctrl+F5 → Add.`,
-          )
+          setReloadMsg(`Plugin „${pluginId}“ ${t(locale, 'pluginNotLoadedHint')}`)
           return
         }
         let nextY = 0
@@ -565,11 +620,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
                   {remotePlugins.length} {t(locale, 'pluginsCatalogAvailable')}
                 </span>
                 <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {allPlugins.length} {t(locale, 'pluginsInstalledLocal')}
+                  {allPlugins.length} {t(locale, 'pluginsStoreBadgeLoaded')}
                 </span>
                 {volumeOnly && (
                   <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                    {volumeInstalledIds.length} {locale === 'de' ? 'auf Platte' : 'on disk'}
+                    {volumeInstalledIds.length} {t(locale, 'pluginsStoreBadgeDownloaded')}
                   </span>
                 )}
                 {updatesCount > 0 && (
@@ -682,9 +737,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
             )}
             {volumeOnly && volumeInstalledIds.length > 0 && allPlugins.length === 0 && (
               <p className="text-xs mb-3" style={{ color: 'var(--accent)' }}>
-                {locale === 'de'
-                  ? 'Dateien auf der Platte, aber widget.js fehlt — Installieren oder ZIP, dann Strg+F5.'
-                  : 'Files on disk but widget.js missing — Install or ZIP, then Ctrl+F5.'}
+                {t(locale, 'pluginVolumeWidgetMissing')}
               </p>
             )}
             {filteredRows.length === 0 ? (
@@ -709,8 +762,10 @@ export function PluginStoreModal({ open, onClose }: Props) {
                     categoryLabel={categoryLabel}
                     reloadBusy={reloadBusy}
                     installingId={installingId}
+                    uninstallingId={uninstallingId}
                     added={added}
                     onInstall={(id) => void handleInstallRemote(id)}
+                    onUninstall={(id, name, onDash) => void handleUninstall(id, name, onDash)}
                     onAdd={(id) => void handleAdd(id)}
                   />
                 ))}
