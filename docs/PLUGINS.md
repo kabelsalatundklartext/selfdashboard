@@ -21,6 +21,16 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 
+### Updates von GitHub
+
+1. Maintainer erhöht `version` in `plugin.json` und pusht `plugins-pack/` (`npm run publish:plugin-pack`).
+2. SelfDashboard lädt `plugins-index.json` vom konfigurierten Branch (Cache ~5 Min.).
+3. Installierte Plugins: Vergleich **Version auf Platte** (`/app/plugins/custom/<id>/plugin.json`) mit **Version im Index**.
+4. Bei neuerer Version: **Hinweis-Leiste** unter der Navbar + orangener Punkt am **+** (Bearbeitungsmodus).
+5. **Aktualisieren** im Store oder **Alle aktualisieren** in der Leiste — lädt dieselben Dateien wie die Erstinstallation (überschreibt `plugin.json` + `widget.js`). Danach **Strg+F5**.
+
+ZIP-Plugins ohne GitHub-Eintrag werden nicht automatisch verglichen.
+
 **Mail & Kalender:** E-Mail ist ein Plugin (`mail`) — nach Installation erscheinen Navbar-Badge und Tab **E-Mail** in den Einstellungen. Kalender-Daten liegen weiter unter `/app/data/calendar/`.
 
 ---

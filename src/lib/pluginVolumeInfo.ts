@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getBuiltinPluginsRoot, getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
+import { parseManifestFromPath } from '@/lib/pluginScan'
 export function listInstalledVolumePluginIds(): string[] {
   return listCustomPluginDirs().filter((id) => hasVolumeFile(id, 'plugin.json'))
 }
@@ -21,6 +22,14 @@ export function customPluginDir(id: string): string {
 
 export function hasVolumeFile(id: string, file: string): boolean {
   return fs.existsSync(path.join(customPluginDir(id), file))
+}
+
+/** Version from installed `plugin.json` on the volume. */
+export function readInstalledPluginVersion(pluginId: string): string | null {
+  const manifestPath = path.join(customPluginDir(pluginId), 'plugin.json')
+  if (!fs.existsSync(manifestPath)) return null
+  const m = parseManifestFromPath(manifestPath, 'custom')
+  return m?.version ?? null
 }
 
 /** Custom `widget.js` replaces the built-in widget for this id (no image rebuild). */

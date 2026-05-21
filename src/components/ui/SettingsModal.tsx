@@ -19,6 +19,7 @@ import {
   hasAppSettingsPanel,
   subscribeAppSettingsPanels,
 } from '@/lib/pluginAppSettingsRegistry'
+import { WidgetErrorBoundary } from '@/components/plugins/WidgetErrorBoundary'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -176,6 +177,9 @@ export function SettingsModal({ open, onClose }: Props) {
     }
   }
 
+  useSyncExternalStore(subscribeAppSettingsPanels, getAppSettingsPanelsVersion, () => 0)
+  const appSettingsPanels = getAppSettingsPanels()
+
   if (!open) return null
 
   const currentTheme = themes.find((th) => th.id === dash.theme)
@@ -218,9 +222,6 @@ export function SettingsModal({ open, onClose }: Props) {
     color: 'var(--text)', borderRadius: '8px', padding: '8px 12px',
     fontSize: '13px', outline: 'none', width: '100%',
   }
-
-  useSyncExternalStore(subscribeAppSettingsPanels, getAppSettingsPanelsVersion, () => 0)
-  const appSettingsPanels = getAppSettingsPanels()
 
   const TABS: { id: TabId; label: string }[] = [
     { id: 'general', label: locale === 'de' ? 'Allgemein' : 'General' },
@@ -379,7 +380,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
                       <span style={{ fontSize: '13px', color: 'var(--text)' }}>{p.label[locale]}</span>
                       <Toggle
-                        value={navbarSearchProviders[p.id]}
+                        value={Boolean(navbarSearchProviders?.[p.id])}
                         onChange={(v) => setNavbarSearchProviderEnabled(p.id as SearchProviderId, v)}
                       />
                     </div>
@@ -918,19 +919,20 @@ export function SettingsModal({ open, onClose }: Props) {
                 )
               }
               return (
-                <Panel
-                  key={p.id}
-                  locale={locale}
-                  {...(p.id === 'mail'
-                    ? {
-                        onOpenProtocol: () => {
-                          setLogFilterPlugin('mail')
-                          setLogFilterSource('api')
-                          setTab('logs')
-                        },
-                      }
-                    : {})}
-                />
+                <WidgetErrorBoundary key={p.id} pluginId={p.id} instanceId="settings">
+                  <Panel
+                    locale={locale}
+                    {...(p.id === 'mail'
+                      ? {
+                          onOpenProtocol: () => {
+                            setLogFilterPlugin('mail')
+                            setLogFilterSource('api')
+                            setTab('logs')
+                          },
+                        }
+                      : {})}
+                  />
+                </WidgetErrorBoundary>
               )
             })}
 

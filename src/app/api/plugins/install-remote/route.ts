@@ -27,12 +27,14 @@ export async function POST(req: Request) {
   await reloadCustomPluginServers()
   const catalog = reloadPluginCatalog(getWidgetLoadedIdsForCatalog())
 
-  const hint = 'Von GitHub installiert.'
+  const hint =
+    'Plugin-Dateien von GitHub geladen. Hard-Reload (Strg+F5), damit widget.js neu startet.'
 
   return NextResponse.json({
     ...result,
     ok: true,
     hint,
     catalog,
+    reloadPage: true,
   })
 }

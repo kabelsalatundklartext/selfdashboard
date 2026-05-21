@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { fetchPluginVolumeInfo, loadVolumeWidgetScripts } from '@/lib/pluginCustomClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
+import { registerCorePluginSettingsPanels } from '@/lib/registerCorePluginSettings'
 
 let loaded = false
 
@@ -12,6 +13,7 @@ export function PluginBootstrap() {
     loaded = true
     void (async () => {
       installPluginExternalBridge()
+      registerCorePluginSettingsPanels()
       try {
         const info = await fetchPluginVolumeInfo()
         const customWidgets = info.customWidgetIds

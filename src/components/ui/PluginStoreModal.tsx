@@ -16,7 +16,12 @@ import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 
 interface Props { open: boolean; onClose: () => void }
 
-type RemotePluginRow = PluginMeta & { installed: boolean; files?: string[] }
+type RemotePluginRow = PluginMeta & {
+  installed: boolean
+  installedVersion?: string | null
+  updateAvailable?: boolean
+  files?: string[]
+}
 
 export function PluginStoreModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
@@ -34,6 +39,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [githubRef, setGithubRef] = useState('beta')
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
+  const [updatesCount, setUpdatesCount] = useState(0)
 
   const refreshStoreData = useCallback(async () => {
     try {
@@ -51,9 +57,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
         available?: RemotePluginRow[]
         repository?: string | null
         ref?: string | null
+        updatesCount?: number
       }
       setGithubConfigured(!!j.configured)
       setRemotePlugins(j.available ?? [])
+      setUpdatesCount(typeof j.updatesCount === 'number' ? j.updatesCount : 0)
       if (j.repository) setGithubRepo(j.repository)
       if (j.ref) setGithubRef(j.ref)
     } catch {
@@ -157,7 +165,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
         await refreshStoreData()
 
         setReloadMsgKind('success')
-        setReloadMsg(`✓ ${label} — ${t(locale, 'pluginInstallSuccess')}`)
+        const wasUpdate = remotePlugins.find((p) => p.id === pluginId)?.updateAvailable
+        setReloadMsg(
+          `✓ ${label} — ${wasUpdate ? t(locale, 'pluginUpdateSuccess') : t(locale, 'pluginInstallSuccess')}`,
+        )
+        window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
       } catch (e) {
         setReloadMsgKind('error')
         setReloadMsg(
@@ -284,6 +296,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
                 : `0 ${t(locale, 'pluginsCatalogAvailable')}`}
               {' · '}
               {allPlugins.length} {t(locale, 'pluginsInstalledLocal')}
+              {updatesCount > 0
+                ? ` · ${updatesCount} ${locale === 'de' ? 'Update(s)' : 'update(s)'}`
+                : ''}
               {volumeOnly ? ` · ${volumeInstalledIds.length} ${locale === 'de' ? 'auf Platte' : 'on disk'}` : ''}
             </p>
           </div>
@@ -382,7 +397,14 @@ export function PluginStoreModal({ open, onClose }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name ?? meta.id}</span>
-                        {meta.installed ? (
+                        {meta.updateAvailable ? (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full"
+                            style={{ background: '#f59e0b22', color: '#f59e0b', border: '1px solid #f59e0b55' }}
+                          >
+                            {t(locale, 'pluginUpdate')} v{meta.installedVersion ?? '?'} → v{meta.version ?? '?'}
+                          </span>
+                        ) : meta.installed ? (
                           <span
                             className="text-xs px-2 py-0.5 rounded-full"
                             style={{ background: 'var(--accent)22', color: 'var(--accent)', border: '1px solid var(--accent)44' }}
@@ -394,6 +416,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description ?? ''}</p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                         {categoryLabel(meta.category)} · v{meta.version ?? '?'}
+                        {meta.installed && meta.installedVersion && !meta.updateAvailable
+                          ? ` · ${locale === 'de' ? 'installiert' : 'installed'} v${meta.installedVersion}`
+                          : ''}
                       </p>
                     </div>
                     <div className="flex flex-col gap-2 shrink-0">
@@ -408,11 +433,15 @@ export function PluginStoreModal({ open, onClose }: Props) {
                         <ExternalLink size={13} />
                         {t(locale, 'pluginReadme')}
                       </a>
-                      {!meta.installed ? (
+                      {meta.updateAvailable || !meta.installed ? (
                         <button
                           type="button"
                           className="btn-accent"
-                          title={t(locale, 'installPluginHint')}
+                          title={
+                            meta.updateAvailable
+                              ? t(locale, 'pluginUpdate')
+                              : t(locale, 'installPluginHint')
+                          }
                           disabled={reloadBusy}
                           onClick={(e) => {
                             e.stopPropagation()
@@ -423,6 +452,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
                             <>
                               <RefreshCw size={14} className="animate-spin" />
                               {t(locale, 'pluginInstallBusy')}
+                            </>
+                          ) : meta.updateAvailable ? (
+                            <>
+                              <RefreshCw size={14} />
+                              {t(locale, 'pluginUpdate')}
                             </>
                           ) : (
                             <>

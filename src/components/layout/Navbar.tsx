@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
@@ -47,6 +47,28 @@ export function Navbar() {
   const isLight = dash.theme === 'light'
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [storeOpen, setStoreOpen] = useState(false)
+  const [pluginUpdatesPending, setPluginUpdatesPending] = useState(0)
+
+  useEffect(() => {
+    const refreshUpdates = async () => {
+      try {
+        const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
+        const j = (await res.json()) as { updatesCount?: number }
+        setPluginUpdatesPending(typeof j.updatesCount === 'number' ? j.updatesCount : 0)
+      } catch {
+        setPluginUpdatesPending(0)
+      }
+    }
+    const onOpenStore = () => setStoreOpen(true)
+    void refreshUpdates()
+    const onCatalog = () => void refreshUpdates()
+    window.addEventListener('sd-plugin-catalog-changed', onCatalog)
+    window.addEventListener('sd-open-plugin-store', onOpenStore)
+    return () => {
+      window.removeEventListener('sd-plugin-catalog-changed', onCatalog)
+      window.removeEventListener('sd-open-plugin-store', onOpenStore)
+    }
+  }, [])
 
   const showIcon = navbarStyle !== 'text-only'
   const showText = navbarStyle !== 'icon-only'
@@ -165,9 +187,31 @@ export function Navbar() {
               {editMode ? <><Check size={14} />{!navbarPhone && (locale === 'de' ? 'Fertig' : 'Done')}</> : <Pencil size={navbarPhone ? 16 : 15} />}
             </button>
             {editMode && (
-              <button className="btn-accent" style={{ padding: '7px 10px' }}
-                onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
+              <button
+                className="btn-accent"
+                style={{ padding: '7px 10px', position: 'relative' }}
+                onClick={() => setStoreOpen(true)}
+                title={
+                  pluginUpdatesPending > 0
+                    ? t(locale, 'pluginUpdatesBadgeTitle')
+                    : t(locale, 'addPlugin')
+                }
+              >
                 <Plus size={17} />
+                {pluginUpdatesPending > 0 ? (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#f59e0b',
+                      border: '2px solid var(--surface)',
+                    }}
+                  />
+                ) : null}
               </button>
             )}
             <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => setSettingsOpen(true)}>

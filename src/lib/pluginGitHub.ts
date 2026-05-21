@@ -7,7 +7,8 @@ import type { PluginCategory } from '@/types'
 
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
 
-import { listInstalledVolumePluginIds } from '@/lib/pluginVolumeInfo'
+import { listInstalledVolumePluginIds, readInstalledPluginVersion } from '@/lib/pluginVolumeInfo'
+import { isPluginUpdateAvailable } from '@/lib/pluginVersion'
 
 
 
@@ -306,6 +307,12 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
 
 
+export type RemoteCatalogPlugin = GitHubPluginIndexEntry & {
+  installed: boolean
+  installedVersion: string | null
+  updateAvailable: boolean
+}
+
 export async function listRemoteCatalogWithInstallState(): Promise<{
 
   configured: boolean
@@ -316,7 +323,9 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
 
   ref: string | null
 
-  available: (GitHubPluginIndexEntry & { installed: boolean })[]
+  updatesCount: number
+
+  available: RemoteCatalogPlugin[]
 
 }> {
 
@@ -324,21 +333,29 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
 
   if (!cfg) {
 
-    return { configured: false, indexUrl: null, repository: null, ref: null, available: [] }
+    return { configured: false, indexUrl: null, repository: null, ref: null, updatesCount: 0, available: [] }
 
   }
 
   const index = await fetchGitHubPluginIndex()
 
-  const installed = new Set(listInstalledVolumePluginIds())
+  const installedIds = new Set(listInstalledVolumePluginIds())
 
-  const available = (index?.plugins ?? []).map((p) => ({
+  const available: RemoteCatalogPlugin[] = (index?.plugins ?? []).map((p) => {
+    const installed = installedIds.has(p.id)
+    const installedVersion = installed ? readInstalledPluginVersion(p.id) : null
+    const remoteVersion = String(p.version ?? '0.0.0')
+    const updateAvailable =
+      installed && isPluginUpdateAvailable(installedVersion, remoteVersion)
+    return {
+      ...p,
+      installed,
+      installedVersion,
+      updateAvailable,
+    }
+  })
 
-    ...p,
-
-    installed: installed.has(p.id),
-
-  }))
+  const updatesCount = available.filter((p) => p.updateAvailable).length
 
   return {
 
@@ -350,10 +367,17 @@ export async function listRemoteCatalogWithInstallState(): Promise<{
 
     ref: cfg.ref,
 
+    updatesCount,
+
     available,
 
   }
 
+}
+
+/** Re-install plugin files from GitHub (same as fresh install — overwrites volume files). */
+export async function updatePluginFromGitHub(pluginId: string) {
+  return installPluginFromGitHub(pluginId)
 }
 
 
