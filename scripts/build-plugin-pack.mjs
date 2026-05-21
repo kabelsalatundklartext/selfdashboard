@@ -118,6 +118,16 @@ exports.Fragment = R.Fragment;
           loader: 'js',
         }
       }
+      if (args.path === 'react-dom' || args.path.startsWith('react-dom/')) {
+        return {
+          contents: `
+const rd = globalThis.SelfDashboard?.ReactDOM;
+if (!rd?.createPortal) throw new Error('SelfDashboard.ReactDOM missing — reload page');
+module.exports = { createPortal: rd.createPortal, default: rd };
+`.trim(),
+          loader: 'js',
+        }
+      }
       return {
         contents: 'module.exports = globalThis.SelfDashboard.React',
         loader: 'js',
@@ -158,9 +168,11 @@ async function bundleWidget(pluginId, destDir) {
     format: 'iife',
     platform: 'browser',
     target: 'es2020',
+    absWorkingDir: root,
+    nodePaths: [path.join(root, 'node_modules')],
     jsx: 'automatic',
     banner: {
-      js: "if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');",
+      js: "if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');",
     },
     alias: { '@': path.join(root, 'src') },
     loader: { '.tsx': 'tsx', '.ts': 'ts', '.svg': 'file' },

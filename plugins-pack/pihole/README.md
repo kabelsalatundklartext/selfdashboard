@@ -1,0 +1,13 @@
+# Plugin: Pi-hole (`pihole`)
+
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
+
+## Deutsch
+
+Pi-hole-v6-Statistik (Anfragen, blockiert, Anteil, Listen). Blocking per Klick. API-URL und App-Passwort in den Einstellungen.
+
+**API:** `/api/pihole`
+
+## English
+
+Pi-hole v6 style dashboard stats. Toggle blocking from the widget. Configure API URL and password.

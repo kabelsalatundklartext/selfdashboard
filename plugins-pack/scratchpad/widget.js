@@ -1,4 +1,4 @@
-if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');
+if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');
 "use strict";
 (() => {
   var __create = Object.create;
@@ -37,7 +37,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   // sd-react:react-dom
   var require_react_dom = __commonJS({
     "sd-react:react-dom"(exports, module) {
-      module.exports = globalThis.SelfDashboard.React;
+      var rd = globalThis.SelfDashboard?.ReactDOM;
+      if (!rd?.createPortal) throw new Error("SelfDashboard.ReactDOM missing \u2014 reload page");
+      module.exports = { createPortal: rd.createPortal, default: rd };
     }
   });
 

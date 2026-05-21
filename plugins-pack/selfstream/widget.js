@@ -1,4 +1,4 @@
-if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');
+if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');
 "use strict";
 (() => {
   var __create = Object.create;
