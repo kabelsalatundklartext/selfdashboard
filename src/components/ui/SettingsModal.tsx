@@ -42,8 +42,9 @@ const EMOJIS = ['🏠', '🖥️', '🎬', '📊', '🌐', '🔒', '☁️', '�
 
 type TabId = 'general' | 'dashboards' | 'design' | 'mail' | 'logs' | string
 
-/** Fixed width so tabs (Protokoll is widest) do not resize the modal when switching. */
+/** Fixed size so tabs (Protokoll is largest) do not resize the modal when switching. */
 const SETTINGS_MODAL_WIDTH = '720px'
+const SETTINGS_MODAL_HEIGHT = 'min(88vh, 780px)'
 
 const RETENTION_OPTIONS: { days: LogRetentionDays; label: { de: string; en: string } }[] = [
   { days: 3, label: { de: '3 Tage', en: '3 days' } },
@@ -242,9 +243,19 @@ export function SettingsModal({ open, onClose }: Props) {
       <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)' }} onClick={onClose} />
         <div className="animate-fade-in" style={{
-          position: 'relative', width: `min(${SETTINGS_MODAL_WIDTH}, 100%)`, maxWidth: SETTINGS_MODAL_WIDTH,
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '18px', display: 'flex',
-          flexDirection: 'column', maxHeight: '88vh', boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
+          position: 'relative',
+          width: `min(${SETTINGS_MODAL_WIDTH}, 100%)`,
+          maxWidth: SETTINGS_MODAL_WIDTH,
+          height: SETTINGS_MODAL_HEIGHT,
+          minHeight: SETTINGS_MODAL_HEIGHT,
+          maxHeight: SETTINGS_MODAL_HEIGHT,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: '18px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.5)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 0', flexShrink: 0 }}>
             <h2 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>{t(locale, 'settingsTitle')}</h2>
@@ -263,7 +274,7 @@ export function SettingsModal({ open, onClose }: Props) {
             ))}
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
             {/* ── Allgemein ── */}
             {tab === 'general' && (<>

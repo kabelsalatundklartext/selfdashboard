@@ -1116,7 +1116,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "unraid",
     name: "Unraid",
     description: "System-\xDCbersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1\u2212verf\xFCgbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
-    version: "1.5.3",
+    version: "1.5.4",
     author: "SelfDashboard",
     category: "system",
     icon: "\u{1F5A5}\uFE0F",
@@ -1168,6 +1168,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       fsFree
       fsUsed
       type
+      fsType
+      comment
     }
     caches {
       id
@@ -1178,6 +1180,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       fsFree
       fsUsed
       type
+      fsType
+      comment
     }
   }
 }`;
@@ -1256,6 +1260,30 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     };
     const map = de ? mapDe : mapEn;
     return map[t] ?? t;
+  }
+  function parsePoolDiskLabelMode(v) {
+    const s = String(v ?? "fsType").trim();
+    if (s === "off" || s === "cache" || s === "fsType" || s === "comment") return s;
+    return "fsType";
+  }
+  function fsTypeLabel(fsType) {
+    const t = fsType?.trim();
+    if (!t) return "";
+    return t.toUpperCase();
+  }
+  function poolDiskSecondaryLabel(disk, mode, de) {
+    switch (mode) {
+      case "off":
+        return "";
+      case "cache":
+        return diskTypeLabel(disk.diskType, de);
+      case "fsType":
+        return fsTypeLabel(disk.fsType);
+      case "comment":
+        return disk.comment?.trim() ?? "";
+      default:
+        return "";
+    }
   }
   function arrayHeading(state, locale) {
     const raw = (state ?? "").trim();
@@ -1394,10 +1422,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       }
     );
   }
-  function DiskVolumeRow({ disk, de }) {
+  function DiskVolumeRow({
+    disk,
+    de,
+    poolLabelMode
+  }) {
     const used = Math.max(0, disk.fsSize - disk.fsFree);
     const p = pct(used, disk.fsSize);
-    const kind = diskTypeLabel(disk.diskType, de);
+    const kind = poolLabelMode !== void 0 ? poolDiskSecondaryLabel(disk, poolLabelMode, de) : diskTypeLabel(disk.diskType, de);
     const title = [disk.name, kind, formatDiskStatus(disk.status, de)].filter(Boolean).join(" \u2014 ");
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
@@ -1495,7 +1527,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       temp: Math.round(num(raw.temp)),
       fsSize: num(raw.fsSize),
       fsFree: num(raw.fsFree),
-      diskType: raw.type ? String(raw.type) : void 0
+      diskType: raw.type ? String(raw.type) : void 0,
+      fsType: raw.fsType ? String(raw.fsType) : void 0,
+      comment: raw.comment ? String(raw.comment).trim() : void 0
     };
   }
   function mapResponse(d) {
@@ -1606,6 +1640,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const showPoolsTotal = flag(config, "showPoolsTotal");
     const showPoolsDisks = flag(config, "showPoolsDisks");
     const ramMode = parseRamDisplayMode(config.ramDisplayMode);
+    const poolLabelMode = parsePoolDiskLabelMode(config.poolDiskLabelMode);
     const fetch_ = (0, import_react2.useCallback)(async () => {
       if (!url || !apiKey) {
         setLoading(false);
@@ -1718,7 +1753,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       showPools && poolDisks.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Heading, { text: de ? "Pools / Cache" : "Pools / cache" }),
         showPoolsTotal && poolAgg.total > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, { label: de ? "Gesamt (Cache)" : "Total (cache)", value: `${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`, bar: true, pct: poolPct }),
-        showPoolsDisks && poolDisks.map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de }, disk.id))
+        showPoolsDisks && poolDisks.map((disk) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DiskVolumeRow, { disk, de, poolLabelMode }, disk.id))
       ] })
     ] });
   }
@@ -1835,7 +1870,25 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               onToggle: () => onChange("showPoolsTotal", !sub("showPoolsTotal"))
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToggleRow, { label: de ? "Einzelne Cache-Disks" : "Individual cache disks", on: sub("showPoolsDisks"), onToggle: () => onChange("showPoolsDisks", !sub("showPoolsDisks")) })
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToggleRow, { label: de ? "Einzelne Cache-Disks" : "Individual cache disks", on: sub("showPoolsDisks"), onToggle: () => onChange("showPoolsDisks", !sub("showPoolsDisks")) }),
+          sub("showPoolsDisks") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: "4px" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }, children: de ? "Zusatzlabel (in Klammern)" : "Suffix label (in parentheses)" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+              "select",
+              {
+                style: { ...inp, cursor: "pointer" },
+                value: parsePoolDiskLabelMode(config.poolDiskLabelMode),
+                onChange: (e) => onChange("poolDiskLabelMode", e.target.value),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "off", children: de ? "Aus \u2014 nur Poolname" : "Off \u2014 pool name only" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "fsType", children: de ? "Dateisystem (fsType)" : "Filesystem (fsType)" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "cache", children: de ? "Cache-Typ (API type)" : "Cache type (API type)" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "comment", children: de ? "Kommentar (falls gesetzt)" : "Comment (if set)" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.45, margin: "8px 0 0" }, children: de ? "z. B. nvme-raid (ZFS). Allocation Profile liefert die GraphQL-API derzeit nicht \u2014 fsType ist meist die beste Alternative." : "e.g. nvme-raid (ZFS). Allocation profile is not in the GraphQL API yet \u2014 fsType is usually the best alternative." })
+          ] })
         ] })
       ] }),
       sub("showRam") && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
