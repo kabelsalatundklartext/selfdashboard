@@ -1,20 +1,51 @@
-# Plugin: FRITZ!Box Internet (`fritzbox`)
+# Plugin: FRITZ!Box WAN (`fritzbox`)
 
 [← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 
-WAN-Durchsatz-Kurve per **TR-064** (kein Extra-Dienst auf der Box).
+### Kurzbeschreibung
+
+**WAN-Durchsatz-Kurve** (Mbit/s) per **TR-064** — kein Extra-Dienst auf der Box.
+
+### Einrichtung (⚙️)
 
 | Thema | Details |
 |-------|---------|
-| **API** | `POST /api/fritzbox` |
-| **Auth** | TR-064-Benutzer + Passwort, optional selbstsigniertes HTTPS |
-| **Intervall** | 0–300 s voller Abruf; **Zähler-Takt** 3–15 s für flüssigere Kurve |
-| **Cache** | Kurve im Browser-`localStorage` (bis 7 Tage) |
-| **Layout** | Vertikal oder horizontal (breites Widget) |
-| **Y-Achse** | Auto oder festes Mbit/s-Maximum |
+| **URL / Login** | TR-064-Benutzer |
+| **Intervall** | 0–300 s; Zähler-Takt 3–15 s |
+| **Cache** | `localStorage`, bis 7 Tage |
+| **Layout** | Vertikal/horizontal, Y-Achse auto/fest |
+
+### API
+
+`POST /api/fritzbox` — optional `lite: true`
+
+### Fehlerbehebung
+
+Login → TR-064-Benutzer, 2FA oft problematisch.
+
+---
 
 ## English
 
-Live WAN throughput chart via TR-064. Configure URL, credentials, refresh interval, and display options in the widget settings.
+### Summary
+
+**WAN throughput chart** (Mbit/s) via **TR-064** — no extra service on the box.
+
+### Setup (⚙️)
+
+| Topic | Details |
+|-------|---------|
+| **URL / login** | TR-064 user |
+| **Interval** | 0–300 s; counter tick 3–15 s |
+| **Cache** | `localStorage`, up to 7 days |
+| **Layout** | Vertical/horizontal, Y-axis auto/fixed |
+
+### API
+
+`POST /api/fritzbox` — optional `lite: true`
+
+### Troubleshooting
+
+Login → TR-064 user; 2FA often blocks TR-064.

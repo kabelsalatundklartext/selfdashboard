@@ -1482,15 +1482,43 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     criminalip: true
   };
 
-  // ../plugins/crowdsec/CrowdsecWidget.tsx
-  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
-  var TIME_RANGES = [
+  // ../plugins/crowdsec/presets.ts
+  var DAY_RANGE_PRESETS = [
     { days: 1, de: "1 Tag", en: "1 day" },
     { days: 7, de: "7 Tage", en: "7 days" },
     { days: 30, de: "30 Tage", en: "30 days" },
     { days: 90, de: "90 Tage", en: "90 days" },
-    { days: 365, de: "365 Tage", en: "365 days" }
+    { days: 365, de: "1 Jahr", en: "1 year" },
+    { days: 730, de: "2 Jahre", en: "2 years" },
+    { days: 1825, de: "5 Jahre", en: "5 years" },
+    { days: 3650, de: "10 Jahre", en: "10 years" },
+    { days: 0, de: "Alle", en: "All" }
   ];
+  var MAX_ALERT_PRESETS = [
+    { value: 500, de: "500", en: "500" },
+    { value: 1e3, de: "1.000", en: "1,000" },
+    { value: 2e3, de: "2.000", en: "2,000" },
+    { value: 5e3, de: "5.000", en: "5,000" },
+    { value: 1e4, de: "10.000", en: "10,000" },
+    { value: 0, de: "Alle", en: "All" }
+  ];
+  var DAY_PRESET_VALUES = DAY_RANGE_PRESETS.map((p) => p.days);
+  function nearestDayPreset(days) {
+    const presets = DAY_PRESET_VALUES;
+    if (presets.some((d) => d === days)) return days;
+    if (days <= 0) return 0;
+    const positive = presets.filter((d) => d > 0);
+    return positive.reduce((best, d) => Math.abs(d - days) < Math.abs(best - days) ? d : best, 30);
+  }
+  function nearestMaxAlerts(value) {
+    const presets = MAX_ALERT_PRESETS.map((p) => p.value);
+    if (presets.some((v) => v === value)) return value;
+    if (value <= 0) return 0;
+    return presets.reduce((best, v) => v > 0 && Math.abs(v - value) < Math.abs(best - value) ? v : best, 2e3);
+  }
+
+  // ../plugins/crowdsec/CrowdsecWidget.tsx
+  var import_jsx_runtime4 = __toESM(require_jsx_runtime());
   function cfgBool(v, fallback) {
     if (v === void 0 || v === null || v === "") return fallback;
     if (v === true || v === "true" || v === 1 || v === "1") return true;
@@ -1515,10 +1543,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     }
     return {
       dbPath: cfgStr(raw.dbPath, "/crowdsec-data/crowdsec.db"),
-      daysBack: Math.min(3650, Math.max(1, cfgNum(raw.daysBack, 30))),
+      daysBack: nearestDayPreset(cfgNum(raw.daysBack, 30)),
       refreshSeconds: Math.min(600, Math.max(5, cfgNum(raw.refreshSeconds, 30))),
       statsHours: Math.min(168, Math.max(1, cfgNum(raw.statsHours, 1))),
-      maxAlerts: Math.min(5e3, Math.max(50, cfgNum(raw.maxAlerts, 2e3))),
+      maxAlerts: nearestMaxAlerts(cfgNum(raw.maxAlerts, 2e3)),
       dockerUnban: cfgBool(raw.dockerUnban, false),
       crowdsecContainer: cfgStr(raw.crowdsecContainer, "crowdsec"),
       confirmUnban: cfgBool(raw.confirmUnban, true),
@@ -1557,16 +1585,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     ].join(" ").toLowerCase();
     return hay.includes(q);
   }
-  function nearestRange(days) {
-    const presets = TIME_RANGES.map((t) => t.days);
-    if (presets.some((d) => d === days)) return days;
-    return presets.reduce((best, d) => Math.abs(d - days) < Math.abs(best - days) ? d : best, 30);
-  }
   function CrowdsecWidget({ config: raw, locale, layoutMode = "desktop", theme = "dark" }) {
     const de = locale !== "en";
     const cfg = (0, import_react7.useMemo)(() => parseCrowdsecConfig(raw), [raw]);
     const layoutClass = layoutMode === "phone" ? "cs-layout-phone" : layoutMode === "tablet" ? "cs-layout-tablet" : "";
-    const [daysBack, setDaysBack] = (0, import_react7.useState)(() => nearestRange(cfg.daysBack));
     const [data, setData] = (0, import_react7.useState)(null);
     const [error, setError] = (0, import_react7.useState)(null);
     const [loading, setLoading] = (0, import_react7.useState)(true);
@@ -1578,9 +1600,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const [unbanPending, setUnbanPending] = (0, import_react7.useState)(null);
     const [unbanBusy, setUnbanBusy] = (0, import_react7.useState)(false);
     const [unbanMsg, setUnbanMsg] = (0, import_react7.useState)(null);
-    (0, import_react7.useEffect)(() => {
-      setDaysBack(nearestRange(cfg.daysBack));
-    }, [cfg.daysBack]);
     const lookupServices = (0, import_react7.useMemo)(
       () => LOOKUP_SERVICES.filter((s) => cfg.lookupEnabled[s.id]),
       [cfg.lookupEnabled]
@@ -1588,7 +1607,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const fetchData = (0, import_react7.useCallback)(async () => {
       const params = new URLSearchParams({
         dbPath: cfg.dbPath,
-        daysBack: String(daysBack),
+        daysBack: String(cfg.daysBack),
         statsHours: String(cfg.statsHours),
         maxAlerts: String(cfg.maxAlerts)
       });
@@ -1613,7 +1632,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       } finally {
         setLoading(false);
       }
-    }, [cfg.dbPath, cfg.statsHours, cfg.maxAlerts, daysBack]);
+    }, [cfg.dbPath, cfg.daysBack, cfg.statsHours, cfg.maxAlerts]);
     (0, import_react7.useEffect)(() => {
       setLoading(true);
       void fetchData();
@@ -1627,16 +1646,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       return data.feed;
     }, [data, tab]);
     const filteredFeed = (0, import_react7.useMemo)(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q]);
-    const rangeSelect = /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "select",
-      {
-        className: "cs-range-select",
-        value: daysBack,
-        onChange: (e) => setDaysBack(Number(e.target.value)),
-        "aria-label": de ? "Zeitraum" : "Time range",
-        children: TIME_RANGES.map((r) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("option", { value: r.days, children: de ? r.de : r.en }, r.days))
-      }
-    );
     const errLabel = (code) => {
       const map = de ? {
         db_not_found: "crowdsec.db nicht gefunden \u2014 Pfad und Volume pr\xFCfen.",
@@ -1748,10 +1757,6 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                   }
                 )
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "cs-range-mobile", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-range-label", children: de ? "Zeitraum" : "Time range" }),
-                rangeSelect
-              ] }),
               data && (cfg.showCountriesList || tab === "countries") && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                 "section",
                 {
@@ -1768,11 +1773,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                   }) })
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "cs-range-wrap", children: [
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-range-label", children: de ? "Zeitraum" : "Time range" }),
-                rangeSelect,
-                data?.geoip && !data.geoip.enabled && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "cs-geoip-hint", children: de ? "GeoIP: GeoLite2-*.mmdb fehlt im CrowdSec-Ordner (L\xE4nder/Flaggen)." : "GeoIP: GeoLite2-*.mmdb missing in CrowdSec data folder (countries/flags)." })
-              ] })
+              data?.geoip && !data.geoip.enabled && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("section", { className: "cs-range-wrap", children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { className: "cs-geoip-hint", children: de ? "GeoIP: GeoLite2-*.mmdb fehlt im CrowdSec-Ordner (L\xE4nder/Flaggen)." : "GeoIP: GeoLite2-*.mmdb missing in CrowdSec data folder (countries/flags)." }) })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("section", { className: "cs-feed-panel", children: [
               /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("header", { className: "cs-feed-toolbar", children: [
@@ -1928,7 +1929,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "crowdsec",
     name: "CrowdSec",
     description: "Kompaktes CrowdSec-Dashboard aus crowdsec.db: \xDCbersicht, Banns, L\xE4nder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.",
-    version: "1.3.4",
+    version: "1.3.6",
     author: "SelfDashboard",
     category: "security",
     icon: "\u{1F6E1}\uFE0F",
@@ -1958,15 +1959,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         )
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "cs-settings-row", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: de ? "Tage zur\xFCck" : "Days back" }),
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: de ? "Zeitraum (Alerts aus DB)" : "Time range (alerts from DB)" }),
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "input",
+          "select",
           {
-            type: "number",
-            min: 1,
-            max: 3650,
             value: cfg.daysBack,
-            onChange: (e) => onChange("daysBack", Number(e.target.value))
+            onChange: (e) => onChange("daysBack", Number(e.target.value)),
+            children: DAY_RANGE_PRESETS.map((p) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: p.days, children: de ? p.de : p.en }, p.days))
           }
         )
       ] }),
@@ -1998,17 +1997,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "cs-settings-row", children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: de ? "Max. Alerts aus DB" : "Max alerts from DB" }),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "input",
-          {
-            type: "number",
-            min: 50,
-            max: 5e3,
-            value: cfg.maxAlerts,
-            onChange: (e) => onChange("maxAlerts", Number(e.target.value))
-          }
-        )
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("select", { value: cfg.maxAlerts, onChange: (e) => onChange("maxAlerts", Number(e.target.value)), children: MAX_ALERT_PRESETS.map((p) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("option", { value: p.value, children: de ? p.de : p.en }, p.value)) })
       ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("p", { style: { fontSize: 11, color: "var(--text-muted)", margin: "4px 0 0", lineHeight: 1.45 }, children: de ? "\u201EAlle\u201C beim Zeitraum = gesamte Datenbank. \u201EAlle\u201C bei Max. Alerts = kein LIMIT (kann bei sehr gro\xDFen DBs l\xE4nger laden)." : "\u201CAll\u201D time range = entire database. \u201CAll\u201D max alerts = no LIMIT (large DBs may load slower)." }),
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("label", { className: "cs-settings-row", style: { flexDirection: "row", alignItems: "center", gap: 8 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
           "input",

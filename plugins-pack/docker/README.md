@@ -4,32 +4,54 @@
 
 ## Deutsch
 
+### Kurzbeschreibung
+
+Container auf **demselben Host** wie SelfDashboard — optional **CPU/RAM** (wie `docker stats`) und **Start/Stopp/Restart** mit Bestätigung.
+
 ### Voraussetzung
 
-Docker-Socket mounten: Host `/var/run/docker.sock` → Container `/var/run/docker.sock` (read-only reicht oft). Unraid-Template: **Docker Socket** + ggf. `--group-add=281`.
+**Docker Socket:** `/var/run/docker.sock` → Container (Unraid: Template **Docker Socket**, ggf. `--group-add=281`).
 
-Nur Container auf **demselben Host** wie SelfDashboard — kein Remote-Docker über Socket.
+**Kein Remote-Docker** über den Socket.
 
-### Funktionen
+### Einstellungen (⚙️)
 
-- Liste laufender Container
-- Optional **Start / Stopp / Neustart** (zweistufige Bestätigung) — wer das Dashboard öffnet, kann steuern
-- **CPU & RAM** optional (`docker stats`-ähnlich)
-
-### Einstellungen im Plugin
-
-Master **Buttons**, **Docker-Stats**, einzeln **CPU** / **RAM**, optional **CPU/RAM als Balken**.
+Master **Buttons**, **Stats**, **CPU/RAM**, optional Balken.
 
 ### API
 
-`GET/POST /api/docker-containers` — Stats mit `?stats=1`.
+`GET /api/docker-containers?stats=1`, `POST /api/docker-container-stats`
 
-### Fehler
+RAM ab Kern/Plugin 1.7.9: Working Set minus Page-Cache (wie CLI).
 
-**EACCES** auf Socket: GID prüfen (`stat -c '%g' /var/run/docker.sock` auf dem Host).
+### Fehlerbehebung
+
+**EACCES** → Socket-GID prüfen. Leere Liste → Socket gemountet?
 
 ---
 
 ## English
 
-Requires local Docker socket mount. Lists containers on the same host only. Optional start/stop/restart with confirmation. CPU/RAM stats optional. See Unraid template **Docker Socket** entry.
+### Summary
+
+Containers on the **same host** as SelfDashboard — optional **CPU/RAM** (like `docker stats`) and **start/stop/restart** with confirmation.
+
+### Requirement
+
+**Docker socket:** `/var/run/docker.sock` → container (Unraid: **Docker Socket** template, often `--group-add=281`).
+
+**No remote Docker** over the socket.
+
+### Settings (⚙️)
+
+Master **buttons**, **stats**, **CPU/RAM**, optional bars.
+
+### API
+
+`GET /api/docker-containers?stats=1`, `POST /api/docker-container-stats`
+
+RAM (core/plugin 1.7.9+): working set minus page cache (CLI-aligned).
+
+### Troubleshooting
+
+**EACCES** → check socket GID. Empty list → socket mounted?

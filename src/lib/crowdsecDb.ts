@@ -184,9 +184,14 @@ function countAlertsSince(db: Database.Database, cutoffUnix: number): number {
   const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
   const names = new Set(cols.map((c) => c.name))
   if (!names.has('created_at')) return 0
-  const row = db
-    .prepare('SELECT COUNT(*) AS c FROM alerts a WHERE a.created_at >= ? AND a.scenario IS NOT NULL AND TRIM(a.scenario) != \'\' AND TRIM(a.scenario) != \'unknown\'')
-    .get(cutoffUnix) as { c: number } | undefined
+  const base =
+    "a.scenario IS NOT NULL AND TRIM(a.scenario) != '' AND TRIM(a.scenario) != 'unknown'"
+  const row =
+    cutoffUnix > 0
+      ? (db
+          .prepare(`SELECT COUNT(*) AS c FROM alerts a WHERE a.created_at >= ? AND ${base}`)
+          .get(cutoffUnix) as { c: number } | undefined)
+      : (db.prepare(`SELECT COUNT(*) AS c FROM alerts a WHERE ${base}`).get() as { c: number } | undefined)
   return Number(row?.c ?? 0)
 }
 
@@ -236,8 +241,12 @@ function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: strin
       ? `(SELECT e.serialized FROM events e WHERE e.alert_events = a.id ORDER BY e.id DESC LIMIT 1)`
       : 'NULL'
 
-  const whereParts = ['a.created_at >= ?', "TRIM(COALESCE(a.scenario, '')) != ''", "TRIM(a.scenario) != 'unknown'"]
-  const params: number[] = [cutoffUnix]
+  const whereParts = ["TRIM(COALESCE(a.scenario, '')) != ''", "TRIM(a.scenario) != 'unknown'"]
+  const params: number[] = []
+  if (cutoffUnix > 0) {
+    whereParts.unshift('a.created_at >= ?')
+    params.push(cutoffUnix)
+  }
 
   const sql = `
 SELECT
@@ -289,10 +298,13 @@ export async function loadCrowdsecDashboard(
   dbPath: string,
   opts: CrowdsecDbOptions = {},
 ): Promise<CrowdsecDashboardData> {
-  const daysBack = Math.min(3650, Math.max(1, opts.daysBack ?? 30))
-  const maxAlerts = Math.min(5000, Math.max(50, opts.maxAlerts ?? 2000))
+  const daysBackRaw = opts.daysBack ?? 30
+  const daysBack = daysBackRaw === 0 ? 0 : Math.min(3650, Math.max(1, daysBackRaw))
+  const maxAlertsRaw = opts.maxAlerts ?? 2000
+  const maxAlerts = maxAlertsRaw === 0 ? 0 : Math.min(50_000, Math.max(50, maxAlertsRaw))
   const statsHours = Math.min(168, Math.max(1, opts.statsHours ?? 1))
-  const cutoffUnix = Math.floor((Date.now() - daysBack * 86400_000) / 1000)
+  const cutoffUnix =
+    daysBack === 0 ? 0 : Math.floor((Date.now() - daysBack * 86400_000) / 1000)
   const statsCutoffUnix = Math.floor((Date.now() - statsHours * 3600_000) / 1000)
 
   const geoip = await createGeoipLookup()
@@ -304,7 +316,11 @@ export async function loadCrowdsecDashboard(
     const activeBans = countActiveDecisions(db)
 
     const { sql, params } = buildAlertsSql(db, cutoffUnix)
-    const rows = db.prepare(`${sql}\nLIMIT ?`).all(...params, maxAlerts) as AlertRow[]
+    const rows = (
+      maxAlerts > 0
+        ? db.prepare(`${sql}\nLIMIT ?`).all(...params, maxAlerts)
+        : db.prepare(sql).all(...params)
+    ) as AlertRow[]
     const feed: CrowdsecFeedItem[] = []
     const feedSeen = new Set<string>()
     const countryMap = new Map<string, number>()

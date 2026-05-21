@@ -20,7 +20,8 @@ Plugin installieren → optional Mount **`/crowdsec-data`** → Widget **⚙️*
 |-------|---------|
 | **DB** | `crowdsec.db` read-only |
 | **Mount** | Host → `/crowdsec-data` |
-| **Zeitraum** | 1 / 7 / 30 / 90 / 365 Tage |
+| **Zeitraum** | 1 / 7 / 30 / 90 Tage, **1 / 2 / 5 / 10 Jahre**, **Alle** (gesamte DB) |
+| **Max. Alerts** | 500 … 10.000 oder **Alle** (kein SQL-LIMIT) |
 | **GeoIP** | `GeoLite2-*.mmdb` im Mount oder `CROWDSEC_GEOIP_PATH` |
 
 ### Entsperren (optional)
@@ -59,7 +60,8 @@ Install plugin → optional mount **`/crowdsec-data`** → widget **⚙️**.
 |-------|---------|
 | **DB** | `crowdsec.db` read-only |
 | **Mount** | Host → `/crowdsec-data` |
-| **Range** | 1 / 7 / 30 / 90 / 365 days |
+| **Range** | 1 / 7 / 30 / 90 days, **1 / 2 / 5 / 10 years**, **All** (entire DB) |
+| **Max alerts** | 500 … 10,000 or **All** (no SQL LIMIT) |
 | **GeoIP** | `GeoLite2-*.mmdb` in mount or `CROWDSEC_GEOIP_PATH` |
 
 ### Unban (optional)
