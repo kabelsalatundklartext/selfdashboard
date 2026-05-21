@@ -1,6 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { getBuiltinPluginsRoot, getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
+export function listInstalledVolumePluginIds(): string[] {
+  return listCustomPluginDirs().filter((id) => hasVolumeFile(id, 'plugin.json'))
+}
+
 function listCustomPluginDirs(): string[] {
   const root = getCustomPluginsRoot()
   if (!fs.existsSync(root)) return []

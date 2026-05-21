@@ -16,13 +16,15 @@ ghcr.io/kabelsalatundklartext/selfdashboard:beta
 
 **Unraid / Docker:** Repository-Tag von `:latest` auf `:beta` stellen, Container neu erstellen oder mit Watchtower aktualisieren.
 
-## Plugins nur im gemounteten Ordner (ohne Image-Rebuild)
+## Plugins getrennt vom Core (Volume + ZIP)
 
 Siehe **[CUSTOM_PLUGINS_VOLUME.md](./CUSTOM_PLUGINS_VOLUME.md)**.
 
-- Host → `/app/plugins/custom` (z. B. `/mnt/user/Docker/selfdashboard/plugins`)
-- Store: **Plugin-Ordner befüllen** kopiert `plugin.json`-Vorlagen aus dem Image
-- **`widget.js`** / **`server.js`** auf dem Volume überschreiben UI bzw. API — TSX läuft nicht direkt vom Share
+- Image = **nur SelfDashboard** (`SELFDASHBOARD_PLUGINS_MODE=volume`)
+- **Alle Plugins** im Mount `/app/plugins/custom` — Ordner löschen = Plugin weg
+- Erster Start: `default-plugins.zip` wird entpackt (wenn Ordner leer)
+- **ZIP hochladen** im Plugin-Store
+- Später optional: separates Plugin-Pack nur als ZIP/ zweites Image
 
 ## Ziel
 

@@ -1,69 +1,78 @@
-# Plugins nur im gemounteten Ordner (ohne Image-Rebuild)
+# Plugins getrennt vom Core (Volume + ZIP)
 
-## Unraid-Pfad
+## Konzept (Beta)
 
-| Container | Host (Beispiel) |
-|-----------|------------------|
-| `/app/plugins/custom` | `/mnt/user/Docker/selfdashboard/plugins` |
+| Teil | Wo |
+|------|-----|
+| **SelfDashboard Core** | Docker-Image `:beta` / `:latest` — Dashboard, Store, API-Gateway, kein Plugin-UI im Bundle (`SELFDASHBOARD_PLUGINS_MODE=volume`) |
+| **Alle Plugins** | Host-Ordner → `/app/plugins/custom` — löschen = Plugin weg |
+| **Standard-Pack** | Beim **ersten Start** entpackt das Image `default-plugins.zip` in den Ordner (wenn leer) |
+| **ZIP** | Plugin-Store → **ZIP hochladen** oder Pack manuell entpacken |
 
-Der Ordner darf **leer** starten. Builtin-Plugins laufen aus dem Image — bis du etwas auf dem Volume ablegst.
+## Unraid
 
-## Ordner einmalig befüllen (alle `plugin.json` vom Image)
+- **Custom Plugins Path:** `/mnt/user/Docker/selfdashboard/plugins` → `/app/plugins/custom`
+- **Config Storage:** weiterhin `/app/data` für `dashboard.json`
 
-Im Browser (eingeloggt ins Dashboard) oder per curl:
-
-```bash
-curl -X POST http://192.168.1.21:3000/api/plugins/seed-custom
-```
-
-Danach liegt unter deinem Host-Ordner z. B.:
+## Ordner pro Plugin
 
 ```text
 plugins/
 ├── adguard/
-│   └── plugin.json
-├── clock/
-│   └── plugin.json
-└── …
+│   ├── plugin.json
+│   ├── widget.js
+│   └── server.js      ← optional
+├── crowdsec/
+│   └── …
 ```
 
-Das sind **Vorlagen** — noch keine lauffähigen Widgets.
+**Nicht brauchen?** Ordner `crowdsec/` auf dem Host **löschen** → nach **Strg+F5** weg aus dem Store (Widgets auf dem Dashboard ggf. manuell entfernen).
 
-## Was ohne Image-Rebuild geht
+## Erster Start (leerer Ordner)
 
-| Datei im Ordner `plugins/<id>/` | Wirkung |
-|----------------------------------|---------|
-| `plugin.json` | Store / Katalog (↻ im Plugin-Store) |
-| `server.js` oder `server.mjs` | API unter `/api/plugins/<id>/` — nach ↻ oder Container-Neustart |
-| `widget.js` | Ersetzt das **Builtin-Widget** für diese ID — nach **Strg+F5** |
+1. Container startet mit `SELFDASHBOARD_PLUGINS_MODE=volume`
+2. Wenn kein `plugin.json` im Volume: entpacken von `/app/plugin-pack/default-plugins.zip`
+3. Browser öffnen → Plugins sind da
 
-## Neues Plugin
+Falls der Ordner leer bleibt: Actions-Build prüfen (Pack im Image) oder **ZIP hochladen** / separates Plugin-Pack von Releases.
+
+## ZIP-Format
 
 ```text
-plugins/myplugin/
-├── plugin.json
-├── widget.js      ← siehe plugins/_template/widget.example.js
-└── server.js      ← optional, siehe server.example.js
+meinplugin/
+  plugin.json
+  widget.js
+  server.js   (optional)
 ```
 
-`widget.js` muss `registerPlugin` über `window.SelfDashboard` aufrufen (siehe Template).
+Oder mehrere Plugins in einer ZIP (jeweils Unterordner mit `plugin.json`).
 
-## Builtin-Widget ändern (z. B. AdGuard)
+## Plugin-Store
 
-1. `POST /api/plugins/seed-custom` (falls noch leer)
-2. `plugins/adguard/widget.js` anlegen — kopiert aus `widget.example.js` und anpassen **oder** lokal mit esbuild aus `index.tsx` bauen
-3. Optional: `plugins/adguard/server.js` überschreibt nur die API (Widget bleibt aus Image, wenn kein `widget.js`)
+| Button | Wirkung |
+|--------|---------|
+| **ZIP hochladen** | Plugins installieren/aktualisieren |
+| **Plugin-Ordner befüllen** | Nur `plugin.json`-Vorlagen (ohne volles Pack) |
+| **↻** | Manifeste + `server.js` neu laden |
 
-Ohne `widget.js` im Volume bleibt das **UI aus dem Image** — nur `server.js` + `plugin.json` sind vom Volume steuerbar.
+Nach ZIP oder Löschen auf dem Host: **Strg+F5**.
 
-## TSX direkt vom Volume?
+## Modus
 
-Nein — Next.js bündelt TSX nur beim Image-Build. Für reine Volume-Workflows: **`widget.js`** (JavaScript) oder weiterhin Image `:beta` neu bauen für große TSX-Änderungen.
+| Env | Bedeutung |
+|-----|-----------|
+| `SELFDASHBOARD_PLUGINS_MODE=volume` | **Standard im Image** — nur Volume-Plugins |
+| `SELFDASHBOARD_PLUGINS_MODE=hybrid` | Wie früher: Builtin im Image + Volume-Overrides (Entwicklung) |
 
-## Ablauf nach Änderung
+## Plugin-Pack bauen (Maintainer)
 
-| Geändert | Aktion |
-|----------|--------|
-| `plugin.json` | Plugin-Store **↻** |
-| `server.js` | **↻** oder Container neu starten |
-| `widget.js` | **Strg+F5** im Browser |
+```bash
+npm install
+npm run build:plugin-pack
+```
+
+Erzeugt `plugin-pack/default-plugins.zip` (im Docker-Build automatisch).
+
+## Später: separates Plugin-Pack-Image
+
+Optional zweites Image nur mit ZIP-Inhalt — gleicher Mount. Für Nutzer reicht ein ZIP von GitHub Releases + Upload.

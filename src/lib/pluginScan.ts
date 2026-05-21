@@ -5,6 +5,7 @@ import type { PluginCategory } from '@/types'
 import { getBuiltinPluginsRoot, getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
 import { getRegisteredPluginServerIds } from '@/lib/pluginServerRegistry'
 import { getCustomServerPluginIds, getCustomWidgetOverrideIds, hasVolumeFile } from '@/lib/pluginVolumeInfo'
+import { isVolumeOnlyPlugins } from '@/lib/pluginMode'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',
@@ -74,12 +75,14 @@ function scanRoot(root: string, source: 'builtin' | 'custom'): PluginManifest[] 
   return out
 }
 
-/** Scan `plugin.json` from builtin + custom folders. */
+/** Scan `plugin.json` from volume and/or built-in tree. */
 export function scanPluginManifests(): PluginManifest[] {
-  const builtin = scanRoot(getBuiltinPluginsRoot(), 'builtin')
   const custom = scanRoot(getCustomPluginsRoot(), 'custom')
   const byId = new Map<string, PluginManifest>()
-  for (const m of builtin) byId.set(m.id, m)
+  if (!isVolumeOnlyPlugins()) {
+    const builtin = scanRoot(getBuiltinPluginsRoot(), 'builtin')
+    for (const m of builtin) byId.set(m.id, m)
+  }
   for (const m of custom) byId.set(m.id, { ...m, source: 'custom' })
   const serverIds = new Set(getRegisteredPluginServerIds())
   return Array.from(byId.values()).map((m) => ({
@@ -105,7 +108,10 @@ export function buildPluginCatalog(widgetLoadedIds: Set<string>): PluginCatalogE
   return scanPluginManifests().map((m) => {
     const enriched = enrichManifest(m)
     const volumeWidget = enriched.hasWidgetFile === true
-    const builtinWidget = widgetLoadedIds.has(m.id) && !getCustomWidgetOverrideIds().includes(m.id)
+    const builtinWidget =
+      !isVolumeOnlyPlugins() &&
+      widgetLoadedIds.has(m.id) &&
+      !getCustomWidgetOverrideIds().includes(m.id)
     return {
       ...enriched,
       widgetLoaded: volumeWidget || builtinWidget,

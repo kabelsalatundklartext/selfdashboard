@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { X, Plus, Check, Search, RefreshCw } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
@@ -17,6 +17,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [reloadBusy, setReloadBusy] = useState(false)
   const [reloadMsg, setReloadMsg] = useState<string | null>(null)
+  const zipInputRef = useRef<HTMLInputElement>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
   const existingPlugins = activeDashboard().plugins
 
@@ -58,6 +59,27 @@ export function PluginStoreModal({ open, onClose }: Props) {
       )
     } catch {
       setReloadMsg(locale === 'de' ? 'Befüllen fehlgeschlagen.' : 'Seed failed.')
+    } finally {
+      setReloadBusy(false)
+    }
+  }, [locale])
+
+  const handleUploadZip = useCallback(async (file: File) => {
+    setReloadBusy(true)
+    setReloadMsg(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/plugins/upload-zip', { method: 'POST', body: fd })
+      const j = (await res.json()) as { installed?: string[]; errors?: string[]; hint?: string }
+      if (!res.ok) throw new Error('upload_failed')
+      setReloadMsg(
+        locale === 'de'
+          ? `Installiert: ${(j.installed ?? []).join(', ') || '—'}. Seite neu laden (Strg+F5). ${j.hint ?? ''}`
+          : `Installed: ${(j.installed ?? []).join(', ') || '—'}. Reload page (Ctrl+F5). ${j.hint ?? ''}`,
+      )
+    } catch {
+      setReloadMsg(locale === 'de' ? 'ZIP-Upload fehlgeschlagen.' : 'ZIP upload failed.')
     } finally {
       setReloadBusy(false)
     }
@@ -121,6 +143,26 @@ export function PluginStoreModal({ open, onClose }: Props) {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void handleUploadZip(f)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              className="btn-ghost px-2 py-1.5 text-xs"
+              title={t(locale, 'uploadPluginZipHint')}
+              disabled={reloadBusy}
+              onClick={() => zipInputRef.current?.click()}
+            >
+              {t(locale, 'uploadPluginZip')}
+            </button>
             <button
               type="button"
               className="btn-ghost px-2 py-1.5 text-xs"
