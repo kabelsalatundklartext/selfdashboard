@@ -27,9 +27,7 @@ export async function POST(req: Request) {
   await reloadCustomPluginServers()
   const catalog = reloadPluginCatalog(getWidgetLoadedIdsForCatalog())
 
-  const hint =
-    (result as { hint?: string }).hint ??
-    'Von GitHub installiert. Seite neu laden (Strg+F5), damit das Widget im Store aktiv wird.'
+  const hint = 'Von GitHub installiert.'
 
   return NextResponse.json({
     ...result,

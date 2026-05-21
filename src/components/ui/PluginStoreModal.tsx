@@ -10,7 +10,8 @@ import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
-import { fetchPluginVolumeInfo } from '@/lib/pluginCustomClient'
+import { fetchPluginVolumeInfo, loadVolumeWidgetScripts } from '@/lib/pluginCustomClient'
+import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -21,6 +22,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [added, setAdded] = useState<Set<string>>(new Set())
   const [reloadBusy, setReloadBusy] = useState(false)
   const [reloadMsg, setReloadMsg] = useState<string | null>(null)
+  const [reloadMsgKind, setReloadMsgKind] = useState<'success' | 'error' | 'info'>('info')
+  const [installingId, setInstallingId] = useState<string | null>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
   const existingPlugins = activeDashboard()?.plugins ?? []
@@ -29,31 +32,33 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
 
+  const refreshStoreData = useCallback(async () => {
+    try {
+      const vol = await fetchPluginVolumeInfo()
+      setVolumeOnly(vol.volumeOnly)
+      setVolumeInstalledIds(vol.installedIds ?? [])
+    } catch {
+      setVolumeOnly(false)
+      setVolumeInstalledIds([])
+    }
+    try {
+      const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
+      const j = (await res.json()) as {
+        configured?: boolean
+        available?: RemotePluginRow[]
+      }
+      setGithubConfigured(!!j.configured)
+      setRemotePlugins(j.available ?? [])
+    } catch {
+      setGithubConfigured(false)
+      setRemotePlugins([])
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
-    void (async () => {
-      try {
-        const vol = await fetchPluginVolumeInfo()
-        setVolumeOnly(vol.volumeOnly)
-        setVolumeInstalledIds(vol.installedIds ?? [])
-      } catch {
-        setVolumeOnly(false)
-        setVolumeInstalledIds([])
-      }
-      try {
-        const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-        const j = (await res.json()) as {
-          configured?: boolean
-          available?: RemotePluginRow[]
-        }
-        setGithubConfigured(!!j.configured)
-        setRemotePlugins(j.available ?? [])
-      } catch {
-        setGithubConfigured(false)
-        setRemotePlugins([])
-      }
-    })()
-  }, [open])
+    void refreshStoreData()
+  }, [open, refreshStoreData])
 
   const handleSeedPlugins = useCallback(async () => {
     setReloadBusy(true)
@@ -121,8 +126,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
   const handleInstallRemote = useCallback(
     async (pluginId: string) => {
+      const label =
+        remotePlugins.find((p) => p.id === pluginId)?.name ?? pluginId
       setReloadBusy(true)
+      setInstallingId(pluginId)
       setReloadMsg(null)
+      setReloadMsgKind('info')
       try {
         const res = await fetch('/api/plugins/install-remote', {
           method: 'POST',
@@ -131,19 +140,30 @@ export function PluginStoreModal({ open, onClose }: Props) {
         })
         const j = (await res.json()) as { ok?: boolean; hint?: string; error?: string }
         if (!res.ok) throw new Error(j.error ?? 'install_failed')
-        setReloadMsg(j.hint ?? (locale === 'de' ? 'Installiert — Seite wird neu geladen…' : 'Installed — reloading…'))
-        window.setTimeout(() => window.location.reload(), 800)
+
+        installPluginExternalBridge()
+        try {
+          await loadVolumeWidgetScripts([pluginId])
+        } catch (loadErr) {
+          console.warn('[SelfDashboard] widget.js load after install', loadErr)
+        }
+        await refreshStoreData()
+
+        setReloadMsgKind('success')
+        setReloadMsg(`✓ ${label} — ${t(locale, 'pluginInstallSuccess')}`)
       } catch (e) {
+        setReloadMsgKind('error')
         setReloadMsg(
           locale === 'de'
             ? `Installation fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
             : `Install failed: ${e instanceof Error ? e.message : String(e)}`,
         )
       } finally {
+        setInstallingId(null)
         setReloadBusy(false)
       }
     },
-    [locale],
+    [locale, remotePlugins, refreshStoreData],
   )
 
   const handleAdd = useCallback(
@@ -239,7 +259,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
       <div
         className="absolute inset-0"
         style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
-        onClick={onClose}
+        onClick={() => {
+          if (!reloadBusy) onClose()
+        }}
       />
       <div
         className="relative flex flex-col w-full max-w-2xl rounded-2xl animate-fade-in overflow-hidden"
@@ -304,7 +326,17 @@ export function PluginStoreModal({ open, onClose }: Props) {
           </div>
         </div>
         {reloadMsg && (
-          <p className="px-6 -mt-2 pb-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p
+            className="px-6 -mt-2 pb-2 text-xs font-medium"
+            style={{
+              color:
+                reloadMsgKind === 'success'
+                  ? 'var(--accent)'
+                  : reloadMsgKind === 'error'
+                    ? '#f87171'
+                    : 'var(--text-muted)',
+            }}
+          >
             {reloadMsg}
           </p>
         )}
@@ -349,10 +381,22 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       className="btn-accent"
                       title={t(locale, 'installPluginHint')}
                       disabled={reloadBusy}
-                      onClick={() => void handleInstallRemote(meta.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void handleInstallRemote(meta.id)
+                      }}
                     >
-                      <Plus size={14} />
-                      {t(locale, 'installPlugin')}
+                      {installingId === meta.id ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          {t(locale, 'pluginInstallBusy')}
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={14} />
+                          {t(locale, 'installPlugin')}
+                        </>
+                      )}
                     </button>
                   </div>
                 ))}
