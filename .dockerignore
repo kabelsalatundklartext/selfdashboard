@@ -4,3 +4,6 @@ node_modules
 *.md
 .env*
 scripts/
+# plugins-pack wird auf GitHub verteilt, nicht ins Image kopiert (zu groß)
+plugins-pack/
+plugin-pack/

@@ -12,7 +12,7 @@ RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build:plugin-pack
+# Plugins: nur von GitHub plugins-pack (nicht im Image bauen — siehe npm run publish:plugin-pack)
 RUN mkdir -p public && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────
@@ -33,8 +33,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
-COPY --from=builder /app/plugin-pack /app/plugin-pack
-
 USER root
 EXPOSE 3000
 ENV PORT=3000
@@ -42,7 +40,6 @@ ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
 ENV CROWDSEC_DATA_DIR=/crowdsec-data
 ENV SELFDASHBOARD_PLUGINS_MODE=volume
-ENV SELFDASHBOARD_PLUGIN_PACK_ZIP=/app/plugin-pack/default-plugins.zip
 ENV SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard
 ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=beta
 ENV SELFDASHBOARD_PLUGINS_GITHUB_PATH=plugins-pack
