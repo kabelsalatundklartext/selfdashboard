@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>SelfDashboard</Name>
-  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard:latest</Repository>
+  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard:beta</Repository>
   <Registry>https://github.com/kabelsalatundklartext/selfdashboard/pkgs/container/selfdashboard</Registry>
   <Network>bridge</Network>
   <MyIP/>
@@ -9,11 +9,11 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modular home dashboard (Unraid, Emby, Docker widget, optional CrowdSec widget, etc.). Shared config: with the Config Storage volume on /app/data, the app saves dashboard.json on the server (dashboards, widgets, settings) so every browser stays in sync; the browser still uses localStorage as a fast cache. Backup that host folder. Optional env SELFDASHBOARD_DATA_DIR overrides the in-container data directory (image default: /app/data). Docker widget: bind-mount the host Docker socket (see Docker Socket). Optional CrowdSec widget: only if you run CrowdSec on this server — mount its data folder read-only (see CrowdSec Data); not required for SelfDashboard to work. Unban in the widget additionally needs Docker Socket + plugin setting. Extra parameter --group-add=281 matches the usual Unraid docker group GID for socket access (change if stat -c '%g' /var/run/docker.sock differs). Builtin plugins are compiled into the image from src/lib/pluginLoader.ts (not bind-mounted). The optional Custom Plugins Path maps to /app/plugins/custom; the stock image does not auto-load TS plugins from there — use it only if you need the folder for your own files or a custom-built image. Details: README (CrowdSec section). Custom plugin workflow: docs/PLUGIN_DEV.md and rebuild the image.</Overview>
+  <Overview>SelfDashboard — modulares Homelab-Dashboard. Kern läuft im Docker-Image; Plugins kommen vom GitHub-Ordner plugins-pack (im Store unter „Von GitHub“ installieren) oder aus dem gemounteten Plugin-Ordner (eigene plugin.json + widget.js). Nach Install/Änderung: Plugin-Store ↻ oder Seite neu laden (Strg+F5). Config Storage (/app/data): dashboard.json für alle Browser. Plugin-Ordner: /app/plugins/custom — nicht benötigte Plugins durch Löschen des Unterordners entfernen. Hybrid-Modus (Standard): zusätzlich eingebaute Plugins aus dem Image. Volume-Modus: nur Plugins im Mount. Internet nötig für GitHub-Install (raw.githubusercontent.com). Docker-Widget: Docker-Socket. CrowdSec optional. Doku: docs/PLUGIN_DISTRIBUTION.md — Image :beta (stabil: :latest).</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/icon_unraid.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/unraid/selfdashboard.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/public/icon_unraid.png</Icon>
   <ExtraParams>--group-add=281</ExtraParams>
   <PostArgs/>
   <CPUset/>
@@ -28,7 +28,7 @@
     Target="3000"
     Default="3000"
     Mode="tcp"
-    Description="Port for the SelfDashboard web interface."
+    Description="Port der Weboberfläche."
     Type="Port"
     Display="always"
     Required="true"
@@ -40,7 +40,7 @@
     Target="TZ"
     Default="Europe/Berlin"
     Mode=""
-    Description="Your local timezone. Example: Europe/Berlin, America/New_York"
+    Description="Zeitzone, z. B. Europe/Berlin"
     Type="Variable"
     Display="always"
     Required="false"
@@ -52,55 +52,100 @@
     Target="/app/data"
     Default="/mnt/user/appdata/selfdashboard"
     Mode="rw"
-    Description="Host folder mounted at /app/data. The app writes dashboard.json here (dashboards, widgets, global settings) so all browsers share the same layout; localStorage is still used as a cache. Keep this on persistent storage and include it in backups. Optional container env SELFDASHBOARD_DATA_DIR overrides the path inside the container (default in image: /app/data)."
+    Description="Persistente Daten: dashboard.json (Dashboards, Widgets, Einstellungen). Backup dieses Ordners empfohlen. SELFDASHBOARD_DATA_DIR kann den Pfad im Container überschreiben (Standard: /app/data)."
     Type="Path"
     Display="always"
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard</Config>
 
-  <!-- Custom plugins: host folder must be bind-mounted or the container never sees your files -->
+  <!-- Plugins on host (GitHub install + manual plugins land here) -->
   <Config
-    Name="Custom Plugins Path"
+    Name="Plugins Storage"
     Target="/app/plugins/custom"
     Default="/mnt/user/appdata/selfdashboard/plugins"
     Mode="rw"
-    Description="Optional host folder mounted at /app/plugins/custom. Builtin plugins come from the image (see src/lib/pluginLoader.ts in the repo) — they are not loaded by editing this path alone. The stock image does not auto-register arbitrary TypeScript plugins from this directory at runtime; remove the mapping if unused, or use it for your own files / a custom image you build."
+    Description="Pflicht für Plugin-Verteilung: Host-Ordner → /app/plugins/custom. Pro Plugin ein Unterordner (z. B. adguard/) mit plugin.json und widget.js. Im Store: „Von GitHub“ installieren oder ZIP hochladen. Nicht gebraucht? Unterordner löschen, dann ↻ oder Container neu starten. index.tsx aus dem Repo funktioniert hier nicht — nur widget.js."
     Type="Path"
     Display="always"
-    Required="false"
+    Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- CrowdSec (optional — only for the CrowdSec dashboard widget; SelfDashboard works without it) -->
+  <!-- Plugin mode -->
+  <Config
+    Name="Plugin Mode"
+    Target="SELFDASHBOARD_PLUGINS_MODE"
+    Default="volume"
+    Mode=""
+    Description="Nur zwei Werte: volume = nur Plugins im gemounteten Ordner / von GitHub (empfohlen, kein Image-Bundle). hybrid = zusätzlich eingebaute Plugins aus dem Image. Exakt volume oder hybrid eingeben."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">volume</Config>
+
+  <!-- GitHub plugin catalog -->
+  <Config
+    Name="GitHub Plugins Repo"
+    Target="SELFDASHBOARD_PLUGINS_GITHUB_REPO"
+    Default="kabelsalatundklartext/selfdashboard"
+    Mode=""
+    Description="GitHub-Repository für Remote-Plugins (owner/repo). Store lädt plugins-pack/plugins-index.json von hier."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">kabelsalatundklartext/selfdashboard</Config>
+
+  <Config
+    Name="GitHub Plugins Branch"
+    Target="SELFDASHBOARD_PLUGINS_GITHUB_REF"
+    Default="beta"
+    Mode=""
+    Description="Branch oder Tag auf GitHub (z. B. beta oder main). Muss plugins-pack/ mit plugins-index.json und widget.js enthalten."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">beta</Config>
+
+  <Config
+    Name="GitHub Plugins Path"
+    Target="SELFDASHBOARD_PLUGINS_GITHUB_PATH"
+    Default="plugins-pack"
+    Mode=""
+    Description="Ordner im Repo mit Plugin-Dateien (Standard: plugins-pack)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="false">plugins-pack</Config>
+
+  <!-- CrowdSec (optional) -->
   <Config
     Name="CrowdSec Data (optional)"
     Target="/crowdsec-data"
     Default=""
     Mode="ro"
-    Description="OPTIONAL — leave empty if you do not use the CrowdSec widget. Bind-mount the CrowdSec data folder (read-only), e.g. /mnt/user/appdata/crowdsec/data → /crowdsec-data. Must contain crowdsec.db; for country flags also GeoLite2-City.mmdb or GeoLite2-Country.mmdb in the same folder (CrowdSec hub/geoip — same as threat-map setups). Widget DB path: /crowdsec-data/crowdsec.db. GeoIP via local .mmdb only (no external API). Unban: also map Docker Socket + enable in plugin settings. See README — CrowdSec."
+    Description="OPTIONAL — leer lassen ohne CrowdSec-Widget. z. B. /mnt/user/appdata/crowdsec/data → /crowdsec-data (read-only). crowdsec.db; optional GeoLite2-*.mmdb. Unban: Docker-Socket + Plugin-Einstellung."
     Type="Path"
     Display="always"
     Required="false"
     Mask="false"></Config>
 
-  <!-- Docker Engine socket (optional — Docker widget, same host only) -->
+  <!-- Docker socket (optional) -->
   <Config
     Name="Docker Socket"
     Target="/var/run/docker.sock"
     Default="/var/run/docker.sock"
     Mode="ro"
-    Description="Same as -v /var/run/docker.sock:/var/run/docker.sock (read-only). Required for the Docker widget. If you see EACCES, the template adds --group-add=281 (typical Unraid docker GID); adjust Extra Parameters if your `stat -c '%g' /var/run/docker.sock` differs. Only this Unraid's containers, not remote Docker."
+    Description="Optional für Docker-Widget (nur dieser Host). Bei EACCES: --group-add=281 in Extra Parameters anpassen (GID mit stat -c '%g' /var/run/docker.sock prüfen)."
     Type="Path"
     Display="always"
     Required="false"
     Mask="false">/var/run/docker.sock</Config>
 
-  <!-- Node ENV -->
   <Config
     Name="Node Environment"
     Target="NODE_ENV"
     Default="production"
     Mode=""
-    Description="Leave production unless you know you need development mode."
+    Description="Normalerweise production."
     Type="Variable"
     Display="always"
     Required="false"

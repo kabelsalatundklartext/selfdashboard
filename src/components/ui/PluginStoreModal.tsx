@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { PluginMeta } from '@/types'
 import { X, Plus, Check, Search, RefreshCw } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
@@ -13,6 +13,8 @@ import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 
 interface Props { open: boolean; onClose: () => void }
 
+type RemotePluginRow = PluginMeta & { installed: boolean; files?: string[] }
+
 export function PluginStoreModal({ open, onClose }: Props) {
   const [search, setSearch] = useState('')
   const [added, setAdded] = useState<Set<string>>(new Set())
@@ -20,10 +22,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [reloadMsg, setReloadMsg] = useState<string | null>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
-  const existingPlugins = activeDashboard().plugins
-  const [remotePlugins, setRemotePlugins] = useState<
-    (PluginMeta & { installed: boolean; files?: string[] })[]
-  >([])
+  const existingPlugins = activeDashboard()?.plugins ?? []
+  const [remotePlugins, setRemotePlugins] = useState<RemotePluginRow[]>([])
   const [githubConfigured, setGithubConfigured] = useState(false)
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
         const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
         const j = (await res.json()) as {
           configured?: boolean
-          available?: (PluginMeta & { installed: boolean; files?: string[] })[]
+          available?: RemotePluginRow[]
         }
         setGithubConfigured(!!j.configured)
         setRemotePlugins(j.available ?? [])
@@ -43,34 +43,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
       }
     })()
   }, [open])
-
-  if (!open) return null
-
-  const CATEGORY_LABELS: Record<PluginCategory, string> = {
-    media: t(locale, 'media'),
-    system: t(locale, 'system'),
-    network: t(locale, 'network'),
-    storage: t(locale, 'storage'),
-    security: t(locale, 'security'),
-    productivity: t(locale, 'productivity'),
-    utility: t(locale, 'utility'),
-  }
-
-  const allPlugins = pluginRegistry.getAll()
-  const remoteToInstall = remotePlugins.filter((p) => !p.installed)
-  const remoteFiltered = remoteToInstall.filter((p) => {
-    const q = search.toLowerCase()
-    return p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
-  })
-
-  const filtered = allPlugins.filter(
-    (p) => {
-      const displayName = p.meta.id === 'iframe' ? t(locale, 'iframeName') : p.meta.name
-      const displayDesc = p.meta.id === 'iframe' ? t(locale, 'iframeDesc') : p.meta.description
-      const q = search.toLowerCase()
-      return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
-    }
-  )
 
   const handleSeedPlugins = useCallback(async () => {
     setReloadBusy(true)
@@ -127,7 +99,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
           : `${j.count ?? 0} manifest(s) loaded. Reload page (Ctrl+F5). ${j.hint ?? ''}`,
       )
       const rc = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-      const rj = (await rc.json()) as { available?: typeof remotePlugins }
+      const rj = (await rc.json()) as { available?: RemotePluginRow[] }
       setRemotePlugins(rj.available ?? [])
     } catch {
       setReloadMsg(locale === 'de' ? 'Neuladen fehlgeschlagen.' : 'Reload failed.')
@@ -163,42 +135,89 @@ export function PluginStoreModal({ open, onClose }: Props) {
     [locale],
   )
 
-  const handleAdd = (pluginId: string) => {
-    try {
-      const plugin = pluginRegistry.get(pluginId)
-      if (!plugin) return
-      let nextY = 0
-      for (const p of existingPlugins) {
-        const y = p.layout?.y
-        const h = p.layout?.h ?? 4
-        if (typeof y === 'number' && Number.isFinite(y)) nextY = Math.max(nextY, y + h)
+  const handleAdd = useCallback(
+    (pluginId: string) => {
+      try {
+        const plugin = pluginRegistry.get(pluginId)
+        if (!plugin) return
+        let nextY = 0
+        for (const p of existingPlugins) {
+          const y = p.layout?.y
+          const h = p.layout?.h ?? 4
+          if (typeof y === 'number' && Number.isFinite(y)) nextY = Math.max(nextY, y + h)
+        }
+        const fromMeta = plugin.meta.defaultLayout ?? {}
+        const w = Math.max(1, Math.round(Number(fromMeta.w) || 4))
+        const h = Math.max(1, Math.round(Number(fromMeta.h) || 4))
+        addPlugin({
+          instanceId: nanoid(),
+          pluginId,
+          config: {},
+          layout: {
+            x: 0,
+            y: nextY,
+            w,
+            h,
+            minW: fromMeta.minW,
+            minH: fromMeta.minH,
+            maxW: fromMeta.maxW,
+            maxH: fromMeta.maxH,
+          },
+        })
+        setAdded((prev) => new Set(prev).add(pluginId))
+        setTimeout(() => {
+          setAdded((prev) => {
+            const n = new Set(prev)
+            n.delete(pluginId)
+            return n
+          })
+        }, 1500)
+      } catch (e) {
+        console.error('[SelfDashboard] addPlugin failed', pluginId, e)
       }
-      const fromMeta = plugin.meta.defaultLayout ?? {}
-      const w = Math.max(1, Math.round(Number(fromMeta.w) || 4))
-      const h = Math.max(1, Math.round(Number(fromMeta.h) || 4))
-      addPlugin({
-        instanceId: nanoid(),
-        pluginId,
-        config: {},
-        layout: {
-          x: 0,
-          y: nextY,
-          w,
-          h,
-          minW: fromMeta.minW,
-          minH: fromMeta.minH,
-          maxW: fromMeta.maxW,
-          maxH: fromMeta.maxH,
-        },
+    },
+    [addPlugin, existingPlugins],
+  )
+
+  const categoryLabel = useCallback(
+    (cat: string | undefined) => {
+      const labels: Record<PluginCategory, string> = {
+        media: t(locale, 'media'),
+        system: t(locale, 'system'),
+        network: t(locale, 'network'),
+        storage: t(locale, 'storage'),
+        security: t(locale, 'security'),
+        productivity: t(locale, 'productivity'),
+        utility: t(locale, 'utility'),
+      }
+      if (cat && cat in labels) return labels[cat as PluginCategory]
+      return cat ?? '—'
+    },
+    [locale],
+  )
+
+  const allPlugins = pluginRegistry.getAll()
+  const remoteFiltered = useMemo(() => {
+    const q = search.toLowerCase()
+    return remotePlugins
+      .filter((p) => !p.installed)
+      .filter((p) => {
+        const name = String(p.name ?? p.id ?? '')
+        const desc = String(p.description ?? '')
+        return name.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
       })
-    } catch (e) {
-      console.error('[SelfDashboard] addPlugin failed', pluginId, e)
-      return
-    }
-    setAdded((prev) => new Set(prev).add(pluginId))
-    // Reset checkmark after 1.5s
-    setTimeout(() => setAdded((prev) => { const n = new Set(prev); n.delete(pluginId); return n }), 1500)
-  }
+  }, [remotePlugins, search])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return allPlugins.filter((p) => {
+      const displayName = p.meta.id === 'iframe' ? t(locale, 'iframeName') : p.meta.name
+      const displayDesc = p.meta.id === 'iframe' ? t(locale, 'iframeDesc') : p.meta.description
+      return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
+    })
+  }, [allPlugins, locale, search])
+
+  if (!open) return null
 
   return (
     <Portal>
@@ -212,7 +231,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
         className="relative flex flex-col w-full max-w-2xl rounded-2xl animate-fade-in overflow-hidden"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', maxHeight: '80vh' }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between p-6 pb-4">
           <div>
             <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
@@ -272,7 +290,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
           </p>
         )}
 
-        {/* Search */}
         <div className="px-6 pb-4">
           <div
             className="flex items-center gap-2 rounded-lg px-3 py-2"
@@ -289,7 +306,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Plugin List */}
         <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
           {githubConfigured && remoteFiltered.length > 0 && (
             <div>
@@ -305,9 +321,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
                   >
                     <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
                     <div className="flex-1 min-w-0">
-                      <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name}</span>
-                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>GitHub · v{meta.version}</p>
+                      <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name ?? meta.id}</span>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description ?? ''}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>GitHub · v{meta.version ?? '?'}</p>
                     </div>
                     <button
                       type="button"
@@ -340,7 +356,6 @@ export function PluginStoreModal({ open, onClose }: Props) {
             </p>
           ) : (
             filtered.map(({ meta }) => {
-              const isAdded = added.has(meta.id) || existingPlugins.some((p) => p.pluginId === meta.id)
               const displayName = meta.id === 'iframe' ? t(locale, 'iframeName') : meta.name
               const displayDesc = meta.id === 'iframe' ? t(locale, 'iframeDesc') : meta.description
               return (
@@ -359,7 +374,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                         className="text-xs px-2 py-0.5 rounded-full"
                         style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
                       >
-                        {CATEGORY_LABELS[meta.category as PluginCategory] ?? meta.category}
+                        {categoryLabel(meta.category)}
                       </span>
                     </div>
                     <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>
@@ -369,10 +384,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                       by {meta.author} · v{meta.version}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleAdd(meta.id)}
-                    className="btn-accent"
-                  >
+                  <button type="button" onClick={() => handleAdd(meta.id)} className="btn-accent">
                     {added.has(meta.id)
                       ? <><Check size={14} />{t(locale, 'add')}</>
                       : <><Plus size={14} />{t(locale, 'add')}</>
@@ -384,10 +396,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-3 text-xs text-center" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
           💡 {t(locale, 'devHint')}{' '}
-          <a href="https://github.com/kabelsalatundklartext/selfdashboard/blob/main/docs/PLUGIN_DEV.md"
+          <a href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DISTRIBUTION.md"
             target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
             {t(locale, 'readTheDocs')}
           </a>
