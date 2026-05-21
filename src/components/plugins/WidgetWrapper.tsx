@@ -102,17 +102,17 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
       return (
         <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '8px' }}>
           <Loader2 size={20} className="sd-widget-load-spin" style={{ color: 'var(--accent)' }} aria-hidden />
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t('pluginLoading', locale)}</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>{t(locale, 'pluginLoading')}</p>
         </div>
       )
     }
     return (
       <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-          {t('pluginNotFound', locale)} <strong>{instance.pluginId}</strong>
+          {t(locale, 'pluginNotFound')} <strong>{instance.pluginId}</strong>
         </p>
         <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>
-          {t('removeWidget', locale)}
+          {t(locale, 'removeWidget')}
         </button>
       </div>
     )
