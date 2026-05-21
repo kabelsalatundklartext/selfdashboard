@@ -1,0 +1,9 @@
+{
+  "id": "iframe",
+  "name": "Iframe",
+  "description": "Embed any website (iframe) or open as a link; use link mode when X-Frame-Options blocks embedding. Optional mobile or desktop viewport.",
+  "version": "2.1.4",
+  "author": "SelfDashboard",
+  "category": "utility",
+  "icon": "🖼️"
+}

@@ -26,17 +26,56 @@ try {
   process.exit(1)
 }
 
+const VALID_CATEGORIES = new Set([
+  'media',
+  'system',
+  'network',
+  'storage',
+  'security',
+  'productivity',
+  'utility',
+])
+
+function field(src, key) {
+  const re = new RegExp(`${key}:\\s*['"\`]([^'"\`]+)['"\`]`)
+  const m = src.match(re)
+  return m?.[1]?.trim()
+}
+
+function readMeta(pluginId) {
+  const dir = path.join(pluginsRoot, pluginId)
+  const manifestPath = path.join(dir, 'plugin.json')
+  if (fs.existsSync(manifestPath)) {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  }
+  const tsx = path.join(dir, 'index.tsx')
+  if (!fs.existsSync(tsx)) return null
+  const src = fs.readFileSync(tsx, 'utf8')
+  const category = field(src, 'category')
+  if (!category || !VALID_CATEGORIES.has(category)) return null
+  return {
+    id: field(src, 'id') || pluginId,
+    name: field(src, 'name') || pluginId,
+    description: field(src, 'description') || '',
+    version: field(src, 'version') || '0.0.0',
+    author: field(src, 'author') || 'SelfDashboard',
+    category,
+    icon: field(src, 'icon'),
+    iconUrl: field(src, 'iconUrl'),
+  }
+}
+
 function listPluginIds() {
   return fs
     .readdirSync(pluginsRoot, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !skip.has(d.name))
     .map((d) => d.name)
-    .filter((id) => fs.existsSync(path.join(pluginsRoot, id, 'index.tsx')))
+    .filter((id) => fs.existsSync(path.join(pluginsRoot, id, 'index.tsx')) && readMeta(id))
 }
 
 function writeEntry(pluginId, entryPath) {
   const entry = `
-import * as plugin from '../../plugins/${pluginId}/index.tsx'
+import * as plugin from '../../../plugins/${pluginId}/index.tsx'
 ;(function (SD) {
   if (!SD || !SD.registerPlugin) throw new Error('SelfDashboard bridge missing')
   SD.registerPlugin(plugin.meta, plugin.component, { replace: true })
@@ -49,7 +88,7 @@ const reactShim = {
   name: 'sd-react-shim',
   setup(build) {
     const ns = 'sd-react'
-    const spec = /^(react|react-dom|react-dom\\/client|react\\/jsx-runtime)$/
+    const spec = /^(react|react-dom|react-dom\/client|react\/jsx-runtime)$/
     build.onResolve({ filter: spec }, (args) => ({
       path: args.path,
       namespace: ns,
@@ -116,11 +155,12 @@ async function main() {
   for (const id of ids) {
     const dest = path.join(outDir, id)
     fs.mkdirSync(dest, { recursive: true })
-    copyFileIfExists(path.join(pluginsRoot, id, 'plugin.json'), path.join(dest, 'plugin.json'))
-    if (!fs.existsSync(path.join(dest, 'plugin.json'))) {
-      console.warn(`skip ${id}: no plugin.json`)
+    const meta = readMeta(id)
+    if (!meta) {
+      console.warn(`skip ${id}: no meta`)
       continue
     }
+    fs.writeFileSync(path.join(dest, 'plugin.json'), JSON.stringify(meta, null, 2) + '\n')
     try {
       await bundleWidget(id, dest)
       built.push(id)
@@ -139,10 +179,8 @@ async function main() {
   }
 
   if (built.length === 0) {
-    fs.writeFileSync(
-      path.join(outDir, 'README.txt'),
-      'No plugins bundled — run build on a machine with esbuild or upload a plugin ZIP via the store.\n',
-    )
+    console.error('No plugins bundled — aborting')
+    process.exit(1)
   }
   if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
   if (process.platform === 'win32') {

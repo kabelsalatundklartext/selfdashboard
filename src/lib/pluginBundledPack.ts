@@ -20,6 +20,47 @@ const INSTALL_FILES = new Set([
   'icon.webp',
 ])
 
+export function getLocalPluginsPackRoot(): string | null {
+  const env = process.env.SELFDASHBOARD_PLUGINS_PACK_DIR?.trim()
+  const candidates = [
+    env,
+    '/app/plugins-pack',
+    path.join(process.cwd(), 'plugins-pack'),
+  ].filter(Boolean) as string[]
+  for (const p of candidates) {
+    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) return p
+  }
+  return null
+}
+
+export function installPluginFromLocalPack(
+  pluginId: string,
+  files: string[],
+): { ok: boolean; written: string[]; error?: string } {
+  const packRoot = getLocalPluginsPackRoot()
+  if (!packRoot) return { ok: false, written: [], error: 'local_pack_missing' }
+
+  const wanted = files.filter((f) => INSTALL_FILES.has(f))
+  const destDir = customPluginDir(pluginId)
+  fs.mkdirSync(destDir, { recursive: true })
+  const written: string[] = []
+
+  for (const file of wanted) {
+    const src = path.join(packRoot, pluginId, file)
+    if (!fs.existsSync(src)) {
+      return { ok: false, written, error: `local_missing:${file}` }
+    }
+    fs.copyFileSync(src, path.join(destDir, file))
+    written.push(file)
+  }
+
+  if (!written.includes('plugin.json')) {
+    return { ok: false, written, error: 'local_missing_plugin_json' }
+  }
+
+  return { ok: true, written }
+}
+
 export function getBundledPackZipPath(): string | null {
   const env = process.env.SELFDASHBOARD_PLUGIN_PACK_ZIP?.trim()
   if (env && fs.existsSync(env)) return env

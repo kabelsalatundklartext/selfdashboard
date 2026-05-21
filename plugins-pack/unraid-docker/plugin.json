@@ -1,0 +1,10 @@
+{
+  "id": "unraid-docker",
+  "name": "Unraid Docker",
+  "description": "Docker-Container über die Unraid GraphQL API (7.2+): kompakte Tabellenansicht oder klassische Zeile wie beim Docker-Plugin, zweistufige Aktions-Bestätigung, CDN-Icons, granulare CPU/RAM- und Button-Optionen, Live-Stats per WebSocket (optional).",
+  "version": "0.4.15",
+  "author": "SelfDashboard",
+  "category": "system",
+  "icon": "🧱",
+  "iconUrl": "/plugin-logos/unraid-docker.png"
+}

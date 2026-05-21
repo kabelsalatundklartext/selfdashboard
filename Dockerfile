@@ -12,7 +12,7 @@ RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN mkdir -p public && npm run build:plugin-pack || echo "plugin-pack: some plugins skipped"
+RUN npm run build:plugin-pack
 RUN mkdir -p public && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────
