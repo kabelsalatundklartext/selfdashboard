@@ -63,11 +63,13 @@ for (const name of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
   if (!fs.existsSync(path.join(pluginsRoot, name.name, 'index.tsx'))) continue
   const m = readMeta(name.name)
   if (!m) continue
+  const packDir = path.join(packRoot, name.name)
   const files = ['plugin.json', 'widget.js']
-  if (fs.existsSync(path.join(pluginsRoot, name.name, 'server.ts'))) {
+  if (fs.existsSync(path.join(packDir, 'server.js'))) {
     files.push('server.js')
   }
-  plugins.push({ ...m, id: m.id || name.name, files })
+  const hasServer = files.includes('server.js')
+  plugins.push({ ...m, id: m.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }
 
 plugins.sort((a, b) => a.id.localeCompare(b.id))

@@ -189,6 +189,9 @@ const INSTALL_FILES = new Set([
 
 ])
 
+/** Required for a successful install; others are copied only when present on GitHub. */
+const REQUIRED_INSTALL_FILES = new Set(['plugin.json', 'widget.js'])
+
 
 
 /** Install only from GitHub raw URLs (plugins-pack/<id>/ on branch beta). */
@@ -249,6 +252,14 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
     if (!res.ok) {
 
+      if (!REQUIRED_INSTALL_FILES.has(file)) {
+
+        console.warn(`[SelfDashboard] Optional plugin file missing on GitHub (skipped): ${rel}`)
+
+        continue
+
+      }
+
       return {
 
         ok: false,
@@ -278,6 +289,12 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
   if (!written.includes('plugin.json')) {
 
     return { ok: false, pluginId, written, error: 'missing_plugin_json' }
+
+  }
+
+  if (!written.includes('widget.js')) {
+
+    return { ok: false, pluginId, written, error: 'missing_widget_js' }
 
   }
 

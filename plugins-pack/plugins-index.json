@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-21T14:31:31.091Z",
+  "generatedAt": "2026-05-21T14:35:38.075Z",
   "plugins": [
     {
       "id": "adguard",
@@ -17,8 +17,7 @@
       "hasServer": true,
       "files": [
         "plugin.json",
-        "widget.js",
-        "server.js"
+        "widget.js"
       ]
     },
     {
