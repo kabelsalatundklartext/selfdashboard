@@ -33,13 +33,39 @@ function loadScript(src: string): Promise<void> {
   })
 }
 
+function loadStylesheet(href: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`link[data-sd-plugin-css="${href}"]`)
+    if (existing) {
+      resolve()
+      return
+    }
+    const link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = href
+    link.dataset.sdPluginCss = href
+    link.onload = () => resolve()
+    link.onerror = () => reject(new Error(`stylesheet_load_failed:${href}`))
+    document.head.appendChild(link)
+  })
+}
+
+async function loadPluginWidgetAssets(pluginId: string, cacheBust: number): Promise<void> {
+  const base = `/api/plugins/custom-assets/${encodeURIComponent(pluginId)}`
+  const cssUrl = `${base}/widget.css?t=${cacheBust}`
+  await loadStylesheet(cssUrl).catch(() => {
+    /* widget.css is optional for plugins without separate styles */
+  })
+  await loadScript(`${base}/widget.js?t=${cacheBust}`)
+}
+
 export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void> {
   installPluginExternalBridge()
   const t = Date.now()
   const failed: string[] = []
   for (const id of pluginIds) {
     try {
-      await loadScript(`/api/plugins/custom-assets/${encodeURIComponent(id)}/widget.js?t=${t}`)
+      await loadPluginWidgetAssets(id, t)
       console.info(`[SelfDashboard] Volume widget loaded: ${id}`)
     } catch (e) {
       failed.push(id)

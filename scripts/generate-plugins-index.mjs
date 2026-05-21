@@ -66,6 +66,9 @@ for (const name of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
   if (!m) continue
   const packDir = path.join(packRoot, name.name)
   const files = ['plugin.json', 'widget.js']
+  if (fs.existsSync(path.join(packDir, 'widget.css'))) {
+    files.push('widget.css')
+  }
   if (fs.existsSync(path.join(packDir, 'server.js'))) {
     files.push('server.js')
   }

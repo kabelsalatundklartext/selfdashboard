@@ -126,6 +126,25 @@ exports.Fragment = R.Fragment;
   },
 }
 
+/** Copy plugin-local *.css to plugins-pack as widget.css (esbuild does not bundle CSS imports). */
+function copyPluginWidgetCss(pluginId, destDir) {
+  const dir = path.join(pluginsRoot, pluginId)
+  if (!fs.existsSync(dir)) return
+  const cssFiles = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.css') && fs.statSync(path.join(dir, f)).isFile())
+  if (cssFiles.length === 0) return
+  const out = path.join(destDir, 'widget.css')
+  if (cssFiles.length === 1) {
+    fs.copyFileSync(path.join(dir, cssFiles[0]), out)
+    return
+  }
+  const merged = cssFiles
+    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
+    .join('\n')
+  fs.writeFileSync(out, merged)
+}
+
 async function bundleWidget(pluginId, destDir) {
   const entriesDir = path.join(outDir, '.entries')
   fs.mkdirSync(entriesDir, { recursive: true })
@@ -167,7 +186,7 @@ function copyDirToPublish(pluginId) {
     if (name === 'README-server.txt' || name === 'server.ts.txt') continue
     copyFileIfExists(path.join(src, name), path.join(dest, name))
   }
-  const userReadme = path.join(root, 'docs', 'plugins', id, 'README.md')
+  const userReadme = path.join(root, 'docs', 'plugins', pluginId, 'README.md')
   if (fs.existsSync(userReadme)) {
     fs.copyFileSync(userReadme, path.join(dest, 'README.md'))
   }
@@ -193,6 +212,7 @@ async function main() {
     fs.writeFileSync(path.join(dest, 'plugin.json'), JSON.stringify(meta, null, 2) + '\n')
     try {
       await bundleWidget(id, dest)
+      copyPluginWidgetCss(id, dest)
       built.push(id)
     } catch (e) {
       console.warn(`widget bundle failed for ${id}:`, e.message || e)

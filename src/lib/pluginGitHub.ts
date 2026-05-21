@@ -172,6 +172,8 @@ const INSTALL_FILES = new Set([
 
   'widget.js',
 
+  'widget.css',
+
   'widget.mjs',
 
   'server.js',

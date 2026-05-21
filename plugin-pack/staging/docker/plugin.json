@@ -1,0 +1,10 @@
+{
+  "id": "docker",
+  "name": "Docker",
+  "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.",
+  "version": "1.8.10",
+  "author": "SelfDashboard",
+  "category": "system",
+  "icon": "🐳",
+  "iconUrl": "/plugin-logos/docker.png"
+}
