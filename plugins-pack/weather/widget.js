@@ -875,7 +875,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       navbarSearchWidthPx: s.navbarSearchWidthPx,
       navbarSearchCustomProviders: s.navbarSearchCustomProviders ?? [],
       kioskModeEnabled: s.kioskModeEnabled === true,
-      kioskModeIdleSeconds: typeof s.kioskModeIdleSeconds === "number" && Number.isFinite(s.kioskModeIdleSeconds) ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds))) : 5
+      kioskModeIdleSeconds: typeof s.kioskModeIdleSeconds === "number" && Number.isFinite(s.kioskModeIdleSeconds) ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds))) : 5,
+      navbarBackgroundImage: typeof s.navbarBackgroundImage === "string" ? s.navbarBackgroundImage : "",
+      navbarBackgroundOverlay: typeof s.navbarBackgroundOverlay === "number" && Number.isFinite(s.navbarBackgroundOverlay) ? Math.min(80, Math.max(0, Math.round(s.navbarBackgroundOverlay))) : 45
     };
   }
 
@@ -1054,6 +1056,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         navbarSearchCustomProviders: [],
         kioskModeEnabled: false,
         kioskModeIdleSeconds: 5,
+        navbarBackgroundImage: "",
+        navbarBackgroundOverlay: 45,
         activeDashboard: () => {
           const s = get();
           const found = s.dashboards.find((d) => d.id === s.activeDashboardId);
@@ -1238,6 +1242,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         setKioskModeIdleSeconds: (raw) => {
           const n = typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : 5;
           set({ kioskModeIdleSeconds: Math.min(60, Math.max(3, n)) });
+        },
+        setNavbarBackgroundImage: (navbarBackgroundImage) => set({ navbarBackgroundImage: navbarBackgroundImage ?? "" }),
+        setNavbarBackgroundOverlay: (raw) => {
+          const n = typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : 45;
+          set({ navbarBackgroundOverlay: Math.min(80, Math.max(0, n)) });
         }
       }),
       {
@@ -1283,6 +1292,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             } else {
               state.kioskModeIdleSeconds = Math.min(60, Math.max(3, Math.round(idle)));
             }
+            if (typeof state.navbarBackgroundImage !== "string") state.navbarBackgroundImage = "";
+            const ov = state.navbarBackgroundOverlay;
+            if (typeof ov !== "number" || !Number.isFinite(ov)) {
+              state.navbarBackgroundOverlay = 45;
+            } else {
+              state.navbarBackgroundOverlay = Math.min(80, Math.max(0, Math.round(ov)));
+            }
             state.dashboards = stripRemovedPlugins(state.dashboards);
           }
         }
@@ -1295,12 +1311,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   var meta = {
     id: "weather",
     name: "Weather",
-    description: "Stadt oder PLZ \u2014 aktuelles Wetter plus optional st\xFCndlicher Tagesverlauf (Open-Meteo). Ort ausblendbar, Skalierung der Stunden-Karten. Kein API-Key.",
-    version: "1.3.0",
+    description: "Stadt oder PLZ \u2014 aktuelles Wetter mit Tagesabschnitten (0\u20136, 6\u201312, 12\u201318, 18\u201324) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key.",
+    version: "1.3.1",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
-    /** Gestapelte Ansicht: +2 Zeilen für Tagesverlauf unter dem aktuellen Block. */
+    /** Gestapelte Ansicht: +2 Zeilen, damit Vorschau/„Nächste Tage“ nicht abgeschnitten wirkt. */
     stackedExtraH: 2,
     configSchema: [
       {
@@ -1324,8 +1340,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         defaultValue: 15
       },
       {
-        key: "showDayTimeline",
-        label: "Tagesverlauf (st\xFCndlich)",
+        key: "showDailyForecast",
+        label: "7-Tage-Vorschau",
         type: "boolean",
         defaultValue: true
       },
@@ -1336,8 +1352,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         defaultValue: true
       },
       {
-        key: "dayTimelineWidthPct",
-        label: "Tagesverlauf: Kartenbreite (%)",
+        key: "dailyForecastWidthPct",
+        label: "7-Tage: Kartenbreite (%)",
         type: "number",
         defaultValue: 100
       }
@@ -1355,21 +1371,18 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const n = Math.round(num(v, 15));
     return Math.min(120, Math.max(5, n));
   }
-  function clampDayTimelineWidthPct(v) {
+  function clampDailyForecastWidthPct(v) {
     const n = Math.round(num(v, 100));
     return Math.min(130, Math.max(70, n));
   }
-  function cfgShowDayTimeline(raw) {
-    const v = raw.showDayTimeline;
+  function cfgShowDailyForecast(raw) {
+    const v = raw.showDailyForecast;
     if (v === false || v === "false" || v === 0 || v === "0") return false;
     if (v === true || v === "true" || v === 1 || v === "1") return true;
-    const leg = raw.showDailyForecast;
-    if (leg === false || leg === "false" || leg === 0 || leg === "0") return false;
-    if (leg === true || leg === "true" || leg === 1 || leg === "1") return true;
     return true;
   }
-  function cfgDayTimelineWidthPct(raw) {
-    return clampDayTimelineWidthPct(raw.dayTimelineWidthPct ?? raw.dailyForecastWidthPct);
+  function cfgDailyForecastWidthPct(raw) {
+    return clampDailyForecastWidthPct(raw.dailyForecastWidthPct ?? raw.dayTimelineWidthPct);
   }
   function dailyTypeClamp(scale, minPx, cq, maxPx) {
     return `clamp(${Math.max(5, Math.round(minPx * scale))}px, ${(cq * scale).toFixed(2)}cqmin, ${Math.max(6, Math.round(maxPx * scale))}px)`;
@@ -1467,59 +1480,97 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     if (!first) return null;
     return first;
   }
-  function parseHourlyTimeline(j, de, maxSlots = 12) {
-    const h = j.hourly;
-    if (!h?.time?.length) return [];
-    const codes = h.weather_code ?? [];
-    const temps = h.temperature_2m ?? [];
-    const days = h.is_day ?? [];
-    const now = Date.now();
-    const raw = [];
-    const n = Math.min(h.time.length, codes.length, temps.length);
+  function parseDailyForecast(j, maxDays) {
+    const d = j.daily;
+    if (!d?.time?.length) return [];
+    const codes = d.weather_code ?? [];
+    const maxT = d.temperature_2m_max ?? [];
+    const minT = d.temperature_2m_min ?? [];
+    const out = [];
+    const n = Math.min(maxDays, d.time.length, codes.length, maxT.length, minT.length);
     for (let i = 0; i < n; i++) {
-      const timeIso = h.time[i];
-      const t = new Date(timeIso).getTime();
-      if (!Number.isFinite(t) || t < now - 90 * 6e4) continue;
-      const temp = num(temps[i], NaN);
-      if (!Number.isFinite(temp)) continue;
-      const isDay = num(days[i], 1) === 1;
-      raw.push({
-        timeIso,
-        hourLabel: new Date(timeIso).toLocaleTimeString(de ? "de-DE" : "en-GB", {
-          hour: "2-digit",
-          minute: "2-digit"
-        }),
-        temp,
-        code: num(codes[i], 0),
-        isDay
+      const date = d.time[i];
+      const code = num(codes[i], 0);
+      out.push({
+        date,
+        code,
+        max: num(maxT[i], NaN),
+        min: num(minT[i], NaN)
       });
     }
-    if (raw.length <= maxSlots) return raw;
+    return out.filter((x) => Number.isFinite(x.max) && Number.isFinite(x.min));
+  }
+  function todayDateKeyFromHourly(times) {
+    const now = Date.now();
+    let best = null;
+    for (const iso of times) {
+      const t = new Date(iso).getTime();
+      if (Number.isFinite(t) && t <= now + 6e4) best = iso.slice(0, 10);
+    }
+    return best ?? times[0]?.slice(0, 10) ?? null;
+  }
+  function hourBucket(hour) {
+    if (hour >= 18) return 3;
+    if (hour >= 12) return 2;
+    if (hour >= 6) return 1;
+    return 0;
+  }
+  function parseTodayDayPeriods(j) {
+    const h = j.hourly;
+    if (!h?.time?.length) return [];
+    const temps = h.temperature_2m ?? [];
+    const labels = ["0\u20136", "6\u201312", "12\u201318", "18\u201324"];
+    const todayKey = todayDateKeyFromHourly(h.time);
+    if (!todayKey) return [];
+    const buckets = [[], [], [], []];
+    const n = Math.min(h.time.length, temps.length);
+    for (let i = 0; i < n; i++) {
+      const iso = h.time[i];
+      if (!iso.startsWith(todayKey)) continue;
+      const temp = num(temps[i], NaN);
+      if (!Number.isFinite(temp)) continue;
+      const hour = new Date(iso).getHours();
+      buckets[hourBucket(hour)].push(temp);
+    }
     const out = [];
-    const step = (raw.length - 1) / (maxSlots - 1);
-    for (let i = 0; i < maxSlots; i++) {
-      out.push(raw[Math.round(i * step)]);
+    for (let b = 0; b < 4; b++) {
+      const vals = buckets[b];
+      if (!vals.length) {
+        out.push({ label: labels[b], min: NaN, max: NaN });
+        continue;
+      }
+      out.push({
+        label: labels[b],
+        min: Math.min(...vals),
+        max: Math.max(...vals)
+      });
     }
     return out;
   }
-  async function fetchForecast(lat, lon, signal, de, includeHourly) {
+  function formatPeriodTemps(min, max) {
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return "\u2014";
+    const a = Math.round(min);
+    const b = Math.round(max);
+    return a === b ? `${a}\xB0` : `${a}\xB0\u2013${b}\xB0`;
+  }
+  async function fetchForecast(lat, lon, signal, de, includeDaily) {
     const params = new URLSearchParams({
       latitude: String(lat),
       longitude: String(lon),
       timezone: "auto",
-      current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m"
+      current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m",
+      includeHourly: "1"
     });
-    if (includeHourly) {
-      params.set("includeHourly", "1");
-    }
+    if (includeDaily) params.set("includeDaily", "1");
     const j = await pluginApiJson(
       "weather",
       `/api/weather?action=forecast&${params}`,
       { signal, cache: "no-store" }
     );
     if (!j.current) throw new Error(de ? "Keine aktuellen Werte" : "No current values");
-    const hourly = includeHourly ? parseHourlyTimeline(j, de) : [];
-    return { current: j.current, hourly };
+    const daily = includeDaily ? parseDailyForecast(j, 7) : [];
+    const dayPeriods = parseTodayDayPeriods(j);
+    return { current: j.current, daily, dayPeriods };
   }
   var WEATHER_SPLIT_MIN_PX = 420;
   function Widget({ config }) {
@@ -1529,12 +1580,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const countryCode = str(config.countryCode);
     const refreshMinutes = clampRefresh(config.refreshMinutes);
     const cfgRaw = config;
-    const showDayTimeline = cfgShowDayTimeline(cfgRaw);
+    const showDailyForecast = cfgShowDailyForecast(cfgRaw);
     const showPlaceLabel = cfgRaw.showPlaceLabel !== false;
-    const timelineScale = cfgDayTimelineWidthPct(cfgRaw) / 100;
+    const dailyForecastScale = cfgDailyForecastWidthPct(cfgRaw) / 100;
     const [placeLabel, setPlaceLabel] = (0, import_react4.useState)(null);
     const [current, setCurrent] = (0, import_react4.useState)(null);
-    const [hourly, setHourly] = (0, import_react4.useState)([]);
+    const [daily, setDaily] = (0, import_react4.useState)([]);
+    const [dayPeriods, setDayPeriods] = (0, import_react4.useState)([]);
     const [loading, setLoading] = (0, import_react4.useState)(false);
     const [error, setError] = (0, import_react4.useState)(null);
     (0, import_react4.useEffect)(() => {
@@ -1544,7 +1596,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         if (!locationQuery) {
           setPlaceLabel(null);
           setCurrent(null);
-          setHourly([]);
+          setDaily([]);
+          setDayPeriods([]);
           setError(null);
           setLoading(false);
           return;
@@ -1557,21 +1610,23 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           if (!hit) {
             setPlaceLabel(null);
             setCurrent(null);
-            setHourly([]);
+            setDaily([]);
+            setDayPeriods([]);
             setError(de ? "Ort nicht gefunden." : "Location not found.");
             return;
           }
           setPlaceLabel(formatPlace(hit));
-          const { current: cur, hourly: hrs } = await fetchForecast(
+          const { current: cur, daily: dail, dayPeriods: periods } = await fetchForecast(
             hit.latitude,
             hit.longitude,
             ac.signal,
             de,
-            showDayTimeline
+            showDailyForecast
           );
           if (cancelled) return;
           setCurrent(cur);
-          setHourly(hrs);
+          setDaily(dail);
+          setDayPeriods(periods);
         } catch (e) {
           if (cancelled || e.name === "AbortError") return;
           reportPluginCatch("weather", e, "open-meteo");
@@ -1579,7 +1634,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             de ? "Wetter-API nicht erreichbar (Server braucht Internet zu Open-Meteo)." : "Weather API unreachable (server needs outbound internet to Open-Meteo)."
           );
           setCurrent(null);
-          setHourly([]);
+          setDaily([]);
+          setDayPeriods([]);
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -1592,7 +1648,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         ac.abort();
         window.clearInterval(id);
       };
-    }, [locationQuery, countryCode, refreshMinutes, de, showDayTimeline]);
+    }, [locationQuery, countryCode, refreshMinutes, de, showDailyForecast]);
     const rootRef = (0, import_react4.useRef)(null);
     const [splitLayout, setSplitLayout] = (0, import_react4.useState)(false);
     (0, import_react4.useLayoutEffect)(() => {
@@ -1600,7 +1656,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       if (!el) return;
       const measure = () => {
         const w = el.getBoundingClientRect().width;
-        const next = w >= WEATHER_SPLIT_MIN_PX && showDayTimeline && hourly.length > 0;
+        const next = w >= WEATHER_SPLIT_MIN_PX && showDailyForecast && daily.length > 0;
         setSplitLayout((p) => p === next ? p : next);
       };
       measure();
@@ -1608,7 +1664,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       const ro = new ResizeObserver(measure);
       ro.observe(el);
       return () => ro.disconnect();
-    }, [showDayTimeline, hourly.length]);
+    }, [showDailyForecast, daily.length]);
     const t = (0, import_react4.useMemo)(
       () => ({
         hint: de ? "Stadt oder PLZ in den Einstellungen eintragen." : "Set city or postal code in settings.",
@@ -1616,7 +1672,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         feels: de ? "Gef\xFChlt" : "Feels like",
         hum: de ? "Luftfeuchte" : "Humidity",
         wind: de ? "Wind" : "Wind",
-        dayTimeline: de ? "Tagesverlauf" : "Today"
+        nextDays: de ? "N\xE4chste Tage" : "Next days"
       }),
       [de]
     );
@@ -1684,12 +1740,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const WeatherIcon = wmoIconComponent(code, isDay);
     const iconColor = wmoIconColor(code, isDay);
     const iconGlow = wmoIconGlowFilter(code, isDay);
-    const hasTimeline = showDayTimeline && hourly.length > 0;
-    const splitView = splitLayout && hasTimeline;
-    const slotScale = timelineScale;
-    const slotGap = `${Math.max(2, Math.round(4 * slotScale))}px`;
-    const padSlot = `${Math.max(2, Math.round(3 * slotScale))}px ${Math.max(1, Math.round(2 * slotScale))}px`;
-    const slotBr = `${Math.max(6, Math.round(7 * slotScale))}px`;
+    const hasDaily = showDailyForecast && daily.length > 0;
+    const splitView = splitLayout && hasDaily;
+    const dayScale = dailyForecastScale;
+    const dayGapGrid = `${Math.max(2, Math.round(5 * dayScale))}px`;
+    const dayGapStackTight = `${Math.max(1, Math.round(3 * dayScale))}px`;
+    const padDayCell = (narrow) => narrow ? `${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px` : `${Math.max(3, Math.round(5 * dayScale))}px ${Math.max(1, Math.round(2 * dayScale))}px ${Math.max(2, Math.round(4 * dayScale))}px`;
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
       {
@@ -1823,6 +1879,66 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           children: summary
                         }
                       ),
+                      dayPeriods.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                        "div",
+                        {
+                          style: {
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                            gap: "clamp(4px, 1.2cqmin, 8px)",
+                            width: "100%",
+                            maxWidth: "min(100%, 320px)",
+                            margin: "2px 0 0"
+                          },
+                          children: dayPeriods.map((slot) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                            "div",
+                            {
+                              style: {
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: "2px",
+                                padding: "4px 2px",
+                                borderRadius: "8px",
+                                background: "color-mix(in srgb, var(--surface) 88%, var(--background))",
+                                border: "1px solid color-mix(in srgb, var(--border) 65%, transparent)",
+                                minWidth: 0
+                              },
+                              title: de ? `${slot.label} Uhr` : `${slot.label}`,
+                              children: [
+                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                                  "span",
+                                  {
+                                    style: {
+                                      fontSize: "clamp(9px, 2cqmin, 11px)",
+                                      fontWeight: 700,
+                                      color: muted,
+                                      lineHeight: 1.1
+                                    },
+                                    children: slot.label
+                                  }
+                                ),
+                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                                  "span",
+                                  {
+                                    className: "tabular-nums",
+                                    style: {
+                                      fontSize: "clamp(10px, 2.2cqmin, 12px)",
+                                      fontWeight: 700,
+                                      color: "var(--accent)",
+                                      fontVariantNumeric: "tabular-nums",
+                                      lineHeight: 1.1,
+                                      textAlign: "center"
+                                    },
+                                    children: formatPeriodTemps(slot.min, slot.max)
+                                  }
+                                )
+                              ]
+                            },
+                            slot.label
+                          ))
+                        }
+                      ),
                       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
@@ -1854,7 +1970,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     ]
                   }
                 ),
-                hasTimeline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                hasDaily && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                   "div",
                   {
                     style: {
@@ -1877,43 +1993,46 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             fontWeight: 600,
                             color: muted,
                             letterSpacing: "0.04em",
-                            textTransform: "uppercase",
-                            flexShrink: 0
+                            textTransform: "uppercase"
                           },
-                          children: t.dayTimeline
+                          children: t.nextDays
                         }
                       ),
                       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "div",
                         {
                           style: {
-                            display: "flex",
-                            flexDirection: "row",
-                            gap: slotGap,
+                            display: "grid",
+                            gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                            gap: splitView ? dayGapGrid : dayGapStackTight,
                             width: "100%",
                             minWidth: 0,
-                            overflowX: "auto",
-                            overflowY: "hidden",
-                            paddingBottom: "2px",
-                            scrollbarWidth: "thin"
+                            minHeight: 0,
+                            alignContent: "center"
                           },
-                          children: hourly.map((slot) => {
-                            const SlotIcon = wmoIconComponent(slot.code, slot.isDay);
-                            const slotColor = wmoIconColor(slot.code, slot.isDay);
-                            const tip = `${slot.hourLabel} \xB7 ${wmoSummary(slot.code, de)} \xB7 ${Math.round(slot.temp)}\xB0`;
+                          children: daily.map((day) => {
+                            const d = /* @__PURE__ */ new Date(day.date + "T12:00:00");
+                            const weekday = d.toLocaleDateString(de ? "de-DE" : "en-GB", { weekday: "short" });
+                            const dayNum = d.toLocaleDateString(de ? "de-DE" : "en-GB", { day: "numeric", month: "numeric" });
+                            const DayIcon = wmoIconComponent(day.code, true);
+                            const dayColor = wmoIconColor(day.code, true);
+                            const tip = `${weekday} ${dayNum} \xB7 ${wmoSummary(day.code, de)} \xB7 ${Math.round(day.max)}\xB0 / ${Math.round(day.min)}\xB0`;
+                            const narrowDaily = !splitView;
+                            const pad = padDayCell(narrowDaily);
+                            const br = `${Math.max(6, Math.round(8 * dayScale))}px`;
                             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                               "div",
                               {
                                 title: tip,
                                 style: {
-                                  flex: splitView ? "1 1 0" : "0 0 auto",
-                                  minWidth: splitView ? 0 : `${Math.max(44, Math.round(52 * slotScale))}px`,
+                                  minWidth: 0,
+                                  width: "100%",
                                   display: "flex",
                                   flexDirection: "column",
                                   alignItems: "center",
-                                  gap: `${Math.max(1, Math.round(2 * slotScale))}px`,
-                                  padding: padSlot,
-                                  borderRadius: slotBr,
+                                  gap: `${Math.max(1, Math.round(2 * dayScale))}px`,
+                                  padding: pad,
+                                  borderRadius: br,
                                   background: "color-mix(in srgb, var(--surface) 92%, var(--background))",
                                   border: "1px solid color-mix(in srgb, var(--border) 70%, transparent)",
                                   boxSizing: "border-box"
@@ -1922,27 +2041,39 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                                     "span",
                                     {
-                                      className: "tabular-nums",
                                       style: {
-                                        fontSize: dailyTypeClamp(slotScale, 8, 1.8, 10),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 7, 1.6, 9) : dailyTypeClamp(dayScale, 8, 1.8, 10),
                                         fontWeight: 700,
                                         color: muted,
+                                        textTransform: "capitalize",
                                         lineHeight: 1.05,
                                         textAlign: "center"
                                       },
-                                      children: slot.hourLabel
+                                      children: weekday
                                     }
                                   ),
                                   /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                                    SlotIcon,
+                                    "span",
+                                    {
+                                      style: {
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 6, 1.4, 8) : dailyTypeClamp(dayScale, 7, 1.6, 9),
+                                        color: muted,
+                                        lineHeight: 1,
+                                        textAlign: "center"
+                                      },
+                                      children: dayNum
+                                    }
+                                  ),
+                                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                                    DayIcon,
                                     {
                                       "aria-hidden": true,
                                       strokeWidth: 1.85,
                                       style: {
-                                        width: dailyTypeClamp(slotScale, 14, 3.5, 20),
-                                        height: dailyTypeClamp(slotScale, 14, 3.5, 20),
-                                        color: slotColor,
-                                        filter: wmoIconGlowFilter(slot.code, slot.isDay),
+                                        width: splitView ? dailyTypeClamp(dayScale, 14, 3.8, 20) : dailyTypeClamp(dayScale, 16, 4.5, 22),
+                                        height: splitView ? dailyTypeClamp(dayScale, 14, 3.8, 20) : dailyTypeClamp(dayScale, 16, 4.5, 22),
+                                        color: dayColor,
+                                        filter: wmoIconGlowFilter(day.code, true),
                                         flexShrink: 0
                                       }
                                     }
@@ -1952,21 +2083,38 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                     {
                                       className: "tabular-nums",
                                       style: {
-                                        fontSize: dailyTypeClamp(slotScale, 9, 2, 11),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 8, 1.8, 10) : dailyTypeClamp(dayScale, 9, 2, 11),
                                         fontWeight: 700,
                                         color: "var(--accent)",
                                         fontVariantNumeric: "tabular-nums",
                                         lineHeight: 1.05
                                       },
                                       children: [
-                                        Math.round(slot.temp),
+                                        Math.round(day.max),
+                                        "\xB0"
+                                      ]
+                                    }
+                                  ),
+                                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                                    "span",
+                                    {
+                                      className: "tabular-nums",
+                                      style: {
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 7, 1.6, 9) : dailyTypeClamp(dayScale, 8, 1.8, 10),
+                                        fontWeight: 600,
+                                        color: muted,
+                                        fontVariantNumeric: "tabular-nums",
+                                        lineHeight: 1
+                                      },
+                                      children: [
+                                        Math.round(day.min),
                                         "\xB0"
                                       ]
                                     }
                                   )
                                 ]
                               },
-                              slot.timeIso
+                              day.date
                             );
                           })
                         }
@@ -1985,9 +2133,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const locale = useDashboardStore((s) => s.locale);
     const de = locale !== "en";
     const cfgRaw = config;
-    const timelineOn = cfgShowDayTimeline(cfgRaw);
+    const dailyOn = cfgShowDailyForecast(cfgRaw);
     const placeOn = cfgRaw.showPlaceLabel !== false;
-    const widthPct = cfgDayTimelineWidthPct(cfgRaw);
+    const widthPct = cfgDailyForecastWidthPct(cfgRaw);
     const inp = {
       background: "var(--surface)",
       border: "1px solid var(--border)",
@@ -2042,14 +2190,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               "input",
               {
                 type: "checkbox",
-                checked: timelineOn,
-                onChange: (e) => onChange("showDayTimeline", e.target.checked),
+                checked: dailyOn,
+                onChange: (e) => onChange("showDailyForecast", e.target.checked),
                 style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "Tagesverlauf (st\xFCndlich)" : "Hourly timeline" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "St\xFCndliche Temperatur und Wetter-Symbol f\xFCr die n\xE4chsten Stunden (ersetzt die fr\xFChere 7-Tage-Vorschau)." : "Hourly temperature and weather icon for the coming hours (replaces the former 7-day forecast)." })
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "7-Tage-Vorschau" : "7-day forecast" }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Unter dem aktuellen Wetter bleiben die Tagesabschnitte (0\u20136 \u2026 18\u201324); hier die 7-Tage-Karten mit Symbol und Max/Min." : "Day blocks (0\u20136 \u2026 18\u201324) stay under current weather; this enables the 7-day cards with icon and high/low." })
             ] })
           ]
         }
@@ -2083,8 +2231,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           ]
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { opacity: timelineOn ? 1 : 0.55 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }, children: de ? "Tagesverlauf: Kartenbreite (%)" : "Timeline card width (%)" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { opacity: dailyOn ? 1 : 0.55 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }, children: de ? "7-Tage: Kartenbreite (%)" : "7-day card width (%)" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "input",
@@ -2094,8 +2242,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               max: 130,
               step: 1,
               value: widthPct,
-              disabled: !timelineOn,
-              onChange: (e) => onChange("dayTimelineWidthPct", clampDayTimelineWidthPct(Number(e.target.value))),
+              disabled: !dailyOn,
+              onChange: (e) => onChange("dailyForecastWidthPct", clampDailyForecastWidthPct(Number(e.target.value))),
               style: { flex: "1 1 140px", minWidth: "120px", accentColor: "var(--accent)" }
             }
           ),
@@ -2106,13 +2254,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               type: "number",
               min: 70,
               max: 130,
-              disabled: !timelineOn,
+              disabled: !dailyOn,
               value: widthPct,
-              onChange: (e) => onChange("dayTimelineWidthPct", clampDayTimelineWidthPct(e.target.value))
+              onChange: (e) => onChange("dailyForecastWidthPct", clampDailyForecastWidthPct(e.target.value))
             }
           )
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "11px", color: "var(--text-muted)", marginTop: "6px", lineHeight: 1.4, marginBottom: 0 }, children: de ? "Skaliert Breite, Abst\xE4nde und Schrift der Stunden-Karten. 100 % = Standard." : "Scales width, gaps, and type for hour slots. 100% is default." })
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "11px", color: "var(--text-muted)", marginTop: "6px", lineHeight: 1.4, marginBottom: 0 }, children: de ? "Skaliert Mindestbreite, Abst\xE4nde und Schrift der Tageskarten (nur wenn die 7-Tage-Vorschau aktiv ist). 100 % = Standard." : "Scales minimum width, gaps, and type for day cards when the 7-day forecast is on. 100% is default." })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "6px" }, children: "Aktualisieren alle (Minuten)" }),

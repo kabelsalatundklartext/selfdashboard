@@ -633,7 +633,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       navbarSearchWidthPx: s.navbarSearchWidthPx,
       navbarSearchCustomProviders: s.navbarSearchCustomProviders ?? [],
       kioskModeEnabled: s.kioskModeEnabled === true,
-      kioskModeIdleSeconds: typeof s.kioskModeIdleSeconds === "number" && Number.isFinite(s.kioskModeIdleSeconds) ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds))) : 5
+      kioskModeIdleSeconds: typeof s.kioskModeIdleSeconds === "number" && Number.isFinite(s.kioskModeIdleSeconds) ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds))) : 5,
+      navbarBackgroundImage: typeof s.navbarBackgroundImage === "string" ? s.navbarBackgroundImage : "",
+      navbarBackgroundOverlay: typeof s.navbarBackgroundOverlay === "number" && Number.isFinite(s.navbarBackgroundOverlay) ? Math.min(80, Math.max(0, Math.round(s.navbarBackgroundOverlay))) : 45
     };
   }
 
@@ -812,6 +814,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         navbarSearchCustomProviders: [],
         kioskModeEnabled: false,
         kioskModeIdleSeconds: 5,
+        navbarBackgroundImage: "",
+        navbarBackgroundOverlay: 45,
         activeDashboard: () => {
           const s = get();
           const found = s.dashboards.find((d) => d.id === s.activeDashboardId);
@@ -996,6 +1000,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         setKioskModeIdleSeconds: (raw) => {
           const n = typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : 5;
           set({ kioskModeIdleSeconds: Math.min(60, Math.max(3, n)) });
+        },
+        setNavbarBackgroundImage: (navbarBackgroundImage) => set({ navbarBackgroundImage: navbarBackgroundImage ?? "" }),
+        setNavbarBackgroundOverlay: (raw) => {
+          const n = typeof raw === "number" && Number.isFinite(raw) ? Math.round(raw) : 45;
+          set({ navbarBackgroundOverlay: Math.min(80, Math.max(0, n)) });
         }
       }),
       {
@@ -1040,6 +1049,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               state.kioskModeIdleSeconds = 5;
             } else {
               state.kioskModeIdleSeconds = Math.min(60, Math.max(3, Math.round(idle)));
+            }
+            if (typeof state.navbarBackgroundImage !== "string") state.navbarBackgroundImage = "";
+            const ov = state.navbarBackgroundOverlay;
+            if (typeof ov !== "number" || !Number.isFinite(ov)) {
+              state.navbarBackgroundOverlay = 45;
+            } else {
+              state.navbarBackgroundOverlay = Math.min(80, Math.max(0, Math.round(ov)));
             }
             state.dashboards = stripRemovedPlugins(state.dashboards);
           }

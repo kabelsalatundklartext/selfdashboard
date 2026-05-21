@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-21T20:58:44.193Z",
+  "generatedAt": "2026-05-21T21:10:35.083Z",
   "plugins": [
     {
       "id": "adguard",
@@ -233,8 +233,8 @@
     {
       "id": "weather",
       "name": "Weather",
-      "description": "Stadt oder PLZ — aktuelles Wetter plus optional stündlicher Tagesverlauf (Open-Meteo). Ort ausblendbar, Skalierung der Stunden-Karten. Kein API-Key.",
-      "version": "1.3.0",
+      "description": "Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key.",
+      "version": "1.3.1",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🌤️",

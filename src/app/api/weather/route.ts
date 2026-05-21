@@ -31,13 +31,12 @@ export async function GET(req: NextRequest) {
         sp.get('includeHourly') === 'true' ||
         sp.has('hourly')
       const includeDaily =
-        !includeHourly &&
-        (sp.get('includeDaily') === '1' ||
-          sp.get('includeDaily') === 'true' ||
-          dailyParam === '1' ||
-          dailyParam === 'true' ||
-          sp.has('forecast_days') ||
-          Boolean(dailyParam?.includes('weather_code')))
+        sp.get('includeDaily') === '1' ||
+        sp.get('includeDaily') === 'true' ||
+        dailyParam === '1' ||
+        dailyParam === 'true' ||
+        sp.has('forecast_days') ||
+        Boolean(dailyParam?.includes('weather_code'))
       const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeHourly, includeDaily })
       return NextResponse.json(data)
     }

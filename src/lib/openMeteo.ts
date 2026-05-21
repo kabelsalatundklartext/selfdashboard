@@ -36,9 +36,9 @@ export async function openMeteoGeocode(params: {
 export async function openMeteoForecast(params: {
   latitude: number
   longitude: number
-  /** Stündlicher Verlauf (heute / nächste 24h). */
+  /** Stündliche Werte für Tagesabschnitte (0–6, 6–12, …). */
   includeHourly?: boolean
-  /** @deprecated 7-Tage — nicht mehr vom Wetter-Plugin genutzt */
+  /** 7-Tage-Vorschau (max/min pro Tag). */
   includeDaily?: boolean
 }): Promise<unknown> {
   const q = new URLSearchParams({
@@ -49,12 +49,13 @@ export async function openMeteoForecast(params: {
       'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m',
   })
   if (params.includeHourly) {
-    q.set('hourly', 'temperature_2m,weather_code,is_day')
-    q.set('forecast_days', '2')
-  } else if (params.includeDaily) {
-    q.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
-    q.set('forecast_days', '7')
+    q.set('hourly', 'temperature_2m')
   }
+  if (params.includeDaily) {
+    q.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
+  }
+  const days = params.includeDaily ? 7 : params.includeHourly ? 2 : 1
+  q.set('forecast_days', String(days))
 
   const res = await fetchOpenMeteo(`${FORECAST_BASE}?${q}`)
   if (!res.ok) throw new Error(`forecast_http_${res.status}`)
