@@ -70,18 +70,6 @@
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- Plugin mode (legacy env — app is volume-only) -->
-  <Config
-    Name="Plugin Mode"
-    Target="SELFDASHBOARD_PLUGINS_MODE"
-    Default="volume"
-    Mode=""
-    Description="Legacy-Variable (wird ignoriert): SelfDashboard nutzt nur Plugins aus dem gemounteten Ordner / GitHub-Store. Wert volume belassen."
-    Type="Variable"
-    Display="always"
-    Required="false"
-    Mask="false">volume</Config>
-
   <!-- GitHub plugin catalog -->
   <Config
     Name="GitHub Plugins Repo"

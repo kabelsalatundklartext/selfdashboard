@@ -13,6 +13,8 @@ services:
     volumes:
       # Persist dashboard config across container restarts
       - selfdashboard-data:/app/data
+      # Plugins (Store / ZIP) — required for widgets
+      - ./plugins-data:/app/plugins/custom
       # Optional: Docker widget — same host only
       # - /var/run/docker.sock:/var/run/docker.sock
       # Optional: CrowdSec widget — read-only crowdsec.db (only if CrowdSec runs on this host)
