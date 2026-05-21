@@ -9,13 +9,15 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
+import { resolvePluginPackRoot, resolvePluginsRoot } from './resolve-plugins-root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const pluginsRoot = path.join(root, 'plugins')
-const outDir = path.join(root, 'plugin-pack', 'staging')
+const pluginsRoot = resolvePluginsRoot(root)
+const pluginPackRoot = resolvePluginPackRoot(root)
+const outDir = path.join(pluginPackRoot, 'staging')
 const packPublishDir = path.join(root, 'plugins-pack')
-const zipPath = path.join(root, 'plugin-pack', 'default-plugins.zip')
+const zipPath = path.join(pluginPackRoot, 'default-plugins.zip')
 const skip = new Set(['_template', 'custom', 'node_modules'])
 
 let esbuild
@@ -74,8 +76,9 @@ function listPluginIds() {
 }
 
 function writeEntry(pluginId, entryPath) {
+  const pluginEntry = path.join(pluginsRoot, pluginId, 'index.tsx').replace(/\\/g, '/')
   const entry = `
-import * as plugin from '../../../plugins/${pluginId}/index.tsx'
+import * as plugin from '${pluginEntry}'
 ;(function (SD) {
   if (!SD || !SD.registerPlugin) throw new Error('SelfDashboard bridge missing')
   SD.registerPlugin(plugin.meta, plugin.component, { replace: true })

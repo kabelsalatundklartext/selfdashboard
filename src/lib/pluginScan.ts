@@ -2,10 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import type { PluginManifest, PluginCatalogEntry } from '@/types/pluginManifest'
 import type { PluginCategory } from '@/types'
-import { getBuiltinPluginsRoot, getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
+import { getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
 import { getRegisteredPluginServerIds } from '@/lib/pluginServerRegistry'
 import { getCustomServerPluginIds, getCustomWidgetOverrideIds, hasVolumeFile } from '@/lib/pluginVolumeInfo'
-import { isVolumeOnlyPlugins } from '@/lib/pluginMode'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',
@@ -75,14 +74,10 @@ function scanRoot(root: string, source: 'builtin' | 'custom'): PluginManifest[] 
   return out
 }
 
-/** Scan `plugin.json` from volume and/or built-in tree. */
+/** Scan `plugin.json` from the plugins volume (`plugins/custom`). */
 export function scanPluginManifests(): PluginManifest[] {
   const custom = scanRoot(getCustomPluginsRoot(), 'custom')
   const byId = new Map<string, PluginManifest>()
-  if (!isVolumeOnlyPlugins()) {
-    const builtin = scanRoot(getBuiltinPluginsRoot(), 'builtin')
-    for (const m of builtin) byId.set(m.id, m)
-  }
   for (const m of custom) byId.set(m.id, { ...m, source: 'custom' })
   const serverIds = new Set(getRegisteredPluginServerIds())
   return Array.from(byId.values()).map((m) => ({
@@ -107,14 +102,11 @@ function enrichManifest(m: PluginManifest): PluginManifest {
 export function buildPluginCatalog(widgetLoadedIds: Set<string>): PluginCatalogEntry[] {
   return scanPluginManifests().map((m) => {
     const enriched = enrichManifest(m)
-    const volumeWidget = enriched.hasWidgetFile === true
-    const builtinWidget =
-      !isVolumeOnlyPlugins() &&
-      widgetLoadedIds.has(m.id) &&
-      !getCustomWidgetOverrideIds().includes(m.id)
+    const volumeWidget =
+      enriched.hasWidgetFile === true || (widgetLoadedIds.has(m.id) && m.source === 'custom')
     return {
       ...enriched,
-      widgetLoaded: volumeWidget || builtinWidget,
+      widgetLoaded: volumeWidget,
     }
   })
 }

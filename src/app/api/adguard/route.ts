@@ -1,4 +1,4 @@
-import { handleAdguardPluginRequest } from '../../../../plugins/adguard/server'
+import { handleAdguardPluginRequest } from '@/lib/pluginServers/adguard'
 
 export const dynamic = 'force-dynamic'
 

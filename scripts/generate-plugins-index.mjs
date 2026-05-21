@@ -6,10 +6,11 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { resolvePluginsRoot } from './resolve-plugins-root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const pluginsRoot = path.join(root, 'plugins')
+const pluginsRoot = resolvePluginsRoot(root)
 const packRoot = path.join(root, 'plugins-pack')
 const outFile = path.join(packRoot, 'plugins-index.json')
 const skip = new Set(['_template', 'custom'])
