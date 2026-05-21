@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modulares Homelab-Dashboard. Kern läuft im Docker-Image; Plugins kommen vom GitHub-Ordner plugins-pack (im Store unter „Von GitHub“ installieren) oder aus dem gemounteten Plugin-Ordner (eigene plugin.json + widget.js). Nach Install/Änderung: Plugin-Store ↻ oder Seite neu laden (Strg+F5). Config Storage (/app/data): dashboard.json für alle Browser. Plugin-Ordner: /app/plugins/custom — nicht benötigte Plugins durch Löschen des Unterordners entfernen. Hybrid-Modus (Standard): zusätzlich eingebaute Plugins aus dem Image. Volume-Modus: nur Plugins im Mount. Internet nötig für GitHub-Install (raw.githubusercontent.com). Docker-Widget: Docker-Socket. CrowdSec optional. Doku: docs/PLUGIN_DISTRIBUTION.md — Image :beta (stabil: :latest).</Overview>
+  <Overview>SelfDashboard — modulares Homelab-Dashboard. Schlankes Kern-Image; Plugins über Store „Von GitHub“ (plugins-pack) oder ZIP in den gemounteten Plugin-Ordner (/app/plugins/custom, je Plugin plugin.json + widget.js). Nach Install: Strg+F5. Config Storage (/app/data): dashboard.json. Plugin Mode volume (Standard): keine eingebauten Plugins aus dem Image. hybrid: zusätzlich Image-Bundle. „Plugin-Ordner befüllen“ nur bei hybrid. Doku: docs/PLUGIN_DISTRIBUTION.md — Image :beta.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/unraid/selfdashboard.xml</TemplateURL>

@@ -10,6 +10,7 @@ import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
+import { fetchPluginVolumeInfo } from '@/lib/pluginCustomClient'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -25,10 +26,20 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const existingPlugins = activeDashboard()?.plugins ?? []
   const [remotePlugins, setRemotePlugins] = useState<RemotePluginRow[]>([])
   const [githubConfigured, setGithubConfigured] = useState(false)
+  const [volumeOnly, setVolumeOnly] = useState(false)
+  const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
     void (async () => {
+      try {
+        const vol = await fetchPluginVolumeInfo()
+        setVolumeOnly(vol.volumeOnly)
+        setVolumeInstalledIds(vol.installedIds ?? [])
+      } catch {
+        setVolumeOnly(false)
+        setVolumeInstalledIds([])
+      }
       try {
         const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
         const j = (await res.json()) as {
@@ -197,6 +208,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   )
 
   const allPlugins = pluginRegistry.getAll()
+
   const remoteFiltered = useMemo(() => {
     const q = search.toLowerCase()
     return remotePlugins
@@ -216,6 +228,8 @@ export function PluginStoreModal({ open, onClose }: Props) {
       return displayName.toLowerCase().includes(q) || displayDesc.toLowerCase().includes(q)
     })
   }, [allPlugins, locale, search])
+
+  const sectionTitle = volumeOnly ? t(locale, 'pluginsOnVolume') : t(locale, 'pluginsFromImage')
 
   if (!open) return null
 
@@ -237,7 +251,10 @@ export function PluginStoreModal({ open, onClose }: Props) {
               {t(locale, 'pluginStore')}
             </h2>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              {allPlugins.length} {t(locale, 'pluginsAvailable')}
+              {volumeOnly
+                ? `${volumeInstalledIds.length} auf Platte · ${allPlugins.length} nutzbar`
+                : `${allPlugins.length} ${t(locale, 'pluginsAvailable')}`}
+              {volumeOnly ? ' · volume' : ''}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -261,15 +278,17 @@ export function PluginStoreModal({ open, onClose }: Props) {
             >
               {t(locale, 'uploadPluginZip')}
             </button>
-            <button
-              type="button"
-              className="btn-ghost px-2 py-1.5 text-xs"
-              title={t(locale, 'seedPluginsHint')}
-              disabled={reloadBusy}
-              onClick={() => void handleSeedPlugins()}
-            >
-              {t(locale, 'seedPlugins')}
-            </button>
+            {!volumeOnly && (
+              <button
+                type="button"
+                className="btn-ghost px-2 py-1.5 text-xs"
+                title={t(locale, 'seedPluginsHint')}
+                disabled={reloadBusy}
+                onClick={() => void handleSeedPlugins()}
+              >
+                {t(locale, 'seedPlugins')}
+              </button>
+            )}
             <button
               type="button"
               className="btn-ghost p-1.5"
@@ -342,11 +361,16 @@ export function PluginStoreModal({ open, onClose }: Props) {
           )}
 
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            {t(locale, 'pluginsInstalledLocal')}
+            {sectionTitle}
           </p>
+          {volumeOnly && volumeInstalledIds.length > 0 && filtered.length === 0 && (
+            <p className="text-xs mb-2" style={{ color: 'var(--accent)' }}>
+              Ordner auf der Platte, aber ohne widget.js — unter „Von GitHub“ installieren oder ZIP mit widget.js hochladen, dann Strg+F5.
+            </p>
+          )}
           {filtered.length === 0 && remoteFiltered.length === 0 ? (
             <div className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
-              <p className="text-sm">{t(locale, 'noPluginsFound')}</p>
+              <p className="text-sm">{volumeOnly ? t(locale, 'pluginsVolumeEmpty') : t(locale, 'noPluginsFound')}</p>
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>

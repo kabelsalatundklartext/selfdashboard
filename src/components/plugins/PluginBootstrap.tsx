@@ -13,15 +13,17 @@ export function PluginBootstrap() {
     loaded = true
     void (async () => {
       installPluginExternalBridge()
+      let volumeOnly = false
       let skip = new Set<string>()
       let customWidgets: string[] = []
       try {
         const info = await fetchPluginVolumeInfo()
+        volumeOnly = info.volumeOnly
         skip = new Set(info.widgetOverrideIds)
         customWidgets = info.customWidgetIds
         if (info.missingWidgetJs?.length) {
           console.warn(
-            '[SelfDashboard] plugin.json ohne widget.js (index.tsx wird nicht geladen):',
+            '[SelfDashboard] plugin.json ohne widget.js — nur Metadaten auf dem Volume:',
             info.missingWidgetJs.join(', '),
           )
         }
@@ -29,8 +31,10 @@ export function PluginBootstrap() {
         console.warn('[SelfDashboard] Plugin volume info unavailable', e)
       }
 
-      // Built-in widgets from image (stable). Volume widget.js only overrides per id.
-      loadBuiltinPlugins(skip)
+      // hybrid = Plugins aus dem Image; volume = nur Ordner/GitHub (kein Image-Bundle)
+      if (!volumeOnly) {
+        loadBuiltinPlugins(skip)
+      }
 
       if (customWidgets.length > 0) {
         try {
