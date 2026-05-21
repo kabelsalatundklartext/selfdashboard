@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import type { PluginMeta } from '@/types'
 import { X, Plus, Check, Search, RefreshCw } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
@@ -20,6 +21,28 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const zipInputRef = useRef<HTMLInputElement>(null)
   const { addPlugin, activeDashboard, locale } = useDashboardStore()
   const existingPlugins = activeDashboard().plugins
+  const [remotePlugins, setRemotePlugins] = useState<
+    (PluginMeta & { installed: boolean; files?: string[] })[]
+  >([])
+  const [githubConfigured, setGithubConfigured] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    void (async () => {
+      try {
+        const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
+        const j = (await res.json()) as {
+          configured?: boolean
+          available?: (PluginMeta & { installed: boolean; files?: string[] })[]
+        }
+        setGithubConfigured(!!j.configured)
+        setRemotePlugins(j.available ?? [])
+      } catch {
+        setGithubConfigured(false)
+        setRemotePlugins([])
+      }
+    })()
+  }, [open])
 
   if (!open) return null
 
@@ -34,6 +57,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
   }
 
   const allPlugins = pluginRegistry.getAll()
+  const remoteToInstall = remotePlugins.filter((p) => !p.installed)
+  const remoteFiltered = remoteToInstall.filter((p) => {
+    const q = search.toLowerCase()
+    return p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+  })
+
   const filtered = allPlugins.filter(
     (p) => {
       const displayName = p.meta.id === 'iframe' ? t(locale, 'iframeName') : p.meta.name
@@ -94,15 +123,45 @@ export function PluginStoreModal({ open, onClose }: Props) {
       if (!res.ok) throw new Error('reload_failed')
       setReloadMsg(
         locale === 'de'
-          ? `${j.count ?? 0} Manifest(e) geladen. ${j.hint ?? ''}`
-          : `${j.count ?? 0} manifest(s) loaded. ${j.hint ?? ''}`,
+          ? `${j.count ?? 0} Manifest(e) geladen. Seite neu laden (Strg+F5). ${j.hint ?? ''}`
+          : `${j.count ?? 0} manifest(s) loaded. Reload page (Ctrl+F5). ${j.hint ?? ''}`,
       )
+      const rc = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
+      const rj = (await rc.json()) as { available?: typeof remotePlugins }
+      setRemotePlugins(rj.available ?? [])
     } catch {
       setReloadMsg(locale === 'de' ? 'Neuladen fehlgeschlagen.' : 'Reload failed.')
     } finally {
       setReloadBusy(false)
     }
   }, [locale])
+
+  const handleInstallRemote = useCallback(
+    async (pluginId: string) => {
+      setReloadBusy(true)
+      setReloadMsg(null)
+      try {
+        const res = await fetch('/api/plugins/install-remote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pluginId }),
+        })
+        const j = (await res.json()) as { ok?: boolean; hint?: string; error?: string }
+        if (!res.ok) throw new Error(j.error ?? 'install_failed')
+        setReloadMsg(j.hint ?? (locale === 'de' ? 'Installiert — Seite wird neu geladen…' : 'Installed — reloading…'))
+        window.setTimeout(() => window.location.reload(), 800)
+      } catch (e) {
+        setReloadMsg(
+          locale === 'de'
+            ? `Installation fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+            : `Install failed: ${e instanceof Error ? e.message : String(e)}`,
+        )
+      } finally {
+        setReloadBusy(false)
+      }
+    },
+    [locale],
+  )
 
   const handleAdd = (pluginId: string) => {
     try {
@@ -231,11 +290,54 @@ export function PluginStoreModal({ open, onClose }: Props) {
         </div>
 
         {/* Plugin List */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-2">
-          {filtered.length === 0 ? (
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
+          {githubConfigured && remoteFiltered.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+                {t(locale, 'pluginsFromGitHub')}
+              </p>
+              <div className="space-y-2">
+                {remoteFiltered.map((meta) => (
+                  <div
+                    key={`gh-${meta.id}`}
+                    className="flex items-center gap-4 rounded-xl p-4"
+                    style={{ background: 'var(--surface-2)', border: '1px dashed var(--border)' }}
+                  >
+                    <PluginMetaIcon meta={meta} size={40} style={{ background: 'var(--surface)' }} />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium text-sm" style={{ color: 'var(--text)' }}>{meta.name}</span>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{meta.description}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>GitHub · v{meta.version}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-accent"
+                      title={t(locale, 'installPluginHint')}
+                      disabled={reloadBusy}
+                      onClick={() => void handleInstallRemote(meta.id)}
+                    >
+                      <Plus size={14} />
+                      {t(locale, 'installPlugin')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>
+            {t(locale, 'pluginsInstalledLocal')}
+          </p>
+          {filtered.length === 0 && remoteFiltered.length === 0 ? (
             <div className="py-12 text-center" style={{ color: 'var(--text-muted)' }}>
               <p className="text-sm">{t(locale, 'noPluginsFound')}</p>
             </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>
+              {githubConfigured
+                ? t(locale, 'installPluginHint')
+                : t(locale, 'githubNotConfigured')}
+            </p>
           ) : (
             filtered.map(({ meta }) => {
               const isAdded = added.has(meta.id) || existingPlugins.some((p) => p.pluginId === meta.id)

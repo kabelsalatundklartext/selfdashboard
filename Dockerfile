@@ -43,6 +43,9 @@ ENV SELFDASHBOARD_DATA_DIR=/app/data
 ENV CROWDSEC_DATA_DIR=/crowdsec-data
 ENV SELFDASHBOARD_PLUGINS_MODE=hybrid
 ENV SELFDASHBOARD_PLUGIN_PACK_ZIP=/app/plugin-pack/default-plugins.zip
+ENV SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard
+ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=beta
+ENV SELFDASHBOARD_PLUGINS_GITHUB_PATH=plugins-pack
 
 RUN mkdir -p /app/data /crowdsec-data
 

@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "repository": "kabelsalatundklartext/selfdashboard",
+  "ref": "beta",
+  "basePath": "plugins-pack",
+  "generatedAt": "2026-05-19T00:00:00.000Z",
+  "plugins": [
+    {
+      "id": "adguard",
+      "name": "AdGuard Home",
+      "description": "DNS-Statistik und Schutzstatus per AdGuard-Home-API.",
+      "version": "1.1.6",
+      "author": "SelfDashboard",
+      "category": "network",
+      "iconUrl": "/plugin-logos/adguard.png",
+      "files": ["plugin.json", "widget.js"]
+    },
+    {
+      "id": "bookmarks",
+      "name": "App Bookmarks",
+      "description": "Quick links to your self-hosted services.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "🔖",
+      "files": ["plugin.json", "widget.js"]
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "description": "CalDAV and ICS calendar widget.",
+      "version": "1.4.0",
+      "author": "SelfDashboard",
+      "category": "productivity",
+      "icon": "📅",
+      "files": ["plugin.json", "widget.js"]
+    },
+    {
+      "id": "clock",
+      "name": "Clock & Date",
+      "description": "Time and date with timezone support.",
+      "version": "1.2.1",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "🕐",
+      "files": ["plugin.json", "widget.js"]
+    },
+    {
+      "id": "weather",
+      "name": "Weather",
+      "description": "Current weather via Open-Meteo.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "🌤️",
+      "files": ["plugin.json", "widget.js"]
+    }
+  ]
+}
