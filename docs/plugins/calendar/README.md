@@ -4,16 +4,63 @@
 
 ## Deutsch
 
+### Kurzbeschreibung
+
+Kalender-Widget mit **Monats- und Wochenansicht**, Tagesdetail und **Hintergrund-Synchronisation** für CalDAV- und ICS-Konten. Konten verwaltest du im **Kalender-Modal** (Zahnrad), nicht mehr in verstreuten Widget-JSON-Feldern.
+
+### Installation
+
+1. Plugin-Store → **Kalender** installieren → **Strg+F5**  
+2. Widget aufs Dashboard legen  
+3. Im Widget auf **⚙️** / Kalender-Icon → **Konten hinzufügen**
+
+### Kontotypen
+
+| Typ | Richtung | Typische Quellen |
+|-----|----------|------------------|
+| **CalDAV** | Zwei-Wege (lesen + schreiben) | Nextcloud, Synology, iCloud (App-Passwort), WEB.DE, … |
+| **ICS / Webcal** | Nur lesen | Öffentliche oder private Abo-URL |
+
+ICS-Feeds werden **serverseitig** abgerufen — LAN-URLs ohne Browser-CORS-Problem.
+
+### Speicher & Sicherheit
+
 | Thema | Details |
 |-------|---------|
-| **CalDAV** | Zwei-Wege-Sync (iCloud, Nextcloud, WEB.DE, …) |
-| **ICS** | Nur lesen — Abo-URL |
-| **Speicher** | `data/calendar/store.json` unter `/app/data` |
-| **Verschlüsselung** | Zugangsdaten AES-256-GCM (`SELFDASHBOARD_CALENDAR_KEY`) |
-| **UI** | Kachel + Vollbild; Konten im Modal (Zahnrad) |
-| **Sync** | Hintergrund alle 5 Min (`CALENDAR_SYNC_INTERVAL_SECONDS`) |
+| **Pfad** | `data/calendar/` unter **`/app/data`** (Bind-Mount sichern!) |
+| **Store** | `store.json` + Kalender-/Event-Daten |
+| **Passwörter** | **AES-256-GCM** mit `SELFDASHBOARD_CALENDAR_KEY` |
+| **Schlüssel** | In Docker **fest setzen**, damit Konten nach Container-Neustart entschlüsselbar bleiben |
 
-Konten werden im Kalender-Modal konfiguriert, nicht mehr im alten Widget-JSON.
+### Oberfläche
+
+- **Kachel:** kompakte Monatsansicht, Termine des Tages  
+- **Vollbild:** erweiterte Ansicht über das Widget  
+- **Sync:** Standard alle **5 Minuten** (`CALENDAR_SYNC_INTERVAL_SECONDS` am Server)  
+- **Konflikte / Zusammenfassung:** über die Kalender-API (`/api/calendar/conflicts`, `summary`)
+
+### API (Kern-App)
+
+Einheitlich unter **`/api/calendar/*`** (keine alten `calendar-ics`-Routen mehr):
+
+| Bereich | Beispiel |
+|---------|----------|
+| Konten | `GET/POST /api/calendar/accounts`, `…/accounts/[id]/sync` |
+| Termine | `GET/POST /api/calendar/events` |
+| Kalender | `GET /api/calendar/calendars` |
+| Status | `GET /api/calendar/status` |
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Konten weg nach Update | `/app/data` gemountet? `SELFDASHBOARD_CALENDAR_KEY` unverändert? |
+| Sync schlägt fehl | URL, Benutzer, App-Passwort; bei Synology CalDAV-Pfad prüfen |
+| ICS leer | URL im Browser testen; Server muss Feed erreichen |
+
+**Protokoll:** Filter Quelle/API oder Plugin `calendar`.
+
+---
 
 ## English
 

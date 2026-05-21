@@ -4,17 +4,39 @@
 
 ## Deutsch
 
-Strom der **FRITZ!Smart Energy**-Steckdose: aktuell **W**, **heute**, **7 Tage**, **Monat** kWh.
+### Kurzbeschreibung
 
-| Thema | Details |
-|-------|---------|
-| **API** | `POST /api/fritz-energy` |
-| **Setup** | Gleiche Box wie WAN-Plugin; **AIN** der Steckdose |
-| **Speicher** | `data/fritz-energy/` unter `/app/data` |
-| **Layout** | Raster (2×2) oder Karussell |
-| **Intervall** | 15–300 s |
+Energie der **FRITZ!Smart Energy**-Steckdose (oder kompatibles Homeauto-Gerät): **aktuelle Leistung (W)**, **heute**, **7 Tage**, **Monat** in kWh — per **TR-064 Homeauto**.
 
-Getrennt vom Plugin **fritzbox** (WAN-Kurve).
+**Getrennt** vom Plugin **fritzbox** (WAN-Durchsatz-Kurve).
+
+### Installation
+
+Plugin installieren → **Strg+F5** → **⚙️** Box-Zugang + **AIN** der Steckdose eintragen.
+
+### Einrichtung
+
+| Feld | Hinweis |
+|------|---------|
+| **FRITZ!Box URL / Login** | Wie beim WAN-Plugin (TR-064-Benutzer) |
+| **AIN** | Geräte-ID der Steckdose — in der FRITZ!Box unter **Smart Home** → Gerät → Eigenschaften |
+| **Layout** | Raster (2×2 Kacheln) oder **Karussell** |
+| **Intervall** | 15–300 Sekunden |
+
+### Speicher
+
+Verlauf und Tageswerte unter **`/app/data`** → `data/fritz-energy/` (über **Config Storage**-Mount).
+
+### API
+
+`POST /api/fritz-energy` — Abruf und Aggregation serverseitig.
+
+### Tipps
+
+- Mehrere Steckdosen = **mehrere Widget-Instanzen** mit unterschiedlicher AIN.  
+- Wenn Werte 0 bleiben: Steckdose in der Box online? AIN exakt kopiert?
+
+---
 
 ## English
 
