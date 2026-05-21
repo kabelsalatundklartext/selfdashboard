@@ -4,8 +4,11 @@ import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 
 export type PluginVolumeClientInfo = {
   customRoot: string
+  volumeOnly: boolean
+  installedIds: string[]
   widgetOverrideIds: string[]
   customWidgetIds: string[]
+  customServerIds: string[]
 }
 
 export async function fetchPluginVolumeInfo(): Promise<PluginVolumeClientInfo> {

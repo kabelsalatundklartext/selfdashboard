@@ -1,5 +1,8 @@
+import 'server-only'
+
 import fs from 'fs'
 import path from 'path'
+import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import {
   registerPluginServerHandler,
@@ -27,16 +30,26 @@ function wrapVolumeHandler(id: string, fn: (ctx: PluginServerContext) => Promise
   return (ctx) => fn(ctx)
 }
 
+type ServerModule = {
+  default?: PluginServerHandler
+  handler?: PluginServerHandler
+}
+
 async function importVolumeServer(id: string): Promise<PluginServerHandler | null> {
   const modulePath = resolveServerModulePath(id)
   if (!modulePath) return null
-  const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
-  const mod = (await import(url)) as {
-    default?: PluginServerHandler
-    handler?: PluginServerHandler
-    adguardServerHandler?: PluginServerHandler
+
+  let mod: ServerModule
+  if (modulePath.endsWith('.mjs')) {
+    const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
+    mod = (await import(/* webpackIgnore: true */ url)) as ServerModule
+  } else {
+    const req = createRequire(pathToFileURL(modulePath))
+    delete req.cache[modulePath]
+    mod = req(modulePath) as ServerModule
   }
-  const raw = mod.default ?? mod.handler ?? mod.adguardServerHandler
+
+  const raw = mod.default ?? mod.handler
   if (typeof raw !== 'function') {
     console.warn(`[SelfDashboard] custom/${id}/server.*: no default export handler`)
     return null
