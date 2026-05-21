@@ -52,7 +52,7 @@
     Target="/app/data"
     Default="/mnt/user/appdata/selfdashboard"
     Mode="rw"
-    Description="App-Daten (/app/data): dashboard.json, optional mail/ und calendar/ (Navbar-Mail &amp; Kalender-Daten — gehören NICHT in den Plugin-Ordner). Backup empfohlen. Liegt neben dem Plugin-Mount, z. B. …/selfdashboard/ mit mail/ + plugins/ als Geschwister auf dem Host."
+    Description="App-Daten (/app/data): dashboard.json, Kalender unter calendar/. E-Mail-Daten nach Installation des Mail-Plugins unter plugins/custom/mail/ (Plugins Storage — nicht hier). Backup beider Mounts empfohlen. Typisch auf dem Host: …/selfdashboard/ (data) und …/selfdashboard/plugins/ (Store/ZIP)."
     Type="Path"
     Display="always"
     Required="true"
