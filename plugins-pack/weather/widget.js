@@ -357,7 +357,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit Tagesabschnitten (0\u20136, 6\u201312, 12\u201318, 18\u201324) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.5.3",
+    version: "1.5.5",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1014,8 +1014,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                   "div",
                   {
                     style: {
-                      flex: splitView ? "0 1 44%" : void 0,
-                      maxWidth: splitView ? "48%" : void 0,
+                      flex: splitView ? "0 1 38%" : void 0,
+                      maxWidth: splitView ? "42%" : void 0,
                       minWidth: splitView ? 0 : void 0,
                       display: "flex",
                       flexDirection: "column",
@@ -1058,57 +1058,74 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           ]
                         }
                       ),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
                           style: {
                             display: "flex",
-                            justifyContent: "center",
+                            flexDirection: "column",
                             alignItems: "center",
-                            color: iconColor,
-                            minHeight: "clamp(26px, 10cqmin, 52px)"
+                            gap: "clamp(2px, 0.6cqmin, 4px)",
+                            width: "100%"
                           },
-                          "aria-label": summary,
-                          title: summary,
-                          children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                            WeatherIcon,
-                            {
-                              "aria-hidden": true,
-                              strokeWidth: 1.75,
-                              style: {
-                                width: "clamp(28px, 11cqmin, 56px)",
-                                height: "clamp(28px, 11cqmin, 56px)",
-                                color: iconColor,
-                                filter: iconGlow,
-                                opacity: refreshing ? 0.55 : 1,
-                                transition: "opacity 0.2s, color 0.35s ease"
+                          children: [
+                            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                              "div",
+                              {
+                                style: {
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "clamp(8px, 2.5cqmin, 16px)",
+                                  flexWrap: "nowrap",
+                                  color: iconColor
+                                },
+                                "aria-label": summary,
+                                title: summary,
+                                children: [
+                                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                                    "span",
+                                    {
+                                      className: "tabular-nums",
+                                      style: {
+                                        fontSize: "clamp(1.5rem, min(11cqmin, 20vw), 3rem)",
+                                        fontWeight: 800,
+                                        color: "var(--accent)",
+                                        fontVariantNumeric: "tabular-nums",
+                                        lineHeight: 1,
+                                        flexShrink: 0
+                                      },
+                                      children: temp != null ? `${Math.round(temp)}\xB0` : "\u2014"
+                                    }
+                                  ),
+                                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                                    WeatherIcon,
+                                    {
+                                      "aria-hidden": true,
+                                      strokeWidth: 1.75,
+                                      style: {
+                                        width: "clamp(32px, min(10cqmin, 14vw), 60px)",
+                                        height: "clamp(32px, min(10cqmin, 14vw), 60px)",
+                                        color: iconColor,
+                                        filter: iconGlow,
+                                        opacity: refreshing ? 0.55 : 1,
+                                        transition: "opacity 0.2s, color 0.35s ease",
+                                        flexShrink: 0
+                                      }
+                                    }
+                                  )
+                                ]
                               }
-                            }
-                          )
+                            ),
+                            feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: "clamp(10px, 2.2cqmin, 12px)", color: muted, lineHeight: 1.2 }, children: [
+                              t.feels,
+                              " ",
+                              Math.round(feels),
+                              "\xB0"
+                            ] })
+                          ]
                         }
                       ),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "center", gap: "6px", flexWrap: "wrap" }, children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                          "span",
-                          {
-                            className: "tabular-nums",
-                            style: {
-                              fontSize: "clamp(1.4rem, min(10cqmin, 18vw), 2.75rem)",
-                              fontWeight: 800,
-                              color: "var(--accent)",
-                              fontVariantNumeric: "tabular-nums",
-                              lineHeight: 1
-                            },
-                            children: temp != null ? `${Math.round(temp)}\xB0` : "\u2014"
-                          }
-                        ),
-                        feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: "clamp(10px, 2.2cqmin, 12px)", color: muted }, children: [
-                          t.feels,
-                          " ",
-                          Math.round(feels),
-                          "\xB0"
-                        ] })
-                      ] }),
                       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
@@ -1224,7 +1241,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           style: {
                             margin: "0 0 6px",
                             textAlign: "center",
-                            fontSize: "clamp(9px, 2cqmin, 11px)",
+                            fontSize: splitView ? dailyTypeClamp(dayScale, 10, 2.4, 13) : "clamp(9px, 2cqmin, 11px)",
                             fontWeight: 600,
                             color: muted,
                             letterSpacing: "0.04em",
@@ -1239,7 +1256,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           style: {
                             display: "grid",
                             gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                            gap: splitView ? dayGapGrid : dayGapStackTight,
+                            gap: splitView ? `${Math.max(4, Math.round(7 * dayScale))}px` : dayGapStackTight,
                             width: "100%",
                             minWidth: 0,
                             minHeight: 0,
@@ -1253,8 +1270,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             const dayColor = wmoIconColor(day.code, true);
                             const tip = `${weekday} ${dayNum} \xB7 ${wmoSummary(day.code, de)} \xB7 ${Math.round(day.max)}\xB0 / ${Math.round(day.min)}\xB0`;
                             const narrowDaily = !splitView;
-                            const pad = padDayCell(narrowDaily);
-                            const br = `${Math.max(6, Math.round(8 * dayScale))}px`;
+                            const pad = splitView ? `${Math.max(4, Math.round(7 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(3, Math.round(5 * dayScale))}px` : padDayCell(narrowDaily);
+                            const br = `${Math.max(6, Math.round((splitView ? 10 : 8) * dayScale))}px`;
                             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                               "div",
                               {
@@ -1277,7 +1294,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                     "span",
                                     {
                                       style: {
-                                        fontSize: splitView ? dailyTypeClamp(dayScale, 7, 1.6, 9) : dailyTypeClamp(dayScale, 8, 1.8, 10),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 10, 2.4, 13) : dailyTypeClamp(dayScale, 8, 1.8, 10),
                                         fontWeight: 700,
                                         color: muted,
                                         textTransform: "capitalize",
@@ -1291,7 +1308,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                     "span",
                                     {
                                       style: {
-                                        fontSize: splitView ? dailyTypeClamp(dayScale, 6, 1.4, 8) : dailyTypeClamp(dayScale, 7, 1.6, 9),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 8, 2, 11) : dailyTypeClamp(dayScale, 7, 1.6, 9),
                                         color: muted,
                                         lineHeight: 1,
                                         textAlign: "center"
@@ -1305,8 +1322,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                       "aria-hidden": true,
                                       strokeWidth: 1.85,
                                       style: {
-                                        width: splitView ? dailyTypeClamp(dayScale, 14, 3.8, 20) : dailyTypeClamp(dayScale, 16, 4.5, 22),
-                                        height: splitView ? dailyTypeClamp(dayScale, 14, 3.8, 20) : dailyTypeClamp(dayScale, 16, 4.5, 22),
+                                        width: splitView ? dailyTypeClamp(dayScale, 20, 5.5, 30) : dailyTypeClamp(dayScale, 16, 4.5, 22),
+                                        height: splitView ? dailyTypeClamp(dayScale, 20, 5.5, 30) : dailyTypeClamp(dayScale, 16, 4.5, 22),
                                         color: dayColor,
                                         filter: wmoIconGlowFilter(day.code, true),
                                         flexShrink: 0
@@ -1318,7 +1335,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                     {
                                       className: "tabular-nums",
                                       style: {
-                                        fontSize: splitView ? dailyTypeClamp(dayScale, 8, 1.8, 10) : dailyTypeClamp(dayScale, 9, 2, 11),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 12, 2.8, 16) : dailyTypeClamp(dayScale, 9, 2, 11),
                                         fontWeight: 700,
                                         color: "var(--accent)",
                                         fontVariantNumeric: "tabular-nums",
@@ -1335,7 +1352,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                     {
                                       className: "tabular-nums",
                                       style: {
-                                        fontSize: splitView ? dailyTypeClamp(dayScale, 7, 1.6, 9) : dailyTypeClamp(dayScale, 8, 1.8, 10),
+                                        fontSize: splitView ? dailyTypeClamp(dayScale, 10, 2.4, 13) : dailyTypeClamp(dayScale, 8, 1.8, 10),
                                         fontWeight: 600,
                                         color: muted,
                                         fontVariantNumeric: "tabular-nums",
