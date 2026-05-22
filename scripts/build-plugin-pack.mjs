@@ -172,6 +172,26 @@ function copyPluginWidgetCss(pluginId, destDir) {
   fs.writeFileSync(out, merged)
 }
 
+async function bundleServer(pluginId, destDir) {
+  const entry = path.join(pluginsRoot, pluginId, 'server.ts')
+  if (!fs.existsSync(entry)) return false
+  const outfile = path.join(destDir, 'server.mjs')
+  await esbuild.build({
+    entryPoints: [entry],
+    outfile,
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node18',
+    absWorkingDir: root,
+    nodePaths: [path.join(root, 'node_modules')],
+    alias: { '@': path.join(root, 'src') },
+    loader: { '.ts': 'ts' },
+    logLevel: 'warning',
+  })
+  return true
+}
+
 async function bundleWidget(pluginId, destDir) {
   const entriesDir = path.join(outDir, '.entries')
   fs.mkdirSync(entriesDir, { recursive: true })
@@ -213,6 +233,7 @@ function copyDirToPublish(pluginId) {
   fs.mkdirSync(dest, { recursive: true })
   for (const name of fs.readdirSync(src)) {
     if (name === 'README-server.txt' || name === 'server.ts.txt') continue
+    /* server.mjs + widget.js published together */
     copyFileIfExists(path.join(src, name), path.join(dest, name))
   }
   const userReadme = path.join(root, 'docs', 'plugins', pluginId, 'README.md')
@@ -249,11 +270,18 @@ async function main() {
     }
     const serverTs = path.join(pluginsRoot, id, 'server.ts')
     if (fs.existsSync(serverTs)) {
-      fs.copyFileSync(serverTs, path.join(dest, 'server.ts.txt'))
-      fs.writeFileSync(
-        path.join(dest, 'README-server.txt'),
-        'Compile server.ts to server.js for volume API, or use built-in gateway until migrated.\n',
-      )
+      try {
+        if (await bundleServer(id, dest)) {
+          console.info(`[SelfDashboard] server.mjs bundled: ${id}`)
+        }
+      } catch (e) {
+        console.warn(`server bundle failed for ${id}:`, e.message || e)
+        fs.copyFileSync(serverTs, path.join(dest, 'server.ts.txt'))
+        fs.writeFileSync(
+          path.join(dest, 'README-server.txt'),
+          'server.mjs build failed — use app image builtin or fix server.ts and rebuild pack.\n',
+        )
+      }
     }
   }
 

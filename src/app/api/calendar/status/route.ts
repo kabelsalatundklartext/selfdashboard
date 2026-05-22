@@ -1,21 +1,8 @@
-/**
- * GET /api/calendar/status — aggregate status (accounts, recent sync runs,
- * pending change count, conflict count). Used by the Accounts view.
- */
+import { calendarServerHandler } from '@/lib/pluginServers/calendar'
 
-import { ok, toAccountView } from '@/lib/calendar/api-helpers'
-import { readStore } from '@/lib/calendar/store'
+export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const store = await readStore()
-  const pending = store.events.filter(
-    e => e.syncState === 'local_new' || e.syncState === 'local_modified' || e.syncState === 'local_deleted',
-  ).length
-  const conflicts = store.events.filter(e => e.syncState === 'conflict').length
-  return ok({
-    accounts: store.accounts.map(a => toAccountView(a, store.calendars)),
-    recentRuns: store.syncLog.slice(0, 20),
-    pendingChanges: pending,
-    conflicts,
-  })
+/** @deprecated Use `/api/plugins/calendar/status` */
+export async function GET(req: Request) {
+  return calendarServerHandler({ pluginId: 'calendar', path: ['status'], request: req })
 }

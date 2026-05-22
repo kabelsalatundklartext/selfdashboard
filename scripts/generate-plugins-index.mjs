@@ -69,10 +69,9 @@ for (const name of fs.readdirSync(pluginsRoot, { withFileTypes: true })) {
   if (fs.existsSync(path.join(packDir, 'widget.css'))) {
     files.push('widget.css')
   }
-  if (fs.existsSync(path.join(packDir, 'server.js'))) {
-    files.push('server.js')
-  }
-  const hasServer = files.includes('server.js')
+  const serverPack = ['server.mjs', 'server.js'].find((f) => fs.existsSync(path.join(packDir, f)))
+  if (serverPack) files.push(serverPack)
+  const hasServer = Boolean(serverPack) || fs.existsSync(path.join(pluginsRoot, name.name, 'server.ts'))
   const { hasServer: _manifestHasServer, ...meta } = m
   plugins.push({ ...meta, id: meta.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }

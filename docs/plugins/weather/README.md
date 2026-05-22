@@ -24,7 +24,9 @@ Plugin-Store → **Wetter** → **Strg+F5** → Ort in **⚙️**.
 
 ### Technik
 
-- Abruf über **`/api/weather`** (Server-Proxy zu Open-Meteo) — der **SelfDashboard-Container** braucht ausgehendes HTTPS-Internet  
+- Server-Logik: **`plugins/weather/server.ts`** → **`/api/plugins/weather/{resolve|geocode|forecast}`** (Proxy zu Open-Meteo)  
+- Der **SelfDashboard-Container** braucht ausgehendes HTTPS-Internet  
+- Legacy: **`/api/weather?action=…`** leitet auf dieselbe Handler-Logik um (Abwärtskompatibilität)  
 - Stündliche Werte nur für die **Tagesabschnitte**; die 7-Tage-Leiste nutzt `daily` (8 Tage API, Tag 0 = heute wird ausgeblendet)  
 - Config in **`dashboard.json`**
 
@@ -33,8 +35,14 @@ Plugin-Store → **Wetter** → **Strg+F5** → Ort in **⚙️**.
 | Problem | Lösung |
 |---------|--------|
 | Ort nicht gefunden | Schreibweise, Ländercode |
-| **HTTP 404** `/api/weather` | **Neues App-Docker-Image** (Kern-Route) |
-| Keine Daten | Internet/DNS am **Container**; Test-URL im [Haupt-README](../../../README.md#troubleshooting) |
+| **`invalid_action`** / alte API | **Neues App-Image** + Wetter-Plugin **≥ 1.4.0** |
+| Keine Daten | Internet/DNS am **Container**; Test: `curl …/api/plugins/weather/resolve?name=Berlin&includeHourly=1` |
+
+Test im Container:
+
+```bash
+curl -sS "http://127.0.0.1:3000/api/plugins/weather/resolve?name=Berlin&language=de&includeHourly=1&includeDaily=1" | head -c 300
+```
 
 ---
 
@@ -60,7 +68,9 @@ Plugin Store → **Weather** → **Ctrl+F5** → location in **⚙️**.
 
 ### Technical notes
 
-- Fetched via **`/api/weather`** (server proxy to Open-Meteo) — **SelfDashboard container** needs outbound HTTPS  
+- Server: **`plugins/weather/server.ts`** → **`/api/plugins/weather/{resolve|geocode|forecast}`** (Open-Meteo proxy)  
+- **SelfDashboard container** needs outbound HTTPS  
+- Legacy **`/api/weather?action=…`** forwards to the same handler  
 - Hourly data powers **day blocks**; 7-day strip uses `daily` (8 API days; index 0 = today is hidden)  
 - Config in **`dashboard.json`**
 
@@ -69,5 +79,5 @@ Plugin Store → **Weather** → **Ctrl+F5** → location in **⚙️**.
 | Issue | Fix |
 |-------|-----|
 | Location not found | Spelling, country code |
-| **HTTP 404** on `/api/weather` | **New app Docker image** (core route) |
-| No data | Container internet/DNS; see main [README troubleshooting](../../../README.md#troubleshooting) |
+| **`invalid_action`** / old API | **New app image** + weather plugin **≥ 1.4.0** |
+| No data | Container internet/DNS; test `curl …/api/plugins/weather/resolve?name=Berlin&includeHourly=1` |

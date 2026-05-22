@@ -1,57 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { openMeteoForecast, openMeteoGeocode } from '@/lib/openMeteo'
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { NextRequest } from 'next/server'
+import { weatherServerHandler } from '@/lib/pluginServers/weather'
 
 export const dynamic = 'force-dynamic'
 
-/** Proxy Open-Meteo (geocode + forecast) — browser calls same-origin; server needs outbound HTTPS. */
+/**
+ * @deprecated Use `/api/plugins/weather/{geocode|forecast|resolve}` — logic lives in `plugins/weather/server.ts`.
+ * Thin compat shim for old bookmarks and curl tests.
+ */
 export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams
-  const action = sp.get('action')?.trim()
-
-  try {
-    if (action === 'geocode') {
-      const name = sp.get('name')?.trim()
-      if (!name) return NextResponse.json({ error: 'missing_name' }, { status: 400 })
-      const language = sp.get('language')?.trim() || 'de'
-      const countryCode = sp.get('countryCode')?.trim() || undefined
-      const data = await openMeteoGeocode({ name, countryCode, language })
-      return NextResponse.json(data)
-    }
-
-    if (action === 'forecast') {
-      const lat = Number(sp.get('latitude'))
-      const lon = Number(sp.get('longitude'))
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return NextResponse.json({ error: 'invalid_coordinates' }, { status: 400 })
-      }
-      const dailyParam = sp.get('daily')
-      const includeHourly =
-        sp.get('includeHourly') === '1' ||
-        sp.get('includeHourly') === 'true' ||
-        sp.has('hourly')
-      const includeDaily =
-        sp.get('includeDaily') === '1' ||
-        sp.get('includeDaily') === 'true' ||
-        dailyParam === '1' ||
-        dailyParam === 'true' ||
-        sp.has('forecast_days') ||
-        Boolean(dailyParam?.includes('weather_code'))
-      const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeHourly, includeDaily })
-      return NextResponse.json(data)
-    }
-
-    return NextResponse.json({ error: 'invalid_action' }, { status: 400 })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'open_meteo_error'
-    const isAbort = e instanceof Error && e.name === 'AbortError'
-    void logPluginApiFailure('weather', action ?? 'weather', isAbort ? 'timeout' : msg)
-    return NextResponse.json(
-      {
-        error: isAbort ? 'timeout' : msg,
-        hint: 'SelfDashboard container must reach geocoding-api.open-meteo.com and api.open-meteo.com (HTTPS outbound).',
-      },
-      { status: 502 },
-    )
-  }
+  const action = req.nextUrl.searchParams.get('action')?.trim()
+  const path = action ? [action] : []
+  return weatherServerHandler({ pluginId: 'weather', path, request: req })
 }

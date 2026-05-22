@@ -1,8 +1,8 @@
-import { handleAdguardPluginRequest } from '@/lib/pluginServers/adguard'
+import { adguardServerHandler } from '@/lib/pluginServers/adguard'
 
 export const dynamic = 'force-dynamic'
 
-/** Legacy route — prefer `/api/plugins/adguard`. */
+/** @deprecated Use `/api/plugins/adguard` */
 export async function POST(req: Request) {
-  return handleAdguardPluginRequest(req, [])
+  return adguardServerHandler({ pluginId: 'adguard', path: [], request: req })
 }
