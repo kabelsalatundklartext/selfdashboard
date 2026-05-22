@@ -308,7 +308,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.2.2",
+    version: "1.2.3",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -403,24 +403,23 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
       {
-        className: fill ? "sd-fritz-energy-tile" : "sd-fritz-energy-tile",
+        className: "sd-fritz-energy-tile",
         style: {
           borderRadius: "12px",
           background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
           border: "1px solid var(--border)",
           boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-          padding: fill ? "9px 10px" : "8px 10px",
           display: "flex",
           flexDirection: "column",
-          justifyContent: footer ? "space-between" : "center",
+          justifyContent: "center",
           alignItems: "center",
           textAlign: "center",
           gap: "4px",
           minWidth: 0,
-          minHeight: 0,
+          width: "100%",
           height: fill ? "100%" : void 0,
           boxSizing: "border-box",
-          containerType: fill ? "size" : "inline-size"
+          overflow: fill ? "hidden" : void 0
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -434,7 +433,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 gap: "4px",
                 width: "100%",
                 minWidth: 0,
-                flex: footer ? "1 1 auto" : void 0
+                minHeight: 0,
+                flex: "1 1 auto"
               },
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
@@ -477,11 +477,24 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     children: value
                   }
                 ),
-                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.3, textAlign: "center", width: "100%" }, children: sub }) : null
+                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "div",
+                  {
+                    className: fill ? "sd-fritz-energy-tile-sub" : void 0,
+                    style: {
+                      fontSize: fill ? void 0 : "10px",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.3,
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: sub
+                  }
+                ) : null
               ]
             }
           ),
-          footer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
+          footer && !fill ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
         ]
       }
     );
@@ -815,27 +828,28 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           flex-direction: column;
           min-height: 0;
         }
-        /* Gleiche Kopfzeile wie AdGuard \u201ESchutz\u201C-Leiste \u2014 Kacheln in benachbarten Widgets auf einer H\xF6he */
+        /* Platz f\xFCr AdGuard \u201ESchutz\u201C-Zeile \u2014 feste H\xF6he, kein cqh (verhindert Grid-Kollaps) */
         .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
           flex-shrink: 0;
-          min-height: clamp(34px, min(9cqmin, 7.5cqh), 40px);
+          height: 36px;
           margin-bottom: 10px;
         }
         .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
-          grid-template-rows: 1fr 1fr;
           gap: 8px;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+          min-width: 0;
           flex: 1 1 auto;
           min-height: 0;
-          min-width: 0;
           align-content: stretch;
           align-items: stretch;
+          justify-items: stretch;
         }
         .sd-fritz-energy-host .sd-fritz-energy-tile {
           height: 100%;
+          min-height: 0;
           padding: 9px 10px;
-          min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
           box-sizing: border-box;
         }
         .sd-fritz-energy-host .sd-fritz-energy-tile-value {
@@ -844,20 +858,42 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         .sd-fritz-energy-host .sd-fritz-energy-tile-label {
           font-size: clamp(8px, min(1.9cqmin, 1.6cqh), 10px);
         }
+        .sd-fritz-energy-host .sd-fritz-energy-tile-sub {
+          font-size: clamp(9px, min(1.8cqmin, 1.5cqh), 10px);
+        }
+        @container (max-height: 460px) {
+          .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
+            gap: 6px;
+          }
+        }
         @container (max-height: 380px) {
           .sd-fritz-energy-host {
             padding: 9px 9px 8px;
           }
           .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
-            min-height: clamp(28px, min(7.5cqmin, 6.5cqh), 34px);
+            height: 30px;
             margin-bottom: 6px;
           }
+          .sd-fritz-energy-host .sd-fritz-energy-tile {
+            padding: 5px 8px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-tile-value {
+            font-size: clamp(0.68rem, min(4cqmin, 3.2cqh), 1.15rem);
+          }
+        }
+        @container (max-height: 260px) {
+          .sd-fritz-energy-host {
+            padding: 6px 6px 5px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
+            height: 26px;
+            margin-bottom: 4px;
+          }
           .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
-            gap: 6px;
+            gap: 4px;
           }
           .sd-fritz-energy-host .sd-fritz-energy-tile {
-            min-height: clamp(40px, min(12cqmin, 10cqh), 72px);
-            padding: 5px 8px;
+            padding: 4px 5px;
           }
         }
       ` }),
@@ -871,8 +907,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : void 0,
                 icon: Zap,
                 tint: "amber",
-                fill: true,
-                footer: showPowerSparkline && recent.length >= 2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerSparkline, { points: recent.slice(-60), compact: true }) : void 0
+                fill: true
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.today, value: formatKwh(today, locale), icon: Bolt, tint: "sky", fill: true }),
@@ -1092,7 +1127,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "Leistungsverlauf (Diagramm)" : "Power history (chart)" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Kurven-Diagramm unter \u201EAktuell\u201C (Karussell und Kachel-Ansicht). Aus = nur Wert und Spannung." : "Line chart under \u201CNow\u201D (carousel and grid). Off = value and voltage only." })
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Kurven-Diagramm unter \u201EAktuell\u201C in der Karussell-Ansicht. Kachel-Ansicht (2\xD72) bleibt kompakt ohne Diagramm." : "Line chart under \u201CNow\u201D in carousel mode. The 2\xD72 grid stays compact without a chart." })
             ] })
           ]
         }
