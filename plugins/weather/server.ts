@@ -96,7 +96,7 @@ async function openMeteoForecast(params: {
   includeHourly?: boolean
   includeDaily?: boolean
 }): Promise<unknown> {
-  const cacheKey = `fc:${params.latitude.toFixed(4)}:${params.longitude.toFixed(4)}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:hc1`
+  const cacheKey = `fc:${params.latitude.toFixed(4)}:${params.longitude.toFixed(4)}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:hc2`
   const cached = cacheGet(cacheKey)
   if (cached) return cached
 
@@ -108,7 +108,14 @@ async function openMeteoForecast(params: {
       'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m',
   })
   if (params.includeHourly) q.set('hourly', 'temperature_2m,weather_code,is_day')
-  if (params.includeDaily) q.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
+  if (params.includeHourly || params.includeDaily) {
+    q.set(
+      'daily',
+      params.includeDaily
+        ? 'weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset'
+        : 'sunrise,sunset',
+    )
+  }
   const days = params.includeDaily ? 8 : params.includeHourly ? 2 : 1
   q.set('forecast_days', String(days))
 

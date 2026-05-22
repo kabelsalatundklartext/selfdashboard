@@ -15,6 +15,8 @@ import {
   Loader2,
   Moon,
   Sun,
+  Sunrise,
+  Sunset,
 } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
@@ -26,8 +28,8 @@ export const meta: PluginMeta = {
   id: 'weather',
   name: 'Weather',
   description:
-    'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.5.5',
+    'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
+  version: '1.5.7',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -106,7 +108,14 @@ interface ForecastJson {
     weather_code?: number[]
     temperature_2m_max?: number[]
     temperature_2m_min?: number[]
+    sunrise?: string[]
+    sunset?: string[]
   }
+}
+
+interface TodaySunTimes {
+  sunrise: string
+  sunset: string
 }
 
 interface DailyDay {
@@ -362,30 +371,8 @@ function todayDateKeyFromHourly(times: string[]): string | null {
   return best ?? times[0]?.slice(0, 10) ?? null
 }
 
-function hourBucket(hour: number): number {
-  if (hour >= 18) return 3
-  if (hour >= 12) return 2
-  if (hour >= 6) return 1
-  return 0
-}
-
-function dominantWeatherCode(codes: number[]): number {
-  if (!codes.length) return 0
-  const counts = new Map<number, number>()
-  for (const c of codes) {
-    const k = Math.round(c)
-    counts.set(k, (counts.get(k) ?? 0) + 1)
-  }
-  let best = Math.round(codes[0]!)
-  let bestN = 0
-  for (const [c, n] of counts) {
-    if (n > bestN) {
-      bestN = n
-      best = c
-    }
-  }
-  return best
-}
+/** Stunden-Marken für den Tagesverlauf (24 = letzter Wert des Tages, i. d. R. 23:00). */
+const TODAY_SLOT_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24] as const
 
 function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
   const h = j.hourly
@@ -395,12 +382,10 @@ function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
   const isDays = h.is_day ?? []
   const fallbackCode = num(j.current?.weather_code, 2)
   const fallbackIsDay = (j.current?.is_day ?? 1) === 1
-  const labels = ['0–6', '6–12', '12–18', '18–24']
   const todayKey = todayDateKeyFromHourly(h.time)
   if (!todayKey) return []
-  const buckets: number[][] = [[], [], [], []]
-  const codeBuckets: number[][] = [[], [], [], []]
-  let dayVotes = [0, 0, 0, 0]
+
+  const byHour = new Map<number, { temp: number; code: number; isDay: boolean }>()
   const n = Math.min(h.time.length, temps.length)
   for (let i = 0; i < n; i++) {
     const iso = h.time[i]!
@@ -408,30 +393,63 @@ function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
     const temp = num(temps[i], NaN)
     if (!Number.isFinite(temp)) continue
     const hour = new Date(iso).getHours()
-    const b = hourBucket(hour)
-    buckets[b]!.push(temp)
-    if (i < codes.length) codeBuckets[b]!.push(num(codes[i], fallbackCode))
-    if (i < isDays.length && num(isDays[i], 0) === 1) dayVotes[b]!++
+    byHour.set(hour, {
+      temp,
+      code: i < codes.length ? num(codes[i], fallbackCode) : fallbackCode,
+      isDay: i < isDays.length ? num(isDays[i], 0) === 1 : fallbackIsDay,
+    })
   }
+
+  const pickHour = (slotHour: number): { temp: number; code: number; isDay: boolean } | null => {
+    const direct = byHour.get(slotHour === 24 ? 23 : slotHour)
+    if (direct) return direct
+    for (let d = 1; d < 24; d++) {
+      const lo = slotHour - d
+      const hi = slotHour + d
+      if (lo >= 0 && byHour.has(lo)) return byHour.get(lo)!
+      if (hi <= 23 && byHour.has(hi)) return byHour.get(hi)!
+    }
+    return null
+  }
+
   const out: DayPeriod[] = []
-  for (let b = 0; b < 4; b++) {
-    const vals = buckets[b]!
-    const slotCodes = codeBuckets[b]!
-    const code = slotCodes.length ? dominantWeatherCode(slotCodes) : fallbackCode
-    const isDay = vals.length ? dayVotes[b]! >= vals.length / 2 : fallbackIsDay
-    if (!vals.length) {
-      out.push({ label: labels[b]!, min: NaN, max: NaN, code, isDay })
+  for (const slotHour of TODAY_SLOT_HOURS) {
+    const data = pickHour(slotHour)
+    const label = String(slotHour)
+    if (!data) {
+      out.push({ label, min: NaN, max: NaN, code: fallbackCode, isDay: fallbackIsDay })
       continue
     }
     out.push({
-      label: labels[b]!,
-      min: Math.min(...vals),
-      max: Math.max(...vals),
-      code,
-      isDay,
+      label,
+      min: data.temp,
+      max: data.temp,
+      code: data.code,
+      isDay: data.isDay,
     })
   }
   return out
+}
+
+function formatSunTime(iso: string, de: boolean): string {
+  const d = new Date(iso)
+  if (!Number.isFinite(d.getTime())) return '—'
+  return d.toLocaleTimeString(de ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
+}
+
+function parseTodaySunTimes(j: ForecastJson): TodaySunTimes | null {
+  const d = j.daily
+  if (!d?.time?.length) return null
+  const sunrises = d.sunrise ?? []
+  const sunsets = d.sunset ?? []
+  const todayKey = todayDateKeyFromHourly(j.hourly?.time ?? []) ?? d.time[0]?.slice(0, 10)
+  if (!todayKey) return null
+  const idx = d.time.findIndex((t) => t.slice(0, 10) === todayKey)
+  const i = idx >= 0 ? idx : 0
+  const sunrise = sunrises[i]
+  const sunset = sunsets[i]
+  if (!sunrise || !sunset) return null
+  return { sunrise, sunset }
 }
 
 function formatPeriodTemps(min: number, max: number): string {
@@ -445,12 +463,13 @@ function parseForecastPayload(
   j: ForecastJson,
   includeDaily: boolean,
   de: boolean,
-): { current: CurrentJson; daily: DailyDay[]; dayPeriods: DayPeriod[] } {
+): { current: CurrentJson; daily: DailyDay[]; dayPeriods: DayPeriod[]; sunTimes: TodaySunTimes | null } {
   if (!j.current) throw new Error(de ? 'Keine aktuellen Werte' : 'No current values')
   return {
     current: j.current,
     daily: includeDaily ? parseDailyForecast(j, 7) : [],
     dayPeriods: parseTodayDayPeriods(j),
+    sunTimes: parseTodaySunTimes(j),
   }
 }
 
@@ -473,6 +492,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [current, setCurrent] = useState<CurrentJson | null>(null)
   const [daily, setDaily] = useState<DailyDay[]>([])
   const [dayPeriods, setDayPeriods] = useState<DayPeriod[]>([])
+  const [sunTimes, setSunTimes] = useState<TodaySunTimes | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetchKeyRef = useRef('')
@@ -493,6 +513,7 @@ function Widget({ config }: PluginWidgetProps) {
         setCurrent(null)
         setDaily([])
         setDayPeriods([])
+        setSunTimes(null)
         setError(null)
         setLoading(false)
         return
@@ -507,6 +528,7 @@ function Widget({ config }: PluginWidgetProps) {
         setCurrent(null)
         setDaily([])
         setDayPeriods([])
+        setSunTimes(null)
       }
 
       setLoading(true)
@@ -541,6 +563,7 @@ function Widget({ config }: PluginWidgetProps) {
             setCurrent(null)
             setDaily([])
             setDayPeriods([])
+            setSunTimes(null)
             setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
             return
           }
@@ -553,7 +576,7 @@ function Widget({ config }: PluginWidgetProps) {
           }
         }
         if (cancelled) return
-        const { current: cur, daily: dail, dayPeriods: periods } = parseForecastPayload(
+        const { current: cur, daily: dail, dayPeriods: periods, sunTimes: sun } = parseForecastPayload(
           forecast,
           showDailyForecast,
           de,
@@ -563,6 +586,7 @@ function Widget({ config }: PluginWidgetProps) {
         setCurrent(cur)
         setDaily(dail)
         setDayPeriods(periods)
+        setSunTimes(sun)
         hasLiveDataRef.current = true
         setError(null)
       } catch (e) {
@@ -579,6 +603,7 @@ function Widget({ config }: PluginWidgetProps) {
           setCurrent(null)
           setDaily([])
           setDayPeriods([])
+          setSunTimes(null)
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -621,6 +646,8 @@ function Widget({ config }: PluginWidgetProps) {
       hum: de ? 'Luftfeuchte' : 'Humidity',
       wind: de ? 'Wind' : 'Wind',
       nextDays: de ? 'Nächste Tage' : 'Next days',
+      sunrise: de ? 'Aufgang' : 'Sunrise',
+      sunset: de ? 'Untergang' : 'Sunset',
     }),
     [de],
   )
@@ -818,12 +845,12 @@ function Widget({ config }: PluginWidgetProps) {
               : {}),
           }}
         >
-          {(hum != null || wspd > 0) && (
+          {(hum != null || wspd > 0 || sunTimes) && (
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'center',
-                gap: 'clamp(8px, 3cqmin, 16px)',
+                gap: 'clamp(6px, 2.2cqmin, 14px)',
                 flexWrap: 'wrap',
                 fontSize: 'clamp(10px, 2.2cqmin, 12px)',
                 color: muted,
@@ -839,6 +866,18 @@ function Widget({ config }: PluginWidgetProps) {
               {wspd > 0 && (
                 <span>
                   {t.wind} {Math.round(wspd)} km/h {windCompass(wdir, de)}
+                </span>
+              )}
+              {sunTimes && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Sunrise aria-hidden style={{ width: 13, height: 13, color: '#fbbf24', flexShrink: 0 }} />
+                  {formatSunTime(sunTimes.sunrise, de)}
+                </span>
+              )}
+              {sunTimes && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Sunset aria-hidden style={{ width: 13, height: 13, color: '#fb923c', flexShrink: 0 }} />
+                  {formatSunTime(sunTimes.sunset, de)}
                 </span>
               )}
             </div>
@@ -916,10 +955,10 @@ function Widget({ config }: PluginWidgetProps) {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                gap: 'clamp(4px, 1.2cqmin, 8px)',
+                gridTemplateColumns: `repeat(${dayPeriods.length}, minmax(0, 1fr))`,
+                gap: 'clamp(2px, 0.8cqmin, 6px)',
                 width: '100%',
-                maxWidth: 'min(100%, 320px)',
+                maxWidth: '100%',
                 margin: '2px 0 0',
               }}
             >
@@ -927,6 +966,7 @@ function Widget({ config }: PluginWidgetProps) {
                 const SlotIcon = wmoIconComponent(slot.code, slot.isDay)
                 const slotColor = wmoIconColor(slot.code, slot.isDay)
                 const slotSummary = wmoSummary(slot.code, de)
+                const tempLabel = formatPeriodTemps(slot.min, slot.max)
                 return (
                   <div
                     key={slot.label}
@@ -934,52 +974,52 @@ function Widget({ config }: PluginWidgetProps) {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '3px',
-                      padding: '5px 2px 4px',
-                      borderRadius: '8px',
+                      gap: '2px',
+                      padding: '4px 1px 3px',
+                      borderRadius: '7px',
                       background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
                       border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
                       minWidth: 0,
                     }}
                     title={
                       de
-                        ? `${slot.label} Uhr — ${slotSummary}, ${formatPeriodTemps(slot.min, slot.max)}`
-                        : `${slot.label} — ${slotSummary}, ${formatPeriodTemps(slot.min, slot.max)}`
+                        ? `${slot.label} Uhr — ${slotSummary}, ${tempLabel}`
+                        : `${slot.label}:00 — ${slotSummary}, ${tempLabel}`
                     }
                   >
+                    <span
+                      style={{
+                        fontSize: 'clamp(8px, 1.7cqmin, 10px)',
+                        fontWeight: 700,
+                        color: muted,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {slot.label}
+                    </span>
                     <SlotIcon
                       aria-hidden
                       strokeWidth={1.75}
                       style={{
-                        width: 'clamp(14px, 4.5cqmin, 22px)',
-                        height: 'clamp(14px, 4.5cqmin, 22px)',
+                        width: 'clamp(12px, 3.2cqmin, 18px)',
+                        height: 'clamp(12px, 3.2cqmin, 18px)',
                         color: slotColor,
                         filter: wmoIconGlowFilter(slot.code, slot.isDay),
                         flexShrink: 0,
                       }}
                     />
                     <span
+                      className="tabular-nums"
                       style={{
                         fontSize: 'clamp(9px, 2cqmin, 11px)',
                         fontWeight: 700,
-                        color: muted,
-                        lineHeight: 1.1,
-                      }}
-                    >
-                      {slot.label}
-                    </span>
-                    <span
-                      className="tabular-nums"
-                      style={{
-                        fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-                        fontWeight: 700,
                         color: 'var(--accent)',
                         fontVariantNumeric: 'tabular-nums',
-                        lineHeight: 1.1,
+                        lineHeight: 1.05,
                         textAlign: 'center',
                       }}
                     >
-                      {formatPeriodTemps(slot.min, slot.max)}
+                      {tempLabel}
                     </span>
                   </div>
                 )
@@ -1209,8 +1249,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             <strong>{de ? '7-Tage-Vorschau' : '7-day forecast'}</strong>
             <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '4px' }}>
               {de
-                ? 'Tagesabschnitte (0–6 … 18–24) bleiben links beim aktuellen Wetter. Rechts: die nächsten 7 Tage ab morgen (heute nicht doppelt).'
-                : 'Day blocks (0–6 … 18–24) stay on the left. Right: next 7 days starting tomorrow (today omitted).'}
+                ? '3-Stunden-Verlauf (0, 3, 6 … 24) bleibt links beim aktuellen Wetter. Rechts: die nächsten 7 Tage ab morgen (heute nicht doppelt).'
+                : '3-hour timeline (0, 3, 6 … 24) stays on the left. Right: next 7 days starting tomorrow (today omitted).'}
             </span>
           </span>
         </label>
