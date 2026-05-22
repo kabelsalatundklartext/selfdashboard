@@ -27,7 +27,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.5.2',
+  version: '1.5.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -95,7 +95,12 @@ interface CurrentJson {
 
 interface ForecastJson {
   current?: CurrentJson
-  hourly?: { time?: string[]; temperature_2m?: number[] }
+  hourly?: {
+    time?: string[]
+    temperature_2m?: number[]
+    weather_code?: number[]
+    is_day?: number[]
+  }
   daily?: {
     time?: string[]
     weather_code?: number[]
@@ -115,6 +120,8 @@ interface DayPeriod {
   label: string
   min: number
   max: number
+  code: number
+  isDay: boolean
 }
 
 function str(v: unknown): string {
@@ -362,14 +369,38 @@ function hourBucket(hour: number): number {
   return 0
 }
 
+function dominantWeatherCode(codes: number[]): number {
+  if (!codes.length) return 0
+  const counts = new Map<number, number>()
+  for (const c of codes) {
+    const k = Math.round(c)
+    counts.set(k, (counts.get(k) ?? 0) + 1)
+  }
+  let best = Math.round(codes[0]!)
+  let bestN = 0
+  for (const [c, n] of counts) {
+    if (n > bestN) {
+      bestN = n
+      best = c
+    }
+  }
+  return best
+}
+
 function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
   const h = j.hourly
   if (!h?.time?.length) return []
   const temps = h.temperature_2m ?? []
+  const codes = h.weather_code ?? []
+  const isDays = h.is_day ?? []
+  const fallbackCode = num(j.current?.weather_code, 2)
+  const fallbackIsDay = (j.current?.is_day ?? 1) === 1
   const labels = ['0–6', '6–12', '12–18', '18–24']
   const todayKey = todayDateKeyFromHourly(h.time)
   if (!todayKey) return []
   const buckets: number[][] = [[], [], [], []]
+  const codeBuckets: number[][] = [[], [], [], []]
+  let dayVotes = [0, 0, 0, 0]
   const n = Math.min(h.time.length, temps.length)
   for (let i = 0; i < n; i++) {
     const iso = h.time[i]!
@@ -377,19 +408,27 @@ function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
     const temp = num(temps[i], NaN)
     if (!Number.isFinite(temp)) continue
     const hour = new Date(iso).getHours()
-    buckets[hourBucket(hour)]!.push(temp)
+    const b = hourBucket(hour)
+    buckets[b]!.push(temp)
+    if (i < codes.length) codeBuckets[b]!.push(num(codes[i], fallbackCode))
+    if (i < isDays.length && num(isDays[i], 0) === 1) dayVotes[b]!++
   }
   const out: DayPeriod[] = []
   for (let b = 0; b < 4; b++) {
     const vals = buckets[b]!
+    const slotCodes = codeBuckets[b]!
+    const code = slotCodes.length ? dominantWeatherCode(slotCodes) : fallbackCode
+    const isDay = vals.length ? dayVotes[b]! >= vals.length / 2 : fallbackIsDay
     if (!vals.length) {
-      out.push({ label: labels[b]!, min: NaN, max: NaN })
+      out.push({ label: labels[b]!, min: NaN, max: NaN, code, isDay })
       continue
     }
     out.push({
       label: labels[b]!,
       min: Math.min(...vals),
       max: Math.max(...vals),
+      code,
+      isDay,
     })
   }
   return out
@@ -779,6 +818,32 @@ function Widget({ config }: PluginWidgetProps) {
               : {}),
           }}
         >
+          {(hum != null || wspd > 0) && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: 'clamp(8px, 3cqmin, 16px)',
+                flexWrap: 'wrap',
+                fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                color: muted,
+                width: '100%',
+                flexShrink: 0,
+              }}
+            >
+              {hum != null && (
+                <span>
+                  {t.hum} {Math.round(hum)}%
+                </span>
+              )}
+              {wspd > 0 && (
+                <span>
+                  {t.wind} {Math.round(wspd)} km/h {windCompass(wdir, de)}
+                </span>
+              )}
+            </div>
+          )}
+
           <div
             style={{
               display: 'flex',
@@ -848,71 +913,69 @@ function Widget({ config }: PluginWidgetProps) {
                 margin: '2px 0 0',
               }}
             >
-              {dayPeriods.map((slot) => (
-                <div
-                  key={slot.label}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '2px',
-                    padding: '4px 2px',
-                    borderRadius: '8px',
-                    background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
-                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
-                    minWidth: 0,
-                  }}
-                  title={de ? `${slot.label} Uhr` : `${slot.label}`}
-                >
-                  <span
+              {dayPeriods.map((slot) => {
+                const SlotIcon = wmoIconComponent(slot.code, slot.isDay)
+                const slotColor = wmoIconColor(slot.code, slot.isDay)
+                const slotSummary = wmoSummary(slot.code, de)
+                return (
+                  <div
+                    key={slot.label}
                     style={{
-                      fontSize: 'clamp(9px, 2cqmin, 11px)',
-                      fontWeight: 700,
-                      color: muted,
-                      lineHeight: 1.1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '3px',
+                      padding: '5px 2px 4px',
+                      borderRadius: '8px',
+                      background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
+                      border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+                      minWidth: 0,
                     }}
+                    title={
+                      de
+                        ? `${slot.label} Uhr — ${slotSummary}, ${formatPeriodTemps(slot.min, slot.max)}`
+                        : `${slot.label} — ${slotSummary}, ${formatPeriodTemps(slot.min, slot.max)}`
+                    }
                   >
-                    {slot.label}
-                  </span>
-                  <span
-                    className="tabular-nums"
-                    style={{
-                      fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-                      fontWeight: 700,
-                      color: 'var(--accent)',
-                      fontVariantNumeric: 'tabular-nums',
-                      lineHeight: 1.1,
-                      textAlign: 'center',
-                    }}
-                  >
-                    {formatPeriodTemps(slot.min, slot.max)}
-                  </span>
-                </div>
-              ))}
+                    <SlotIcon
+                      aria-hidden
+                      strokeWidth={1.75}
+                      style={{
+                        width: 'clamp(14px, 4.5cqmin, 22px)',
+                        height: 'clamp(14px, 4.5cqmin, 22px)',
+                        color: slotColor,
+                        filter: wmoIconGlowFilter(slot.code, slot.isDay),
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 'clamp(9px, 2cqmin, 11px)',
+                        fontWeight: 700,
+                        color: muted,
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {slot.label}
+                    </span>
+                    <span
+                      className="tabular-nums"
+                      style={{
+                        fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1.1,
+                        textAlign: 'center',
+                      }}
+                    >
+                      {formatPeriodTemps(slot.min, slot.max)}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )}
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 'clamp(8px, 3cqmin, 16px)',
-              flexWrap: 'wrap',
-              fontSize: 'clamp(10px, 2.2cqmin, 12px)',
-              color: muted,
-            }}
-          >
-            {hum != null && (
-              <span>
-                {t.hum} {Math.round(hum)}%
-              </span>
-            )}
-            {wspd > 0 && (
-              <span>
-                {t.wind} {Math.round(wspd)} km/h {windCompass(wdir, de)}
-              </span>
-            )}
-          </div>
         </div>
 
         {hasDaily && (
