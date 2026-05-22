@@ -27,7 +27,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.5.3',
+  version: '1.5.5',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -802,8 +802,8 @@ function Widget({ config }: PluginWidgetProps) {
       >
         <div
           style={{
-            flex: splitView ? '0 1 44%' : undefined,
-            maxWidth: splitView ? '48%' : undefined,
+            flex: splitView ? '0 1 38%' : undefined,
+            maxWidth: splitView ? '42%' : undefined,
             minWidth: splitView ? 0 : undefined,
             display: 'flex',
             flexDirection: 'column',
@@ -847,43 +847,53 @@ function Widget({ config }: PluginWidgetProps) {
           <div
             style={{
               display: 'flex',
-              justifyContent: 'center',
+              flexDirection: 'column',
               alignItems: 'center',
-              color: iconColor,
-              minHeight: 'clamp(26px, 10cqmin, 52px)',
+              gap: 'clamp(2px, 0.6cqmin, 4px)',
+              width: '100%',
             }}
-            aria-label={summary}
-            title={summary}
           >
-            <WeatherIcon
-              aria-hidden
-              strokeWidth={1.75}
+            <div
               style={{
-                width: 'clamp(28px, 11cqmin, 56px)',
-                height: 'clamp(28px, 11cqmin, 56px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 'clamp(8px, 2.5cqmin, 16px)',
+                flexWrap: 'nowrap',
                 color: iconColor,
-                filter: iconGlow,
-                opacity: refreshing ? 0.55 : 1,
-                transition: 'opacity 0.2s, color 0.35s ease',
               }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span
-              className="tabular-nums"
-              style={{
-                fontSize: 'clamp(1.4rem, min(10cqmin, 18vw), 2.75rem)',
-                fontWeight: 800,
-                color: 'var(--accent)',
-                fontVariantNumeric: 'tabular-nums',
-                lineHeight: 1,
-              }}
+              aria-label={summary}
+              title={summary}
             >
-              {temp != null ? `${Math.round(temp)}°` : '—'}
-            </span>
+              <span
+                className="tabular-nums"
+                style={{
+                  fontSize: 'clamp(1.5rem, min(11cqmin, 20vw), 3rem)',
+                  fontWeight: 800,
+                  color: 'var(--accent)',
+                  fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                {temp != null ? `${Math.round(temp)}°` : '—'}
+              </span>
+              <WeatherIcon
+                aria-hidden
+                strokeWidth={1.75}
+                style={{
+                  width: 'clamp(32px, min(10cqmin, 14vw), 60px)',
+                  height: 'clamp(32px, min(10cqmin, 14vw), 60px)',
+                  color: iconColor,
+                  filter: iconGlow,
+                  opacity: refreshing ? 0.55 : 1,
+                  transition: 'opacity 0.2s, color 0.35s ease',
+                  flexShrink: 0,
+                }}
+              />
+            </div>
             {feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && (
-              <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted }}>
+              <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, lineHeight: 1.2 }}>
                 {t.feels} {Math.round(feels)}°
               </span>
             )}
@@ -994,7 +1004,9 @@ function Widget({ config }: PluginWidgetProps) {
               style={{
                 margin: '0 0 6px',
                 textAlign: 'center',
-                fontSize: 'clamp(9px, 2cqmin, 11px)',
+                fontSize: splitView
+                  ? dailyTypeClamp(dayScale, 10, 2.4, 13)
+                  : 'clamp(9px, 2cqmin, 11px)',
                 fontWeight: 600,
                 color: muted,
                 letterSpacing: '0.04em',
@@ -1007,7 +1019,7 @@ function Widget({ config }: PluginWidgetProps) {
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-                gap: splitView ? dayGapGrid : dayGapStackTight,
+                gap: splitView ? `${Math.max(4, Math.round(7 * dayScale))}px` : dayGapStackTight,
                 width: '100%',
                 minWidth: 0,
                 minHeight: 0,
@@ -1022,8 +1034,10 @@ function Widget({ config }: PluginWidgetProps) {
                 const dayColor = wmoIconColor(day.code, true)
                 const tip = `${weekday} ${dayNum} · ${wmoSummary(day.code, de)} · ${Math.round(day.max)}° / ${Math.round(day.min)}°`
                 const narrowDaily = !splitView
-                const pad = padDayCell(narrowDaily)
-                const br = `${Math.max(6, Math.round(8 * dayScale))}px`
+                const pad = splitView
+                  ? `${Math.max(4, Math.round(7 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(3, Math.round(5 * dayScale))}px`
+                  : padDayCell(narrowDaily)
+                const br = `${Math.max(6, Math.round((splitView ? 10 : 8) * dayScale))}px`
                 return (
                   <div
                     key={day.date}
@@ -1045,7 +1059,7 @@ function Widget({ config }: PluginWidgetProps) {
                     <span
                       style={{
                         fontSize: splitView
-                          ? dailyTypeClamp(dayScale, 7, 1.6, 9)
+                          ? dailyTypeClamp(dayScale, 10, 2.4, 13)
                           : dailyTypeClamp(dayScale, 8, 1.8, 10),
                         fontWeight: 700,
                         color: muted,
@@ -1059,7 +1073,7 @@ function Widget({ config }: PluginWidgetProps) {
                     <span
                       style={{
                         fontSize: splitView
-                          ? dailyTypeClamp(dayScale, 6, 1.4, 8)
+                          ? dailyTypeClamp(dayScale, 8, 2, 11)
                           : dailyTypeClamp(dayScale, 7, 1.6, 9),
                         color: muted,
                         lineHeight: 1,
@@ -1073,10 +1087,10 @@ function Widget({ config }: PluginWidgetProps) {
                       strokeWidth={1.85}
                       style={{
                         width: splitView
-                          ? dailyTypeClamp(dayScale, 14, 3.8, 20)
+                          ? dailyTypeClamp(dayScale, 20, 5.5, 30)
                           : dailyTypeClamp(dayScale, 16, 4.5, 22),
                         height: splitView
-                          ? dailyTypeClamp(dayScale, 14, 3.8, 20)
+                          ? dailyTypeClamp(dayScale, 20, 5.5, 30)
                           : dailyTypeClamp(dayScale, 16, 4.5, 22),
                         color: dayColor,
                         filter: wmoIconGlowFilter(day.code, true),
@@ -1087,7 +1101,7 @@ function Widget({ config }: PluginWidgetProps) {
                       className="tabular-nums"
                       style={{
                         fontSize: splitView
-                          ? dailyTypeClamp(dayScale, 8, 1.8, 10)
+                          ? dailyTypeClamp(dayScale, 12, 2.8, 16)
                           : dailyTypeClamp(dayScale, 9, 2, 11),
                         fontWeight: 700,
                         color: 'var(--accent)',
@@ -1101,7 +1115,7 @@ function Widget({ config }: PluginWidgetProps) {
                       className="tabular-nums"
                       style={{
                         fontSize: splitView
-                          ? dailyTypeClamp(dayScale, 7, 1.6, 9)
+                          ? dailyTypeClamp(dayScale, 10, 2.4, 13)
                           : dailyTypeClamp(dayScale, 8, 1.8, 10),
                         fontWeight: 600,
                         color: muted,
