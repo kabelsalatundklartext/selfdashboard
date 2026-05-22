@@ -1,1 +1,1 @@
-export { weatherServerHandler, default } from '@/builtin-plugins/weather/server'
+export { weatherServerHandler } from '@/builtin-plugins/weather/server'

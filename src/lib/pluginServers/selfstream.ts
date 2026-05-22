@@ -1,1 +1,1 @@
-export { selfstreamServerHandler, default } from '@/builtin-plugins/selfstream/server'
+export { selfstreamServerHandler } from '@/builtin-plugins/selfstream/server'

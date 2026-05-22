@@ -1,1 +1,1 @@
-export { fritzEnergyServerHandler, default } from '@/builtin-plugins/fritz-energy/server'
+export { fritzEnergyServerHandler } from '@/builtin-plugins/fritz-energy/server'

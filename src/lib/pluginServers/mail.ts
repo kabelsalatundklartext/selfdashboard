@@ -1,1 +1,1 @@
-export { mailServerHandler, default } from '@/builtin-plugins/mail/server'
+export { mailServerHandler } from '@/builtin-plugins/mail/server'

@@ -1,1 +1,1 @@
-export { fritzboxServerHandler, default } from '@/builtin-plugins/fritzbox/server'
+export { fritzboxServerHandler } from '@/builtin-plugins/fritzbox/server'

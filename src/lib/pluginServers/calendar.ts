@@ -1,1 +1,1 @@
-export { calendarServerHandler, default } from '@/builtin-plugins/calendar/server'
+export { calendarServerHandler } from '@/builtin-plugins/calendar/server'

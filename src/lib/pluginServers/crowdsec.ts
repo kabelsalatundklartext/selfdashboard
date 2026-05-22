@@ -1,1 +1,1 @@
-export { crowdsecServerHandler, default } from '@/builtin-plugins/crowdsec/server'
+export { crowdsecServerHandler } from '@/builtin-plugins/crowdsec/server'
