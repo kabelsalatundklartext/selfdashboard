@@ -12,7 +12,7 @@
  * the mutex and only enters it to merge results back into the store.
  */
 
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { logPluginApiFailure } from './log'
 import { mutateStore, newId, nowIso, readStore } from './store'
 import {
   discoverCaldavCalendars,

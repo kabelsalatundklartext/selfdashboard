@@ -1,4 +1,9 @@
-import type { PluginServerContext } from '@/lib/pluginServerRegistry'
+/** Inlined so volume `server.mjs` does not bundle Next.js via `@/lib/*`. */
+type PluginServerContext = {
+  pluginId: string
+  path: string[]
+  request: Request
+}
 import {
   applyAccountUpdate,
   badRequest,
