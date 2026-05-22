@@ -1,1 +1,1 @@
-export { dockerServerHandler, default } from '@plugins/docker/server'
+export { dockerServerHandler, default } from '@/builtin-plugins/docker/server'

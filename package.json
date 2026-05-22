@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/sync-plugins-for-build.mjs",
+    "prebuild": "node scripts/vendor-builtin-plugins.mjs",
+    "sync-plugins": "node scripts/sync-plugins-for-build.mjs",
+    "vendor-plugins": "node scripts/vendor-builtin-plugins.mjs",
     "build": "next build",
     "build:plugin-pack": "node scripts/build-plugin-pack.mjs",
     "generate:plugins-index": "node scripts/generate-plugins-index.mjs",

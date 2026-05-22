@@ -1,13 +1,15 @@
 const fs = require('fs')
 const path = require('path')
 
-/** Plugin sources for builtin server handlers (selfdashboard/plugins or sibling ../plugins). */
+/** Builtin server handlers vendored into src/builtin-plugins (committed for CI/Docker). */
 function resolvePluginsRootForBuild() {
+  const builtin = path.join(__dirname, 'src', 'builtin-plugins')
+  if (fs.existsSync(path.join(builtin, 'weather', 'server.ts'))) return builtin
   const inRepo = path.join(__dirname, 'plugins')
   if (fs.existsSync(path.join(inRepo, 'weather', 'server.ts'))) return inRepo
   const sibling = path.join(__dirname, '..', 'plugins')
   if (fs.existsSync(path.join(sibling, 'weather', 'server.ts'))) return sibling
-  return inRepo
+  return builtin
 }
 
 const pluginsRoot = resolvePluginsRootForBuild()

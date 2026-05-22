@@ -1,1 +1,1 @@
-export { adguardServerHandler, default } from '@plugins/adguard/server'
+export { adguardServerHandler, default } from '@/builtin-plugins/adguard/server'

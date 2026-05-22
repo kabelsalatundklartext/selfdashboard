@@ -26,7 +26,11 @@
         "./src/*"
       ],
       "@plugins/*": [
+        "./src/builtin-plugins/*",
         "./plugins/*"
+      ],
+      "@/builtin-plugins/*": [
+        "./src/builtin-plugins/*"
       ]
     },
     "target": "ES2017"

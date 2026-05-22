@@ -1,95 +1,39 @@
 # Docker-Image bauen
 
-Builtin-Plugin-Server liegen in **`plugins/<id>/server.ts`**. Beim Image-Build muss der Ordner **`plugins/`** im Docker-Kontext existieren (unter `selfdashboard/plugins/`).
+Builtin-Plugin-Server liegen in **`src/builtin-plugins/<id>/server.ts`** (vendored, im Git-Repo committed).
 
-## Option A — Monorepo lokal (empfohlen)
-
-Layout:
-
-```text
-SelfDashboard/
-├── selfdashboard/    ← Git-Repo / docker build cwd
-└── plugins/          ← Quellen
-```
-
-Vor dem Build:
+## Lokal
 
 ```bash
 cd selfdashboard
-node scripts/sync-plugins-for-build.mjs
+# Optional refresh from ../plugins:
+node scripts/vendor-builtin-plugins.mjs --force
 docker build -t selfdashboard:beta .
 ```
 
-`sync-plugins-for-build.mjs` kopiert `../plugins` → `./plugins`. Danach findet webpack die Handler.
+`npm run build` inside the image runs `prebuild`; it **no-ops** when `src/builtin-plugins/` already exists.
 
-## Option B — Monorepo, Docker vom Parent
+## Dev-Monorepo (Quellen in `../plugins`)
+
+```text
+SelfDashboard/
+├── selfdashboard/
+└── plugins/          ← edit server code here
+```
+
+Nach Änderungen an `server.ts` / `lib/`:
 
 ```bash
-cd SelfDashboard
-docker build -f selfdashboard/Dockerfile .
+npm run vendor-plugins -- --force
+git add src/builtin-plugins
 ```
 
-Dafür muss das Dockerfile `COPY selfdashboard/` + `COPY plugins/` nutzen (angepasste Variante) — Standard-Dockerfile im Repo nutzt **Option A** (`COPY . .` im Repo-Root).
+## CI / GitHub Actions
 
-## Plugin-Quellen im Git-Repo (Pflicht für CI)
+- Checkout enthält **`src/builtin-plugins/`** (muss committed sein).
+- `sh scripts/ci-prepare-plugins.sh` prüft `src/builtin-plugins/weather/server.ts`.
+- Siehe **[PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)**.
 
-Das GitHub-Repo enthält standardmäßig nur `plugins-pack/` (Widgets), **nicht** die TypeScript-`server.ts`-Quellen. Die müssen unter **`selfdashboard/plugins/`** committed werden — siehe **[PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)**.
+## `.dockerignore`
 
-## Wichtig: `.dockerignore`
-
-Die Dateien `scripts/sync-plugins-for-build.mjs` und `scripts/resolve-plugins-root.mjs` müssen im Docker-Build-Kontext landen (sind in `.dockerignore` explizit erlaubt). Ohne sie: `MODULE_NOT_FOUND` bei `RUN node scripts/sync-plugins-for-build.mjs`.
-
-Im Container gibt es **kein** `../plugins` — `plugins/` muss **vor** `docker build` unter `selfdashboard/plugins/` liegen.
-
-## GitHub Actions (Repo = nur selfdashboard)
-
-Der Workflow braucht **`plugins/` im Build-Kontext**. Beispiel:
-
-```yaml
-jobs:
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          path: selfdashboard
-      - uses: actions/checkout@v4
-        with:
-          repository: kabelsalatundklartext/selfdashboard
-          ref: beta
-          path: plugins
-          sparse-checkout: |
-            plugins
-      # Falls plugins ein eigener Ordner im selben Repo ist, stattdessen nur ein Checkout.
-
-      - name: Prepare plugins for image build
-        working-directory: selfdashboard
-        run: |
-          rm -rf plugins
-          cp -a ../plugins ./plugins
-          test -f plugins/weather/server.ts
-
-      - name: Build image
-        working-directory: selfdashboard
-        run: docker build -t selfdashboard:beta .
-```
-
-Wenn `plugins/` **dauerhaft im selfdashboard-Repo** liegt (Subtree/Submodule), entfällt der Copy-Schritt.
-
-## Technik
-
-- `next.config.js`: Webpack-Alias `@plugins` → `./plugins` oder `../plugins`
-- `src/lib/pluginServers/*.ts`: `export … from '@plugins/<id>/server'`
-- `npm run build` → `prebuild` ruft Sync auf, falls `./plugins` noch fehlt
-
-## Fehler „Build failed … pluginServerLoader“
-
-Ursache: **`plugins/weather/server.ts` nicht gefunden** im Build-Kontext.
-
-Prüfen:
-
-```bash
-ls plugins/weather/server.ts
-node scripts/sync-plugins-for-build.mjs
-npm run build
-```
+`scripts/vendor-builtin-plugins.mjs`, `scripts/ci-prepare-plugins.sh` und `src/builtin-plugins/` müssen im Build-Kontext sein.

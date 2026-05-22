@@ -1,41 +1,37 @@
-# Plugin-Quellen im Git-Repo (für Docker / CI)
+# Builtin plugin servers for Docker / CI
 
-Das App-Image braucht **`selfdashboard/plugins/`** mit allen `server.ts`-Dateien (nicht nur `plugins-pack/`).
+The app image needs **server handlers** for builtin plugins (weather, calendar, docker, …).
 
-Auf dem Entwickler-PC liegen die Quellen oft im **Geschwisterordner** `../plugins` — der ist im GitHub-Repo `kabelsalatundklartext/selfdashboard` **nicht** enthalten, deshalb schlägt Docker/CI fehl, wenn `plugins/` fehlt.
+Those are vendored into **`src/builtin-plugins/<id>/`** and **committed to git** so GitHub Actions and Docker builds work without a sibling `../plugins` folder.
 
-## Einmalig: `plugins/` ins Repo legen
+Widget UI still comes from **`plugins-pack/`** (and dev sources in `../plugins` on your PC).
 
-PowerShell (Monorepo auf dem PC):
+## One-time: refresh vendored tree from dev `../plugins`
+
+PowerShell (monorepo on your PC):
 
 ```powershell
 cd C:\Users\svens\Desktop\SelfDashboard\selfdashboard
-robocopy ..\plugins .\plugins /E /XD node_modules .git custom _template
-git add plugins
-git commit -m "Add plugin sources for builtin server handlers (Docker/CI build)"
+node scripts/vendor-builtin-plugins.mjs --force
+git add src/builtin-plugins
+git commit -m "Vendor builtin plugin server sources for CI/Docker"
 git push origin beta
 ```
 
-Danach findet GitHub Actions `plugins/weather/server.ts` und der Docker-Build läuft.
+After that, CI only needs `src/builtin-plugins/weather/server.ts` to exist in the checkout.
 
-## Lokaler Docker-Build
+## Local dev
 
-```powershell
-cd selfdashboard
-node scripts/sync-plugins-for-build.mjs
-docker build -t selfdashboard:beta .
-```
+- Edit plugin server code in `../plugins/<id>/` (source of truth).
+- Re-vendor when you change server handlers: `npm run vendor-plugins` or `node scripts/vendor-builtin-plugins.mjs --force`.
+- `npm run prebuild` skips copying if `src/builtin-plugins/` is already present.
 
-## CI
+## CI / Docker
 
-Workflow `.github/workflows/docker-publish.yml` führt vor dem Image-Build aus:
+- Workflow runs `sh scripts/ci-prepare-plugins.sh` — passes if `src/builtin-plugins/` is committed.
+- `Dockerfile` checks `src/builtin-plugins/weather/server.ts`.
+- `npm run build` runs `prebuild` (vendor script no-ops when vendored tree exists).
 
-`sh scripts/ci-prepare-plugins.sh`
+## Optional: full `plugins/` in repo
 
-Das Skript nutzt (in dieser Reihenfolge):
-
-1. vorhandenes `./plugins/`
-2. sonst `../plugins` (Monorepo)
-3. sonst `git archive` von `plugins/` auf dem gleichen Branch
-
-Ohne Schritt 3 muss `plugins/` im Repo committed sein.
+You can still copy the whole `plugins/` tree into `selfdashboard/plugins/` for monorepo-less clones; the build prefers `src/builtin-plugins/` when present.

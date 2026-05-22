@@ -1,11 +1,8 @@
 # Build from this directory (selfdashboard repo root):
 #   docker build -t selfdashboard:beta .
-# Requires ./plugins/ in the build context — either committed in git, or copied before build:
-#   node scripts/sync-plugins-for-build.mjs   (from monorepo with ../plugins)
-#
-# Monorepo (selfdashboard + plugins as siblings): build from parent instead:
-#   docker build -f selfdashboard/Dockerfile -t selfdashboard:beta .
-#   with context containing selfdashboard/ and plugins/ — see docs/DOCKER_BUILD.md
+# Requires src/builtin-plugins/ in the build context (committed to git).
+# Refresh from dev ../plugins: node scripts/vendor-builtin-plugins.mjs --force
+# See docs/DOCKER_BUILD.md
 
 # ── Stage 1: deps ───────────────────────────────────────────
 FROM node:22-alpine AS deps
@@ -21,9 +18,9 @@ RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-# plugins/ must already be in the build context (CI: ci-prepare-plugins.sh; local: sync-plugins-for-build.mjs).
-RUN test -f plugins/weather/server.ts \
-  || (echo "ERROR: plugins/ missing. Run: sh scripts/ci-prepare-plugins.sh OR node scripts/sync-plugins-for-build.mjs" && exit 1)
+# Builtin plugin servers are vendored under src/builtin-plugins/ (committed to git).
+RUN test -f src/builtin-plugins/weather/server.ts \
+  || (echo "ERROR: src/builtin-plugins/ missing. Run: node scripts/vendor-builtin-plugins.mjs && git add src/builtin-plugins" && exit 1)
 RUN mkdir -p public && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────
