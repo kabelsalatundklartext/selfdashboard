@@ -17,7 +17,9 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 |--------|---------|--------|
 | `plugin.json` | Ja | Name, Version, Kategorie fürs UI |
 | `widget.js` | Ja | Dashboard-Widget (fertig gebündelt) |
-| `server.js` | Nein | Nur wenn das Plugin eine eigene Server-API braucht |
+
+**API (`/api/plugins/<id>/…`):** läuft aus dem **Docker-Image** (Quellcode in `plugins/<id>/server.ts` → `src/builtin-plugins/`).  
+Das Plugin-Pack liefert **kein** `server.mjs` mehr — nur UI-Updates ohne Image-Rebuild.
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 
@@ -37,22 +39,31 @@ ZIP-Plugins ohne GitHub-Eintrag werden nicht automatisch verglichen.
 
 ## Ordner auf dem PC (Entwicklung)
 
-Empfohlene Struktur (wie bei dir):
-
 ```text
-SelfDashboard/
-├── plugins/              ← Quellcode (TypeScript/React), nur lokal
-├── plugin-pack/          ← Build-Ausgabe ZIP (optional, nicht auf GitHub)
-└── selfdashboard/        ← Git-Repo (App)
-    └── plugins-pack/     ← Store auf GitHub (plugin.json + widget.js pro Plugin)
-        └── plugins-index.json   ← Katalogliste für den Store
+selfdashboard/                 ← Git-Repo (App)
+├── plugins/                   ← Plugin-Quellen (UI + server.ts + lib/) — nach Sync im Repo
+│   ├── calendar/
+│   │   ├── index.tsx          → widget.js
+│   │   ├── server.ts          → API (im Image als builtin-plugins)
+│   │   └── lib/
+│   └── docker/
+│       ├── index.tsx
+│       ├── server.ts
+│       └── lib/
+├── src/builtin-plugins/       ← Kopie der Server-Teile fürs Docker-Image (CI)
+├── plugins-pack/              ← Store auf GitHub (nur plugin.json + widget.js)
+│   └── plugins-index.json
+└── plugin-pack/               ← ZIP-Build (optional, lokal)
 ```
 
-| Ordner | Auf GitHub? | Auf dem Server? |
-|--------|-------------|-----------------|
-| `plugins/` | Nein | Nein |
-| `plugins-pack/` | **Ja** | Nein (wird beim Install kopiert) |
-| `plugin-pack/` | Nein | Nein |
+| Ordner | Auf GitHub? | Auf dem Server (Volume)? |
+|--------|-------------|---------------------------|
+| `plugins/` | **Ja** (empfohlen, nach `node scripts/sync-plugins-for-build.mjs`) | Nein |
+| `src/builtin-plugins/` | **Ja** (Server fürs Image) | Nein |
+| `plugins-pack/` | **Ja** | Nein — wird beim Install nach `/app/plugins/custom/` kopiert |
+| `/app/plugins/custom/<id>/` | Nein | **Ja** — nur `plugin.json` + `widget.js` |
+
+**Wichtig:** Änderungen nur in `selfdashboard/plugins/<id>/` machen (sichtbar in GitHub Desktop), dann `npm run build:plugin-pack` und ggf. `npm run vendor-plugins -- --force` für API-Änderungen im Image.
 
 ---
 

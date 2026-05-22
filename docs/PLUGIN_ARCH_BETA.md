@@ -23,7 +23,7 @@ plugins/<id>/
 | Datei | Läuft wo | Zweck |
 |--------|----------|--------|
 | `index.tsx` | Browser (→ `widget.js`) | UI, `export const meta`, `pluginApiJson(…)` |
-| `server.ts` | Node (Image + optional `server.mjs` im Pack) | Proxy, Dateizugriff, TR-064, … |
+| `server.ts` | Node (**Docker-Image**, `src/builtin-plugins/`) | Proxy, Dateizugriff, TR-064, … — **nicht** als `server.mjs` im Store-Pack |
 | `lib/*` | Node (nur aus `server.ts` importieren) | Keine `@/lib/crowdsecDb` mehr im Core |
 
 **Nicht** in `plugins/<id>/`: App-weite Module (`store`, `i18n`, `pluginLog`). Die bleiben unter `selfdashboard/src/lib/` und werden im Widget über `@/lib/…` bzw. Host-Shims im Pack-Build aufgelöst.

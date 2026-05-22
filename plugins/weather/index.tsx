@@ -27,7 +27,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.5.0',
+  version: '1.5.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -238,7 +238,8 @@ function wmoSummary(code: number, de: boolean): string {
   return de ? 'Wetter' : 'Weather'
 }
 
-const CLIENT_FETCH_TIMEOUT_MS = 22_000
+/** Geocode + forecast run on server in sequence (each up to ~2×8s + retry). */
+const CLIENT_FETCH_TIMEOUT_MS = 40_000
 
 function abortSignalWithTimeout(parent: AbortSignal, ms: number): AbortSignal {
   const ac = new AbortController()
@@ -293,7 +294,7 @@ async function resolveWeather(
   const j = await pluginApiJson<{ place?: GeoHit; forecast?: ForecastJson }>(
     'weather',
     `/resolve?${params}`,
-    { signal, cache: 'no-store' },
+    { signal, cache: 'no-store', timeoutMs: CLIENT_FETCH_TIMEOUT_MS },
   )
   const hit = j.place
   if (!hit || !j.forecast) return null
@@ -418,7 +419,6 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     const ac = new AbortController()
-    const signal = abortSignalWithTimeout(ac.signal, CLIENT_FETCH_TIMEOUT_MS)
     let cancelled = false
     const fetchKey = `${locationQuery}\0${countryCode}\0${showDailyForecast ? 1 : 0}`
 
@@ -445,11 +445,12 @@ function Widget({ config }: PluginWidgetProps) {
 
       setLoading(true)
       setError(null)
+      const runSignal = abortSignalWithTimeout(ac.signal, CLIENT_FETCH_TIMEOUT_MS)
       try {
         const resolved = await resolveWeather(
           locationQuery,
           countryCode,
-          signal,
+          runSignal,
           de ? 'de' : 'en',
           showDailyForecast,
         )

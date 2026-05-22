@@ -66,7 +66,7 @@ flowchart TB
     GW["Gateway /api/plugins/{id}/…"]
   end
   subgraph vol["Volume /app/plugins/custom"]
-    W["per plugin: plugin.json + widget.js (+ optional server.js)"]
+    W["per plugin: plugin.json + widget.js (UI only)"]
   end
   subgraph gh["GitHub branch e.g. beta"]
     IDX["plugins-pack/plugins-index.json"]
@@ -83,7 +83,7 @@ flowchart TB
 | **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:beta` or `:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
 | **Installed plugins** | Host → `/app/plugins/custom/<id>/` | Widgets the browser runs (`widget.js`); survives image updates |
 | **Plugin catalog** | GitHub `plugins-pack/` on branch `beta` (configurable) | `plugins-index.json` + files the store downloads on install/update |
-| **Plugin source (dev)** | Sibling folder `plugins/<id>/` (TypeScript) | UI → `plugins-pack/`; server code vendored into `selfdashboard/src/builtin-plugins/` for the image |
+| **Plugin source (dev)** | `selfdashboard/plugins/<id>/` (`index.tsx`, `server.ts`, `lib/`) | UI → `plugins-pack/`; API → `src/builtin-plugins/` in the image |
 | **App data** | Host → `/app/data` | `dashboard.json`, calendar DB, central log |
 
 ### App update vs plugin update

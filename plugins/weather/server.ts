@@ -1,9 +1,16 @@
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
-import type { PluginServerContext } from '@/lib/pluginServerRegistry'
+import { logPluginApiFailure } from '../_shared/log'
+
+/** Inlined — volume server.mjs must not import @/lib (Next.js). */
+type PluginServerContext = {
+  pluginId: string
+  path: string[]
+  request: Request
+}
 
 const GEOCODE_BASE = 'https://geocoding-api.open-meteo.com/v1/search'
 const FORECAST_BASE = 'https://api.open-meteo.com/v1/forecast'
-const FETCH_TIMEOUT_MS = 10_000
+/** Per request; resolve = geocode + forecast sequentially → keep each call short. */
+const FETCH_TIMEOUT_MS = 8_000
 const FETCH_RETRIES = 1
 const CACHE_TTL_MS = 8 * 60 * 1000
 const CACHE_MAX = 64

@@ -12,8 +12,9 @@ Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
 | Rolle | Was passiert |
 |--------|----------------|
 | **SelfDashboard (Image)** | Dashboard, Store, Gateway `/api/plugins/<id>/…`, Builtin-Handler aus `plugins/<id>/server.ts` |
-| **Plugin auf dem Volume** | `plugin.json` + `widget.js` (+ optional `server.mjs`) unter `/app/plugins/custom/<id>/` |
-| **Du als Entwickler** | Schreibst in `plugins/<id>/` (UI + `server.ts` + `lib/`), baust mit `npm run publish:plugin-pack`, pushst `plugins-pack/` |
+| **Plugin auf dem Volume** | `plugin.json` + `widget.js` unter `/app/plugins/custom/<id>/` (UI-Updates ohne Image-Rebuild) |
+| **Plugin-API im Image** | `plugins/<id>/server.ts` + `lib/` → vendored nach `src/builtin-plugins/` → `/api/plugins/<id>/…` |
+| **Du als Entwickler** | Bearbeitest **`selfdashboard/plugins/<id>/`**, `npm run build:plugin-pack` (Widget), `npm run vendor-plugins` (API im Image) |
 
 Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume (Store oder ZIP), nicht aus dem Docker-Image.
 
@@ -22,27 +23,22 @@ Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume 
 ## 2. Ordner auf deinem PC
 
 ```text
-SelfDashboard/
-├── plugins/
-│   ├── _template/          ← Vorlage kopieren
+selfdashboard/              ← Git-Repo (hier entwickeln & committen)
+├── plugins/                ← Quelle: UI + API pro Plugin
+│   ├── _template/
 │   ├── mail/
-│   ├── adguard/
+│   │   ├── index.tsx
+│   │   ├── server.ts
+│   │   └── lib/
 │   └── meinplugin/
-└── selfdashboard/          ← Git-Repo
-    ├── plugins-pack/       ← wird beim Publish gefüllt
-    │   ├── plugins-index.json
-    │   └── adguard/
-    │       ├── plugin.json
-    │       └── widget.js
-    └── src/                ← App-Code
+├── src/builtin-plugins/    ← Server-Kopie fürs Docker-Image (nach vendor-plugins)
+└── plugins-pack/           ← Store: plugin.json + widget.js (kein server.mjs)
 ```
 
-Skripte suchen `plugins/` automatisch:
+**Quellordner:** immer `selfdashboard/plugins/<id>/` (nicht nur der Geschwisterordner `../plugins/`).
 
-1. `selfdashboard/plugins/` (falls vorhanden)
-2. sonst `../plugins/` (Geschwisterordner — dein Setup)
-
-Optional: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`
+Sync von altem Setup: `node scripts/sync-plugins-for-build.mjs`  
+Optional extern: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`
 
 Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):  
 `npm run vendor-plugins -- --force` → `src/builtin-plugins/` committen (siehe [PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)).
@@ -63,9 +59,10 @@ Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):
 
 | Datei | Beschreibung |
 |--------|----------------|
-| `server.ts` | Server-Handler für `/api/plugins/<id>/…` (Proxy, Dateien, TR-064, …) — siehe [PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md) |
-| `lib/` | Plugin-eigene Server-Module (nicht in `selfdashboard/src/lib/` ablegen) |
-| `server.mjs` | Ergebnis von `publish:plugin-pack` (esbuild); optional auf dem Volume |
+| `server.ts` | Server-Handler für `/api/plugins/<id>/…` — landet im **Image** (`src/builtin-plugins/`), siehe [PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md) |
+| `lib/` | Nur Plugin-Server-Logik (kein `import` aus `next/server` / `server-only` / `@/lib/pluginLogServer`) |
+
+**Kein `server.mjs` im Plugin-Pack:** Volume-Plugins sind nur UI. API-Updates brauchen ein **neues Docker-Image** (`npm run vendor-plugins` + Commit `src/builtin-plugins/`).
 
 ### `plugin.json` — Beispiel
 
@@ -88,7 +85,7 @@ Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):
 **Kategorien (`category`):**  
 `media` | `system` | `network` | `storage` | `security` | `productivity` | `utility`
 
-`hasServer` in `plugin.json` nur setzen, wenn ihr wirklich eine `server.js` auf GitHub mitliefert.
+`hasServer` in `plugin.json` ist optional/informativ — der Store installiert trotzdem nur `widget.js` + `plugin.json`.
 
 ---
 
