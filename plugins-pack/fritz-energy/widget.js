@@ -322,7 +322,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.3.0",
+    version: "1.3.1",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -582,14 +582,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     locale,
     de,
     showPowerInBar,
+    enabled,
     conn,
     onSwitched,
     onError
   }) {
     const [confirmTarget, setConfirmTarget] = (0, import_react3.useState)(null);
     const [busy, setBusy] = (0, import_react3.useState)(false);
-    const isOn = switchState === "ON";
-    const canSwitch = switchSupported === true && switchState !== "UNKNOWN";
+    const isOn = switchState === "ON" ? true : switchState === "OFF" ? false : powerW >= 4;
+    const canSwitch = enabled && switchSupported !== false;
     const applySwitch = async (target) => {
       setBusy(true);
       onError("");
@@ -700,12 +701,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       ) });
     }
     if (!canSwitch) {
-      if (!showPowerInBar) return null;
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-head-bar", title: de ? "Aktuelle Leistung" : "Current power", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { size: 13, "aria-hidden": true, style: { color: "#fcd34d", flexShrink: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "tabular-nums", children: formatW(powerW, locale) }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontWeight: 600, opacity: 0.9 }, children: "live" })
-      ] }) });
+      return null;
     }
     const nextTarget = isOn ? "OFF" : "ON";
     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -1055,7 +1051,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         powerW: power,
         locale,
         de,
-        showPowerInBar: viewMode === "grid",
+        showPowerInBar: true,
+        enabled: showSwitchControl,
         conn,
         onSwitched: () => void fetchEnergy(),
         onError: (code) => setErr(code || null)
