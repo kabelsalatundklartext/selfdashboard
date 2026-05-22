@@ -227,6 +227,44 @@ function cleanScenario(s: string): string {
   return s.replace(/^crowdsecurity\//i, '').trim() || 'unknown'
 }
 
+type GeoipLookup = Awaited<ReturnType<typeof createGeoipLookup>>
+
+function resolveCountryFromRow(row: AlertRow, geoip: GeoipLookup): string | null {
+  const scenario = row.scenario ? String(row.scenario).trim() : ''
+  if (!scenario || scenario === 'unknown') return null
+
+  let ip = row.ip ? String(row.ip).trim() : ''
+  if (!isUsableIp(ip)) ip = extractIpFromSerialized(row.event_serialized)
+  if (!isUsableIp(ip)) return null
+
+  const meta = extractMetaFromSerialized(row.event_serialized)
+  let country = row.country ? String(row.country).trim().toUpperCase() : ''
+  if (!country || country === '??') country = meta.country || ''
+  const geo = applyGeoipToCountry(ip, country, meta.city, geoip)
+  country = geo.country
+  if (!country || country === '??') return null
+  return country
+}
+
+function countriesFromRows(rows: AlertRow[], geoip: GeoipLookup): CrowdsecCountryStat[] {
+  const countryMap = new Map<string, number>()
+  for (const row of rows) {
+    const country = resolveCountryFromRow(row, geoip)
+    if (!country) continue
+    countryMap.set(country, (countryMap.get(country) || 0) + 1)
+  }
+  return [...countryMap.entries()]
+    .map(([country, count]) => ({ country, count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+/** All alerts in DB (no `daysBack`, no `maxAlerts`) — for the Länder list only. */
+function loadCountriesFromDatabase(db: Database.Database, geoip: GeoipLookup): CrowdsecCountryStat[] {
+  const { sql, params } = buildAlertsSql(db, 0)
+  const rows = db.prepare(sql).all(...params) as AlertRow[]
+  return countriesFromRows(rows, geoip)
+}
+
 function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: string; params: number[] } {
   const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
   const names = new Set(cols.map((c) => c.name))
@@ -335,7 +373,6 @@ export async function loadCrowdsecDashboard(
     ) as AlertRow[]
     const feed: CrowdsecFeedItem[] = []
     const feedSeen = new Set<string>()
-    const countryMap = new Map<string, number>()
     const scenarios = new Set<string>()
 
     for (const row of rows) {
@@ -359,8 +396,6 @@ export async function loadCrowdsecDashboard(
       const isBan = Number(row.active_ban) === 1
 
       scenarios.add(cleanScenario(scenario))
-      countryMap.set(country, (countryMap.get(country) || 0) + 1)
-
       const feedKey = `${row.id}|${ip}`
       if (!feedSeen.has(feedKey)) {
         feedSeen.add(feedKey)
@@ -379,10 +414,7 @@ export async function loadCrowdsecDashboard(
       }
     }
 
-    const countries: CrowdsecCountryStat[] = [...countryMap.entries()]
-      .filter(([country]) => country && country !== '??')
-      .map(([country, count]) => ({ country, count }))
-      .sort((a, b) => b.count - a.count)
+    const countries = loadCountriesFromDatabase(db, geoip)
 
     return {
       feed,

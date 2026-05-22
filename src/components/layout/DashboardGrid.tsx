@@ -193,6 +193,7 @@ export function DashboardGrid() {
 
   const handleLayoutChange = useCallback(
     (next: Layout[]) => {
+      if (!editMode) return
       if (layoutMode === 'phone') {
         next.forEach((item) => {
           const p = plugins.find((pr) => pr.instanceId === item.i)
@@ -234,7 +235,7 @@ export function DashboardGrid() {
         })
       })
     },
-    [layoutMode, plugins, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
+    [editMode, layoutMode, plugins, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
   )
 
   if (plugins.length === 0) {

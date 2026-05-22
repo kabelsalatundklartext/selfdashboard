@@ -189,6 +189,30 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
   return true
 }
 
+/** Keep phone/tablet layout from local cache when server `dashboard.json` predates responsive fields. */
+export function mergeServerDashboardState(
+  server: DashboardStatePersisted,
+  local: DashboardStatePersisted,
+): DashboardStatePersisted {
+  const dashboards = server.dashboards.map((sd) => {
+    const ld = local.dashboards.find((d) => d.id === sd.id)
+    if (!ld) return sd
+    return {
+      ...sd,
+      plugins: sd.plugins.map((sp) => {
+        const lp = ld.plugins.find((p) => p.instanceId === sp.instanceId)
+        if (!lp) return sp
+        return {
+          ...sp,
+          layoutPhone: sp.layoutPhone ?? lp.layoutPhone,
+          layoutTablet: sp.layoutTablet ?? lp.layoutTablet,
+        }
+      }),
+    }
+  })
+  return { ...server, dashboards }
+}
+
 export function pickPersistedDashboardState(s: DashboardStatePersisted): DashboardStatePersisted {
   return {
     dashboards: s.dashboards,

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useDashboardStore } from '@/lib/store'
 import {
+  mergeServerDashboardState,
   pickPersistedDashboardState,
   validateDashboardStatePersisted,
   type DashboardStatePersisted,
@@ -69,8 +70,11 @@ export function DashboardStateSync() {
         if (r.ok) {
           const raw: unknown = await r.json()
           if (validateDashboardStatePersisted(raw)) {
-            const next = normalizeServerPayload(raw)
-            useDashboardStore.setState(next)
+            const server = normalizeServerPayload(raw)
+            const local = pickPersistedDashboardState(
+              useDashboardStore.getState() as unknown as DashboardStatePersisted,
+            )
+            useDashboardStore.setState(mergeServerDashboardState(server, local))
           }
         }
       } catch {

@@ -12,8 +12,10 @@ export const translations = {
     language: 'Language',
     editMode: 'Edit Mode',
     editModeHint: 'Drag & resize widgets',
-    mobileStackHint: 'Narrow screen: widgets stack in one column. Drag position on desktop; height can be resized here.',
-    tabletLayoutHint: 'Tablet width (768–1023px): 12-column grid. Drag & resize like desktop — values are saved for tablet only.',
+    mobileStackHint:
+      'Narrow screen: widgets stack in one column. Set height in edit mode here, or under ⚙️ → Layout: phone & tablet.',
+    tabletLayoutHint:
+      'Tablet width (768–1023px): 12-column grid. Drag & resize in edit mode at this width, or set fields under ⚙️ → Layout: phone & tablet.',
     pluginStore: 'Plugin Store',
     pluginsAvailable: 'plugins available',
     searchPlugins: 'Search plugins...',
@@ -69,7 +71,8 @@ export const translations = {
     pluginLoading: 'Loading plugin…',
     pluginNotFound: 'Plugin not found:',
     responsiveLayoutTitle: 'Layout: phone & tablet',
-    responsiveLayoutIntro: 'Optional grid overrides when the dashboard track is narrow. Empty fields use the desktop layout.',
+    responsiveLayoutIntro:
+      'Optional overrides for phone/tablet. Empty fields use the desktop layout. Saved in dashboard.json (survives refresh).',
     responsivePhoneSection: 'Phone (narrow, stacked)',
     responsiveTabletSection: 'Tablet (768–1023 px width)',
     responsiveHeight: 'Height (rows)',
@@ -78,7 +81,7 @@ export const translations = {
     responsivePosX: 'X (optional)',
     responsivePosY: 'Y (optional)',
     responsiveClearSection: 'Clear overrides',
-    responsiveTabletSaveHint: '12 columns · Save with empty fields removes tablet overrides.',
+    responsiveTabletSaveHint: '12 columns. Drag in edit mode at tablet width, or type here. Empty fields clear tablet overrides.',
     media: '🎬 Media',
     system: '🖥️ System',
     network: '🌐 Network',
@@ -108,9 +111,9 @@ export const translations = {
     editMode: 'Bearbeitungsmodus',
     editModeHint: 'Widgets verschieben & skalieren',
     mobileStackHint:
-      'Schmale Ansicht: Widgets untereinander. Position am Desktop ziehen; hier nur die Höhe anpassbar.',
+      'Schmale Ansicht: Widgets untereinander. Höhe im Bearbeitungsmodus hier anpassen oder unter ⚙️ → Layout: Handy & Tablet.',
     tabletLayoutHint:
-      'Tablet-Breite (768–1023px): 12-Spalten-Raster wie Desktop. Ziehen & Skalieren speichert nur die Tablet-Werte.',
+      'Tablet-Breite (768–1023px): 12-Spalten-Raster. Im Bearbeitungsmodus bei dieser Breite ziehen/skalieren oder Werte unter ⚙️ → Layout: Handy & Tablet.',
     pluginStore: 'Plugin-Store',
     pluginsAvailable: 'Plugins verfügbar',
     searchPlugins: 'Plugins suchen...',
@@ -167,7 +170,8 @@ export const translations = {
     pluginLoading: 'Plugin wird geladen…',
     pluginNotFound: 'Plugin nicht gefunden:',
     responsiveLayoutTitle: 'Layout: Handy & Tablet',
-    responsiveLayoutIntro: 'Optionale Rasterwerte für schmale Ansichten. Leer = wie Desktop-Layout.',
+    responsiveLayoutIntro:
+      'Optionale Overrides für Handy/Tablet. Leere Felder = Desktop-Layout. Wird in dashboard.json gespeichert (bleibt nach Reload).',
     responsivePhoneSection: 'Handy (schmal, gestapelt)',
     responsiveTabletSection: 'Tablet (768–1023 px Rasterbreite)',
     responsiveHeight: 'Höhe (Zeilen)',
@@ -176,7 +180,8 @@ export const translations = {
     responsivePosX: 'X (optional)',
     responsivePosY: 'Y (optional)',
     responsiveClearSection: 'Overrides löschen',
-    responsiveTabletSaveHint: '12 Spalten · Speichern mit leeren Feldern entfernt die Tablet-Overrides.',
+    responsiveTabletSaveHint:
+      '12 Spalten. Im Bearbeitungsmodus bei Tablet-Breite ziehen oder hier eintragen. Leere Felder löschen Tablet-Overrides.',
     media: '🎬 Medien',
     system: '🖥️ System',
     network: '🌐 Netzwerk',
