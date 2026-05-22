@@ -7,6 +7,7 @@ import { pluginReadmeDocUrl, PLUGIN_CATALOG_DOC_URL, PLUGIN_CATALOG_DOC_URL_DE }
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
+import { displayPluginMeta } from '@/lib/pluginMetaI18n'
 import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
@@ -31,13 +32,6 @@ type CatalogRow = {
 }
 
 type FilterTab = 'all' | 'updates' | 'ready'
-
-function displayMeta(meta: PluginMeta, locale: 'de' | 'en') {
-  if (meta.id === 'iframe') {
-    return { name: t(locale, 'iframeName'), description: t(locale, 'iframeDesc') }
-  }
-  return { name: meta.name ?? meta.id, description: meta.description ?? '' }
-}
 
 function PluginStoreCard({
   row,
@@ -67,7 +61,7 @@ function PluginStoreCard({
   onAdd: (id: string) => void
 }) {
   const { meta, inRegistry, onDashboard } = row
-  const { name, description } = displayMeta(meta, locale)
+  const { name, description } = displayPluginMeta(meta, locale)
   const readmeHref = pluginReadmeDocUrl(meta.id, { repository: githubRepo, ref: githubRef })
 
   return (

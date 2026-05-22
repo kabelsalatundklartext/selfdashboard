@@ -98,6 +98,18 @@ export const translations = {
     iframeName: 'Iframe',
     iframeDesc:
       'Embed any website by URL (iframe) or open as a link — dashboards, internal tools, maps. If X-Frame-Options blocks embedding, use link-only mode or reverse-proxy to the same origin.',
+    weatherName: 'Weather',
+    weatherDesc:
+      'City or postal code — current weather with day blocks (0–6, 6–12, 12–18, 18–24) and optional 7-day forecast. Open-Meteo, no API key.',
+    crowdsecName: 'CrowdSec',
+    crowdsecDesc:
+      'Compact CrowdSec dashboard from crowdsec.db: overview, bans, countries, and searchable IP feed with lookup links and optional unban via Docker/cscli.',
+    unraidName: 'Unraid',
+    unraidDesc:
+      'System overview via Unraid GraphQL API (7.2+): CPU, RAM, array, cache/pool disks. RAM display modes; styling aligned with theme text colors.',
+    pluginNoSettings: 'This plugin has no settings.',
+    cancel: 'Cancel',
+    save: 'Save',
   },
   de: {
     addPlugin: 'Plugin hinzufügen',
@@ -197,6 +209,18 @@ export const translations = {
     iframeName: 'Iframe',
     iframeDesc:
       'Beliebige Webseite per URL einbetten (iframe) oder als Link öffnen — Dashboards, interne Tools, Karten. Wenn X-Frame-Options das Einbetten blockiert: Nur-Link-Modus oder Reverse-Proxy auf dieselbe Origin.',
+    weatherName: 'Wetter',
+    weatherDesc:
+      'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key.',
+    crowdsecName: 'CrowdSec',
+    crowdsecDesc:
+      'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.',
+    unraidName: 'Unraid',
+    unraidDesc:
+      'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar; Darstellung an Theme-Textfarben angeglichen.',
+    pluginNoSettings: 'Dieses Plugin hat keine Einstellungen.',
+    cancel: 'Abbrechen',
+    save: 'Speichern',
   },
 } as const
 

@@ -6,12 +6,19 @@ import { registerPlugin } from '@/lib/pluginRegistry'
 import { registerNavbarSlot } from '@/lib/pluginNavbarRegistry'
 import { registerAppSettingsPanel } from '@/lib/pluginAppSettingsRegistry'
 import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
+import { useDashboardStore } from '@/lib/store'
+import { usePluginLocale } from '@/lib/pluginLocale'
+import { t } from '@/lib/i18n'
 import type { PluginComponent, PluginMeta } from '@/types'
 
 export type SelfDashboardPluginBridge = {
   React: typeof React
   /** Host react-dom APIs used by volume widgets (e.g. createPortal for modals). */
   ReactDOM: { createPortal: typeof createPortal }
+  /** Host Zustand hook — volume widgets must not bundle a separate store copy. */
+  useDashboardStore: typeof useDashboardStore
+  usePluginLocale: typeof usePluginLocale
+  t: typeof t
   registerPlugin: (meta: PluginMeta, component: PluginComponent, opts?: { replace?: boolean }) => void
   registerNavbarSlot: typeof registerNavbarSlot
   registerAppSettingsPanel: typeof registerAppSettingsPanel
@@ -30,6 +37,9 @@ export function installPluginExternalBridge(): void {
   window.SelfDashboard = {
     React,
     ReactDOM: { createPortal },
+    useDashboardStore,
+    usePluginLocale,
+    t,
     registerPlugin,
     registerNavbarSlot,
     registerAppSettingsPanel,

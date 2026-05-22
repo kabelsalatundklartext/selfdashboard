@@ -88,6 +88,23 @@ import * as plugin from '${pluginEntry}'
   fs.writeFileSync(entryPath, entry.trim() + '\n')
 }
 
+const hostShimDir = path.join(root, 'scripts', 'plugin-host-shims')
+const hostShimMap = {
+  '@/lib/store': path.join(hostShimDir, 'dashboard-store-shim.ts'),
+  '@/lib/pluginLocale': path.join(hostShimDir, 'plugin-locale-shim.ts'),
+  '@/lib/i18n': path.join(hostShimDir, 'i18n-shim.ts'),
+}
+
+const hostSharedShim = {
+  name: 'sd-host-shared-shim',
+  setup(build) {
+    build.onResolve({ filter: /^@\/lib\/(store|pluginLocale|i18n)$/ }, (args) => {
+      const shim = hostShimMap[args.path]
+      if (shim) return { path: shim }
+    })
+  },
+}
+
 const reactShim = {
   name: 'sd-react-shim',
   setup(build) {
@@ -172,11 +189,11 @@ async function bundleWidget(pluginId, destDir) {
     nodePaths: [path.join(root, 'node_modules')],
     jsx: 'automatic',
     banner: {
-      js: "if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');",
+      js: "if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');if(!globalThis.SelfDashboard?.useDashboardStore)throw new Error('SelfDashboard store bridge missing — reload page');",
     },
     alias: { '@': path.join(root, 'src') },
     loader: { '.tsx': 'tsx', '.ts': 'ts', '.svg': 'file' },
-    plugins: [reactShim],
+    plugins: [hostSharedShim, reactShim],
     logLevel: 'warning',
   })
 }
