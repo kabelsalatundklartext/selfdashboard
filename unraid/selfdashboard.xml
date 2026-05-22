@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>SelfDashboard</Name>
-  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard:beta</Repository>
+  <Repository>ghcr.io/kabelsalatundklartext/selfdashboard:latest</Repository>
   <Registry>https://github.com/kabelsalatundklartext/selfdashboard/pkgs/container/selfdashboard</Registry>
   <Network>bridge</Network>
   <MyIP/>
@@ -9,11 +9,11 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modulares Homelab-Dashboard. Schlankes Kern-Image; Plugins nur über Store „Von GitHub“ (plugins-pack) oder ZIP nach /app/plugins/custom (plugin.json + widget.js). Nach Install: Strg+F5. Config Storage: dashboard.json unter /app/data. Doku: docs/PLUGINS.md und docs/PLUGIN_DEV.md — Image :beta.</Overview>
+  <Overview>SelfDashboard — modulares Homelab-Dashboard (Stable, Image :latest). Kern-App im Container; Widgets über Plugin-Store „Von GitHub“ (Branch main, Ordner plugins-pack) oder ZIP nach /app/plugins/custom (plugin.json + widget.js). Plugin-APIs sind im Image (Builtin); nach Plugin-Update: Strg+F5. Config Storage: dashboard.json unter /app/data. Tester: Image :beta + GitHub-Branch beta. Doku: docs/PLUGINS.md, docs/PLUGIN_DEV.md.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/unraid/selfdashboard.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/public/icon_unraid.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/public/icon_unraid.png</Icon>
   <ExtraParams>--group-add=281</ExtraParams>
   <PostArgs/>
   <CPUset/>
@@ -22,7 +22,6 @@
   <DonateLink/>
   <Requires/>
 
-  <!-- Port -->
   <Config
     Name="WebUI Port"
     Target="3000"
@@ -34,7 +33,6 @@
     Required="true"
     Mask="false">3000</Config>
 
-  <!-- Timezone -->
   <Config
     Name="Timezone"
     Target="TZ"
@@ -46,37 +44,34 @@
     Required="false"
     Mask="false">Europe/Berlin</Config>
 
-  <!-- Data volume -->
   <Config
     Name="Config Storage"
     Target="/app/data"
     Default="/mnt/user/appdata/selfdashboard"
     Mode="rw"
-    Description="App-Daten (/app/data): dashboard.json, Kalender unter calendar/. E-Mail-Daten nach Installation des Mail-Plugins unter plugins/custom/mail/ (Plugins Storage — nicht hier). Backup beider Mounts empfohlen. Typisch auf dem Host: …/selfdashboard/ (data) und …/selfdashboard/plugins/ (Store/ZIP)."
+    Description="App-Daten (/app/data): dashboard.json, Kalender, Logs. Backup dieses Host-Ordners empfohlen. Optional: SELFDASHBOARD_DATA_DIR überschreibt den Pfad im Container."
     Type="Path"
     Display="always"
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard</Config>
 
-  <!-- Plugins on host (GitHub install + manual plugins land here) -->
   <Config
     Name="Plugins Storage"
     Target="/app/plugins/custom"
     Default="/mnt/user/appdata/selfdashboard/plugins"
     Mode="rw"
-    Description="Pflicht für Plugin-Verteilung: Host-Ordner → /app/plugins/custom. Pro Plugin ein Unterordner (z. B. adguard/) mit plugin.json und widget.js. Im Store: „Von GitHub“ installieren oder ZIP hochladen. Nicht gebraucht? Unterordner löschen, dann ↻ oder Container neu starten. index.tsx aus dem Repo funktioniert hier nicht — nur widget.js."
+    Description="Pflicht für Plugin-Verteilung: Host → /app/plugins/custom. Pro Plugin ein Unterordner mit plugin.json und widget.js (Store „Von GitHub“ oder ZIP). Nur widget.js — keine index.tsx. API läuft aus dem Image; kein server.mjs auf dem Volume nötig. Nach Update: Strg+F5."
     Type="Path"
     Display="always"
     Required="true"
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
-  <!-- GitHub plugin catalog -->
   <Config
     Name="GitHub Plugins Repo"
     Target="SELFDASHBOARD_PLUGINS_GITHUB_REPO"
     Default="kabelsalatundklartext/selfdashboard"
     Mode=""
-    Description="GitHub-Repository für Remote-Plugins (owner/repo). Store lädt plugins-pack/plugins-index.json von hier."
+    Description="GitHub-Repository für den Plugin-Store (owner/repo). Lädt plugins-pack/plugins-index.json."
     Type="Variable"
     Display="always"
     Required="false"
@@ -85,13 +80,13 @@
   <Config
     Name="GitHub Plugins Branch"
     Target="SELFDASHBOARD_PLUGINS_GITHUB_REF"
-    Default="beta"
+    Default="main"
     Mode=""
-    Description="Branch oder Tag auf GitHub (z. B. beta oder main). Muss plugins-pack/ mit plugins-index.json und widget.js enthalten."
+    Description="Branch oder Tag (Stable: main). Muss plugins-pack/ mit plugins-index.json enthalten. Beta-Tester: beta + Image :beta."
     Type="Variable"
     Display="always"
     Required="false"
-    Mask="false">beta</Config>
+    Mask="false">main</Config>
 
   <Config
     Name="GitHub Plugins Path"
@@ -104,19 +99,17 @@
     Required="false"
     Mask="false">plugins-pack</Config>
 
-  <!-- CrowdSec (optional) -->
   <Config
     Name="CrowdSec Data (optional)"
     Target="/crowdsec-data"
     Default=""
     Mode="ro"
-    Description="OPTIONAL — leer lassen ohne CrowdSec-Widget. z. B. /mnt/user/appdata/crowdsec/data → /crowdsec-data (read-only). crowdsec.db; optional GeoLite2-*.mmdb. Unban: Docker-Socket + Plugin-Einstellung."
+    Description="OPTIONAL — leer lassen ohne CrowdSec-Widget. z. B. /mnt/user/appdata/crowdsec/data → /crowdsec-data (read-only). crowdsec.db; optional GeoLite2-*.mmdb. Entsperren: Docker-Socket + Plugin-Einstellung."
     Type="Path"
     Display="always"
     Required="false"
     Mask="false"></Config>
 
-  <!-- Docker socket (optional) -->
   <Config
     Name="Docker Socket"
     Target="/var/run/docker.sock"
@@ -139,13 +132,12 @@
     Required="false"
     Mask="false">production</Config>
 
-  <!-- TLS: only for homelab HTTPS with self-signed certs (CalDAV, Fritzbox, …) -->
   <Config
     Name="HTTPS ohne Zertifikatsprüfung (optional)"
     Target="NODE_TLS_REJECT_UNAUTHORIZED"
     Default=""
     Mode=""
-    Description="Wofür: SelfDashboard holt Daten per HTTPS aus dem Container — z. B. Kalender (CalDAV/HTTPS), Fritzbox, Pi-hole/AdGuard-Web-API, Docker-nahe Dienste, Plugin-Store/GitHub, Wetter (Open-Meteo). Standard (Feld leer): Zertifikate werden geprüft — sicher, empfohlen. Nur 0 eintragen, wenn ein Plugin in den Einstellungen eine interne https://-URL nutzt und im Protokoll Zertifikatsfehler stehen (z. B. UNABLE_TO_VERIFY_LEAF_SIGNATURE, self-signed, abgelaufen) — typisch Homelab mit selbstsigniertem Zertifikat. Dann 0: Prüfung für alle HTTPS-Aufrufe aus dem Container aus — unsicher, nur als Notlösung. Nicht nötig für: Open-Meteo, GitHub-Plugin-Store, öffentliche APIs. Besser: gültiges Zertifikat oder eigene CA statt dauerhaft 0."
+    Description="Wofür: HTTPS aus dem Container (CalDAV, Fritzbox, Pi-hole, Plugin-Store, Wetter, …). Standard (leer): Zertifikate prüfen — empfohlen. Nur 0 bei Zertifikatsfehlern auf internen https://-URLs (self-signed). Dann gilt für alle HTTPS-Aufrufe — unsicher. Nicht nötig für Open-Meteo/GitHub. Besser: gültiges Zertifikat oder eigene CA."
     Type="Variable"
     Display="advanced"
     Required="false"
