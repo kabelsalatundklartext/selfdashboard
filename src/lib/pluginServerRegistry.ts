@@ -36,3 +36,9 @@ export function getPluginServerHandler(pluginId: string): PluginServerHandler | 
 export function getRegisteredPluginServerIds(): string[] {
   return Array.from(handlers.keys())
 }
+
+export function getPluginServerHandlerSource(
+  pluginId: string,
+): 'builtin' | 'custom' | undefined {
+  return handlerSource.get(pluginId)
+}

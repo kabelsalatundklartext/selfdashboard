@@ -5,6 +5,8 @@ import path from 'path'
 import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import {
+  getPluginServerHandler,
+  getPluginServerHandlerSource,
   registerPluginServerHandler,
   unregisterPluginServerHandler,
   type PluginServerContext,
@@ -13,6 +15,11 @@ import {
 import { customPluginDir, getCustomServerPluginIds } from '@/lib/pluginVolumeInfo'
 
 const loadedCustomServerIds = new Set<string>()
+
+function volumeServerOverrideEnabled(): boolean {
+  const v = process.env.SELFDASHBOARD_VOLUME_PLUGIN_SERVER?.trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'yes'
+}
 
 function resolveServerModulePath(id: string): string | null {
   const dir = customPluginDir(id)
@@ -51,9 +58,10 @@ async function importVolumeServer(id: string): Promise<PluginServerHandler | nul
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    console.error(
-      `[SelfDashboard] custom/${id}/server.* failed to load (${modulePath}): ${msg}. ` +
-        'Remove server.mjs or rebuild plugin-pack (calendar ≥1.3.5). Using builtin handler if available.',
+    console.warn(
+      `[SelfDashboard] custom/${id}/server.* skipped (${msg}). ` +
+        'Using builtin API from the image. To remove: delete server.mjs under plugins/custom/' +
+        `${id}/ or set SELFDASHBOARD_VOLUME_PLUGIN_SERVER=1 after rebuilding plugin-pack.`,
     )
     return null
   }
@@ -76,8 +84,16 @@ export async function reloadCustomPluginServers(): Promise<string[]> {
   }
   loadedCustomServerIds.clear()
 
+  const overrideVolume = volumeServerOverrideEnabled()
   const ids = getCustomServerPluginIds()
   for (const id of ids) {
+    if (
+      !overrideVolume &&
+      getPluginServerHandler(id) &&
+      getPluginServerHandlerSource(id) === 'builtin'
+    ) {
+      continue
+    }
     const handler = await importVolumeServer(id)
     if (!handler) continue
     registerPluginServerHandler(id, handler, { source: 'custom', replace: true })
