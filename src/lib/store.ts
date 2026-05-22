@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Dashboard, PluginInstance, ThemeId } from '@/types'
@@ -392,3 +393,15 @@ export const useDashboardStore = create<DashboardStore>()(
     }
   )
 )
+
+/** True after zustand/persist rehydrated localStorage (avoids SSR/client DOM mismatch / React #418). */
+export function useDashboardStoreHydrated(): boolean {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      if (useDashboardStore.persist.hasHydrated()) return () => {}
+      return useDashboardStore.persist.onFinishHydration(onStoreChange)
+    },
+    () => useDashboardStore.persist.hasHydrated(),
+    () => false,
+  )
+}
