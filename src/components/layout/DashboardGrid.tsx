@@ -93,7 +93,12 @@ function buildTabletLayout(plugins: PluginInstance[]): Layout[] {
 }
 
 export function DashboardGrid() {
-  useSyncExternalStore(subscribePluginRegistry, getPluginRegistryVersion, () => 0)
+  /** Rebuild layouts when volume/builtin plugins register (stackedExtraH, minH from meta). */
+  const registryVersion = useSyncExternalStore(
+    subscribePluginRegistry,
+    getPluginRegistryVersion,
+    () => 0,
+  )
 
   const {
     activeDashboard,
@@ -111,7 +116,12 @@ export function DashboardGrid() {
   const plugins = dash.plugins
   const measureRef = useRef<HTMLDivElement>(null)
   const scaleInnerRef = useRef<HTMLDivElement>(null)
-  const [containerWidth, setContainerWidth] = useState(1200)
+  /** Skip RGL's first onLayoutChange after layout/plugin meta updates (would overwrite layoutPhone with wrong h). */
+  const layoutPersistReadyRef = useRef(false)
+  const [containerWidth, setContainerWidth] = useState(() => {
+    if (typeof window === 'undefined') return 1200
+    return Math.max(200, Math.floor(window.innerWidth))
+  })
   /** Flow height after CSS transform:scale — without this, the browser keeps the unscaled layout height and leaves an empty band below the grid when zoom is below 1. */
   const [scaledWrapHeight, setScaledWrapHeight] = useState<number | null>(null)
 
@@ -160,12 +170,20 @@ export function DashboardGrid() {
       window.clearTimeout(t1)
       ro.disconnect()
     }
-  }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode])
+  }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode, registryVersion])
 
   const isPhone = containerWidth < PHONE_BREAKPOINT_PX
   const isTablet = !isPhone && containerWidth < DESKTOP_BREAKPOINT_PX
   const layoutMode = isPhone ? 'phone' : isTablet ? 'tablet' : 'desktop'
   const gridCols = isPhone ? 1 : COLS
+
+  useLayoutEffect(() => {
+    layoutPersistReadyRef.current = false
+    const id = requestAnimationFrame(() => {
+      layoutPersistReadyRef.current = true
+    })
+    return () => cancelAnimationFrame(id)
+  }, [layoutMode, registryVersion, plugins.length])
 
   const desktopLayout: Layout[] = useMemo(
     () =>
@@ -183,17 +201,17 @@ export function DashboardGrid() {
           minH: mins.minH,
         }
       }),
-    [plugins]
+    [plugins, registryVersion]
   )
 
-  const stackedLayout = useMemo(() => buildStackedLayout(plugins), [plugins])
-  const tabletLayout = useMemo(() => buildTabletLayout(plugins), [plugins])
+  const stackedLayout = useMemo(() => buildStackedLayout(plugins), [plugins, registryVersion])
+  const tabletLayout = useMemo(() => buildTabletLayout(plugins), [plugins, registryVersion])
 
   const gridLayout = isPhone ? stackedLayout : isTablet ? tabletLayout : desktopLayout
 
   const handleLayoutChange = useCallback(
     (next: Layout[]) => {
-      if (!editMode) return
+      if (!editMode || !layoutPersistReadyRef.current) return
       if (layoutMode === 'phone') {
         next.forEach((item) => {
           const p = plugins.find((pr) => pr.instanceId === item.i)
@@ -235,7 +253,7 @@ export function DashboardGrid() {
         })
       })
     },
-    [editMode, layoutMode, plugins, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
+    [editMode, layoutMode, plugins, registryVersion, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
   )
 
   if (plugins.length === 0) {
