@@ -18,14 +18,14 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 | `plugin.json` | Ja | Name, Version, Kategorie fürs UI |
 | `widget.js` | Ja | Dashboard-Widget (fertig gebündelt) |
 
-**API (`/api/plugins/<id>/…`):** läuft aus dem **Docker-Image** (Quellcode in `plugins/<id>/server.ts` → `src/builtin-plugins/`).  
-Das Plugin-Pack liefert **kein** `server.mjs` mehr — nur UI-Updates ohne Image-Rebuild.
+**API (`/api/plugins/<id>/…`):** läuft aus dem **Docker-Image** (`src/builtin-plugins/<id>/server.ts`).  
+`plugins-pack/` liefert nur **UI** (`plugin.json` + `widget.js`) — API-Änderungen brauchen ein neues Image.
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 
 ### Updates von GitHub
 
-1. Maintainer erhöht `version` in `plugin.json` und pusht `plugins-pack/` (`npm run publish:plugin-pack`).
+1. Maintainer erhöht `version` in `plugins-pack/<id>/plugin.json`, passt `widget.js` an und pusht `plugins-pack/` (danach `npm run generate:plugins-index` für `plugins-index.json`).
 2. SelfDashboard lädt `plugins-index.json` vom konfigurierten Branch (Cache ~5 Min.).
 3. Installierte Plugins: Vergleich **Version auf Platte** (`/app/plugins/custom/<id>/plugin.json`) mit **Version im Index**.
 4. Bei neuerer Version: **Hinweis-Leiste** unter der Navbar + orangener Punkt am **+** (Bearbeitungsmodus).
@@ -37,33 +37,31 @@ ZIP-Plugins ohne GitHub-Eintrag werden nicht automatisch verglichen.
 
 ---
 
-## Ordner auf dem PC (Entwicklung)
+## Ordner im Repo (GitHub)
 
 ```text
-selfdashboard/                 ← Git-Repo (App)
-├── plugins/                   ← Plugin-Quellen (UI + server.ts + lib/) — nach Sync im Repo
-│   ├── calendar/
-│   │   ├── index.tsx          → widget.js
-│   │   ├── server.ts          → API (im Image als builtin-plugins)
-│   │   └── lib/
-│   └── docker/
-│       ├── index.tsx
-│       ├── server.ts
-│       └── lib/
-├── src/builtin-plugins/       ← Kopie der Server-Teile fürs Docker-Image (CI)
-├── plugins-pack/              ← Store auf GitHub (nur plugin.json + widget.js)
+selfdashboard/
+├── plugins-pack/              ← Plugin-Store (GitHub) — hier ändern & pushen
+│   ├── weather/
+│   │   ├── plugin.json
+│   │   └── widget.js
 │   └── plugins-index.json
-└── plugin-pack/               ← ZIP-Build (optional, lokal)
+└── src/builtin-plugins/       ← Server-API fürs Docker-Image (bei API-Änderungen)
 ```
 
-| Ordner | Auf GitHub? | Auf dem Server (Volume)? |
-|--------|-------------|---------------------------|
-| `plugins/` | **Ja** (empfohlen, nach `node scripts/sync-plugins-for-build.mjs`) | Nein |
-| `src/builtin-plugins/` | **Ja** (Server fürs Image) | Nein |
-| `plugins-pack/` | **Ja** | Nein — wird beim Install nach `/app/plugins/custom/` kopiert |
-| `/app/plugins/custom/<id>/` | Nein | **Ja** — nur `plugin.json` + `widget.js` |
+| Ordner | Auf GitHub? | Auf dem Tower (Volume)? |
+|--------|-------------|-------------------------|
+| `plugins-pack/` | **Ja** — einziger Plugin-Store im Repo | Nein — wird nach `/app/plugins/custom/` installiert |
+| `src/builtin-plugins/` | **Ja** — API im Docker-Image | Nein |
+| `plugins/` | **Nein** (lokal optional, `.gitignore`) | Nein |
+| `plugin-pack/` | **Nein** (lokal optional, `.gitignore`) | Nein |
+| `/app/plugins/custom/<id>/` | Nein | **Ja** — `plugin.json` + `widget.js` |
 
-**Wichtig:** Änderungen nur in `selfdashboard/plugins/<id>/` machen (sichtbar in GitHub Desktop), dann `npm run build:plugin-pack` und ggf. `npm run vendor-plugins -- --force` für API-Änderungen im Image.
+**Workflow Plugin-UI:** `plugins-pack/<id>/plugin.json` (Version) + `widget.js` anpassen → `npm run generate:plugins-index` → `plugins-pack/` pushen.
+
+**Workflow Plugin-API:** `src/builtin-plugins/<id>/server.ts` anpassen → neues Docker-Image bauen/pushen.
+
+Optional lokal (nicht auf GitHub): Ordner `plugins/` mit `index.tsx` für `npm run build:plugin-pack`, oder `plugin-pack/` als ZIP-Staging.
 
 ---
 
@@ -72,7 +70,7 @@ selfdashboard/                 ← Git-Repo (App)
 Die **Inhaltsliste des GitHub-Stores**. Enthält pro Plugin: ID, Name, Version, welche Dateien installiert werden.
 
 - **Wird nicht** beim Klick im UI geschrieben
-- **Wird erzeugt** mit: `npm run publish:plugin-pack` (im Repo `selfdashboard/`)
+- **Wird erzeugt** mit: `npm run generate:plugins-index` (nach Änderungen unter `plugins-pack/`)
 - Muss mit nach GitHub gepusht werden, damit neue Plugins im Store erscheinen
 
 ZIP-Upload durch Nutzer braucht **keinen** Eintrag in dieser Datei.
@@ -98,14 +96,14 @@ Env (im Image `:beta` bereits gesetzt):
 | Variable | Bedeutung |
 |----------|-----------|
 | `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | z. B. `kabelsalatundklartext/selfdashboard` |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | Branch, z. B. `beta` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | Branch, Stable: `main` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` |
 
 ---
 
 ## Plugin-Katalog (alle Plugins)
 
-**[README — Plugins](../README.md#plugins)** — Katalogtabelle · **[plugins/README.md](./plugins/README.md)** — Index mit Link zu `docs/plugins/<id>/README.md` (DE/EN pro Plugin).
+**[README — Plugins](../README.md#plugins)** — Katalogtabelle · **`docs/plugins/<id>/README.md`** (DE/EN pro Plugin).
 
 ## Weitere Doku
 

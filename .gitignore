@@ -17,6 +17,10 @@ build/
 # local server-persisted dashboard (dev: SELFDASHBOARD_DATA_DIR unset → ./data)
 /data/
 
+# Plugin-Store only on GitHub (not plugins/ sources or plugin-pack/ ZIP build)
+plugins/
+plugin-pack/
+
 # misc
 .DS_Store
 *.pem
