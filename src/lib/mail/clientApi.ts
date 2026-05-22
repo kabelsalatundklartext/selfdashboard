@@ -1,1 +1,1 @@
-export * from '../../../../plugins/mail/lib/clientApi'
+export * from '@plugins/mail/lib/clientApi'

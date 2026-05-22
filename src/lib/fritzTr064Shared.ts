@@ -1,1 +1,1 @@
-export * from '../../../plugins/fritzbox/lib/fritzTr064Shared'
+export * from '@plugins/fritzbox/lib/fritzTr064Shared'

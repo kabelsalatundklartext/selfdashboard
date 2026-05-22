@@ -1,1 +1,1 @@
-export * from '../../../plugins/fritzbox/lib/tr064NodeFetch'
+export * from '@plugins/fritzbox/lib/tr064NodeFetch'

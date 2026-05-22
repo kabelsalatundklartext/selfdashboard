@@ -1,6 +1,6 @@
 # Plugins — Überblick (SelfDashboard)
 
-Kurzreferenz für **Nutzer** und **Entwickler**. Ausführliche Anleitung zum Schreiben von Plugins: **[PLUGIN_DEV.md](./PLUGIN_DEV.md)**.
+Kurzreferenz für **Nutzer** und **Entwickler**. Ausführliche Anleitung: **[PLUGIN_DEV.md](./PLUGIN_DEV.md)**. Plugin-Ordner & API (Beta): **[PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md)**.
 
 ---
 

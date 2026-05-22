@@ -1,1 +1,1 @@
-export * from '../../../plugins/selfstream/lib/types'
+export * from '@plugins/selfstream/lib/types'

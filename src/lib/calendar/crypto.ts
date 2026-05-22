@@ -1,1 +1,1 @@
-export * from '../../../../plugins/calendar/lib/crypto'
+export * from '@plugins/calendar/lib/crypto'

@@ -1,1 +1,1 @@
-export * from '../../../../plugins/calendar/lib/caldav-privileges'
+export * from '@plugins/calendar/lib/caldav-privileges'

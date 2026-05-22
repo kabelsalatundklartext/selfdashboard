@@ -1,1 +1,1 @@
-export * from '../../../plugins/crowdsec/lib/crowdsecDb'
+export * from '@plugins/crowdsec/lib/crowdsecDb'

@@ -1,1 +1,1 @@
-export * from '../../../../plugins/mail/lib/types'
+export * from '@plugins/mail/lib/types'

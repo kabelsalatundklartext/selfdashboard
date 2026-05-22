@@ -1,1 +1,1 @@
-export * from '../../../plugins/docker/lib/dockerEngine'
+export * from '@plugins/docker/lib/dockerEngine'

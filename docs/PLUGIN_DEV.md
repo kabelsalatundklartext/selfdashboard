@@ -2,7 +2,8 @@
 
 Diese Anleitung erklärt, **wie Plugins für SelfDashboard aufgebaut sind**, was du selbst schreiben musst und wie du sie **im Store** oder per **ZIP** verteilst.
 
-Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
+Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.  
+**Beta-Architektur** (alles Plugin-relevante im Plugin-Ordner): **[PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md)**.
 
 ---
 
@@ -10,9 +11,9 @@ Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
 
 | Rolle | Was passiert |
 |--------|----------------|
-| **SelfDashboard (Image)** | Dashboard, Store, API-Gateway, ein paar **Kern-Server** (z. B. Mail, AdGuard) |
-| **Plugin auf dem Volume** | `plugin.json` + `widget.js` (+ optional `server.js`) unter `/app/plugins/custom/<id>/` |
-| **Du als Entwickler** | Schreibst TypeScript in `plugins/<id>/`, baust mit `npm run publish:plugin-pack`, pushst `plugins-pack/` |
+| **SelfDashboard (Image)** | Dashboard, Store, Gateway `/api/plugins/<id>/…`, Builtin-Handler aus `plugins/<id>/server.ts` |
+| **Plugin auf dem Volume** | `plugin.json` + `widget.js` (+ optional `server.mjs`) unter `/app/plugins/custom/<id>/` |
+| **Du als Entwickler** | Schreibst in `plugins/<id>/` (UI + `server.ts` + `lib/`), baust mit `npm run publish:plugin-pack`, pushst `plugins-pack/` |
 
 Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume (Store oder ZIP), nicht aus dem Docker-Image.
 
@@ -59,8 +60,9 @@ Optional: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`
 
 | Datei | Beschreibung |
 |--------|----------------|
-| `server.ts` | Server-Logik — nur nötig, wenn du **eigene** API-Routen brauchst, die **nicht** schon im Image sind |
-| `server.js` | Kompilierte Server-Datei fürs Volume (selten; Mail/AdGuard laufen im Image) |
+| `server.ts` | Server-Handler für `/api/plugins/<id>/…` (Proxy, Dateien, TR-064, …) — siehe [PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md) |
+| `lib/` | Plugin-eigene Server-Module (nicht in `selfdashboard/src/lib/` ablegen) |
+| `server.mjs` | Ergebnis von `publish:plugin-pack` (esbuild); optional auf dem Volume |
 
 ### `plugin.json` — Beispiel
 
@@ -192,17 +194,15 @@ async function load() {
 | `pluginApiJson('adguard', '/')` | `POST/GET /api/plugins/adguard/…` |
 | `pluginApiJson('mail', '/settings')` | `/api/plugins/mail/settings` |
 
-Legacy-Routen wie `/api/mail/…` existieren teils noch — neu besser `/api/plugins/<id>/…`.
+Legacy-Routen (`/api/pihole`, `/api/calendar/…`, …) sind **Shims** zum gleichen Handler — neu nur `/api/plugins/<id>/…`.
 
-### Eigene Server-API
+### Eigene Server-API (Beta)
 
-**Variante A — im Image (nur Core-Team):** Handler unter `src/lib/pluginServers/` + Eintrag in `src/lib/pluginServerLoader.ts` (Mail, AdGuard).
+1. Logik in **`plugins/<id>/server.ts`** (+ optional `plugins/<id>/lib/`).
+2. Re-Export in **`src/lib/pluginServers/<id>.ts`** und Registrierung in **`pluginServerLoader.ts`** (Builtin-Plugins im Image).
+3. Widget: **`pluginApiJson('<id>', '/pfad')`**.
 
-**Variante B — fürs Volume:** `server.ts` im Plugin-Ordner, zu `server.js` bauen, auf GitHub in `plugins-pack/<id>/server.js` — wird dynamisch geladen.
-
-**Variante C — Proxy im Hauptprojekt:** `src/app/api/meinplugin/route.ts` (wie ältere Plugins).
-
-Für Homelab-Plugins reicht meist **Variante C** oder ein bestehendes Gateway über `pluginApiJson`.
+Details, Legacy-Tabelle und Deploy: **[PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md)**.
 
 ---
 

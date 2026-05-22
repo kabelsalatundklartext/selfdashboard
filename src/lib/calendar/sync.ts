@@ -1,1 +1,1 @@
-export * from '../../../../plugins/calendar/lib/sync'
+export * from '@plugins/calendar/lib/sync'

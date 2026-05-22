@@ -1,1 +1,1 @@
-export * from '../../../../plugins/calendar/lib/ics'
+export * from '@plugins/calendar/lib/ics'

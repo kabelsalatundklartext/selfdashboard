@@ -1,1 +1,1 @@
-export { piholeServerHandler, default } from '../../../../plugins/pihole/server'
+export { piholeServerHandler, default } from '@plugins/pihole/server'
