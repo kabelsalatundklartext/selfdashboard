@@ -40,13 +40,22 @@ async function importVolumeServer(id: string): Promise<PluginServerHandler | nul
   if (!modulePath) return null
 
   let mod: ServerModule
-  if (modulePath.endsWith('.mjs')) {
-    const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
-    mod = (await import(/* webpackIgnore: true */ url)) as ServerModule
-  } else {
-    const req = createRequire(pathToFileURL(modulePath))
-    delete req.cache[modulePath]
-    mod = req(modulePath) as ServerModule
+  try {
+    if (modulePath.endsWith('.mjs')) {
+      const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
+      mod = (await import(/* webpackIgnore: true */ url)) as ServerModule
+    } else {
+      const req = createRequire(pathToFileURL(modulePath))
+      delete req.cache[modulePath]
+      mod = req(modulePath) as ServerModule
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error(
+      `[SelfDashboard] custom/${id}/server.* failed to load (${modulePath}): ${msg}. ` +
+        'Remove server.mjs or rebuild plugin-pack (calendar ≥1.3.5). Using builtin handler if available.',
+    )
+    return null
   }
 
   const raw = mod.default ?? mod.handler

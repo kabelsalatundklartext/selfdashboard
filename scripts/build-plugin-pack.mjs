@@ -185,7 +185,6 @@ async function bundleServer(pluginId, destDir) {
     target: 'node18',
     absWorkingDir: root,
     nodePaths: [path.join(root, 'node_modules')],
-    alias: { '@': path.join(root, 'src') },
     external: ['next', 'next/*', 'server-only'],
     loader: { '.ts': 'ts' },
     logLevel: 'warning',
@@ -197,10 +196,17 @@ async function bundleServer(pluginId, destDir) {
             if (args.kind === 'import-type' || args.kind === 'export-type') return null
             return { external: true }
           })
+          build.onResolve({ filter: /^next(\/|$)/ }, () => ({ external: true }))
         },
       },
     ],
   })
+  const out = fs.readFileSync(outfile, 'utf8')
+  if (/next\/dist|from\s+["']next/.test(out)) {
+    throw new Error(
+      `${pluginId} server.mjs bundles Next.js — remove next/server imports from plugins/${pluginId}/`,
+    )
+  }
   return true
 }
 

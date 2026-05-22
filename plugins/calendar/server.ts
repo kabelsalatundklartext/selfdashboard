@@ -25,9 +25,6 @@ import type {
   EventUpdateBody,
 } from './lib/types'
 
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-
 type CreateEventResponse = CalendarEvent & { syncError?: string; syncPending?: boolean }
 type UpdateEventResponse = CalendarEvent & { syncError?: string; syncPending?: boolean }
 

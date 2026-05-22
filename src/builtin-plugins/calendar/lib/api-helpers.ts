@@ -2,10 +2,8 @@
  * Helpers shared by the calendar API routes.
  *
  * Keeps the route handlers tiny: they parse JSON, call a helper, return
- * NextResponse.json. No business logic in the route files.
+ * Response.json (Web API — no Next.js import, safe for server.mjs bundle).
  */
-
-import { NextResponse } from 'next/server'
 
 import { encrypt } from './crypto'
 import { newId, nowIso } from './store'
@@ -208,13 +206,13 @@ export function buildSummary(expanded: ExpandedEvent[], pending: number, conflic
 // ---------------------------------------------------------------------------
 
 export function notFound(message = 'not found') {
-  return NextResponse.json({ error: message }, { status: 404 })
+  return Response.json({ error: message }, { status: 404 })
 }
 
 export function badRequest(message: string) {
-  return NextResponse.json({ error: message }, { status: 400 })
+  return Response.json({ error: message }, { status: 400 })
 }
 
 export function ok<T>(data: T) {
-  return NextResponse.json(data)
+  return Response.json(data)
 }
