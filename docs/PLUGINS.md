@@ -105,6 +105,23 @@ Env (im Image `:beta` bereits gesetzt):
 
 **[README — Plugins](../README.md#plugins)** — Katalogtabelle · **`docs/plugins/<id>/README.md`** (DE/EN pro Plugin).
 
+## Git: Commits & Namen auf GitHub
+
+**Auf GitHub pushen:** nur **`plugins-pack/`** (und App-Code). Ordner `plugins/` und `plugin-pack/` bleiben lokal (siehe `.gitignore`).
+
+**Wer als Autor erscheint:**
+
+| So committen | Ergebnis auf GitHub |
+|--------------|---------------------|
+| **GitHub Desktop** (oder dein Git mit deinem Account) | Nur **dein** Benutzername |
+| Commit/Push aus dem **Cursor-Chat** | Oft `Co-authored-by: Cursor` → zweiter Eintrag **cursoragent** |
+
+**Empfehlung:** Dateien im Editor/Cursor ändern lassen, **Commit + Push selbst** in GitHub Desktop. Kein „push“ im Agent-Chat.
+
+Alte Commits mit `Co-authored-by: Cursor` bleiben in der History, bis du sie gezielt bereinigst (optional). Neue Commits nur über Desktop → keine neuen **cursoragent**-Einträge.
+
+---
+
 ## Weitere Doku
 
 - **[PLUGIN_DEV.md](./PLUGIN_DEV.md)** — Plugin schreiben (Widget, API, Store, ZIP)
