@@ -166,6 +166,20 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     ["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]
   ]);
 
+  // node_modules/lucide-react/dist/esm/icons/power-off.js
+  var PowerOff = createLucideIcon("PowerOff", [
+    ["path", { d: "M18.36 6.64A9 9 0 0 1 20.77 15", key: "dxknvb" }],
+    ["path", { d: "M6.16 6.16a9 9 0 1 0 12.68 12.68", key: "1x7qb5" }],
+    ["path", { d: "M12 2v4", key: "3427ic" }],
+    ["path", { d: "m2 2 20 20", key: "1ooewy" }]
+  ]);
+
+  // node_modules/lucide-react/dist/esm/icons/power.js
+  var Power = createLucideIcon("Power", [
+    ["path", { d: "M12 2v10", key: "mnfbl" }],
+    ["path", { d: "M18.4 6.6a9 9 0 1 1-12.77.04", key: "obofu9" }]
+  ]);
+
   // node_modules/lucide-react/dist/esm/icons/zap.js
   var Zap = createLucideIcon("Zap", [
     [
@@ -308,7 +322,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.2.4",
+    version: "1.3.0",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -361,6 +375,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         return de ? "FRITZ!-Benutzer hat keine Smart-Home-Rechte. In der Box: System \u2192 FRITZ!-Benutzer \u2192 Benutzer bearbeiten \u2192 \u201ESmart Home\u201C aktivieren." : "FRITZ!Box user lacks Smart Home rights. Enable Smart Home for this user in System \u2192 FRITZ!Box users.";
       case "no_multimeter":
         return de ? "Ger\xE4t meldet keine Leistungsmessung \u2014 FRITZ!Smart Energy 200?" : "Device has no power meter.";
+      case "bad_switch_state":
+      case "switch_failed":
+        return de ? "Schalten fehlgeschlagen." : "Switch command failed.";
+      case "switch_not_supported":
+        return de ? "Dieses Ger\xE4t unterst\xFCtzt kein Ein/Aus per TR-064." : "This device has no switch control via TR-064.";
       default:
         if (base.startsWith("homeauto_fault_")) {
           return de ? `FRITZ!Box Homeauto-Fehler (${base}). AIN pr\xFCfen oder HTTPS + selbstsigniert nutzen.` : `FRITZ!Box Homeauto error (${base}). Check AIN or use HTTPS with self-signed TLS.`;
@@ -400,6 +419,86 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     footer
   }) {
     const c = TINT[tint];
+    if (fill) {
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        "div",
+        {
+          className: "sd-fritz-energy-tile",
+          style: {
+            borderRadius: "12px",
+            background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
+            border: "1px solid var(--border)",
+            boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            textAlign: "center",
+            gap: "4px",
+            minWidth: 0,
+            minHeight: 0,
+            height: "100%",
+            boxSizing: "border-box",
+            padding: "9px 10px"
+          },
+          children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "div",
+            {
+              style: {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+                width: "100%",
+                minWidth: 0
+              },
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: "sd-fritz-energy-tile-label",
+                    style: {
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.2,
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: label
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: "tabular-nums sd-fritz-energy-tile-value",
+                    style: {
+                      fontWeight: 800,
+                      color: c.solid,
+                      lineHeight: 1.12,
+                      fontVariantNumeric: "tabular-nums",
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: value
+                  }
+                ),
+                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "sd-fritz-energy-tile-sub", style: { color: "var(--text-muted)", lineHeight: 1.3, textAlign: "center", width: "100%" }, children: sub }) : null
+              ]
+            }
+          )
+        }
+      );
+    }
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
       {
@@ -409,17 +508,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
           border: "1px solid var(--border)",
           boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
+          padding: "8px 10px",
           display: "flex",
           flexDirection: "column",
-          justifyContent: footer && !fill ? "space-between" : "center",
+          justifyContent: footer ? "space-between" : "center",
           alignItems: "center",
           textAlign: "center",
           gap: "4px",
           minWidth: 0,
-          width: "100%",
-          height: fill ? "100%" : void 0,
-          boxSizing: "border-box",
-          overflow: fill ? "hidden" : void 0
+          boxSizing: "border-box"
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -433,30 +530,22 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 gap: "4px",
                 width: "100%",
                 minWidth: 0,
-                minHeight: 0,
-                flex: fill ? "1 1 auto" : void 0
+                flex: footer ? "1 1 auto" : void 0
               },
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                   "span",
                   {
-                    className: fill ? "sd-fritz-energy-tile-label" : void 0,
                     style: {
-                      fontSize: fill ? void 0 : "9px",
+                      fontSize: "9px",
                       fontWeight: 700,
                       textTransform: "uppercase",
                       letterSpacing: "0.06em",
                       color: "var(--text-muted)",
                       lineHeight: 1.2,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "normal",
                       textAlign: "center",
-                      width: "100%",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical"
+                      width: "100%"
                     },
                     children: label
                   }
@@ -464,9 +553,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                   "span",
                   {
-                    className: `tabular-nums${fill ? " sd-fritz-energy-tile-value" : ""}`,
+                    className: "tabular-nums",
                     style: {
-                      fontSize: fill ? void 0 : "clamp(0.78rem, min(3.5cqmin, 2.8cqh), 1.35rem)",
+                      fontSize: "clamp(0.78rem, min(3.5cqmin, 2.8cqh), 1.35rem)",
                       fontWeight: 800,
                       lineHeight: 1.12,
                       color: c.solid,
@@ -477,27 +566,174 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     children: value
                   }
                 ),
-                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  "div",
-                  {
-                    className: fill ? "sd-fritz-energy-tile-sub" : void 0,
-                    style: {
-                      fontSize: fill ? void 0 : "10px",
-                      color: "var(--text-muted)",
-                      lineHeight: 1.3,
-                      textAlign: "center",
-                      width: "100%"
-                    },
-                    children: sub
-                  }
-                ) : null
+                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.3, textAlign: "center", width: "100%" }, children: sub }) : null
               ]
             }
           ),
-          footer && !fill ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
+          footer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
         ]
       }
     );
+  }
+  function EnergySwitchHeader({
+    switchState,
+    switchSupported,
+    powerW,
+    locale,
+    de,
+    showPowerInBar,
+    conn,
+    onSwitched,
+    onError
+  }) {
+    const [confirmTarget, setConfirmTarget] = (0, import_react3.useState)(null);
+    const [busy, setBusy] = (0, import_react3.useState)(false);
+    const isOn = switchState === "ON";
+    const canSwitch = switchSupported === true && switchState !== "UNKNOWN";
+    const applySwitch = async (target) => {
+      setBusy(true);
+      onError("");
+      try {
+        const j = await pluginApiJson("fritz-energy", "/", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "setSwitch",
+            switchState: target,
+            baseUrl: conn.baseUrl,
+            username: conn.username,
+            password: conn.password,
+            ain: conn.ain,
+            insecureTls: conn.insecureTls
+          })
+        });
+        if (!j.ok) {
+          onError(j.error ?? "switch_failed");
+          return;
+        }
+        setConfirmTarget(null);
+        onSwitched();
+      } catch (e) {
+        reportPluginCatch("fritz-energy", e, "setSwitch");
+        onError("network");
+      } finally {
+        setBusy(false);
+      }
+    };
+    const headBtnBase = {
+      width: "100%",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+      fontSize: "clamp(9px, min(2.4cqmin, 2cqh), 12px)",
+      fontWeight: 800,
+      padding: "8px 14px",
+      borderRadius: "999px",
+      boxSizing: "border-box",
+      lineHeight: 1.2,
+      fontFamily: "inherit",
+      cursor: busy ? "wait" : "pointer",
+      opacity: busy ? 0.75 : 1
+    };
+    if (confirmTarget) {
+      const turningOff = confirmTarget === "OFF";
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "div",
+        {
+          style: {
+            borderRadius: "10px",
+            border: `1px solid ${turningOff ? "rgba(251, 113, 133, 0.55)" : "rgba(245, 158, 11, 0.45)"}`,
+            background: turningOff ? "linear-gradient(120deg, rgba(251,113,133,0.18) 0%, rgba(244,63,94,0.08) 100%)" : "linear-gradient(120deg, rgba(245,158,11,0.2) 0%, rgba(234,88,12,0.08) 100%)",
+            padding: "8px 10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px"
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { margin: 0, fontSize: "11px", color: "var(--text)", lineHeight: 1.4, textAlign: "center" }, children: turningOff ? de ? "Steckdose wirklich ausschalten? Der angeschlossene Server verliert Strom." : "Really turn off the outlet? The connected server will lose power." : de ? "Steckdose einschalten?" : "Turn the outlet on?" }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: "6px" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                "button",
+                {
+                  type: "button",
+                  disabled: busy,
+                  onClick: () => setConfirmTarget(null),
+                  style: {
+                    flex: 1,
+                    padding: "6px 8px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    cursor: busy ? "wait" : "pointer",
+                    fontFamily: "inherit"
+                  },
+                  children: de ? "Abbrechen" : "Cancel"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                "button",
+                {
+                  type: "button",
+                  disabled: busy,
+                  onClick: () => void applySwitch(confirmTarget),
+                  style: {
+                    flex: 1,
+                    padding: "6px 8px",
+                    borderRadius: "8px",
+                    border: turningOff ? "1px solid rgba(251, 113, 133, 0.6)" : "1px solid rgba(245, 158, 11, 0.55)",
+                    background: turningOff ? "linear-gradient(120deg, rgba(251,113,133,0.35) 0%, rgba(244,63,94,0.2) 100%)" : "linear-gradient(120deg, rgba(245,158,11,0.35) 0%, rgba(234,88,12,0.2) 100%)",
+                    color: turningOff ? "#ffe4e6" : "#fffbeb",
+                    fontSize: "11px",
+                    fontWeight: 800,
+                    cursor: busy ? "wait" : "pointer",
+                    fontFamily: "inherit"
+                  },
+                  children: busy ? "\u2026" : turningOff ? de ? "Jetzt ausschalten" : "Turn off now" : de ? "Jetzt einschalten" : "Turn on now"
+                }
+              )
+            ] })
+          ]
+        }
+      ) });
+    }
+    if (!canSwitch) {
+      if (!showPowerInBar) return null;
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-head-bar", title: de ? "Aktuelle Leistung" : "Current power", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { size: 13, "aria-hidden": true, style: { color: "#fcd34d", flexShrink: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "tabular-nums", children: formatW(powerW, locale) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontWeight: 600, opacity: 0.9 }, children: "live" })
+      ] }) });
+    }
+    const nextTarget = isOn ? "OFF" : "ON";
+    return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+      "button",
+      {
+        type: "button",
+        disabled: busy,
+        className: "sd-fritz-energy-head-bar sd-fritz-energy-head-btn",
+        "aria-pressed": isOn,
+        title: de ? "Stromversorgung \u2014 zweimal best\xE4tigen zum Schalten" : "Power \u2014 double confirmation required to switch",
+        onClick: () => setConfirmTarget(nextTarget),
+        style: {
+          ...headBtnBase,
+          border: isOn ? "1px solid rgba(52, 211, 153, 0.55)" : "1px solid rgba(251, 113, 133, 0.45)",
+          background: isOn ? "linear-gradient(120deg, rgba(52,211,153,0.35) 0%, rgba(34,197,94,0.18) 100%)" : "linear-gradient(120deg, rgba(251,113,133,0.22) 0%, rgba(244,63,94,0.12) 100%)",
+          color: isOn ? "#ecfdf5" : "#ffe4e6",
+          boxShadow: isOn ? "inset 0 1px 0 rgba(255,255,255,0.12), 0 6px 16px rgba(0,0,0,0.22), 0 0 0 1px rgba(52, 211, 153, 0.28)" : "inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 14px rgba(0,0,0,0.2), 0 0 0 1px rgba(251, 113, 133, 0.28)"
+        },
+        children: [
+          isOn ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Power, { size: 13, "aria-hidden": true }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerOff, { size: 13, "aria-hidden": true }),
+          busy ? "\u2026" : isOn ? de ? "Strom: AN" : "Power: ON" : de ? "Strom: AUS" : "Power: OFF",
+          showPowerInBar ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "tabular-nums", style: { fontWeight: 700, opacity: 0.92 }, children: [
+            "\xB7 ",
+            formatW(powerW, locale)
+          ] }) : null
+        ]
+      }
+    ) });
   }
   function viewModeFromConfig(config) {
     const v = str(config.viewMode).toLowerCase();
@@ -714,12 +950,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const cfgRaw = config;
     const viewMode = viewModeFromConfig(cfgRaw);
     const showPowerSparkline = cfgBool(cfgRaw, "showPowerSparkline", true);
+    const showSwitchControl = cfgBool(cfgRaw, "showSwitchControl", true);
     const baseUrl = str(config.baseUrl) || "http://192.168.1.1";
     const username = str(config.username);
     const password = str(config.password);
     const ain = str(config.ain);
     const refreshSec = Math.min(300, Math.max(15, num(config.refreshSeconds, 60)));
     const insecureTls = config.insecureTls === true;
+    const conn = { baseUrl, username, password, ain, insecureTls };
     const fetchEnergy = (0, import_react3.useCallback)(async () => {
       if (!ain) {
         setErr(locale === "en" ? "Set AIN in settings" : "AIN in den Einstellungen eintragen");
@@ -794,26 +1032,61 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       }
     ];
     const gridShell = {
+      flex: 1,
+      alignSelf: "stretch",
       height: "100%",
       minHeight: 0,
+      width: "100%",
+      minWidth: 0,
+      display: "flex",
+      flexDirection: "column",
       overflowY: "auto",
       overflowX: "hidden",
       boxSizing: "border-box",
       containerType: "size",
-      minWidth: 0,
-      width: "100%",
       scrollbarWidth: "none",
       msOverflowStyle: "none"
     };
+    const switchHeader = showSwitchControl && data ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      EnergySwitchHeader,
+      {
+        switchState: data.switchState,
+        switchSupported: data.switchSupported,
+        powerW: power,
+        locale,
+        de,
+        showPowerInBar: viewMode === "grid",
+        conn,
+        onSwitched: () => void fetchEnergy(),
+        onError: (code) => setErr(code || null)
+      }
+    ) : null;
     if (viewMode === "carousel") {
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        EnergyCarousel,
+      return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "div",
         {
-          views: carouselViews,
-          recent,
-          de,
-          forceCompact: config.compactUi === true,
-          showSparkline: showPowerSparkline
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            height: "100%",
+            width: "100%",
+            boxSizing: "border-box",
+            containerType: "size"
+          },
+          children: [
+            switchHeader,
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              EnergyCarousel,
+              {
+                views: carouselViews,
+                recent,
+                de,
+                forceCompact: config.compactUi === true,
+                showSparkline: showPowerSparkline
+              }
+            ) })
+          ]
         }
       );
     }
@@ -842,7 +1115,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           width: 100%;
           flex-shrink: 0;
         }
-        .sd-fritz-energy-host .sd-fritz-energy-top-ghost {
+        .sd-fritz-energy-host .sd-fritz-energy-head-bar:not(.sd-fritz-energy-head-btn) {
           width: 100%;
           display: inline-flex;
           align-items: center;
@@ -852,11 +1125,16 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           font-weight: 800;
           padding: 8px 14px;
           border-radius: 999px;
-          border: 1px solid transparent;
+          border: 1px solid rgba(245, 158, 11, 0.55);
+          background: linear-gradient(120deg, rgba(245, 158, 11, 0.35) 0%, rgba(234, 88, 12, 0.18) 100%);
+          color: #fffbeb;
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.12),
+            0 6px 16px rgba(0, 0, 0, 0.22),
+            0 0 0 1px rgba(245, 158, 11, 0.28);
           box-sizing: border-box;
-          visibility: hidden;
-          pointer-events: none;
           line-height: 1.2;
+          font-variant-numeric: tabular-nums;
         }
         .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
           display: grid;
@@ -864,7 +1142,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           grid-template-columns: 1fr 1fr;
           grid-template-rows: 1fr 1fr;
           min-width: 0;
-          flex: 1 1 0%;
+          flex: 1 1 auto;
           min-height: 0;
           align-content: stretch;
           align-items: stretch;
@@ -898,7 +1176,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             gap: 5px !important;
             margin-bottom: 6px !important;
           }
-          .sd-fritz-energy-host .sd-fritz-energy-top-ghost {
+          .sd-fritz-energy-host .sd-fritz-energy-head-bar {
             padding: 5px 10px !important;
           }
           .sd-fritz-energy-host .sd-fritz-energy-tile {
@@ -925,10 +1203,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
         }
       ` }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", "aria-hidden": true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-top-ghost", children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { size: 13, "aria-hidden": true }),
-            de ? "Schutz: AN" : "On"
-          ] }) }),
+          switchHeader,
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-stat-grid", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
               StatTile,
@@ -1151,6 +1426,35 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               "input",
               {
                 type: "checkbox",
+                checked: cfgBool(r, "showSwitchControl", true),
+                onChange: (e) => onChange("showSwitchControl", e.target.checked),
+                style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "Strom Ein/Aus (mit Best\xE4tigung)" : "Power on/off (with confirmation)" }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Schalter oben im Widget \u2014 erst Klick, dann \u201EJetzt ausschalten/einschalten\u201C. Sch\xFCtzt vor versehentlichem Server-Aus." : "Header switch in the widget \u2014 tap once, then confirm. Helps avoid accidentally cutting server power." })
+            ] })
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "label",
+        {
+          style: {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "10px",
+            cursor: "pointer",
+            fontSize: "13px",
+            color: "var(--text)",
+            lineHeight: 1.35
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "input",
+              {
+                type: "checkbox",
                 checked: cfgBool(r, "showPowerSparkline", true),
                 onChange: (e) => onChange("showPowerSparkline", e.target.checked),
                 style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
@@ -1313,6 +1617,8 @@ lucide-react/dist/esm/icons/calendar-days.js:
 lucide-react/dist/esm/icons/calendar.js:
 lucide-react/dist/esm/icons/chevron-left.js:
 lucide-react/dist/esm/icons/chevron-right.js:
+lucide-react/dist/esm/icons/power-off.js:
+lucide-react/dist/esm/icons/power.js:
 lucide-react/dist/esm/icons/zap.js:
 lucide-react/dist/esm/lucide-react.js:
   (**
