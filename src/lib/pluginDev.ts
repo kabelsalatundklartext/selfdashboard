@@ -50,7 +50,7 @@ export async function pluginApiJson<T>(
     ? path
     : `/api/plugins/${pluginId}${path.startsWith('/') ? path : `/${path}`}`
   const { timeoutMs, signal: outerSignal, ...rest } = init ?? {}
-  const { signal, cleanup } = fetchAbortSignal(outerSignal, timeoutMs)
+  const { signal, cleanup } = fetchAbortSignal(outerSignal ?? undefined, timeoutMs)
   try {
     const res = await fetch(url, {
       ...rest,
