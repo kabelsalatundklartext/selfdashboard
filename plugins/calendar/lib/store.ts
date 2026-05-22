@@ -16,12 +16,17 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { dataDir } from '@/lib/dataDir'
 import { CalendarStore, EMPTY_STORE, STORE_VERSION } from './types'
+
+function resolveAppDataDir(): string {
+  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim()
+  if (raw) return raw
+  return join(process.cwd(), 'data')
+}
 
 const DEFAULT_ROOT =
   process.env.CALENDAR_DATA_DIR ||
-  join(dataDir(), 'calendar')
+  join(resolveAppDataDir(), 'calendar')
 
 let dataDirCache: string | null = null
 

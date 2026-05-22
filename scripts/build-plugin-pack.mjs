@@ -186,8 +186,20 @@ async function bundleServer(pluginId, destDir) {
     absWorkingDir: root,
     nodePaths: [path.join(root, 'node_modules')],
     alias: { '@': path.join(root, 'src') },
+    external: ['next', 'next/*', 'server-only'],
     loader: { '.ts': 'ts' },
     logLevel: 'warning',
+    plugins: [
+      {
+        name: 'no-app-src-in-server-bundle',
+        setup(build) {
+          build.onResolve({ filter: /^@\// }, (args) => {
+            if (args.kind === 'import-type' || args.kind === 'export-type') return null
+            return { external: true }
+          })
+        },
+      },
+    ],
   })
   return true
 }
