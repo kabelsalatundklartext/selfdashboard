@@ -126,5 +126,9 @@ export function reloadPluginCatalog(widgetLoadedIds: Set<string>): PluginCatalog
 export function warmPluginScan(): void {
   catalogCache = buildPluginCatalog(new Set())
   const n = catalogCache.length
-  console.info(`[SelfDashboard] Plugin scan: ${n} manifest(s) from disk.`)
+  const root = getCustomPluginsRoot()
+  const exists = fs.existsSync(root)
+  console.info(
+    `[SelfDashboard] Plugin scan: ${n} manifest(s) from disk (${exists ? root : `${root} — missing`}).`,
+  )
 }
