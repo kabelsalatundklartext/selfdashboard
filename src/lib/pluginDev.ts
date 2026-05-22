@@ -6,6 +6,34 @@
 export { formatErrorDetail, reportPluginCatch, reportPluginError } from '@/lib/pluginLog'
 export type { PluginLogOptions } from '@/lib/pluginLog'
 
+function fetchAbortSignal(outer?: AbortSignal, timeoutMs?: number): { signal?: AbortSignal; cleanup: () => void } {
+  const timers: ReturnType<typeof setTimeout>[] = []
+  const cleanup = () => {
+    for (const t of timers) clearTimeout(t)
+  }
+  const parts: AbortSignal[] = []
+  if (outer) parts.push(outer)
+  if (timeoutMs && timeoutMs > 0) {
+    const tc = new AbortController()
+    timers.push(setTimeout(() => tc.abort(), timeoutMs))
+    parts.push(tc.signal)
+  }
+  if (parts.length === 0) return { signal: undefined, cleanup }
+  if (parts.length === 1) return { signal: parts[0], cleanup }
+  const anyFn = (AbortSignal as { any?: (signals: AbortSignal[]) => AbortSignal }).any
+  if (typeof anyFn === 'function') return { signal: anyFn(parts), cleanup }
+  const linked = new AbortController()
+  const onAbort = () => linked.abort()
+  for (const s of parts) {
+    if (s.aborted) {
+      linked.abort()
+      break
+    }
+    s.addEventListener('abort', onAbort, { once: true })
+  }
+  return { signal: linked.signal, cleanup }
+}
+
 /**
  * Call same-origin SelfDashboard API routes from a widget.
  * Failed responses are logged automatically (Settings → Protokoll) via the global fetch hook.
@@ -21,14 +49,12 @@ export async function pluginApiJson<T>(
   const url = path.startsWith('/api/')
     ? path
     : `/api/plugins/${pluginId}${path.startsWith('/') ? path : `/${path}`}`
-  const { timeoutMs, ...rest } = init ?? {}
-  const ac = new AbortController()
-  const timer =
-    timeoutMs && timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : undefined
+  const { timeoutMs, signal: outerSignal, ...rest } = init ?? {}
+  const { signal, cleanup } = fetchAbortSignal(outerSignal, timeoutMs)
   try {
     const res = await fetch(url, {
       ...rest,
-      signal: rest.signal ?? ac.signal,
+      ...(signal ? { signal } : {}),
       headers: {
         'Content-Type': 'application/json',
         ...(rest.headers as Record<string, string> | undefined),
@@ -50,6 +76,6 @@ export async function pluginApiJson<T>(
     if (e instanceof Error && e.name === 'AbortError') throw new Error('timeout')
     throw e
   } finally {
-    if (timer) clearTimeout(timer)
+    cleanup()
   }
 }

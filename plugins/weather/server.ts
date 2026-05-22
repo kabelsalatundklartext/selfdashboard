@@ -9,9 +9,10 @@ type PluginServerContext = {
 
 const GEOCODE_BASE = 'https://geocoding-api.open-meteo.com/v1/search'
 const FORECAST_BASE = 'https://api.open-meteo.com/v1/forecast'
-/** Per request; resolve = geocode + forecast sequentially → keep each call short. */
-const FETCH_TIMEOUT_MS = 8_000
+/** Per upstream call; resolve chains geocode + forecast. */
+const FETCH_TIMEOUT_MS = 12_000
 const FETCH_RETRIES = 1
+const RESOLVE_BUDGET_MS = 28_000
 const CACHE_TTL_MS = 8 * 60 * 1000
 const CACHE_MAX = 64
 
@@ -118,6 +119,12 @@ async function openMeteoForecast(params: {
   return data
 }
 
+function resolveBudgetAbort(): AbortSignal {
+  const ac = new AbortController()
+  setTimeout(() => ac.abort(), RESOLVE_BUDGET_MS)
+  return ac.signal
+}
+
 async function openMeteoResolve(params: {
   name: string
   countryCode?: string
@@ -130,26 +137,50 @@ async function openMeteoResolve(params: {
   const cached = cacheGet(cacheKey) as { place: OpenMeteoPlace; forecast: unknown } | null
   if (cached?.place && cached.forecast) return cached
 
-  const geo = (await openMeteoGeocode({
-    name: params.name,
-    countryCode: params.countryCode,
-    language: params.language,
-  })) as { results?: OpenMeteoPlace[] }
-  const place = geo.results?.[0]
-  if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) {
-    throw new Error('geocode_empty')
+  const budget = resolveBudgetAbort()
+  const work = (async () => {
+    const geo = (await openMeteoGeocode({
+      name: params.name,
+      countryCode: params.countryCode,
+      language: params.language,
+    })) as { results?: OpenMeteoPlace[] }
+    const place = geo.results?.[0]
+    if (!place || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) {
+      throw new Error('geocode_empty')
+    }
+
+    const forecast = await openMeteoForecast({
+      latitude: place.latitude,
+      longitude: place.longitude,
+      includeHourly: params.includeHourly,
+      includeDaily: params.includeDaily,
+    })
+
+    return { place, forecast }
+  })()
+
+  try {
+    const raced =
+      typeof AbortSignal !== 'undefined' && 'any' in AbortSignal
+        ? await Promise.race([
+            work,
+            new Promise<never>((_, reject) => {
+              budget.addEventListener(
+                'abort',
+                () => reject(Object.assign(new Error('resolve_budget'), { name: 'AbortError' })),
+                { once: true },
+              )
+            }),
+          ])
+        : await work
+    cacheSet(cacheKey, raced)
+    return raced
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw Object.assign(new Error('timeout'), { name: 'AbortError' })
+    }
+    throw e
   }
-
-  const forecast = await openMeteoForecast({
-    latitude: place.latitude,
-    longitude: place.longitude,
-    includeHourly: params.includeHourly,
-    includeDaily: params.includeDaily,
-  })
-
-  const out = { place, forecast }
-  cacheSet(cacheKey, out)
-  return out
 }
 
 function readIncludeFlags(sp: URLSearchParams): { includeHourly: boolean; includeDaily: boolean } {

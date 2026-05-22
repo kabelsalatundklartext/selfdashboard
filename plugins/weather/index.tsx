@@ -27,7 +27,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.5.1',
+  version: '1.5.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -238,8 +238,10 @@ function wmoSummary(code: number, de: boolean): string {
   return de ? 'Wetter' : 'Weather'
 }
 
-/** Geocode + forecast run on server in sequence (each up to ~2×8s + retry). */
-const CLIENT_FETCH_TIMEOUT_MS = 40_000
+/** Full resolve = geocode + forecast on server (sequential). */
+const RESOLVE_FETCH_TIMEOUT_MS = 45_000
+/** Periodic refresh: forecast only (one upstream call). */
+const FORECAST_FETCH_TIMEOUT_MS = 28_000
 
 function abortSignalWithTimeout(parent: AbortSignal, ms: number): AbortSignal {
   const ac = new AbortController()
@@ -294,11 +296,30 @@ async function resolveWeather(
   const j = await pluginApiJson<{ place?: GeoHit; forecast?: ForecastJson }>(
     'weather',
     `/resolve?${params}`,
-    { signal, cache: 'no-store', timeoutMs: CLIENT_FETCH_TIMEOUT_MS },
+    { signal, cache: 'no-store', timeoutMs: RESOLVE_FETCH_TIMEOUT_MS },
   )
   const hit = j.place
   if (!hit || !j.forecast) return null
   return { hit, forecast: j.forecast }
+}
+
+async function fetchWeatherForecast(
+  lat: number,
+  lon: number,
+  signal: AbortSignal,
+  includeDaily: boolean,
+): Promise<ForecastJson> {
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    includeHourly: '1',
+  })
+  if (includeDaily) params.set('includeDaily', '1')
+  return pluginApiJson<ForecastJson>('weather', `/forecast?${params}`, {
+    signal,
+    cache: 'no-store',
+    timeoutMs: FORECAST_FETCH_TIMEOUT_MS,
+  })
 }
 
 /** Open-Meteo daily[0] = heute — Widget zeigt die nächsten `maxDays` Tage ab morgen. */
@@ -416,6 +437,8 @@ function Widget({ config }: PluginWidgetProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fetchKeyRef = useRef('')
+  const coordsRef = useRef<{ lat: number; lon: number; hit: GeoHit } | null>(null)
+  const hasLiveDataRef = useRef(false)
 
   useEffect(() => {
     const ac = new AbortController()
@@ -425,6 +448,8 @@ function Widget({ config }: PluginWidgetProps) {
     async function run() {
       if (!locationQuery) {
         fetchKeyRef.current = ''
+        coordsRef.current = null
+        hasLiveDataRef.current = false
         setPlaceLabel(null)
         setCurrent(null)
         setDaily([])
@@ -437,6 +462,8 @@ function Widget({ config }: PluginWidgetProps) {
       const queryChanged = fetchKeyRef.current !== fetchKey
       if (queryChanged) {
         fetchKeyRef.current = fetchKey
+        coordsRef.current = null
+        hasLiveDataRef.current = false
         setPlaceLabel(null)
         setCurrent(null)
         setDaily([])
@@ -444,26 +471,49 @@ function Widget({ config }: PluginWidgetProps) {
       }
 
       setLoading(true)
-      setError(null)
-      const runSignal = abortSignalWithTimeout(ac.signal, CLIENT_FETCH_TIMEOUT_MS)
+      if (queryChanged || !hasLiveDataRef.current) setError(null)
+      const fetchTimeoutMs = queryChanged || !coordsRef.current ? RESOLVE_FETCH_TIMEOUT_MS : FORECAST_FETCH_TIMEOUT_MS
+      const runSignal = abortSignalWithTimeout(ac.signal, fetchTimeoutMs)
       try {
-        const resolved = await resolveWeather(
-          locationQuery,
-          countryCode,
-          runSignal,
-          de ? 'de' : 'en',
-          showDailyForecast,
-        )
-        if (cancelled) return
-        if (!resolved) {
-          setPlaceLabel(null)
-          setCurrent(null)
-          setDaily([])
-          setDayPeriods([])
-          setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
-          return
+        let hit: GeoHit
+        let forecast: ForecastJson
+        const cached = !queryChanged ? coordsRef.current : null
+        if (cached) {
+          forecast = await fetchWeatherForecast(
+            cached.lat,
+            cached.lon,
+            runSignal,
+            showDailyForecast,
+          )
+          hit = cached.hit
+        } else {
+          const resolved = await resolveWeather(
+            locationQuery,
+            countryCode,
+            runSignal,
+            de ? 'de' : 'en',
+            showDailyForecast,
+          )
+          if (cancelled) return
+          if (!resolved) {
+            coordsRef.current = null
+            hasLiveDataRef.current = false
+            setPlaceLabel(null)
+            setCurrent(null)
+            setDaily([])
+            setDayPeriods([])
+            setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
+            return
+          }
+          hit = resolved.hit
+          forecast = resolved.forecast
+          coordsRef.current = {
+            lat: hit.latitude,
+            lon: hit.longitude,
+            hit,
+          }
         }
-        const { hit, forecast } = resolved
+        if (cancelled) return
         const { current: cur, daily: dail, dayPeriods: periods } = parseForecastPayload(
           forecast,
           showDailyForecast,
@@ -474,11 +524,19 @@ function Widget({ config }: PluginWidgetProps) {
         setCurrent(cur)
         setDaily(dail)
         setDayPeriods(periods)
+        hasLiveDataRef.current = true
+        setError(null)
       } catch (e) {
         if (cancelled || (e as Error).name === 'AbortError') return
         reportPluginCatch('weather', e, 'open-meteo')
+        if (!queryChanged && hasLiveDataRef.current) {
+          setError(null)
+          return
+        }
         setError(mapWeatherError(e, de))
         if (queryChanged) {
+          coordsRef.current = null
+          hasLiveDataRef.current = false
           setCurrent(null)
           setDaily([])
           setDayPeriods([])
