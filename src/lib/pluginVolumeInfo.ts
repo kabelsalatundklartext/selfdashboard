@@ -37,7 +37,7 @@ export function getCustomWidgetOverrideIds(): string[] {
   return listCustomPluginDirs().filter((id) => hasVolumeFile(id, 'widget.js'))
 }
 
-/** Custom `server.js` / `server.mjs` loaded at runtime for API gateway. */
+/** Custom `server.js` / `server.mjs` — only loaded when `SELFDASHBOARD_VOLUME_PLUGIN_SERVER=1`. */
 export function getCustomServerPluginIds(): string[] {
   return listCustomPluginDirs().filter(
     (id) => hasVolumeFile(id, 'server.js') || hasVolumeFile(id, 'server.mjs'),
