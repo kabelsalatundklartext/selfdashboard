@@ -276,15 +276,41 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   }
 
   // src/lib/pluginDev.ts
+  function fetchAbortSignal(outer, timeoutMs) {
+    const timers = [];
+    const cleanup = () => {
+      for (const t of timers) clearTimeout(t);
+    };
+    const parts = [];
+    if (outer) parts.push(outer);
+    if (timeoutMs && timeoutMs > 0) {
+      const tc = new AbortController();
+      timers.push(setTimeout(() => tc.abort(), timeoutMs));
+      parts.push(tc.signal);
+    }
+    if (parts.length === 0) return { signal: void 0, cleanup };
+    if (parts.length === 1) return { signal: parts[0], cleanup };
+    const anyFn = AbortSignal.any;
+    if (typeof anyFn === "function") return { signal: anyFn(parts), cleanup };
+    const linked = new AbortController();
+    const onAbort = () => linked.abort();
+    for (const s of parts) {
+      if (s.aborted) {
+        linked.abort();
+        break;
+      }
+      s.addEventListener("abort", onAbort, { once: true });
+    }
+    return { signal: linked.signal, cleanup };
+  }
   async function pluginApiJson(pluginId, path, init) {
     const url = path.startsWith("/api/") ? path : `/api/plugins/${pluginId}${path.startsWith("/") ? path : `/${path}`}`;
-    const { timeoutMs, ...rest } = init ?? {};
-    const ac = new AbortController();
-    const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : void 0;
+    const { timeoutMs, signal: outerSignal, ...rest } = init ?? {};
+    const { signal, cleanup } = fetchAbortSignal(outerSignal ?? void 0, timeoutMs);
     try {
       const res = await fetch(url, {
         ...rest,
-        signal: rest.signal ?? ac.signal,
+        ...signal ? { signal } : {},
         headers: {
           "Content-Type": "application/json",
           ...rest.headers
@@ -305,7 +331,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       if (e instanceof Error && e.name === "AbortError") throw new Error("timeout");
       throw e;
     } finally {
-      if (timer) clearTimeout(timer);
+      cleanup();
     }
   }
 
@@ -331,7 +357,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit Tagesabschnitten (0\u20136, 6\u201312, 12\u201318, 18\u201324) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.5.0",
+    version: "1.5.2",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -481,7 +507,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     if (pair) return de ? pair[0] : pair[1];
     return de ? "Wetter" : "Weather";
   }
-  var CLIENT_FETCH_TIMEOUT_MS = 22e3;
+  var RESOLVE_FETCH_TIMEOUT_MS = 45e3;
+  var FORECAST_FETCH_TIMEOUT_MS = 28e3;
   function abortSignalWithTimeout(parent, ms) {
     const ac = new AbortController();
     const onParentAbort = () => ac.abort();
@@ -521,11 +548,24 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const j = await pluginApiJson(
       "weather",
       `/resolve?${params}`,
-      { signal, cache: "no-store" }
+      { signal, cache: "no-store", timeoutMs: RESOLVE_FETCH_TIMEOUT_MS }
     );
     const hit = j.place;
     if (!hit || !j.forecast) return null;
     return { hit, forecast: j.forecast };
+  }
+  async function fetchWeatherForecast(lat, lon, signal, includeDaily) {
+    const params = new URLSearchParams({
+      latitude: String(lat),
+      longitude: String(lon),
+      includeHourly: "1"
+    });
+    if (includeDaily) params.set("includeDaily", "1");
+    return pluginApiJson("weather", `/forecast?${params}`, {
+      signal,
+      cache: "no-store",
+      timeoutMs: FORECAST_FETCH_TIMEOUT_MS
+    });
   }
   function parseDailyForecast(j, maxDays) {
     const d = j.daily;
@@ -627,14 +667,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const [loading, setLoading] = (0, import_react3.useState)(false);
     const [error, setError] = (0, import_react3.useState)(null);
     const fetchKeyRef = (0, import_react3.useRef)("");
+    const coordsRef = (0, import_react3.useRef)(null);
+    const hasLiveDataRef = (0, import_react3.useRef)(false);
     (0, import_react3.useEffect)(() => {
       const ac = new AbortController();
-      const signal = abortSignalWithTimeout(ac.signal, CLIENT_FETCH_TIMEOUT_MS);
       let cancelled = false;
       const fetchKey = `${locationQuery}\0${countryCode}\0${showDailyForecast ? 1 : 0}`;
       async function run() {
         if (!locationQuery) {
           fetchKeyRef.current = "";
+          coordsRef.current = null;
+          hasLiveDataRef.current = false;
           setPlaceLabel(null);
           setCurrent(null);
           setDaily([]);
@@ -646,31 +689,57 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         const queryChanged = fetchKeyRef.current !== fetchKey;
         if (queryChanged) {
           fetchKeyRef.current = fetchKey;
+          coordsRef.current = null;
+          hasLiveDataRef.current = false;
           setPlaceLabel(null);
           setCurrent(null);
           setDaily([]);
           setDayPeriods([]);
         }
         setLoading(true);
-        setError(null);
+        if (queryChanged || !hasLiveDataRef.current) setError(null);
+        const fetchTimeoutMs = queryChanged || !coordsRef.current ? RESOLVE_FETCH_TIMEOUT_MS : FORECAST_FETCH_TIMEOUT_MS;
+        const runSignal = abortSignalWithTimeout(ac.signal, fetchTimeoutMs);
         try {
-          const resolved = await resolveWeather(
-            locationQuery,
-            countryCode,
-            signal,
-            de ? "de" : "en",
-            showDailyForecast
-          );
-          if (cancelled) return;
-          if (!resolved) {
-            setPlaceLabel(null);
-            setCurrent(null);
-            setDaily([]);
-            setDayPeriods([]);
-            setError(de ? "Ort nicht gefunden." : "Location not found.");
-            return;
+          let hit;
+          let forecast;
+          const cached = !queryChanged ? coordsRef.current : null;
+          if (cached) {
+            forecast = await fetchWeatherForecast(
+              cached.lat,
+              cached.lon,
+              runSignal,
+              showDailyForecast
+            );
+            hit = cached.hit;
+          } else {
+            const resolved = await resolveWeather(
+              locationQuery,
+              countryCode,
+              runSignal,
+              de ? "de" : "en",
+              showDailyForecast
+            );
+            if (cancelled) return;
+            if (!resolved) {
+              coordsRef.current = null;
+              hasLiveDataRef.current = false;
+              setPlaceLabel(null);
+              setCurrent(null);
+              setDaily([]);
+              setDayPeriods([]);
+              setError(de ? "Ort nicht gefunden." : "Location not found.");
+              return;
+            }
+            hit = resolved.hit;
+            forecast = resolved.forecast;
+            coordsRef.current = {
+              lat: hit.latitude,
+              lon: hit.longitude,
+              hit
+            };
           }
-          const { hit, forecast } = resolved;
+          if (cancelled) return;
           const { current: cur, daily: dail, dayPeriods: periods } = parseForecastPayload(
             forecast,
             showDailyForecast,
@@ -681,11 +750,19 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           setCurrent(cur);
           setDaily(dail);
           setDayPeriods(periods);
+          hasLiveDataRef.current = true;
+          setError(null);
         } catch (e) {
           if (cancelled || e.name === "AbortError") return;
           reportPluginCatch("weather", e, "open-meteo");
+          if (!queryChanged && hasLiveDataRef.current) {
+            setError(null);
+            return;
+          }
           setError(mapWeatherError(e, de));
           if (queryChanged) {
+            coordsRef.current = null;
+            hasLiveDataRef.current = false;
             setCurrent(null);
             setDaily([]);
             setDayPeriods([]);

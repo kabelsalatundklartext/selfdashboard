@@ -107,7 +107,7 @@ var require_bindings = __commonJS({
     var fs3 = __require("fs");
     var path3 = __require("path");
     var fileURLToPath = require_file_uri_to_path();
-    var join3 = path3.join;
+    var join = path3.join;
     var dirname = path3.dirname;
     var exists = fs3.accessSync && function(path4) {
       try {
@@ -167,7 +167,7 @@ var require_bindings = __commonJS({
       var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : __require;
       var tries = [], i = 0, l = opts.try.length, n, b, err;
       for (; i < l; i++) {
-        n = join3.apply(
+        n = join.apply(
           null,
           opts.try[i].map(function(p) {
             return opts[p] || p;
@@ -228,7 +228,7 @@ var require_bindings = __commonJS({
         if (dir === ".") {
           dir = process.cwd();
         }
-        if (exists(join3(dir, "package.json")) || exists(join3(dir, "node_modules"))) {
+        if (exists(join(dir, "package.json")) || exists(join(dir, "node_modules"))) {
           return dir;
         }
         if (prev === dir) {
@@ -237,7 +237,7 @@ var require_bindings = __commonJS({
           );
         }
         prev = dir;
-        dir = join3(dir, "..");
+        dir = join(dir, "..");
       }
     };
   }
@@ -1833,14 +1833,14 @@ var require_lib3 = __commonJS({
         reject(err);
       });
     });
-    var readFile2 = async (filepath) => {
+    var readFile = async (filepath) => {
       const fstat = await fs_1.default.stat(filepath);
       return fstat.size < LARGE_FILE_THRESHOLD ? fs_1.default.readFile(filepath) : readLargeFile(filepath, fstat.size);
     };
     var open = async (filepath, opts, cb) => {
       var _a;
       (0, assert_1.default)(!cb, utils_1.default.legacyErrorMessage);
-      const database = await readFile2(filepath);
+      const database = await readFile(filepath);
       if ((0, is_gzip_1.default)(database)) {
         throw new Error("Looks like you are passing in a file in gzip format, please use mmdb database instead.");
       }
@@ -1866,7 +1866,7 @@ var require_lib3 = __commonJS({
           if (!await waitExists()) {
             return;
           }
-          const updatedDatabase = await readFile2(filepath);
+          const updatedDatabase = await readFile(filepath);
           cache.clear();
           reader.load(updatedDatabase);
           if (opts.watchForUpdatesHook) {
@@ -1896,164 +1896,10 @@ var require_lib3 = __commonJS({
   }
 });
 
-// node_modules/server-only/index.js
-throw new Error(
-  "This module cannot be imported from a Client Component module. It should only be used from a Server Component."
-);
-
-// src/lib/errorLog.ts
-import { appendFile, mkdir, readFile, rename, writeFile } from "fs/promises";
-import { join as join2 } from "path";
-
-// src/lib/dataDir.ts
-import { join } from "path";
-function dataDir() {
-  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
-  if (raw) return raw;
-  return join(process.cwd(), "data");
-}
-
-// src/lib/errorLogTypes.ts
-var DEFAULT_LOG_SETTINGS = { retentionDays: 7 };
-function isLogRetentionDays(n) {
-  return n === 3 || n === 7 || n === 30;
-}
-
-// src/lib/errorLog.ts
-var MAX_FILE_BYTES = 3e6;
-var MAX_FIELD = 4e3;
-var MAX_MESSAGE = 2e3;
-var logFilePath = () => join2(dataDir(), "error-log.jsonl");
-var settingsPath = () => join2(dataDir(), "log-settings.json");
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-function clampField(s, max) {
-  const t = s.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max)}\u2026`;
-}
-function sanitizeLogText(raw) {
-  let s = raw;
-  s = s.replace(/("password"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"');
-  s = s.replace(/(password=)[^&\s]+/gi, "$1[redacted]");
-  s = s.replace(/(Authorization:\s*Basic\s+)[A-Za-z0-9+/=]+/gi, "$1[redacted]");
-  s = s.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, "$1[redacted]");
-  return s;
-}
-async function readLogSettings() {
-  try {
-    const raw = await readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw);
-    if (isLogRetentionDays(parsed.retentionDays)) {
-      return { retentionDays: parsed.retentionDays };
-    }
-  } catch {
-  }
-  return { ...DEFAULT_LOG_SETTINGS };
-}
-function retentionCutoff(days) {
-  return Date.now() - days * 24 * 60 * 60 * 1e3;
-}
-function parseLine(line) {
-  const t = line.trim();
-  if (!t) return null;
-  try {
-    const o = JSON.parse(t);
-    if (typeof o.id !== "string" || typeof o.ts !== "string" || typeof o.message !== "string") return null;
-    return o;
-  } catch {
-    return null;
-  }
-}
-async function readAllEntries() {
-  try {
-    const raw = await readFile(logFilePath(), "utf8");
-    const lines = raw.split("\n");
-    const out = [];
-    for (const line of lines) {
-      const e = parseLine(line);
-      if (e) out.push(e);
-    }
-    return out;
-  } catch (e) {
-    const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
-    if (code === "ENOENT") return [];
-    throw e;
-  }
-}
-async function writeAllEntries(entries) {
-  const dir = dataDir();
-  await mkdir(dir, { recursive: true });
-  const file = logFilePath();
-  const body = entries.length ? `${entries.map((e) => JSON.stringify(e)).join("\n")}
-` : "";
-  const tmp = `${file}.tmp`;
-  try {
-    await writeFile(tmp, body, "utf8");
-    await rename(tmp, file);
-  } catch {
-    await writeFile(file, body, "utf8");
-  }
-}
-async function purgeExpiredLogs(retentionDays) {
-  const days = retentionDays ?? (await readLogSettings()).retentionDays;
-  const cutoff = retentionCutoff(days);
-  const all = await readAllEntries();
-  const kept = all.filter((e) => {
-    const t = Date.parse(e.ts);
-    return Number.isFinite(t) && t >= cutoff;
-  });
-  if (kept.length === all.length) return 0;
-  await writeAllEntries(kept);
-  return all.length - kept.length;
-}
-async function trimOversizedFile() {
-  try {
-    const raw = await readFile(logFilePath(), "utf8");
-    if (Buffer.byteLength(raw, "utf8") <= MAX_FILE_BYTES) return;
-    const entries = await readAllEntries();
-    const drop = Math.max(1, Math.floor(entries.length * 0.25));
-    await writeAllEntries(entries.slice(drop));
-  } catch {
-  }
-}
-async function appendErrorLog(input) {
-  const settings = await readLogSettings();
-  await purgeExpiredLogs(settings.retentionDays);
-  const entry = {
-    id: newId(),
-    ts: (/* @__PURE__ */ new Date()).toISOString(),
-    level: input.level,
-    source: input.source,
-    category: input.category ? clampField(input.category, 120) : void 0,
-    message: clampField(sanitizeLogText(input.message), MAX_MESSAGE),
-    detail: input.detail ? clampField(sanitizeLogText(input.detail), MAX_FIELD) : void 0,
-    pluginId: input.pluginId ? clampField(input.pluginId, 80) : void 0,
-    instanceId: input.instanceId ? clampField(input.instanceId, 120) : void 0
-  };
-  const dir = dataDir();
-  await mkdir(dir, { recursive: true });
-  await appendFile(logFilePath(), `${JSON.stringify(entry)}
-`, "utf8");
-  await trimOversizedFile();
-  return entry;
-}
-
-// src/lib/pluginLogServer.ts
+// sd-server-shim:plugin-log-stub
 async function logPluginApiFailure(pluginId, operation, message, detail) {
-  try {
-    await appendErrorLog({
-      level: "error",
-      source: "api",
-      pluginId,
-      category: `${pluginId}/${operation}`,
-      message,
-      detail: detail ? JSON.stringify(detail).slice(0, 4e3) : void 0
-    });
-  } catch {
-  }
+  const extra = detail ? " " + JSON.stringify(detail).slice(0, 500) : "";
+  console.error("[SelfDashboard][" + pluginId + "] " + operation + ": " + message + extra);
 }
 
 // plugins/docker/lib/dockerEngine.ts
@@ -2193,8 +2039,8 @@ function geoipCandidatePaths() {
   if (process.env.CROWDSEC_GEOIP_PATH?.trim()) {
     roots.add(path.resolve(process.env.CROWDSEC_GEOIP_PATH.trim()));
   }
-  const dataDir2 = process.env.CROWDSEC_DATA_DIR || "/crowdsec-data";
-  roots.add(path.resolve(dataDir2));
+  const dataDir = process.env.CROWDSEC_DATA_DIR || "/crowdsec-data";
+  roots.add(path.resolve(dataDir));
   roots.add(path.resolve("/crowdsec-data"));
   if (process.env.SELFDASHBOARD_DATA_DIR) {
     roots.add(path.resolve(process.env.SELFDASHBOARD_DATA_DIR));
@@ -2373,17 +2219,33 @@ function pickCol(names, candidates, fallback = "''") {
   }
   return fallback;
 }
-function decisionUntilClause(alias = "d") {
-  return `(
-    ${alias}.until IS NULL OR TRIM(CAST(${alias}.until AS TEXT)) = ''
-    OR datetime(REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${alias}.until AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
-       > datetime('now')
+function decisionUntilUnixSecExpr(alias = "d") {
+  const col = `${alias}.until`;
+  return `CAST(
+    CASE
+      WHEN ${col} IS NULL OR TRIM(CAST(${col} AS TEXT)) = '' THEN NULL
+      WHEN CAST(${col} AS INTEGER) > 10000000000000 THEN CAST(${col} AS INTEGER) / 1000000
+      WHEN CAST(${col} AS INTEGER) > 1000000000000 THEN CAST(${col} AS INTEGER) / 1000
+      WHEN CAST(${col} AS INTEGER) > 1000000000 THEN CAST(${col} AS INTEGER)
+      ELSE strftime('%s', REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${col} AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
+    END AS INTEGER
   )`;
+}
+function decisionUntilClause(alias = "d") {
+  const untilSec = decisionUntilUnixSecExpr(alias);
+  return `(${untilSec} IS NOT NULL AND ${untilSec} > CAST(strftime('%s', 'now') AS INTEGER))`;
 }
 function decisionSchemaMeta(db) {
   const decisionTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'").all();
   if (decisionTables.length === 0) {
-    return { hasTable: false, linkCol: null, hasUntil: false, hasValue: false, hasScope: false };
+    return {
+      hasTable: false,
+      linkCol: null,
+      hasUntil: false,
+      hasValue: false,
+      hasScope: false,
+      hasSimulated: false
+    };
   }
   const dCols = db.prepare("PRAGMA table_info(decisions)").all();
   const dNames = new Set(dCols.map((c) => c.name));
@@ -2393,18 +2255,23 @@ function decisionSchemaMeta(db) {
     linkCol,
     hasUntil: dNames.has("until"),
     hasValue: dNames.has("value"),
-    hasScope: dNames.has("scope")
+    hasScope: dNames.has("scope"),
+    hasSimulated: dNames.has("simulated")
   };
 }
 function activeDecisionWhere(meta) {
   const parts = [];
-  if (meta.hasUntil) parts.push(decisionUntilClause("d"));
+  if (!meta.hasUntil) return "WHERE 1=0";
+  parts.push(decisionUntilClause("d"));
+  if (meta.hasSimulated) {
+    parts.push(`(d.simulated IS NULL OR d.simulated = 0)`);
+  }
   if (meta.hasScope) {
     parts.push(
       `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
     );
   }
-  return parts.length ? `WHERE ${parts.join(" AND ")}` : "";
+  return `WHERE ${parts.join(" AND ")}`;
 }
 function loadActiveBannedIpSet(db) {
   const meta = decisionSchemaMeta(db);
@@ -2435,7 +2302,7 @@ function loadAlertIdsWithActiveBan(db) {
 function countActiveDecisions(db) {
   const meta = decisionSchemaMeta(db);
   if (!meta.hasTable) return 0;
-  const where = meta.hasUntil ? `WHERE ${decisionUntilClause("d")}` : "";
+  const where = meta.hasUntil ? activeDecisionWhere(meta) : "WHERE 1=0";
   const row = db.prepare(`SELECT COUNT(*) AS c FROM decisions d ${where}`).get();
   return Number(row?.c ?? 0);
 }

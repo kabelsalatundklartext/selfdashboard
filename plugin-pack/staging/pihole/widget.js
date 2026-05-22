@@ -251,15 +251,41 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   }
 
   // src/lib/pluginDev.ts
+  function fetchAbortSignal(outer, timeoutMs) {
+    const timers = [];
+    const cleanup = () => {
+      for (const t of timers) clearTimeout(t);
+    };
+    const parts = [];
+    if (outer) parts.push(outer);
+    if (timeoutMs && timeoutMs > 0) {
+      const tc = new AbortController();
+      timers.push(setTimeout(() => tc.abort(), timeoutMs));
+      parts.push(tc.signal);
+    }
+    if (parts.length === 0) return { signal: void 0, cleanup };
+    if (parts.length === 1) return { signal: parts[0], cleanup };
+    const anyFn = AbortSignal.any;
+    if (typeof anyFn === "function") return { signal: anyFn(parts), cleanup };
+    const linked = new AbortController();
+    const onAbort = () => linked.abort();
+    for (const s of parts) {
+      if (s.aborted) {
+        linked.abort();
+        break;
+      }
+      s.addEventListener("abort", onAbort, { once: true });
+    }
+    return { signal: linked.signal, cleanup };
+  }
   async function pluginApiJson(pluginId, path, init) {
     const url = path.startsWith("/api/") ? path : `/api/plugins/${pluginId}${path.startsWith("/") ? path : `/${path}`}`;
-    const { timeoutMs, ...rest } = init ?? {};
-    const ac = new AbortController();
-    const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : void 0;
+    const { timeoutMs, signal: outerSignal, ...rest } = init ?? {};
+    const { signal, cleanup } = fetchAbortSignal(outerSignal ?? void 0, timeoutMs);
     try {
       const res = await fetch(url, {
         ...rest,
-        signal: rest.signal ?? ac.signal,
+        ...signal ? { signal } : {},
         headers: {
           "Content-Type": "application/json",
           ...rest.headers
@@ -280,7 +306,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       if (e instanceof Error && e.name === "AbortError") throw new Error("timeout");
       throw e;
     } finally {
-      if (timer) clearTimeout(timer);
+      cleanup();
     }
   }
 

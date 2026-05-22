@@ -1,165 +1,10 @@
-// node_modules/server-only/index.js
-throw new Error(
-  "This module cannot be imported from a Client Component module. It should only be used from a Server Component."
-);
-
-// src/lib/errorLog.ts
-import { appendFile, mkdir, readFile, rename, writeFile } from "fs/promises";
-import { join as join2 } from "path";
-
-// src/lib/dataDir.ts
-import { join } from "path";
-function dataDir() {
-  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
-  if (raw) return raw;
-  return join(process.cwd(), "data");
-}
-
-// src/lib/errorLogTypes.ts
-var DEFAULT_LOG_SETTINGS = { retentionDays: 7 };
-function isLogRetentionDays(n) {
-  return n === 3 || n === 7 || n === 30;
-}
-
-// src/lib/errorLog.ts
-var MAX_FILE_BYTES = 3e6;
-var MAX_FIELD = 4e3;
-var MAX_MESSAGE = 2e3;
-var logFilePath = () => join2(dataDir(), "error-log.jsonl");
-var settingsPath = () => join2(dataDir(), "log-settings.json");
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
-function clampField(s, max) {
-  const t = s.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max)}\u2026`;
-}
-function sanitizeLogText(raw) {
-  let s = raw;
-  s = s.replace(/("password"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"');
-  s = s.replace(/(password=)[^&\s]+/gi, "$1[redacted]");
-  s = s.replace(/(Authorization:\s*Basic\s+)[A-Za-z0-9+/=]+/gi, "$1[redacted]");
-  s = s.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, "$1[redacted]");
-  return s;
-}
-async function readLogSettings() {
-  try {
-    const raw = await readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw);
-    if (isLogRetentionDays(parsed.retentionDays)) {
-      return { retentionDays: parsed.retentionDays };
-    }
-  } catch {
-  }
-  return { ...DEFAULT_LOG_SETTINGS };
-}
-function retentionCutoff(days) {
-  return Date.now() - days * 24 * 60 * 60 * 1e3;
-}
-function parseLine(line) {
-  const t = line.trim();
-  if (!t) return null;
-  try {
-    const o = JSON.parse(t);
-    if (typeof o.id !== "string" || typeof o.ts !== "string" || typeof o.message !== "string") return null;
-    return o;
-  } catch {
-    return null;
-  }
-}
-async function readAllEntries() {
-  try {
-    const raw = await readFile(logFilePath(), "utf8");
-    const lines = raw.split("\n");
-    const out = [];
-    for (const line of lines) {
-      const e = parseLine(line);
-      if (e) out.push(e);
-    }
-    return out;
-  } catch (e) {
-    const code = e && typeof e === "object" && "code" in e ? String(e.code) : "";
-    if (code === "ENOENT") return [];
-    throw e;
-  }
-}
-async function writeAllEntries(entries) {
-  const dir = dataDir();
-  await mkdir(dir, { recursive: true });
-  const file = logFilePath();
-  const body = entries.length ? `${entries.map((e) => JSON.stringify(e)).join("\n")}
-` : "";
-  const tmp = `${file}.tmp`;
-  try {
-    await writeFile(tmp, body, "utf8");
-    await rename(tmp, file);
-  } catch {
-    await writeFile(file, body, "utf8");
-  }
-}
-async function purgeExpiredLogs(retentionDays) {
-  const days = retentionDays ?? (await readLogSettings()).retentionDays;
-  const cutoff = retentionCutoff(days);
-  const all = await readAllEntries();
-  const kept = all.filter((e) => {
-    const t = Date.parse(e.ts);
-    return Number.isFinite(t) && t >= cutoff;
-  });
-  if (kept.length === all.length) return 0;
-  await writeAllEntries(kept);
-  return all.length - kept.length;
-}
-async function trimOversizedFile() {
-  try {
-    const raw = await readFile(logFilePath(), "utf8");
-    if (Buffer.byteLength(raw, "utf8") <= MAX_FILE_BYTES) return;
-    const entries = await readAllEntries();
-    const drop = Math.max(1, Math.floor(entries.length * 0.25));
-    await writeAllEntries(entries.slice(drop));
-  } catch {
-  }
-}
-async function appendErrorLog(input) {
-  const settings = await readLogSettings();
-  await purgeExpiredLogs(settings.retentionDays);
-  const entry = {
-    id: newId(),
-    ts: (/* @__PURE__ */ new Date()).toISOString(),
-    level: input.level,
-    source: input.source,
-    category: input.category ? clampField(input.category, 120) : void 0,
-    message: clampField(sanitizeLogText(input.message), MAX_MESSAGE),
-    detail: input.detail ? clampField(sanitizeLogText(input.detail), MAX_FIELD) : void 0,
-    pluginId: input.pluginId ? clampField(input.pluginId, 80) : void 0,
-    instanceId: input.instanceId ? clampField(input.instanceId, 120) : void 0
-  };
-  const dir = dataDir();
-  await mkdir(dir, { recursive: true });
-  await appendFile(logFilePath(), `${JSON.stringify(entry)}
-`, "utf8");
-  await trimOversizedFile();
-  return entry;
-}
-
-// src/lib/pluginLogServer.ts
+// sd-server-shim:plugin-log-stub
 async function logPluginApiFailure(pluginId, operation, message, detail) {
-  try {
-    await appendErrorLog({
-      level: "error",
-      source: "api",
-      pluginId,
-      category: `${pluginId}/${operation}`,
-      message,
-      detail: detail ? JSON.stringify(detail).slice(0, 4e3) : void 0
-    });
-  } catch {
-  }
+  const extra = detail ? " " + JSON.stringify(detail).slice(0, 500) : "";
+  console.error("[SelfDashboard][" + pluginId + "] " + operation + ": " + message + extra);
 }
 
 // plugins/selfstream/server.ts
-var dynamic = "force-dynamic";
 var FETCH_TIMEOUT_MS = 12e3;
 function parseBase(raw) {
   const s = raw.trim();
@@ -315,7 +160,6 @@ function selfstreamServerHandler(ctx) {
 var server_default = selfstreamServerHandler;
 export {
   server_default as default,
-  dynamic,
   handleSelfstreamPluginRequest,
   selfstreamServerHandler
 };

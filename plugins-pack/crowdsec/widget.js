@@ -229,15 +229,41 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   }
 
   // src/lib/pluginDev.ts
+  function fetchAbortSignal(outer, timeoutMs) {
+    const timers = [];
+    const cleanup = () => {
+      for (const t of timers) clearTimeout(t);
+    };
+    const parts = [];
+    if (outer) parts.push(outer);
+    if (timeoutMs && timeoutMs > 0) {
+      const tc = new AbortController();
+      timers.push(setTimeout(() => tc.abort(), timeoutMs));
+      parts.push(tc.signal);
+    }
+    if (parts.length === 0) return { signal: void 0, cleanup };
+    if (parts.length === 1) return { signal: parts[0], cleanup };
+    const anyFn = AbortSignal.any;
+    if (typeof anyFn === "function") return { signal: anyFn(parts), cleanup };
+    const linked = new AbortController();
+    const onAbort = () => linked.abort();
+    for (const s of parts) {
+      if (s.aborted) {
+        linked.abort();
+        break;
+      }
+      s.addEventListener("abort", onAbort, { once: true });
+    }
+    return { signal: linked.signal, cleanup };
+  }
   async function pluginApiJson(pluginId, path, init) {
     const url = path.startsWith("/api/") ? path : `/api/plugins/${pluginId}${path.startsWith("/") ? path : `/${path}`}`;
-    const { timeoutMs, ...rest } = init ?? {};
-    const ac = new AbortController();
-    const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : void 0;
+    const { timeoutMs, signal: outerSignal, ...rest } = init ?? {};
+    const { signal, cleanup } = fetchAbortSignal(outerSignal ?? void 0, timeoutMs);
     try {
       const res = await fetch(url, {
         ...rest,
-        signal: rest.signal ?? ac.signal,
+        ...signal ? { signal } : {},
         headers: {
           "Content-Type": "application/json",
           ...rest.headers
@@ -258,7 +284,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       if (e instanceof Error && e.name === "AbortError") throw new Error("timeout");
       throw e;
     } finally {
-      if (timer) clearTimeout(timer);
+      cleanup();
     }
   }
 
@@ -869,7 +895,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             "span",
                             {
                               className: `cs-status ${item.active_ban ? "cs-status-ban" : "cs-status-free"}`,
-                              title: item.active_ban ? de ? "Diese IP hat einen aktiven Ban in crowdsec.db (Decision verkn\xFCpft mit Alert und/oder decisions.value)." : "This IP has an active ban in crowdsec.db (decision linked to alert and/or decisions.value)." : de ? "Nur Alert \u2014 f\xFCr diese IP ist aktuell kein aktiver Ban in der DB (oder Ban abgelaufen). CrowdSec kann trotzdem sp\xE4ter sperren." : "Alert only \u2014 no active ban for this IP in the DB (or ban expired). CrowdSec may still ban later.",
+                              title: item.active_ban ? de ? "Aktiver Ban wie cscli: decisions.until liegt in der Zukunft (IP oder Alert verkn\xFCpft)." : "Active ban (cscli-aligned): decisions.until is in the future (IP or linked alert)." : de ? "Nur Alert \u2014 kein aktiver Ban (until abgelaufen/leer oder cscli listet die IP nicht). CrowdSec kann sp\xE4ter erneut sperren." : "Alert only \u2014 no active ban (until past/empty or cscli shows none). CrowdSec may ban later.",
                               children: item.active_ban ? de ? "Ban aktiv" : "Ban active" : de ? "Nur Alert" : "Alert only"
                             }
                           )
@@ -974,7 +1000,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "crowdsec",
     name: "CrowdSec",
     description: "Kompaktes CrowdSec-Dashboard aus crowdsec.db: \xDCbersicht, Banns, L\xE4nder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.",
-    version: "1.4.3",
+    version: "1.4.4",
     author: "SelfDashboard",
     category: "security",
     icon: "\u{1F6E1}\uFE0F",
