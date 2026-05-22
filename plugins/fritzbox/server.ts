@@ -6,8 +6,6 @@ import {
   fritzboxRootFromInput,
 } from './lib/fritzboxTr064'
 
-export const dynamic = 'force-dynamic'
-
 const FETCH_TIMEOUT_MS = 18_000
 const MAX_BODY_BYTES = 12_000
 

@@ -1,5 +1,4 @@
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
-export const dynamic = 'force-dynamic'
 
 const FETCH_TIMEOUT_MS = 12_000
 

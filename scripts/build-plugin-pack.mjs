@@ -172,6 +172,46 @@ function copyPluginWidgetCss(pluginId, destDir) {
   fs.writeFileSync(out, merged)
 }
 
+const SERVER_SHIM_NS = 'sd-server-shim'
+
+function serverBundlePlugins() {
+  const logShim = `
+export async function logPluginApiFailure(pluginId, operation, message, detail) {
+  const extra = detail ? ' ' + JSON.stringify(detail).slice(0, 500) : '';
+  console.error('[SelfDashboard][' + pluginId + '] ' + operation + ': ' + message + extra);
+}
+`.trim()
+  return [
+    {
+      name: 'plugin-server-bundle-shims',
+      setup(build) {
+        build.onResolve({ filter: /^server-only$/ }, () => ({
+          path: 'server-only-stub',
+          namespace: SERVER_SHIM_NS,
+        }))
+        build.onResolve({ filter: /^@\/lib\/pluginLogServer$/ }, () => ({
+          path: 'plugin-log-stub',
+          namespace: SERVER_SHIM_NS,
+        }))
+        build.onResolve({ filter: /^@\// }, (args) => {
+          if (args.kind === 'import-type' || args.kind === 'export-type') return null
+          return { external: true }
+        })
+        build.onResolve({ filter: /^next(\/|$)/ }, () => ({ external: true }))
+        build.onLoad({ filter: /.*/, namespace: SERVER_SHIM_NS }, (args) => {
+          if (args.path === 'server-only-stub') {
+            return { contents: 'export {}', loader: 'js' }
+          }
+          if (args.path === 'plugin-log-stub') {
+            return { contents: logShim, loader: 'js' }
+          }
+          return null
+        })
+      },
+    },
+  ]
+}
+
 async function bundleServer(pluginId, destDir) {
   const entry = path.join(pluginsRoot, pluginId, 'server.ts')
   if (!fs.existsSync(entry)) return false
@@ -188,23 +228,12 @@ async function bundleServer(pluginId, destDir) {
     external: ['next', 'next/*', 'server-only'],
     loader: { '.ts': 'ts' },
     logLevel: 'warning',
-    plugins: [
-      {
-        name: 'no-app-src-in-server-bundle',
-        setup(build) {
-          build.onResolve({ filter: /^@\// }, (args) => {
-            if (args.kind === 'import-type' || args.kind === 'export-type') return null
-            return { external: true }
-          })
-          build.onResolve({ filter: /^next(\/|$)/ }, () => ({ external: true }))
-        },
-      },
-    ],
+    plugins: serverBundlePlugins(),
   })
   const out = fs.readFileSync(outfile, 'utf8')
-  if (/next\/dist|from\s+["']next/.test(out)) {
+  if (/next\/dist|from\s+["']next/.test(out) || /server-only/.test(out)) {
     throw new Error(
-      `${pluginId} server.mjs bundles Next.js — remove next/server imports from plugins/${pluginId}/`,
+      `${pluginId} server.mjs bundles Next.js or server-only — fix plugins/${pluginId}/ imports`,
     )
   }
   return true
@@ -249,9 +278,10 @@ function copyDirToPublish(pluginId) {
   if (!fs.existsSync(path.join(src, 'widget.js'))) return false
   fs.rmSync(dest, { recursive: true, force: true })
   fs.mkdirSync(dest, { recursive: true })
+  const skipServer = new Set(['server.mjs', 'server.js', 'README-server.txt', 'server.ts.txt'])
   for (const name of fs.readdirSync(src)) {
-    if (name === 'README-server.txt' || name === 'server.ts.txt') continue
-    /* server.mjs + widget.js published together */
+    if (skipServer.has(name)) continue
+    /* API handlers ship in the Docker image (builtin); volume pack = widget UI only */
     copyFileIfExists(path.join(src, name), path.join(dest, name))
   }
   const userReadme = path.join(root, 'docs', 'plugins', pluginId, 'README.md')
