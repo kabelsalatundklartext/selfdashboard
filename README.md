@@ -32,12 +32,12 @@
 | Visible in the screenshot | What you get |
 |---|---|
 | 📅 **Calendar** | Events (CalDAV/ICS), month view right on the dashboard |
-| 🕐 **Clock & weather** | Local time and weather without an extra tab |
+| 🕐 **Clock & weather** | Local time; weather with **day blocks** (0–6 … 18–24) + **7-day** forecast (from tomorrow) |
 | 🔖 **Bookmark grid** | Quick access to Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
 | 🛡️ **CrowdSec** | Alerts and active bans at a glance |
 | 🌐 **Network / AdGuard** | Protection status, DNS stats (tiles fill the widget) |
 | ⚡ **FRITZ! energy** | Smart-outlet power: now, today, 7 days, month (TR-064) |
-| 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server |
+| 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server (**Unraid 7.2+** GraphQL) |
 | 📺 **Kiosk / wall tablet** | Navbar auto-hides — show again only via the accent **Menu** button |
 | 📺 **Emby / SelfStream** | Is anything streaming right now? |
 | ✉️ **Navbar mail** | Unread IMAP badge (install **E-Mail** plugin from the store) — click opens webmail |
@@ -62,7 +62,7 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 flowchart TB
   subgraph image["Docker image (core)"]
     UI["Next.js UI · Plugin Store · dashboards"]
-    CORE["Built-in APIs: calendar, mail, docker, crowdsec, fritzbox, …"]
+    CORE["Built-in APIs: calendar, mail, docker, crowdsec, fritzbox, weather, …"]
     GW["Gateway /api/plugins/{id}/…"]
   end
   subgraph vol["Volume /app/plugins/custom"]
@@ -93,14 +93,22 @@ flowchart TB
 | A **plugin** (new `widget.js` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
 | **SelfDashboard core** (UI, APIs, store, loader) | **Yes** | `docker pull` + restart container; keep `/app/data` and `/app/plugins/custom` mounts |
 
-## What's new (beta / volume-only model)
+## What's new (beta / recent)
 
-- **Volume-only plugins** — widgets are no longer compiled into the image; only `plugin.json` + `widget.js` on disk count.
-- **GitHub Plugin Store** — installs from `plugins-pack/` (default branch **`beta`** in the official image and Unraid template).
-- **In-app updates** — version compare, orange badge on **+**, banner **Update all**; no image rebuild for plugin bumps.
-- **Loading state** — widgets show “Loading plugin…” while the volume scan finishes.
-- **Mail as a plugin** — install **Email** from the store for navbar IMAP badge + settings tab.
-- **Central log** — **Settings → Logs** for app, API, and plugin errors.
+### Core app (Docker image)
+
+- **Design backgrounds** — **Settings → Design**: **navbar** wallpaper (JPG/PNG/WebP + overlay) and **dashboard** background (**off / 1 image / 2 images** left+right), saved globally in `dashboard.json`.
+- **Weather API proxy** — built-in **`GET /api/weather`** (geocode + forecast via Open-Meteo); container needs outbound HTTPS.
+- **Settings modal** — fixed width, taller viewport; **Logs** tab scrolls inside the list.
+
+### Plugins (volume / store — no image rebuild)
+
+- **Weather 1.3.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24) under the summary; **7-day** strip starts **tomorrow** (today not duplicated). Uses `/api/weather`.
+- **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
+- **CrowdSec** — alert count respects time range (`daysBack`).
+- **Volume-only model** — widgets live in `/app/plugins/custom`; **Plugin Store** from GitHub `plugins-pack/` (branch **`beta`**); **Update all** + **Ctrl+F5** after plugin bumps.
+- **Email plugin** — navbar IMAP badge + settings tab from the store.
+- **Central log** — **Settings → Logs** (app, API, plugins).
 
 Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 
@@ -126,6 +134,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🎨 **6 Color Themes** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
 | 🖌️ **Custom Colors** | Override any color individually per dashboard |
 | 🖼️ **Custom Logo** | Upload your own logo per dashboard |
+| 🖼️ **Background images** | **Design**: navbar wallpaper + dashboard (**1** or **2** JPG/PNG images) with readability overlay |
 | 🌍 **Multilingual** | German & English interface |
 | 🖱️ **Drag & Drop** | Move and resize widgets freely |
 | 📐 **Widget Controls** | Per-widget zoom, padding and height adjustments |
@@ -163,9 +172,9 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 | [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
 | [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
-| [Unraid](docs/plugins/unraid/README.md) | System | System overview | EN/DE |
+| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
 | [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
-| [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo | EN/DE |
+| [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
 
 ## Quick Start
 
@@ -290,7 +299,7 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 
 **Dashboards** — Create, edit, delete dashboards. Toggle tab visibility per dashboard. Set emoji or custom PNG icon.
 
-**Design** — Grid spacing (widget gap + outer padding), Logo upload, Color theme, Custom color overrides per color
+**Design** — Navbar display style; grid spacing; **navbar background** (JPG/PNG + overlay); **dashboard background** (off / 1 image / 2 images side by side + overlay); logo upload; color theme; custom color overrides
 
 **Email** — IMAP accounts, navbar badge, poll interval, connection test
 
@@ -337,6 +346,12 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | Mail test OK, navbar empty | Enable **Navbar email** (General or Email tab); save account; badge needs unread &gt; 0 |
 | Mail badge shows mail that is gone in MailPlus | IMAP may still list deleted/read messages until the server cleans up. Use **Show unread** in email settings to see subjects. After update, SelfDashboard ignores `\Deleted` and `\Seen` ghosts. In MailPlus: empty trash / expunge if needed, then **Refresh all accounts**. |
 | MailPlus shows 1 unread, preview listed 2 (old FRITZ mail) | Synology IMAP can keep ancient `UNSEEN` UIDs. Use **Settings → Email → Unread age filter** (default 30 days; `0` = off). Preview shows how many were ignored as too old or duplicate `Message-ID`. |
+| Weather: **HTTP 404** on `/api/weather` | **New app image** required — route is in the core app, not a volume plugin |
+| Weather: no data / API error | Container must reach `api.open-meteo.com` and `geocoding-api.open-meteo.com` (HTTPS outbound). Test: `http://HOST:PORT/api/weather?action=geocode&name=Berlin&language=de` → JSON |
+| Weather plugin old UI (hourly strip only) | Plugin Store → **Weather** → **Update** → **Ctrl+F5** (target **1.3.x**) |
+| Unraid: **`Failed to fetch`** | Browser calls Unraid **directly** (`https://NAS/graphql`). Not a 7.3-only issue — check **API key**, URL, HTTPS cert, and **CORS / allowed origins** for your dashboard URL (e.g. `http://192.168.x.x:3010`) on **each** NAS |
+| Unraid works on one NAS, not another | Compare API enabled, key permissions, and CORS on the failing box (**7.2.3** and **7.3** both supported if GraphQL API is active) |
+| Background image not visible | **Design** → mode not **Off**; image uploaded; after change **Ctrl+F5**; very large images are capped (~4–5 MB in config) |
 
 ---
 
@@ -378,12 +393,12 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | Im Screenshot sichtbar | Was es dir bringt |
 |---|---|
 | 📅 **Kalender** | Termine (CalDAV/ICS), Monatsansicht direkt auf dem Dashboard |
-| 🕐 **Uhr & Wetter** | Lokale Zeit und Wetter ohne extra Tab |
+| 🕐 **Uhr & Wetter** | Lokale Zeit; Wetter mit **Tagesabschnitten** (0–6 … 18–24) + **7-Tage**-Vorschau (ab morgen) |
 | 🔖 **Lesezeichen-Grid** | Schnellzugriff auf Unraid, DSM, Emby, Nextcloud, Vaultwarden, … |
 | 🛡️ **CrowdSec** | Alerts und aktive Bans auf einen Blick |
 | 🌐 **Netzwerk / AdGuard** | Schutz-Status, DNS-Statistik (Kacheln füllen das Widget) |
 | ⚡ **FRITZ! Energie** | Steckdose: aktuell, heute, 7 Tage, Monat (TR-064) |
-| 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server |
+| 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server (**Unraid 7.2+** GraphQL) |
 | 📺 **Kiosk / Wand-Tablet** | Navbar blendet sich aus — nur Button **Leiste** holt sie zurück |
 | 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
 | ✉️ **Navbar E-Mail** | IMAP-Badge (Plugin **E-Mail** aus dem Store installieren) — Klick öffnet Webmail |
@@ -402,7 +417,7 @@ SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit 
 flowchart TB
   subgraph image["Docker-Image (Kern)"]
     UI["Next.js UI · Plugin-Store · Dashboards"]
-    CORE["Eingebaute APIs: Kalender, Mail, Docker, CrowdSec, FRITZ!, …"]
+    CORE["Eingebaute APIs: Kalender, Mail, Docker, CrowdSec, FRITZ!, Wetter, …"]
     GW["Gateway /api/plugins/{id}/…"]
   end
   subgraph vol["Volume /app/plugins/custom"]
@@ -433,14 +448,22 @@ flowchart TB
 | Ein **Plugin** (neues `widget.js` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
 | **SelfDashboard-Kern** (UI, APIs, Store, Loader) | **Ja** | `docker pull` + Container neu starten; Mounts `/app/data` und `/app/plugins/custom` behalten |
 
-## Neu (Beta / Volume-only)
+## Neu (Beta / aktuelle Erweiterungen)
 
-- **Nur Plugins vom Volume** — keine Widgets mehr im Image; zählen nur `plugin.json` + `widget.js` auf der Platte.
-- **GitHub Plugin-Store** — Installation aus `plugins-pack/` (Standard-Branch **`beta`** im offiziellen Image und Unraid-Template).
-- **Updates in der App** — Versionsvergleich, orangener Punkt am **+**, Leiste **Alle aktualisieren** — kein Image-Rebuild für Plugin-Versionen.
-- **Ladezustand** — „Plugin wird geladen…“, während der Volume-Scan läuft.
-- **E-Mail als Plugin** — **E-Mail** aus dem Store installieren für Navbar-Badge und Einstellungs-Tab.
-- **Zentrales Protokoll** — **Einstellungen → Protokoll** für App-, API- und Plugin-Fehler.
+### Kern-App (Docker-Image)
+
+- **Hintergrundbilder im Design** — **Einstellungen → Design**: **Navbar**-Wallpaper (JPG/PNG/WebP + Overlay) und **Dashboard**-Hintergrund (**Aus / 1 Bild / 2 Bilder** links+rechts), global in `dashboard.json`.
+- **Wetter-API-Proxy** — eingebautes **`GET /api/weather`** (Geocoding + Forecast über Open-Meteo); Container braucht ausgehendes HTTPS.
+- **Einstellungs-Dialog** — feste Breite, höheres Fenster; Tab **Protokoll** scrollt in der Liste.
+
+### Plugins (Volume / Store — kein Image-Rebuild)
+
+- **Wetter 1.3.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24) unter der Beschreibung; **7-Tage**-Leiste ab **morgen** (heute nicht doppelt). Nutzt `/api/weather`.
+- **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
+- **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).
+- **Nur Plugins vom Volume** — Widgets unter `/app/plugins/custom`; **Plugin-Store** von GitHub `plugins-pack/` (Branch **`beta`**); **Alle aktualisieren** + **Strg+F5** nach Plugin-Updates.
+- **E-Mail-Plugin** — Navbar-IMAP-Badge + Einstellungs-Tab aus dem Store.
+- **Zentrales Protokoll** — **Einstellungen → Protokoll** (App, API, Plugins).
 
 API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 
@@ -466,6 +489,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🎨 **6 Farbthemen** | Dark, Light, Nord, Catppuccin, Dracula, Solarized |
 | 🖌️ **Eigene Farben** | Jede Farbe einzeln pro Dashboard anpassbar |
 | 🖼️ **Eigenes Logo** | Logo pro Dashboard hochladen |
+| 🖼️ **Hintergrundbilder** | **Design**: Navbar-Wallpaper + Dashboard (**1** oder **2** JPG/PNG) mit Lesbarkeits-Overlay |
 | 🌍 **Mehrsprachig** | Deutsch & Englisch |
 | 🖱️ **Drag & Drop** | Widgets frei verschieben und skalieren |
 | 📐 **Widget-Controls** | Zoom, Innenabstand und Höhe pro Widget einstellbar |
@@ -503,9 +527,9 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 | [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
 | [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
-| [Unraid](docs/plugins/unraid/README.md) | System | CPU, RAM, Array | DE/EN |
+| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
 | [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
-| [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo | DE/EN |
+| [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
 
 ---
 
@@ -632,7 +656,7 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 
 **Dashboards** — Dashboards erstellen, bearbeiten, löschen. Tab-Sichtbarkeit pro Dashboard. Emoji oder PNG-Icon setzen.
 
-**Design** — Grid-Abstände (Widget-Gap + Außenrand), Logo hochladen, Farbthema, Farben einzeln anpassen
+**Design** — Navbar-Darstellung; Grid-Abstände; **Navbar-Hintergrund** (JPG/PNG + Overlay); **Dashboard-Hintergrund** (Aus / 1 Bild / 2 Bilder nebeneinander + Overlay); Logo; Farbthema; Farben einzeln anpassen
 
 **E-Mail** — IMAP-Konten, Navbar-Badge, Abfrage-Intervall, Verbindung testen
 
@@ -679,6 +703,12 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | Test OK, Navbar leer | **Navbar E-Mail** einschalten; Konto speichern; Badge nur bei Ungelesen &gt; 0 |
 | Badge zeigt Mail, die in MailPlus weg ist | IMAP kann gelöschte/gelesene Mails noch listen. **Ungelesen anzeigen** in den E-Mail-Einstellungen prüfen. Neuere Version ignoriert `\Deleted`/`\Seen`-Geister. In MailPlus Papierkorb leeren/leeren, dann **Alle Konten aktualisieren**. |
 | MailPlus 1 ungelesen, Vorschau zeigte 2 (alte FRITZ-Mail) | Synology-IMAP behält oft alte `UNSEEN`-UIDs. **Einstellungen → E-Mail → Altersfilter ungelesen** (Standard 30 Tage, **0** = aus). Vorschau zeigt ignorierte Alt-/Duplikat-Mails. |
+| Wetter: **HTTP 404** auf `/api/weather` | **Neues App-Image** nötig — Route steckt in der Kern-App, nicht im Volume-Plugin |
+| Wetter: keine Daten / API-Fehler | Container muss `api.open-meteo.com` und `geocoding-api.open-meteo.com` erreichen (HTTPS raus). Test: `http://HOST:PORT/api/weather?action=geocode&name=Berlin&language=de` → JSON |
+| Wetter-Plugin alte UI (nur Stunden-Leiste) | Plugin-Store → **Wetter** → **Aktualisieren** → **Strg+F5** (Ziel **1.3.x**) |
+| Unraid: **`Failed to fetch`** | Browser ruft Unraid **direkt** auf (`https://NAS/graphql`). Kein „nur 7.3“-Problem — **API-Key**, URL, HTTPS-Zertifikat und **CORS / erlaubte Origins** für die Dashboard-URL (z. B. `http://192.168.x.x:3010`) **pro NAS** prüfen |
+| Unraid auf einem NAS ok, auf anderem nicht | API aktiv?, Key-Rechte?, CORS auf dem betroffenen Server vergleichen (**7.2.3** und **7.3** möglich, wenn GraphQL-API läuft) |
+| Hintergrundbild fehlt | **Design** → Modus nicht **Aus**; Bild hochgeladen; **Strg+F5**; sehr große Bilder sind begrenzt (~4–5 MB in der Config) |
 
 ---
 
