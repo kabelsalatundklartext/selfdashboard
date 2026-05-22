@@ -15,11 +15,11 @@ const SKIP = new Set(['node_modules', '.git', 'custom'])
 
 function copyDir(src, dst) {
   fs.mkdirSync(dst, { recursive: true })
-  for (const name of fs.readdirSync(src, { withFileTypes: true })) {
-    if (SKIP.has(name)) continue
-    const from = path.join(src, name)
-    const to = path.join(dst, name)
-    if (name.isDirectory()) {
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (SKIP.has(entry.name)) continue
+    const from = path.join(src, entry.name)
+    const to = path.join(dst, entry.name)
+    if (entry.isDirectory()) {
       copyDir(from, to)
     } else {
       fs.copyFileSync(from, to)
