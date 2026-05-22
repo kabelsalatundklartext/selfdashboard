@@ -323,11 +323,44 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "adguard",
     name: "AdGuard Home",
     description: "DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/plugins/adguard (CORS-frei).",
-    version: "1.2.0",
+    version: "1.2.1",
     author: "SelfDashboard",
     category: "network",
     icon: "\u{1F6E1}\uFE0F",
-    iconUrl: "/plugin-logos/adguard.png"
+    iconUrl: "/plugin-logos/adguard.png",
+    configSchema: [
+      {
+        key: "url",
+        label: "Basis-URL",
+        type: "text",
+        placeholder: "http://192.168.1.5:3000",
+        defaultValue: ""
+      },
+      {
+        key: "username",
+        label: "Benutzername (optional)",
+        type: "text",
+        defaultValue: ""
+      },
+      {
+        key: "password",
+        label: "Passwort (optional)",
+        type: "text",
+        defaultValue: ""
+      },
+      {
+        key: "refreshSeconds",
+        label: "Aktualisieren (Sekunden)",
+        type: "number",
+        defaultValue: 20
+      },
+      {
+        key: "showBlockPercentBar",
+        label: "Block-Anteil: Fortschrittsbalken",
+        type: "boolean",
+        defaultValue: true
+      }
+    ]
   };
   function str(v) {
     return typeof v === "string" ? v.trim() : "";
@@ -364,6 +397,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   function formatInt(n, locale) {
     return Math.round(n).toLocaleString(locale === "en" ? "en-GB" : "de-DE");
   }
+  function cfgBool(raw, key, defaultValue = true) {
+    const v = raw[key];
+    if (v === false || v === "false" || v === 0 || v === "0") return false;
+    if (v === true || v === "true" || v === 1 || v === "1") return true;
+    return defaultValue;
+  }
   var TINT = {
     sky: { solid: "#38bdf8", wash: "rgba(56, 189, 248, 0.2)", rim: "rgba(56, 189, 248, 0.38)" },
     rose: { solid: "#fb7185", wash: "rgba(251, 113, 133, 0.18)", rim: "rgba(251, 113, 133, 0.4)" },
@@ -390,51 +429,72 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           display: "flex",
           flexDirection: "column",
           justifyContent: footer ? "space-between" : "center",
-          gap: "2px",
+          alignItems: "center",
+          textAlign: "center",
+          gap: "4px",
           minWidth: 0,
           minHeight: 0,
           height: "100%",
-          boxSizing: "border-box"
+          boxSizing: "border-box",
+          padding: "9px 10px"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 13, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-              "span",
-              {
-                className: "sd-adguard-tile-label",
-                style: {
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "var(--text-muted)",
-                  lineHeight: 1.2,
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden"
-                },
-                children: label
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "div",
             {
-              className: "tabular-nums sd-adguard-tile-value",
               style: {
-                fontWeight: 800,
-                color: c.solid,
-                lineHeight: 1.12,
-                fontVariantNumeric: "tabular-nums",
-                marginTop: "4px"
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+                width: "100%",
+                minWidth: 0,
+                flex: footer ? "1 1 auto" : void 0
               },
-              children: value
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: "sd-adguard-tile-label",
+                    style: {
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.2,
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: label
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: "tabular-nums sd-adguard-tile-value",
+                    style: {
+                      fontWeight: 800,
+                      color: c.solid,
+                      lineHeight: 1.12,
+                      fontVariantNumeric: "tabular-nums",
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: value
+                  }
+                )
+              ]
             }
           ),
-          footer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
+          footer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0, maxWidth: "100%" }, children: footer }) : null
         ]
       }
     );
@@ -446,6 +506,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const username = str(config.username);
     const password = str(config.password);
     const refreshSec = Math.min(300, Math.max(10, Math.round(num(config.refreshSeconds) || 20)));
+    const cfgRaw = config;
+    const showBlockPercentBar = cfgBool(cfgRaw, "showBlockPercentBar", true);
     const [data, setData] = (0, import_react3.useState)(null);
     const [error, setError] = (0, import_react3.useState)(null);
     const [loading, setLoading] = (0, import_react3.useState)(true);
@@ -660,6 +722,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           min-height: 0;
           align-content: stretch;
           align-items: stretch;
+          justify-items: stretch;
         }
         .sd-adguard-host .sd-adguard-tile,
         .sd-adguard-host .sd-adguard-tile-placeholder {
@@ -681,7 +744,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
         }
         .sd-adguard-host .sd-adguard-tile {
-          padding: 9px 10px 9px 11px;
+          padding: 9px 10px;
           min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
         }
         .sd-adguard-host .sd-adguard-tile-value {
@@ -703,7 +766,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
           .sd-adguard-host .sd-adguard-tile {
             min-height: clamp(40px, min(12cqmin, 10cqh), 72px);
-            padding: 5px 7px 5px 8px;
+            padding: 5px 8px;
           }
           .sd-adguard-host .sd-adguard-tile-value {
             font-size: clamp(0.68rem, min(4cqmin, 3.2cqh), 1.15rem);
@@ -800,7 +863,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 value: `${pct.toLocaleString(de ? "de-DE" : "en-GB")}%`,
                 tint: "violet",
                 icon: Percent,
-                footer: pctBar
+                footer: showBlockPercentBar ? pctBar : void 0
               }
             ),
             avgSec > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: de ? "\xD8 Antwortzeit" : "Avg response", value: `${avgMs.toFixed(1)} ms`, tint: "emerald", icon: Activity }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -829,6 +892,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     );
   }
   function Settings({ config, onChange }) {
+    const locale = useDashboardStore((s) => s.locale);
+    const de = locale !== "en";
+    const cfgRaw = config;
+    const showBar = cfgBool(cfgRaw, "showBlockPercentBar", true);
     const inp = {
       background: "var(--surface)",
       border: "1px solid var(--border)",
@@ -896,7 +963,36 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             onChange: (e) => onChange("refreshSeconds", Math.min(300, Math.max(10, Math.round(Number(e.target.value)) || 20)))
           }
         )
-      ] })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "label",
+        {
+          style: {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "10px",
+            cursor: "pointer",
+            fontSize: "13px",
+            color: "var(--text)",
+            lineHeight: 1.35
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "input",
+              {
+                type: "checkbox",
+                checked: showBar,
+                onChange: (e) => onChange("showBlockPercentBar", e.target.checked),
+                style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "Block-Anteil: Balken" : "Blocked %: progress bar" }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Farbiger Fortschrittsbalken unter dem Block-Anteil-Wert. Aus = nur Prozentzahl." : "Colored bar under the blocked-percent tile. Off = percentage only." })
+            ] })
+          ]
+        }
+      ) })
     ] });
   }
   var component = { Widget, Settings };

@@ -308,12 +308,21 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.2.0",
+    version: "1.2.1",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
     iconUrl: "/plugin-logos/fritzbox.svg",
-    defaultLayout: { w: 2, h: 2, minW: 1, minH: 2 }
+    defaultLayout: { w: 2, h: 2, minW: 1, minH: 2 },
+    configSchema: [
+      { key: "baseUrl", label: "Basis-URL", type: "text", placeholder: "http://192.168.1.1", defaultValue: "http://192.168.1.1" },
+      { key: "username", label: "Benutzername", type: "text", defaultValue: "" },
+      { key: "password", label: "Passwort", type: "text", defaultValue: "" },
+      { key: "ain", label: "AIN", type: "text", defaultValue: "" },
+      { key: "refreshSeconds", label: "Aktualisieren (Sekunden)", type: "number", defaultValue: 60 },
+      { key: "viewMode", label: "Widget-Anzeige", type: "text", defaultValue: "carousel" },
+      { key: "showPowerSparkline", label: "Leistungsverlauf (Diagramm)", type: "boolean", defaultValue: true }
+    ]
   };
   function str(v) {
     return typeof v === "string" ? v.trim() : "";
@@ -369,6 +378,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     if (n >= 1e3) return `${(n / 1e3).toLocaleString(loc, { maximumFractionDigits: 2 })} kW`;
     return `${Math.round(n).toLocaleString(loc)} W`;
   }
+  function cfgBool(raw, key, defaultValue = true) {
+    const v = raw[key];
+    if (v === false || v === "false" || v === 0 || v === "0") return false;
+    if (v === true || v === "true" || v === 1 || v === "1") return true;
+    return defaultValue;
+  }
   var TINT = {
     amber: { solid: "#f59e0b", wash: "rgba(245, 158, 11, 0.18)", rim: "rgba(245, 158, 11, 0.38)" },
     sky: { solid: "#38bdf8", wash: "rgba(56, 189, 248, 0.18)", rim: "rgba(56, 189, 248, 0.38)" },
@@ -381,7 +396,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     sub,
     icon: Icon2,
     tint,
-    fill
+    fill,
+    footer
   }) {
     const c = TINT[tint];
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -393,11 +409,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
           border: "1px solid var(--border)",
           boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
-          padding: fill ? "9px 10px 9px 11px" : "8px 10px",
+          padding: fill ? "9px 10px" : "8px 10px",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          gap: "2px",
+          justifyContent: footer ? "space-between" : "center",
+          alignItems: "center",
+          textAlign: "center",
+          gap: "4px",
           minWidth: 0,
           minHeight: 0,
           height: fill ? "100%" : void 0,
@@ -405,43 +423,65 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           containerType: fill ? "size" : "inline-size"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 13, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-              "span",
-              {
-                className: fill ? "sd-fritz-energy-tile-label" : void 0,
-                style: {
-                  fontSize: fill ? void 0 : "9px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: "var(--text-muted)",
-                  lineHeight: 1.2,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap"
-                },
-                children: label
-              }
-            )
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "span",
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+            "div",
             {
-              className: `tabular-nums${fill ? " sd-fritz-energy-tile-value" : ""}`,
               style: {
-                fontSize: fill ? void 0 : "clamp(0.78rem, min(3.5cqmin, 2.8cqh), 1.35rem)",
-                fontWeight: 800,
-                lineHeight: 1.12,
-                color: c.solid,
-                fontVariantNumeric: "tabular-nums",
-                marginTop: fill ? "4px" : "2px"
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+                width: "100%",
+                minWidth: 0,
+                flex: footer ? "1 1 auto" : void 0
               },
-              children: value
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: fill ? "sd-fritz-energy-tile-label" : void 0,
+                    style: {
+                      fontSize: fill ? void 0 : "9px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "var(--text-muted)",
+                      lineHeight: 1.2,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "normal",
+                      textAlign: "center",
+                      width: "100%",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical"
+                    },
+                    children: label
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    className: `tabular-nums${fill ? " sd-fritz-energy-tile-value" : ""}`,
+                    style: {
+                      fontSize: fill ? void 0 : "clamp(0.78rem, min(3.5cqmin, 2.8cqh), 1.35rem)",
+                      fontWeight: 800,
+                      lineHeight: 1.12,
+                      color: c.solid,
+                      fontVariantNumeric: "tabular-nums",
+                      textAlign: "center",
+                      width: "100%"
+                    },
+                    children: value
+                  }
+                ),
+                sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.3, textAlign: "center", width: "100%" }, children: sub }) : null
+              ]
             }
           ),
-          sub ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", lineHeight: 1.3, marginTop: "2px" }, children: sub }) : null
+          footer ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { marginTop: "auto", width: "100%", flexShrink: 0 }, children: footer }) : null
         ]
       }
     );
@@ -494,7 +534,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     views,
     recent,
     de,
-    forceCompact
+    forceCompact,
+    showSparkline
   }) {
     const rootRef = (0, import_react3.useRef)(null);
     const { compact: autoCompact, narrow } = useWidgetSize(rootRef);
@@ -505,7 +546,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const view = views[safeIdx];
     if (!view) return null;
     const go = (delta) => setIdx((i) => (i + delta + n) % n);
-    const showSpark = view.showSparkline && !compact;
+    const showSpark = showSparkline !== false && view.showSparkline && !compact;
     const navBtn = {
       display: "flex",
       alignItems: "center",
@@ -657,7 +698,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const rootRef = (0, import_react3.useRef)(null);
     const [data, setData] = (0, import_react3.useState)(null);
     const [err, setErr] = (0, import_react3.useState)(null);
-    const viewMode = viewModeFromConfig(config);
+    const cfgRaw = config;
+    const viewMode = viewModeFromConfig(cfgRaw);
+    const showPowerSparkline = cfgBool(cfgRaw, "showPowerSparkline", true);
     const baseUrl = str(config.baseUrl) || "http://192.168.1.1";
     const username = str(config.username);
     const password = str(config.password);
@@ -744,7 +787,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           views: carouselViews,
           recent,
           de,
-          forceCompact: config.compactUi === true
+          forceCompact: config.compactUi === true,
+          showSparkline: showPowerSparkline
         }
       );
     }
@@ -793,7 +837,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : void 0,
                     icon: Zap,
                     tint: "amber",
-                    fill: true
+                    fill: true,
+                    footer: showPowerSparkline && recent.length >= 2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerSparkline, { points: recent.slice(-60), compact: true }) : void 0
                   }
                 ),
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.today, value: formatKwh(today, locale), icon: Bolt, tint: "sky", fill: true }),
@@ -991,6 +1036,35 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         )
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "10px", color: "var(--text-muted)", margin: "-6px 0 0", lineHeight: 1.45 }, children: de ? "Ohne Haken passt sich die Ansicht beim Verkleinern automatisch an (Verlauf aus, kleinere Schrift)." : "When off, the UI adapts when you resize smaller (hides sparkline, smaller text)." }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+        "label",
+        {
+          style: {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "10px",
+            cursor: "pointer",
+            fontSize: "13px",
+            color: "var(--text)",
+            lineHeight: 1.35
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              "input",
+              {
+                type: "checkbox",
+                checked: cfgBool(r, "showPowerSparkline", true),
+                onChange: (e) => onChange("showPowerSparkline", e.target.checked),
+                style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "Leistungsverlauf (Diagramm)" : "Power history (chart)" }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Kurven-Diagramm unter \u201EAktuell\u201C (Karussell und Kachel-Ansicht). Aus = nur Wert und Spannung." : "Line chart under \u201CNow\u201D (carousel and grid). Off = value and voltage only." })
+            ] })
+          ]
+        }
+      ),
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "4px", fontWeight: 600 }, children: de ? "Sprache (Anzeige)" : "Display language" }),
         /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
