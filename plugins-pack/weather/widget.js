@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.5.8",
+    version: "1.5.9",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1039,7 +1039,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               children: error
             }
           ),
-          placeLabel && showPlaceLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          placeLabel && showPlaceLabel && !hasDaily && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
             "p",
             {
               style: {
@@ -1080,16 +1080,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       minWidth: splitView ? 0 : void 0,
                       display: "flex",
                       flexDirection: "column",
-                      justifyContent: "center",
+                      justifyContent: splitView ? "flex-start" : "center",
                       alignItems: "center",
                       gap: "clamp(4px, 1.2cqmin, 8px)",
+                      alignSelf: splitView ? "stretch" : void 0,
                       ...splitView ? {
                         paddingRight: "clamp(6px, 1.5cqmin, 12px)",
                         borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)"
                       } : {}
                     },
                     children: [
-                      showHumidityWind && (hum != null || wspd > 0) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                      showHumidityWind && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
                           style: {
@@ -1103,18 +1104,24 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             flexShrink: 0
                           },
                           children: [
-                            hum != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                            hum != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
                               t.hum,
                               " ",
                               Math.round(hum),
                               "%"
+                            ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                              t.hum,
+                              " \u2014"
                             ] }),
-                            wspd > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                            wspd > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
                               t.wind,
                               " ",
                               Math.round(wspd),
                               " km/h ",
                               windCompass(wdir, de)
+                            ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+                              t.wind,
+                              " \u2014"
                             ] })
                           ]
                         }
@@ -1318,10 +1325,30 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       minHeight: 0,
                       display: "flex",
                       flexDirection: "column",
-                      justifyContent: splitView ? "center" : void 0,
+                      justifyContent: splitView ? "flex-start" : void 0,
                       marginTop: splitView ? 0 : "clamp(2px, 0.8cqmin, 6px)"
                     },
                     children: [
+                      placeLabel && showPlaceLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                        "p",
+                        {
+                          style: {
+                            margin: "0 0 clamp(4px, 1cqmin, 8px)",
+                            fontSize: splitView ? dailyTypeClamp(dayScale, 9, 2.2, 12) : "clamp(10px, 2.4cqmin, 12px)",
+                            fontWeight: 600,
+                            color: muted,
+                            textAlign: "center",
+                            lineHeight: 1.2,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                            width: "100%"
+                          },
+                          title: placeLabel,
+                          children: placeLabel
+                        }
+                      ),
                       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
