@@ -7,6 +7,7 @@ node_modules
 scripts/*
 !scripts/sync-plugins-for-build.mjs
 !scripts/resolve-plugins-root.mjs
+!scripts/ci-prepare-plugins.sh
 # plugins-pack wird auf GitHub verteilt, nicht ins Image kopiert (zu groß)
 plugins-pack/
 plugin-pack/

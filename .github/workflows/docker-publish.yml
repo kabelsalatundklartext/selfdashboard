@@ -23,6 +23,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prepare plugin sources for image build
+        run: sh scripts/ci-prepare-plugins.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
