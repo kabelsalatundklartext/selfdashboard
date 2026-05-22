@@ -21,7 +21,11 @@ RUN apk add --no-cache python3 make g++
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN node scripts/sync-plugins-for-build.mjs
+# plugins/ must be in the build context (committed or copied by CI before docker build).
+# sync-plugins only helps on the host when ../plugins exists; inside Docker it cannot reach the parent dir.
+RUN if [ ! -f plugins/weather/server.ts ]; then node scripts/sync-plugins-for-build.mjs; fi \
+  && test -f plugins/weather/server.ts \
+  || (echo "ERROR: plugins/ missing in Docker context. Copy ../plugins into selfdashboard/plugins/ before build — see docs/DOCKER_BUILD.md" && exit 1)
 RUN mkdir -p public && npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────

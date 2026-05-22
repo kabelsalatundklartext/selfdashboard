@@ -31,6 +31,12 @@ docker build -f selfdashboard/Dockerfile .
 
 Dafür muss das Dockerfile `COPY selfdashboard/` + `COPY plugins/` nutzen (angepasste Variante) — Standard-Dockerfile im Repo nutzt **Option A** (`COPY . .` im Repo-Root).
 
+## Wichtig: `.dockerignore`
+
+Die Dateien `scripts/sync-plugins-for-build.mjs` und `scripts/resolve-plugins-root.mjs` müssen im Docker-Build-Kontext landen (sind in `.dockerignore` explizit erlaubt). Ohne sie: `MODULE_NOT_FOUND` bei `RUN node scripts/sync-plugins-for-build.mjs`.
+
+Im Container gibt es **kein** `../plugins` — `plugins/` muss **vor** `docker build` unter `selfdashboard/plugins/` liegen.
+
 ## GitHub Actions (Repo = nur selfdashboard)
 
 Der Workflow braucht **`plugins/` im Build-Kontext**. Beispiel:
