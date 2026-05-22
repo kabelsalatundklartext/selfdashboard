@@ -322,7 +322,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.3.1",
+    version: "1.3.2",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -579,9 +579,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     switchState,
     switchSupported,
     powerW,
-    locale,
     de,
-    showPowerInBar,
     enabled,
     conn,
     onSwitched,
@@ -722,11 +720,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         },
         children: [
           isOn ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Power, { size: 13, "aria-hidden": true }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerOff, { size: 13, "aria-hidden": true }),
-          busy ? "\u2026" : isOn ? de ? "Strom: AN" : "Power: ON" : de ? "Strom: AUS" : "Power: OFF",
-          showPowerInBar ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "tabular-nums", style: { fontWeight: 700, opacity: 0.92 }, children: [
-            "\xB7 ",
-            formatW(powerW, locale)
-          ] }) : null
+          busy ? "\u2026" : isOn ? de ? "Strom: AN" : "Power: ON" : de ? "Strom: AUS" : "Power: OFF"
         ]
       }
     ) });
@@ -1049,9 +1043,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         switchState: data.switchState,
         switchSupported: data.switchSupported,
         powerW: power,
-        locale,
         de,
-        showPowerInBar: true,
         enabled: showSwitchControl,
         conn,
         onSwitched: () => void fetchEnergy(),
