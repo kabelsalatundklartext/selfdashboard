@@ -511,7 +511,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const catalogRows = useMemo(() => {
     const q = search.toLowerCase().trim()
     const matches = (meta: PluginMeta) => {
-      const d = displayMeta(meta, locale)
+      const d = displayPluginMeta(meta, locale)
       return (
         !q ||
         d.name.toLowerCase().includes(q) ||
