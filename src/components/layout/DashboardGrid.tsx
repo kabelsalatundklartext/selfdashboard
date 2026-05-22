@@ -118,10 +118,8 @@ export function DashboardGrid() {
   const scaleInnerRef = useRef<HTMLDivElement>(null)
   /** Skip RGL's first onLayoutChange after layout/plugin meta updates (would overwrite layoutPhone with wrong h). */
   const layoutPersistReadyRef = useRef(false)
-  const [containerWidth, setContainerWidth] = useState(() => {
-    if (typeof window === 'undefined') return 1200
-    return Math.max(200, Math.floor(window.innerWidth))
-  })
+  /** Same value on server and first client paint — real width applied in useLayoutEffect (avoids React #418). */
+  const [containerWidth, setContainerWidth] = useState(1200)
   /** Flow height after CSS transform:scale — without this, the browser keeps the unscaled layout height and leaves an empty band below the grid when zoom is below 1. */
   const [scaledWrapHeight, setScaledWrapHeight] = useState<number | null>(null)
 

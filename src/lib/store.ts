@@ -137,13 +137,11 @@ interface DashboardStore {
   setDashboardBackgroundOverlay: (pct: number) => void
 }
 
-const migrated = typeof window !== 'undefined' ? migrateOldStore() : null
-
 export const useDashboardStore = create<DashboardStore>()(
   persist(
     (set, get) => ({
-      dashboards: migrated ?? [DEFAULT_DASHBOARD],
-      activeDashboardId: migrated?.[0]?.id ?? 'home',
+      dashboards: [DEFAULT_DASHBOARD],
+      activeDashboardId: 'home',
       locale: 'de',
       editMode: false,
       showDashboardTabs: true,

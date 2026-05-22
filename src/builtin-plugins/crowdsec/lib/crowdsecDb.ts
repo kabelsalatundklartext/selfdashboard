@@ -16,7 +16,6 @@ type AlertRow = {
   ip_range: string | null
   latitude: number | null
   longitude: number | null
-  active_ban: number
   created_at: string | null
   started_at: string | null
   stopped_at: string | null
@@ -170,27 +169,48 @@ function decisionSchemaMeta(db: Database.Database): {
   }
 }
 
-/** Alert linked to decision and/or IP has an active decision in `decisions.value`. */
-function activeBanExistsExpr(db: Database.Database, ipExpr: string): string {
+function activeDecisionWhere(meta: ReturnType<typeof decisionSchemaMeta>): string {
+  const parts: string[] = []
+  if (meta.hasUntil) parts.push(decisionUntilClause('d'))
+  if (meta.hasScope) {
+    parts.push(
+      `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`,
+    )
+  }
+  return parts.length ? `WHERE ${parts.join(' AND ')}` : ''
+}
+
+/** One query — avoids per-alert EXISTS on 30k+ decisions (was freezing the dashboard). */
+function loadActiveBannedIpSet(db: Database.Database): Set<string> {
   const meta = decisionSchemaMeta(db)
-  if (!meta.hasTable) return '0'
-  const until = meta.hasUntil ? ` AND ${decisionUntilClause('d')}` : ''
-  const checks: string[] = []
-  if (meta.linkCol) {
-    checks.push(
-      `EXISTS (SELECT 1 FROM decisions d WHERE d.${meta.linkCol} = a.id${until})`,
+  if (!meta.hasTable || !meta.hasValue) return new Set()
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT TRIM(CAST(d.value AS TEXT)) AS ip FROM decisions d ${activeDecisionWhere(meta)}`,
     )
+    .all() as { ip: string }[]
+  const out = new Set<string>()
+  for (const r of rows) {
+    const ip = r.ip?.trim() ?? ''
+    if (isUsableIp(ip)) out.add(ip)
   }
-  if (meta.hasValue) {
-    const scopeFilter = meta.hasScope
-      ? ` AND (d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
-      : ''
-    checks.push(
-      `EXISTS (SELECT 1 FROM decisions d WHERE TRIM(CAST(d.value AS TEXT)) = TRIM(CAST(${ipExpr} AS TEXT))${scopeFilter}${until})`,
+  return out
+}
+
+function loadAlertIdsWithActiveBan(db: Database.Database): Set<number> {
+  const meta = decisionSchemaMeta(db)
+  if (!meta.hasTable || !meta.linkCol) return new Set()
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT d.${meta.linkCol} AS alert_id FROM decisions d ${activeDecisionWhere(meta)}`,
     )
+    .all() as { alert_id: number }[]
+  const out = new Set<number>()
+  for (const r of rows) {
+    const id = Number(r.alert_id)
+    if (Number.isFinite(id) && id > 0) out.add(id)
   }
-  if (checks.length === 0) return '0'
-  return `CASE WHEN (${checks.join(' OR ')}) THEN 1 ELSE 0 END`
+  return out
 }
 
 function countActiveDecisions(db: Database.Database): number {
@@ -282,14 +302,44 @@ function countriesFromRows(rows: AlertRow[], geoip: GeoipLookup): CrowdsecCountr
     .sort((a, b) => b.count - a.count)
 }
 
-/** All alerts in DB (no `daysBack`, no `maxAlerts`) — for the Länder list only. */
+/** Fast GROUP BY on country column; avoids scanning the full alerts table. */
 function loadCountriesFromDatabase(db: Database.Database, geoip: GeoipLookup): CrowdsecCountryStat[] {
-  const { sql, params } = buildAlertsSql(db, 0)
-  const rows = db.prepare(sql).all(...params) as AlertRow[]
+  const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
+  const names = new Set(cols.map((c) => c.name))
+  const countryCol = names.has('source_country')
+    ? 'a.source_country'
+    : names.has('country')
+      ? 'a.country'
+      : null
+  if (countryCol) {
+    const rows = db
+      .prepare(
+        `SELECT UPPER(TRIM(CAST(${countryCol} AS TEXT))) AS country, COUNT(*) AS count
+         FROM alerts a
+         WHERE TRIM(COALESCE(a.scenario, '')) != '' AND TRIM(a.scenario) != 'unknown'
+           AND TRIM(COALESCE(${countryCol}, '')) != ''
+           AND UPPER(TRIM(CAST(${countryCol} AS TEXT))) != '??'
+         GROUP BY country
+         HAVING country != ''
+         ORDER BY count DESC`,
+      )
+      .all() as { country: string; count: number }[]
+    return rows.map((r) => ({ country: r.country, count: Number(r.count) }))
+  }
+  const cutoff90 = Math.floor((Date.now() - 90 * 86400_000) / 1000)
+  const { sql, params } = buildAlertsSql(db, cutoff90, { includeEvents: false })
+  const rows = db.prepare(`${sql}\nLIMIT 15000`).all(...params) as AlertRow[]
   return countriesFromRows(rows, geoip)
 }
 
-function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: string; params: number[] } {
+type BuildAlertsSqlOpts = { includeEvents?: boolean }
+
+function buildAlertsSql(
+  db: Database.Database,
+  cutoffUnix: number,
+  opts: BuildAlertsSqlOpts = {},
+): { sql: string; params: number[] } {
+  const includeEvents = opts.includeEvents !== false
   const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
   const names = new Set(cols.map((c) => c.name))
 
@@ -307,11 +357,11 @@ function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: strin
   const startedCol = names.has('started_at') ? 'a.started_at' : 'NULL'
   const stoppedCol = names.has('stopped_at') ? 'a.stopped_at' : 'NULL'
 
-  const activeBanExpr = activeBanExistsExpr(db, ipExpr)
-
-  const eventTables = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
-    .all() as { name: string }[]
+  const eventTables = includeEvents
+    ? (db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")
+        .all() as { name: string }[])
+    : []
   const eventSerializedExpr =
     eventTables.length > 0
       ? `(SELECT e.serialized FROM events e WHERE e.alert_events = a.id ORDER BY e.id DESC LIMIT 1)`
@@ -335,7 +385,6 @@ SELECT
   ${rangeCol} AS ip_range,
   ${latCol} AS latitude,
   ${lonCol} AS longitude,
-  ${activeBanExpr} AS active_ban,
   a.created_at,
   ${startedCol} AS started_at,
   ${stoppedCol} AS stopped_at,
@@ -370,7 +419,24 @@ export function resolveCrowdsecDbPath(userPath: string): string {
   return resolved
 }
 
+let dashboardInflight: Promise<CrowdsecDashboardData> | null = null
+let dashboardInflightKey = ''
+
 export async function loadCrowdsecDashboard(
+  dbPath: string,
+  opts: CrowdsecDbOptions = {},
+): Promise<CrowdsecDashboardData> {
+  const key = `${dbPath}|${opts.daysBack ?? 30}|${opts.maxAlerts ?? 2000}`
+  if (dashboardInflight && dashboardInflightKey === key) return dashboardInflight
+  dashboardInflightKey = key
+  dashboardInflight = loadCrowdsecDashboardInner(dbPath, opts).finally(() => {
+    dashboardInflight = null
+    dashboardInflightKey = ''
+  })
+  return dashboardInflight
+}
+
+async function loadCrowdsecDashboardInner(
   dbPath: string,
   opts: CrowdsecDbOptions = {},
 ): Promise<CrowdsecDashboardData> {
@@ -388,6 +454,8 @@ export async function loadCrowdsecDashboard(
     const alertsInRange = countAlertsSince(db, cutoffUnix)
     const alertsLast24h = alertsInRange
     const activeBans = countActiveDecisions(db)
+    const bannedIps = loadActiveBannedIpSet(db)
+    const bannedAlertIds = loadAlertIdsWithActiveBan(db)
 
     const { sql, params } = buildAlertsSql(db, cutoffUnix)
     const rows = (
@@ -417,7 +485,7 @@ export async function loadCrowdsecDashboard(
       const geo = applyGeoipToCountry(ip, country, city, geoip)
       country = geo.country
       city = geo.city
-      const isBan = Number(row.active_ban) === 1
+      const isBan = bannedAlertIds.has(row.id) || bannedIps.has(ip)
 
       scenarios.add(cleanScenario(scenario))
       const feedKey = `${row.id}|${ip}`

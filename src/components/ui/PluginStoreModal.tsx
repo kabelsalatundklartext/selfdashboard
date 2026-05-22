@@ -727,6 +727,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
             {!githubConfigured && (
               <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: '#f8717114', color: '#f87171', border: '1px solid #f8717133' }}>
                 {t(locale, 'githubNotConfigured')}
+                {locale === 'de'
+                  ? ' Setze SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard (Unraid: „GitHub Plugins Repo“) und starte den Container neu.'
+                  : ' Set SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard (Unraid: “GitHub Plugins Repo”) and restart the container.'}
               </p>
             )}
             {volumeOnly && volumeInstalledIds.length > 0 && allPlugins.length === 0 && (

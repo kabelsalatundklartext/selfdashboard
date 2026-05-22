@@ -70,15 +70,16 @@ export function getGitHubPluginConfig(): {
 
 } | null {
 
-  const repoEnv = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REPO?.trim()
+  const rawRepo = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REPO?.trim()
+  if (rawRepo === 'none' || rawRepo === 'off' || rawRepo === 'false') return null
 
-  if (!repoEnv || !repoEnv.includes('/')) return null
+  const repoEnv = rawRepo || 'kabelsalatundklartext/selfdashboard'
+  if (!repoEnv.includes('/')) return null
 
   const [owner, repo] = repoEnv.split('/').filter(Boolean)
-
   if (!owner || !repo) return null
 
-  const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF?.trim() || 'main'
+  const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF?.trim() || 'beta'
 
   const basePath = (process.env.SELFDASHBOARD_PLUGINS_GITHUB_PATH?.trim() || 'plugins-pack').replace(
 

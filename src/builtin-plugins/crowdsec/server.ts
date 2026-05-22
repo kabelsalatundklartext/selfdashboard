@@ -9,24 +9,32 @@ async function handleDashboardGet(req: Request): Promise<Response> {
   const daysBackRaw = Number(sp.get('daysBack') ?? 30)
   const daysBack =
     daysBackRaw === 0 ? 0 : Math.min(3650, Math.max(1, Number.isFinite(daysBackRaw) ? daysBackRaw : 30))
-  const maxAlertsRaw = Number(sp.get('maxAlerts') ?? 2000)
+  const maxAlertsRaw = Number(sp.get('maxAlerts') ?? 500)
   const maxAlerts =
-    maxAlertsRaw === 0 ? 0 : Math.min(50_000, Math.max(50, Number.isFinite(maxAlertsRaw) ? maxAlertsRaw : 2000))
+    maxAlertsRaw === 0 ? 0 : Math.min(2000, Math.max(50, Number.isFinite(maxAlertsRaw) ? maxAlertsRaw : 500))
+  const timeoutMs = Math.min(120_000, Math.max(15_000, Number(process.env.CROWDSEC_QUERY_TIMEOUT_MS) || 45_000))
 
   try {
     const resolved = resolveCrowdsecDbPath(dbPath)
-    const data = await loadCrowdsecDashboard(resolved, { daysBack, maxAlerts })
+    const data = await Promise.race([
+      loadCrowdsecDashboard(resolved, { daysBack, maxAlerts }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('crowdsec_timeout')), timeoutMs)
+      }),
+    ])
     return Response.json(data)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'crowdsec_error'
     const status =
-      msg === 'missing_db_path' || msg === 'db_not_found' || msg === 'db_not_a_file'
-        ? 404
-        : msg === 'db_path_not_allowed'
-          ? 403
-          : msg === 'db_schema_unsupported'
-            ? 422
-            : 502
+      msg === 'crowdsec_timeout'
+        ? 504
+        : msg === 'missing_db_path' || msg === 'db_not_found' || msg === 'db_not_a_file'
+          ? 404
+          : msg === 'db_path_not_allowed'
+            ? 403
+            : msg === 'db_schema_unsupported'
+              ? 422
+              : 502
     void logPluginApiFailure('crowdsec', 'dashboard', msg, { dbPath, status })
     return Response.json({ error: msg }, { status })
   }
@@ -80,5 +88,3 @@ export async function crowdsecServerHandler(ctx: PluginServerContext): Promise<R
     { status: 404 },
   )
 }
-
-export default crowdsecServerHandler
