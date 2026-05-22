@@ -376,11 +376,11 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
                       title={
                         item.active_ban
                           ? de
-                            ? 'Diese IP hat einen aktiven Ban in crowdsec.db (Decision verknüpft mit Alert und/oder decisions.value).'
-                            : 'This IP has an active ban in crowdsec.db (decision linked to alert and/or decisions.value).'
+                            ? 'Aktiver Ban wie cscli: decisions.until liegt in der Zukunft (IP oder Alert verknüpft).'
+                            : 'Active ban (cscli-aligned): decisions.until is in the future (IP or linked alert).'
                           : de
-                            ? 'Nur Alert — für diese IP ist aktuell kein aktiver Ban in der DB (oder Ban abgelaufen). CrowdSec kann trotzdem später sperren.'
-                            : 'Alert only — no active ban for this IP in the DB (or ban expired). CrowdSec may still ban later.'
+                            ? 'Nur Alert — kein aktiver Ban (until abgelaufen/leer oder cscli listet die IP nicht). CrowdSec kann später erneut sperren.'
+                            : 'Alert only — no active ban (until past/empty or cscli shows none). CrowdSec may ban later.'
                       }
                     >
                       {item.active_ban ? (de ? 'Ban aktiv' : 'Ban active') : de ? 'Nur Alert' : 'Alert only'}

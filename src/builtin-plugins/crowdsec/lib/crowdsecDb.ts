@@ -132,12 +132,24 @@ function pickCol(names: Set<string>, candidates: string[], fallback = "''"): str
   return fallback
 }
 
-function decisionUntilClause(alias = 'd'): string {
-  return `(
-    ${alias}.until IS NULL OR TRIM(CAST(${alias}.until AS TEXT)) = ''
-    OR datetime(REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${alias}.until AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
-       > datetime('now')
+/** Unix seconds for `decisions.until` — aligns with cscli/LAPI (`until > now`). */
+function decisionUntilUnixSecExpr(alias = 'd'): string {
+  const col = `${alias}.until`
+  return `CAST(
+    CASE
+      WHEN ${col} IS NULL OR TRIM(CAST(${col} AS TEXT)) = '' THEN NULL
+      WHEN CAST(${col} AS INTEGER) > 10000000000000 THEN CAST(${col} AS INTEGER) / 1000000
+      WHEN CAST(${col} AS INTEGER) > 1000000000000 THEN CAST(${col} AS INTEGER) / 1000
+      WHEN CAST(${col} AS INTEGER) > 1000000000 THEN CAST(${col} AS INTEGER)
+      ELSE strftime('%s', REPLACE(SUBSTR(REPLACE(REPLACE(CAST(${col} AS TEXT), 'T', ' '), 'Z', ''), 1, 19), ' ', 'T'))
+    END AS INTEGER
   )`
+}
+
+/** Active ban = until strictly in the future (NULL/empty/past = inactive, like cscli decisions list). */
+function decisionUntilClause(alias = 'd'): string {
+  const untilSec = decisionUntilUnixSecExpr(alias)
+  return `(${untilSec} IS NOT NULL AND ${untilSec} > CAST(strftime('%s', 'now') AS INTEGER))`
 }
 
 function decisionSchemaMeta(db: Database.Database): {
@@ -146,12 +158,20 @@ function decisionSchemaMeta(db: Database.Database): {
   hasUntil: boolean
   hasValue: boolean
   hasScope: boolean
+  hasSimulated: boolean
 } {
   const decisionTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
     .all() as { name: string }[]
   if (decisionTables.length === 0) {
-    return { hasTable: false, linkCol: null, hasUntil: false, hasValue: false, hasScope: false }
+    return {
+      hasTable: false,
+      linkCol: null,
+      hasUntil: false,
+      hasValue: false,
+      hasScope: false,
+      hasSimulated: false,
+    }
   }
   const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
   const dNames = new Set(dCols.map((c) => c.name))
@@ -166,18 +186,23 @@ function decisionSchemaMeta(db: Database.Database): {
     hasUntil: dNames.has('until'),
     hasValue: dNames.has('value'),
     hasScope: dNames.has('scope'),
+    hasSimulated: dNames.has('simulated'),
   }
 }
 
 function activeDecisionWhere(meta: ReturnType<typeof decisionSchemaMeta>): string {
   const parts: string[] = []
-  if (meta.hasUntil) parts.push(decisionUntilClause('d'))
+  if (!meta.hasUntil) return 'WHERE 1=0'
+  parts.push(decisionUntilClause('d'))
+  if (meta.hasSimulated) {
+    parts.push(`(d.simulated IS NULL OR d.simulated = 0)`)
+  }
   if (meta.hasScope) {
     parts.push(
       `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`,
     )
   }
-  return parts.length ? `WHERE ${parts.join(' AND ')}` : ''
+  return `WHERE ${parts.join(' AND ')}`
 }
 
 /** One query — avoids per-alert EXISTS on 30k+ decisions (was freezing the dashboard). */
@@ -216,7 +241,7 @@ function loadAlertIdsWithActiveBan(db: Database.Database): Set<number> {
 function countActiveDecisions(db: Database.Database): number {
   const meta = decisionSchemaMeta(db)
   if (!meta.hasTable) return 0
-  const where = meta.hasUntil ? `WHERE ${decisionUntilClause('d')}` : ''
+  const where = meta.hasUntil ? activeDecisionWhere(meta) : 'WHERE 1=0'
   const row = db.prepare(`SELECT COUNT(*) AS c FROM decisions d ${where}`).get() as
     | { c: number }
     | undefined
