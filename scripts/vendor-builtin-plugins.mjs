@@ -26,6 +26,14 @@ const BUILTIN_IDS = [
 
 const SKIP = new Set(['node_modules', '.git'])
 
+function walkTs(dir, fn) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name)
+    if (ent.isDirectory()) walkTs(p, fn)
+    else if (ent.name.endsWith('.ts')) fn(p)
+  }
+}
+
 function copyDir(src, dst) {
   fs.mkdirSync(dst, { recursive: true })
   for (const ent of fs.readdirSync(src, { withFileTypes: true })) {
@@ -39,9 +47,8 @@ function copyDir(src, dst) {
 
 function patchImports(filePath) {
   let s = fs.readFileSync(filePath, 'utf8')
-  // sibling plugin imports → relative within builtin-plugins tree
-  s = s.replace(/from ['"]\.\.\/\.\.\/docker\/lib\//g, "from '../docker/lib/")
-  s = s.replace(/from ['"]\.\.\/fritzbox\/lib\//g, "from '../fritzbox/lib/")
+  // Fix mistaken ../docker from an older vendor pass (lib/ needs ../../docker)
+  s = s.replace(/from ['"]\.\.\/docker\/lib\//g, "from '../../docker/lib/")
   fs.writeFileSync(filePath, s)
 }
 
@@ -77,9 +84,7 @@ for (const id of BUILTIN_IDS) {
   patchImports(path.join(dstDir, 'server.ts'))
   const libDir = path.join(dstDir, 'lib')
   if (fs.existsSync(libDir)) {
-    for (const f of fs.readdirSync(libDir)) {
-      if (f.endsWith('.ts')) patchImports(path.join(libDir, f))
-    }
+    walkTs(libDir, patchImports)
   }
   console.log(`[SelfDashboard] vendored ${id}`)
 }

@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { dockerGet, dockerRequest } from '../docker/lib/dockerEngine'
+import { dockerGet, dockerRequest } from '../../docker/lib/dockerEngine'
 
 function findContainerId(containerName: string): Promise<string> {
   return dockerGet('/containers/json?all=1').then((r) => {

@@ -6,6 +6,10 @@ ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [ -f src/builtin-plugins/weather/server.ts ]; then
+  if grep -rq "from ['\"]\\.\\./docker/lib/" src/builtin-plugins/crowdsec/lib 2>/dev/null; then
+    echo "ERROR: crowdsec/lib has wrong ../docker import (need ../../docker/lib/)" >&2
+    exit 1
+  fi
   echo "[SelfDashboard] src/builtin-plugins/ ok"
   exit 0
 fi
