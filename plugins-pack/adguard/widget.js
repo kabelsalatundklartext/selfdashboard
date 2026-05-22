@@ -323,7 +323,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "adguard",
     name: "AdGuard Home",
     description: "DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth). Schutz per Klick umschalten. Daten via /api/plugins/adguard (CORS-frei).",
-    version: "1.2.1",
+    version: "1.2.2",
     author: "SelfDashboard",
     category: "network",
     icon: "\u{1F6E1}\uFE0F",
@@ -414,13 +414,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     value,
     tint,
     icon: Icon2,
-    footer
+    footer,
+    tileClass
   }) {
     const c = TINT[tint];
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
       {
-        className: "sd-adguard-tile",
+        className: ["sd-adguard-tile", tileClass].filter(Boolean).join(" "),
         style: {
           borderRadius: "12px",
           background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
@@ -678,7 +679,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       "div",
       {
         style: {
-          height: "7px",
+          height: "8px",
           borderRadius: "999px",
           background: "rgba(255,255,255,0.06)",
           border: "1px solid rgba(192,132,252,0.25)",
@@ -746,6 +747,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         .sd-adguard-host .sd-adguard-tile {
           padding: 9px 10px;
           min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
+        }
+        .sd-adguard-host .sd-adguard-tile--block-pct {
+          min-height: clamp(54px, min(18cqmin, 14.5cqh), 94px);
+        }
+        .sd-adguard-host .sd-adguard-pctbar {
+          margin-top: 6px;
+          width: 100%;
         }
         .sd-adguard-host .sd-adguard-tile-value {
           font-size: clamp(0.78rem, min(4.8cqmin, 3.8cqh), 1.45rem);
@@ -863,6 +871,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 value: `${pct.toLocaleString(de ? "de-DE" : "en-GB")}%`,
                 tint: "violet",
                 icon: Percent,
+                tileClass: "sd-adguard-tile--block-pct",
                 footer: showBlockPercentBar ? pctBar : void 0
               }
             ),

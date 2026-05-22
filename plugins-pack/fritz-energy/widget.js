@@ -308,7 +308,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.2.1",
+    version: "1.2.2",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -403,7 +403,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
       "div",
       {
-        className: fill ? "sd-fritz-energy-tile" : void 0,
+        className: fill ? "sd-fritz-energy-tile" : "sd-fritz-energy-tile",
         style: {
           borderRadius: "12px",
           background: `linear-gradient(118deg, ${c.wash} 0%, var(--surface-2) 52%, var(--surface-2) 100%)`,
@@ -796,7 +796,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       "div",
       {
         ref: rootRef,
-        className: "sd-fritz-energy-host",
+        className: "sd-plugin-no-scrollbar sd-fritz-energy-host",
         style: {
           display: "flex",
           flexDirection: "column",
@@ -804,49 +804,81 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           height: "100%",
           width: "100%",
           boxSizing: "border-box",
-          containerType: "size"
+          containerType: "size",
+          padding: "14px 14px 12px",
+          overflow: "hidden"
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: `
+        .sd-fritz-energy-host {
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+        /* Gleiche Kopfzeile wie AdGuard \u201ESchutz\u201C-Leiste \u2014 Kacheln in benachbarten Widgets auf einer H\xF6he */
+        .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
+          flex-shrink: 0;
+          min-height: clamp(34px, min(9cqmin, 7.5cqh), 40px);
+          margin-bottom: 10px;
+        }
+        .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: 1fr 1fr;
+          gap: 8px;
+          flex: 1 1 auto;
+          min-height: 0;
+          min-width: 0;
+          align-content: stretch;
+          align-items: stretch;
+        }
+        .sd-fritz-energy-host .sd-fritz-energy-tile {
+          height: 100%;
+          padding: 9px 10px;
+          min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
+          box-sizing: border-box;
+        }
         .sd-fritz-energy-host .sd-fritz-energy-tile-value {
           font-size: clamp(0.78rem, min(4.8cqmin, 3.8cqh), 1.45rem);
         }
         .sd-fritz-energy-host .sd-fritz-energy-tile-label {
           font-size: clamp(8px, min(1.9cqmin, 1.6cqh), 10px);
         }
+        @container (max-height: 380px) {
+          .sd-fritz-energy-host {
+            padding: 9px 9px 8px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
+            min-height: clamp(28px, min(7.5cqmin, 6.5cqh), 34px);
+            margin-bottom: 6px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
+            gap: 6px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-tile {
+            min-height: clamp(40px, min(12cqmin, 10cqh), 72px);
+            padding: 5px 8px;
+          }
+        }
       ` }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-            "div",
-            {
-              className: "sd-fritz-energy-stat-grid",
-              style: {
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gridTemplateRows: "1fr 1fr",
-                gap: 8,
-                flex: 1,
-                minHeight: 0,
-                alignContent: "stretch"
-              },
-              children: [
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-                  StatTile,
-                  {
-                    label: labels.now,
-                    value: formatW(power, locale),
-                    sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : void 0,
-                    icon: Zap,
-                    tint: "amber",
-                    fill: true,
-                    footer: showPowerSparkline && recent.length >= 2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerSparkline, { points: recent.slice(-60), compact: true }) : void 0
-                  }
-                ),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.today, value: formatKwh(today, locale), icon: Bolt, tint: "sky", fill: true }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.week, value: formatKwh(week, locale), icon: CalendarDays, tint: "violet", fill: true }),
-                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.month, value: formatKwh(month, locale), icon: Calendar, tint: "emerald", fill: true })
-              ]
-            }
-          )
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top-spacer", "aria-hidden": true }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-stat-grid", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+              StatTile,
+              {
+                label: labels.now,
+                value: formatW(power, locale),
+                sub: data?.voltageV != null ? `${num(data.voltageV).toFixed(1)} V` : void 0,
+                icon: Zap,
+                tint: "amber",
+                fill: true,
+                footer: showPowerSparkline && recent.length >= 2 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PowerSparkline, { points: recent.slice(-60), compact: true }) : void 0
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.today, value: formatKwh(today, locale), icon: Bolt, tint: "sky", fill: true }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.week, value: formatKwh(week, locale), icon: CalendarDays, tint: "violet", fill: true }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(StatTile, { label: labels.month, value: formatKwh(month, locale), icon: Calendar, tint: "emerald", fill: true })
+          ] })
         ]
       }
     );

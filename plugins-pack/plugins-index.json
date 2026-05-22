@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-22T21:11:03.908Z",
+  "generatedAt": "2026-05-22T21:16:39.247Z",
   "plugins": [
     {
       "id": "adguard",
@@ -109,7 +109,7 @@
       "id": "fritz-energy",
       "name": "FRITZ! Steckdose Energie",
       "description": "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "⚡",
