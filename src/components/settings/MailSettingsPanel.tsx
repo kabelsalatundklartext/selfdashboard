@@ -150,11 +150,8 @@ export function MailSettingsPanel({
         lastError: j.lastError,
         accounts: j.accounts ?? [],
       })
-      if (typeof j.pollIntervalSeconds === 'number') {
-        const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
-        setPollIntervalSeconds(sec)
-        setPollDraft(String(sec))
-      }
+      // Intervall nur über load() / „Intervall speichern“ — nicht aus Status-Polling,
+      // sonst springt das Feld zurück auf den alten Serverwert (z. B. 120) während der Eingabe.
     } catch { /* ignore */ }
   }, [])
 

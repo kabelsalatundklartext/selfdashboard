@@ -139,4 +139,16 @@
     Required="false"
     Mask="false">production</Config>
 
+  <!-- TLS: only for homelab HTTPS with self-signed certs (CalDAV, Fritzbox, …) -->
+  <Config
+    Name="HTTPS ohne Zertifikatsprüfung (optional)"
+    Target="NODE_TLS_REJECT_UNAUTHORIZED"
+    Default=""
+    Mode=""
+    Description="Wofür: SelfDashboard holt Daten per HTTPS aus dem Container — z. B. Kalender (CalDAV/HTTPS), Fritzbox, Pi-hole/AdGuard-Web-API, Docker-nahe Dienste, Plugin-Store/GitHub, Wetter (Open-Meteo). Standard (Feld leer): Zertifikate werden geprüft — sicher, empfohlen. Nur 0 eintragen, wenn ein Plugin in den Einstellungen eine interne https://-URL nutzt und im Protokoll Zertifikatsfehler stehen (z. B. UNABLE_TO_VERIFY_LEAF_SIGNATURE, self-signed, abgelaufen) — typisch Homelab mit selbstsigniertem Zertifikat. Dann 0: Prüfung für alle HTTPS-Aufrufe aus dem Container aus — unsicher, nur als Notlösung. Nicht nötig für: Open-Meteo, GitHub-Plugin-Store, öffentliche APIs. Besser: gültiges Zertifikat oder eigene CA statt dauerhaft 0."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"></Config>
+
 </Container>
