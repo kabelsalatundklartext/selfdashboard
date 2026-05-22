@@ -308,7 +308,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "fritz-energy",
     name: "FRITZ! Steckdose Energie",
     description: "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
-    version: "1.2.3",
+    version: "1.2.4",
     author: "SelfDashboard",
     category: "network",
     icon: "\u26A1",
@@ -411,7 +411,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           boxShadow: `inset 0 0 0 1px ${c.rim}55, inset 0 1px 0 rgba(255,255,255,0.04)`,
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
+          justifyContent: footer && !fill ? "space-between" : "center",
           alignItems: "center",
           textAlign: "center",
           gap: "4px",
@@ -434,7 +434,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 width: "100%",
                 minWidth: 0,
                 minHeight: 0,
-                flex: "1 1 auto"
+                flex: fill ? "1 1 auto" : void 0
               },
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon2, { size: 14, strokeWidth: 2.25, style: { color: c.solid, flexShrink: 0, opacity: 0.95 }, "aria-hidden": true }),
@@ -793,6 +793,18 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         accent: "#34d399"
       }
     ];
+    const gridShell = {
+      height: "100%",
+      minHeight: 0,
+      overflowY: "auto",
+      overflowX: "hidden",
+      boxSizing: "border-box",
+      containerType: "size",
+      minWidth: 0,
+      width: "100%",
+      scrollbarWidth: "none",
+      msOverflowStyle: "none"
+    };
     if (viewMode === "carousel") {
       return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         EnergyCarousel,
@@ -811,36 +823,48 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         ref: rootRef,
         className: "sd-plugin-no-scrollbar sd-fritz-energy-host",
         style: {
-          display: "flex",
-          flexDirection: "column",
-          minHeight: 0,
-          height: "100%",
-          width: "100%",
-          boxSizing: "border-box",
-          containerType: "size",
-          padding: "14px 14px 12px",
-          overflow: "hidden"
+          ...gridShell,
+          background: "radial-gradient(ellipse 120% 80% at 90% -20%, rgba(245, 158, 11, 0.08) 0%, transparent 50%)"
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: `
         .sd-fritz-energy-host {
+          padding: 14px 14px 12px;
           display: flex;
           flex-direction: column;
           min-height: 0;
         }
-        /* Platz f\xFCr AdGuard \u201ESchutz\u201C-Zeile \u2014 feste H\xF6he, kein cqh (verhindert Grid-Kollaps) */
-        .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
-          flex-shrink: 0;
-          height: 36px;
+        .sd-fritz-energy-host .sd-fritz-energy-top {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
           margin-bottom: 10px;
+          width: 100%;
+          flex-shrink: 0;
+        }
+        .sd-fritz-energy-host .sd-fritz-energy-top-ghost {
+          width: 100%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: clamp(9px, min(2.4cqmin, 2cqh), 12px);
+          font-weight: 800;
+          padding: 8px 14px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          box-sizing: border-box;
+          visibility: hidden;
+          pointer-events: none;
+          line-height: 1.2;
         }
         .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
           display: grid;
           gap: 8px;
           grid-template-columns: 1fr 1fr;
-          grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+          grid-template-rows: 1fr 1fr;
           min-width: 0;
-          flex: 1 1 auto;
+          flex: 1 1 0%;
           min-height: 0;
           align-content: stretch;
           align-items: stretch;
@@ -848,9 +872,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         }
         .sd-fritz-energy-host .sd-fritz-energy-tile {
           height: 100%;
-          min-height: 0;
-          padding: 9px 10px;
           box-sizing: border-box;
+          padding: 9px 10px;
+          min-height: clamp(48px, min(16cqmin, 13cqh), 86px);
         }
         .sd-fritz-energy-host .sd-fritz-energy-tile-value {
           font-size: clamp(0.78rem, min(4.8cqmin, 3.8cqh), 1.45rem);
@@ -870,11 +894,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           .sd-fritz-energy-host {
             padding: 9px 9px 8px;
           }
-          .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
-            height: 30px;
-            margin-bottom: 6px;
+          .sd-fritz-energy-host .sd-fritz-energy-top {
+            gap: 5px !important;
+            margin-bottom: 6px !important;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-top-ghost {
+            padding: 5px 10px !important;
           }
           .sd-fritz-energy-host .sd-fritz-energy-tile {
+            min-height: clamp(40px, min(12cqmin, 10cqh), 72px);
             padding: 5px 8px;
           }
           .sd-fritz-energy-host .sd-fritz-energy-tile-value {
@@ -885,19 +913,22 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           .sd-fritz-energy-host {
             padding: 6px 6px 5px;
           }
-          .sd-fritz-energy-host .sd-fritz-energy-top-spacer {
-            height: 26px;
-            margin-bottom: 4px;
-          }
           .sd-fritz-energy-host .sd-fritz-energy-stat-grid {
             gap: 4px;
           }
           .sd-fritz-energy-host .sd-fritz-energy-tile {
+            min-height: 0;
             padding: 4px 5px;
+          }
+          .sd-fritz-energy-host .sd-fritz-energy-tile-value {
+            font-size: clamp(0.62rem, min(3.5cqmin, 2.8cqh), 0.95rem);
           }
         }
       ` }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top-spacer", "aria-hidden": true }),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "sd-fritz-energy-top", "aria-hidden": true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-top-ghost", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Zap, { size: 13, "aria-hidden": true }),
+            de ? "Schutz: AN" : "On"
+          ] }) }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "sd-fritz-energy-stat-grid", children: [
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
               StatTile,
