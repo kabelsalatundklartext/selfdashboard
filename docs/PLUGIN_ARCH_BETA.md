@@ -40,7 +40,7 @@ GET|POST|PUT|PATCH|DELETE  /api/plugins/<pluginId>/<pfad…>
 
 Dispatcher: `src/app/api/plugins/[pluginId]/[[...path]]/route.ts`  
 Registry: `src/lib/pluginServerRegistry.ts`  
-Builtin-Handler: `src/lib/pluginServerLoader.ts` (lädt Re-Exports aus `plugins/<id>/server.ts`).
+Builtin-Handler: `src/lib/pluginServerLoader.ts` (lädt Handler aus `src/builtin-plugins/<id>/server.ts` via `src/lib/pluginServers/<id>.ts`).
 
 ### Widget-Aufruf
 
@@ -90,13 +90,16 @@ Diese Handler sind im App-Image registriert (`loadBuiltinPluginServers`):
 | fritz-energy | ja | nutzt `../fritzbox/lib/` | TR-064 Smart Home |
 | calendar | ja | `lib/` | CalDAV/ICS, `store.json` |
 
+**Dev:** Quellen in `plugins/<id>/server.ts` (Monorepo-Geschwisterordner).  
+**Image / CI / Git:** vendored nach `src/builtin-plugins/<id>/` (committed) — siehe **[PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)**.
+
 `src/lib/pluginServers/<id>.ts` ist nur ein Re-Export:
 
 ```ts
-export { weatherServerHandler, default } from '../../../../plugins/weather/server'
+export { weatherServerHandler } from '@/builtin-plugins/weather/server'
 ```
 
-`src/lib/<plugin>*.ts` (z. B. `crowdsecDb.ts`) re-exportiert ebenfalls nach `plugins/<id>/lib/` — damit ältere Imports im Core nicht brechen.
+`src/lib/<plugin>*.ts` (z. B. `crowdsecDb.ts`) re-exportiert nach `@plugins/…` → aufgelöst auf `src/builtin-plugins/…` — damit ältere Core-Imports nicht brechen.
 
 ---
 
@@ -131,7 +134,6 @@ export async function mypluginServerHandler(ctx: PluginServerContext): Promise<R
   return Response.json({ error: 'not_found', path: segments.join('/') }, { status: 404 })
 }
 
-export default mypluginServerHandler
 ```
 
 Registrierung im Image:
@@ -161,17 +163,18 @@ Nach API-Umstellung: **`version` in `meta` / `plugin.json` erhöhen** und Pack p
 
 ## 7. Docker / CI-Build
 
-Details: **[DOCKER_BUILD.md](./DOCKER_BUILD.md)**.
+Details: **[DOCKER_BUILD.md](./DOCKER_BUILD.md)** · Vendoring: **[PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)**.
 
-Kurz: Docker-Build **vom Monorepo-Root** (enthält `selfdashboard/` + `plugins/`):
+Kurz: Docker-Build im Repo-Root `selfdashboard/` (GitHub checkout). Builtin-Server liegen in **`src/builtin-plugins/`** (committed).
 
 ```bash
-docker build -f selfdashboard/Dockerfile -t selfdashboard:beta .
+cd selfdashboard
+docker build -t selfdashboard:beta .
 ```
 
-Webpack-Alias `@plugins` zeigt auf `./plugins` oder `../plugins`. Re-Exports in `src/lib/pluginServers/*.ts` nutzen `@plugins/<id>/server`.
+Webpack-Alias `@plugins` → `src/builtin-plugins/` (Fallback: `./plugins` oder `../plugins` auf dem Dev-PC).
 
-`npm run build` führt **`prebuild`** aus (`sync-plugins-for-build.mjs`), falls `plugins/` noch nicht unter `selfdashboard/plugins/` liegt.
+`npm run build` führt **`prebuild`** aus (`vendor-builtin-plugins.mjs` — no-op, wenn `src/builtin-plugins/` schon da ist). Nach Änderungen an `../plugins/<id>/server.ts`: `npm run vendor-plugins -- --force` und `src/builtin-plugins` committen.
 
 ---
 

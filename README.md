@@ -83,7 +83,7 @@ flowchart TB
 | **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:beta` or `:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
 | **Installed plugins** | Host → `/app/plugins/custom/<id>/` | Widgets the browser runs (`widget.js`); survives image updates |
 | **Plugin catalog** | GitHub `plugins-pack/` on branch `beta` (configurable) | `plugins-index.json` + files the store downloads on install/update |
-| **Plugin source (dev)** | Sibling folder `plugins/<id>/` (TypeScript) | **Not** on the server — build with `npm run publish:plugin-pack`, then push `plugins-pack/` |
+| **Plugin source (dev)** | Sibling folder `plugins/<id>/` (TypeScript) | UI → `plugins-pack/`; server code vendored into `selfdashboard/src/builtin-plugins/` for the image |
 | **App data** | Host → `/app/data` | `dashboard.json`, calendar DB, central log |
 
 ### App update vs plugin update
@@ -98,12 +98,12 @@ flowchart TB
 ### Core app (Docker image)
 
 - **Design backgrounds** — **Settings → Design**: **navbar** wallpaper (JPG/PNG/WebP + overlay) and **dashboard** background (**off / 1 image / 2 images** left+right), saved globally in `dashboard.json`.
-- **Weather API proxy** — built-in **`GET /api/weather`** (geocode + forecast via Open-Meteo); container needs outbound HTTPS.
+- **Weather API proxy** — **`GET /api/plugins/weather/resolve`** (legacy: `/api/weather`); Open-Meteo via container HTTPS.
 - **Settings modal** — fixed width, taller viewport; **Logs** tab scrolls inside the list.
 
 ### Plugins (volume / store — no image rebuild)
 
-- **Weather 1.3.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24) under the summary; **7-day** strip starts **tomorrow** (today not duplicated). Uses `/api/weather`.
+- **Weather 1.5.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24); **7-day** from **tomorrow**. Uses `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
 - **CrowdSec** — alert count respects time range (`daysBack`).
 - **Volume-only model** — widgets live in `/app/plugins/custom`; **Plugin Store** from GitHub `plugins-pack/` (branch **`beta`**); **Update all** + **Ctrl+F5** after plugin bumps.
@@ -118,6 +118,9 @@ Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 |--------|----------|
 | Install & update plugins | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Write & publish plugins | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
+| Plugin architecture (beta) | [docs/PLUGIN_ARCH_BETA.md](docs/PLUGIN_ARCH_BETA.md) |
+| Builtin servers in git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
+| Docker image build | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Recent API/plugin changes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Error log | [docs/LOGGING.md](docs/LOGGING.md) |
@@ -438,7 +441,7 @@ flowchart TB
 | **Kern-App** | Image `ghcr.io/…/selfdashboard` (`:beta` oder `:latest`) | UI, Einstellungen, Protokoll, Plugin-Store, die meisten `/api/*`-Routen |
 | **Installierte Plugins** | Host → `/app/plugins/custom/<id>/` | Widgets im Browser (`widget.js`); überlebt Image-Updates |
 | **Plugin-Katalog** | GitHub `plugins-pack/` auf Branch `beta` (konfigurierbar) | `plugins-index.json` + Dateien für Install/Update |
-| **Plugin-Quellcode (Dev)** | Ordner `plugins/<id>/` (TypeScript) | **Nicht** auf dem Server — Build mit `npm run publish:plugin-pack`, dann `plugins-pack/` pushen |
+| **Plugin-Quellcode (Dev)** | Ordner `plugins/<id>/` (TypeScript) | UI → `plugins-pack/`; Server-Code nach `src/builtin-plugins/` fürs Image |
 | **App-Daten** | Host → `/app/data` | `dashboard.json`, Kalender-DB, zentrales Protokoll |
 
 ### App-Update vs Plugin-Update
@@ -453,12 +456,12 @@ flowchart TB
 ### Kern-App (Docker-Image)
 
 - **Hintergrundbilder im Design** — **Einstellungen → Design**: **Navbar**-Wallpaper (JPG/PNG/WebP + Overlay) und **Dashboard**-Hintergrund (**Aus / 1 Bild / 2 Bilder** links+rechts), global in `dashboard.json`.
-- **Wetter-API-Proxy** — eingebautes **`GET /api/weather`** (Geocoding + Forecast über Open-Meteo); Container braucht ausgehendes HTTPS.
+- **Wetter-API-Proxy** — **`GET /api/plugins/weather/resolve`** (Legacy: `/api/weather`); Open-Meteo über HTTPS im Container.
 - **Einstellungs-Dialog** — feste Breite, höheres Fenster; Tab **Protokoll** scrollt in der Liste.
 
 ### Plugins (Volume / Store — kein Image-Rebuild)
 
-- **Wetter 1.3.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24) unter der Beschreibung; **7-Tage**-Leiste ab **morgen** (heute nicht doppelt). Nutzt `/api/weather`.
+- **Wetter 1.5.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24); **7-Tage** ab **morgen**. Nutzt `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
 - **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).
 - **Nur Plugins vom Volume** — Widgets unter `/app/plugins/custom`; **Plugin-Store** von GitHub `plugins-pack/` (Branch **`beta`**); **Alle aktualisieren** + **Strg+F5** nach Plugin-Updates.
@@ -473,6 +476,9 @@ API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 |--------|--------|
 | Installation & Plugin-Updates | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Plugins entwickeln & veröffentlichen | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
+| Plugin-Architektur (Beta) | [docs/PLUGIN_ARCH_BETA.md](docs/PLUGIN_ARCH_BETA.md) |
+| Builtin-Server im Git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
+| Docker-Image bauen | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Aktuelle API-/Plugin-Änderungen | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Fehlerprotokoll | [docs/LOGGING.md](docs/LOGGING.md) |

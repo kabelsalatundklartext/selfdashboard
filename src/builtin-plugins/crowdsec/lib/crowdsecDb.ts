@@ -141,16 +141,18 @@ function decisionUntilClause(alias = 'd'): string {
   )`
 }
 
-function decisionLinkMeta(db: Database.Database): {
-  hasDecisions: boolean
+function decisionSchemaMeta(db: Database.Database): {
+  hasTable: boolean
   linkCol: 'alert_decisions' | 'alert_id' | null
   hasUntil: boolean
+  hasValue: boolean
+  hasScope: boolean
 } {
   const decisionTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
     .all() as { name: string }[]
   if (decisionTables.length === 0) {
-    return { hasDecisions: false, linkCol: null, hasUntil: false }
+    return { hasTable: false, linkCol: null, hasUntil: false, hasValue: false, hasScope: false }
   }
   const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
   const dNames = new Set(dCols.map((c) => c.name))
@@ -159,19 +161,41 @@ function decisionLinkMeta(db: Database.Database): {
     : dNames.has('alert_id')
       ? 'alert_id'
       : null
-  return { hasDecisions: Boolean(linkCol), linkCol, hasUntil: dNames.has('until') }
+  return {
+    hasTable: true,
+    linkCol,
+    hasUntil: dNames.has('until'),
+    hasValue: dNames.has('value'),
+    hasScope: dNames.has('scope'),
+  }
 }
 
-function activeBanExistsExpr(db: Database.Database): string {
-  const meta = decisionLinkMeta(db)
-  if (!meta.linkCol) return '0'
+/** Alert linked to decision and/or IP has an active decision in `decisions.value`. */
+function activeBanExistsExpr(db: Database.Database, ipExpr: string): string {
+  const meta = decisionSchemaMeta(db)
+  if (!meta.hasTable) return '0'
   const until = meta.hasUntil ? ` AND ${decisionUntilClause('d')}` : ''
-  return `CASE WHEN EXISTS (SELECT 1 FROM decisions d WHERE d.${meta.linkCol} = a.id${until}) THEN 1 ELSE 0 END`
+  const checks: string[] = []
+  if (meta.linkCol) {
+    checks.push(
+      `EXISTS (SELECT 1 FROM decisions d WHERE d.${meta.linkCol} = a.id${until})`,
+    )
+  }
+  if (meta.hasValue) {
+    const scopeFilter = meta.hasScope
+      ? ` AND (d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
+      : ''
+    checks.push(
+      `EXISTS (SELECT 1 FROM decisions d WHERE TRIM(CAST(d.value AS TEXT)) = TRIM(CAST(${ipExpr} AS TEXT))${scopeFilter}${until})`,
+    )
+  }
+  if (checks.length === 0) return '0'
+  return `CASE WHEN (${checks.join(' OR ')}) THEN 1 ELSE 0 END`
 }
 
 function countActiveDecisions(db: Database.Database): number {
-  const meta = decisionLinkMeta(db)
-  if (!meta.hasDecisions) return 0
+  const meta = decisionSchemaMeta(db)
+  if (!meta.hasTable) return 0
   const where = meta.hasUntil ? `WHERE ${decisionUntilClause('d')}` : ''
   const row = db.prepare(`SELECT COUNT(*) AS c FROM decisions d ${where}`).get() as
     | { c: number }
@@ -283,7 +307,7 @@ function buildAlertsSql(db: Database.Database, cutoffUnix: number): { sql: strin
   const startedCol = names.has('started_at') ? 'a.started_at' : 'NULL'
   const stoppedCol = names.has('stopped_at') ? 'a.stopped_at' : 'NULL'
 
-  const activeBanExpr = activeBanExistsExpr(db)
+  const activeBanExpr = activeBanExistsExpr(db, ipExpr)
 
   const eventTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")

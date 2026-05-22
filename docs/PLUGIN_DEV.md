@@ -44,6 +44,9 @@ Skripte suchen `plugins/` automatisch:
 
 Optional: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`
 
+Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):  
+`npm run vendor-plugins -- --force` → `src/builtin-plugins/` committen (siehe [PLUGINS_IN_REPO.md](./PLUGINS_IN_REPO.md)).
+
 ---
 
 ## 3. Dateien pro Plugin
