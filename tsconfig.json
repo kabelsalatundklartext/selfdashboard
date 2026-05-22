@@ -24,6 +24,13 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@plugins/*": [
+        "./src/builtin-plugins/*",
+        "./plugins/*"
+      ],
+      "@/builtin-plugins/*": [
+        "./src/builtin-plugins/*"
       ]
     },
     "target": "ES2017"
@@ -34,6 +41,7 @@
     "src/**/*.tsx",
     "plugins/**/*.ts",
     "plugins/**/*.tsx",
+    "plugins/**/*.json",
     ".next/types/**/*.ts"
   ],
   "exclude": [

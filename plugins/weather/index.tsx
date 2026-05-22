@@ -12,20 +12,22 @@ import {
   CloudRain,
   CloudSnow,
   CloudSun,
+  Loader2,
   Moon,
   Sun,
 } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
 import { reportPluginCatch } from '@/lib/pluginLog'
+import { pluginApiJson } from '@/lib/pluginDev'
 import { useDashboardStore } from '@/lib/store'
 
 export const meta: PluginMeta = {
   id: 'weather',
   name: 'Weather',
   description:
-    'Stadt oder PLZ — aktuelles Wetter (Temperatur, gefühlt, Luftfeuchte, Wind) per Open-Meteo. Optional 7-Tage-Vorschau (Max/Min, Symbol pro Tag), einstellbare Kartenbreite, Ort optional ausblendbar. Kein API-Key.',
-  version: '1.2.3',
+    'Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
+  version: '1.5.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -56,7 +58,7 @@ export const meta: PluginMeta = {
       key: 'showDailyForecast',
       label: '7-Tage-Vorschau',
       type: 'boolean',
-      defaultValue: false,
+      defaultValue: true,
     },
     {
       key: 'showPlaceLabel',
@@ -81,10 +83,6 @@ interface GeoHit {
   admin1?: string
 }
 
-interface GeocodeJson {
-  results?: GeoHit[]
-}
-
 interface CurrentJson {
   temperature_2m?: number
   relative_humidity_2m?: number
@@ -97,6 +95,7 @@ interface CurrentJson {
 
 interface ForecastJson {
   current?: CurrentJson
+  hourly?: { time?: string[]; temperature_2m?: number[] }
   daily?: {
     time?: string[]
     weather_code?: number[]
@@ -110,6 +109,12 @@ interface DailyDay {
   code: number
   max: number
   min: number
+}
+
+interface DayPeriod {
+  label: string
+  min: number
+  max: number
 }
 
 function str(v: unknown): string {
@@ -131,6 +136,17 @@ function clampRefresh(v: unknown): number {
 function clampDailyForecastWidthPct(v: unknown): number {
   const n = Math.round(num(v, 100))
   return Math.min(130, Math.max(70, n))
+}
+
+function cfgShowDailyForecast(raw: Record<string, unknown>): boolean {
+  const v = raw.showDailyForecast
+  if (v === false || v === 'false' || v === 0 || v === '0') return false
+  if (v === true || v === 'true' || v === 1 || v === '1') return true
+  return true
+}
+
+function cfgDailyForecastWidthPct(raw: Record<string, unknown>): number {
+  return clampDailyForecastWidthPct(raw.dailyForecastWidthPct ?? raw.dayTimelineWidthPct)
 }
 
 function dailyTypeClamp(scale: number, minPx: number, cq: number, maxPx: number): string {
@@ -222,24 +238,91 @@ function wmoSummary(code: number, de: boolean): string {
   return de ? 'Wetter' : 'Weather'
 }
 
-async function geocode(query: string, countryCode: string, signal: AbortSignal, lang: 'de' | 'en'): Promise<GeoHit | null> {
+/** Full resolve = geocode + forecast on server (sequential). */
+const RESOLVE_FETCH_TIMEOUT_MS = 45_000
+/** Periodic refresh: forecast only (one upstream call). */
+const FORECAST_FETCH_TIMEOUT_MS = 28_000
+
+function abortSignalWithTimeout(parent: AbortSignal, ms: number): AbortSignal {
+  const ac = new AbortController()
+  const onParentAbort = () => ac.abort()
+  const timer = setTimeout(() => ac.abort(), ms)
+  if (parent.aborted) ac.abort()
+  else parent.addEventListener('abort', onParentAbort)
+  ac.signal.addEventListener(
+    'abort',
+    () => {
+      clearTimeout(timer)
+      parent.removeEventListener('abort', onParentAbort)
+    },
+    { once: true },
+  )
+  return ac.signal
+}
+
+function mapWeatherError(e: unknown, de: boolean): string {
+  const name = e instanceof Error ? e.name : ''
+  const msg = e instanceof Error ? e.message : String(e)
+  if (name === 'AbortError' || msg.includes('timeout') || msg.includes('aborted')) {
+    return de
+      ? 'Zeitüberschreitung — Open-Meteo antwortet nicht. Bitte kurz warten oder erneut laden.'
+      : 'Timeout — Open-Meteo did not respond. Wait a moment or reload.'
+  }
+  if (msg.includes('geocode_empty') || msg.includes('missing_name')) {
+    return de ? 'Ort nicht gefunden.' : 'Location not found.'
+  }
+  return de
+    ? 'Wetter-API nicht erreichbar (Server braucht Internet zu Open-Meteo).'
+    : 'Weather API unreachable (server needs outbound internet to Open-Meteo).'
+}
+
+/** `/api/plugins/weather/resolve` — server logic in `plugins/weather/server.ts`. */
+async function resolveWeather(
+  query: string,
+  countryCode: string,
+  signal: AbortSignal,
+  lang: 'de' | 'en',
+  includeDaily: boolean,
+): Promise<{ hit: GeoHit; forecast: ForecastJson } | null> {
   const params = new URLSearchParams({
     name: query,
-    count: '8',
     language: lang,
-    format: 'json',
+    includeHourly: '1',
   })
   const cc = countryCode.trim().toUpperCase()
   if (cc.length === 2) params.set('countryCode', cc)
+  if (includeDaily) params.set('includeDaily', '1')
 
-  const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`, { signal, cache: 'no-store' })
-  if (!res.ok) throw new Error(`Geocode HTTP ${res.status}`)
-  const j = (await res.json()) as GeocodeJson
-  const first = j.results?.[0]
-  if (!first) return null
-  return first
+  const j = await pluginApiJson<{ place?: GeoHit; forecast?: ForecastJson }>(
+    'weather',
+    `/resolve?${params}`,
+    { signal, cache: 'no-store', timeoutMs: RESOLVE_FETCH_TIMEOUT_MS },
+  )
+  const hit = j.place
+  if (!hit || !j.forecast) return null
+  return { hit, forecast: j.forecast }
 }
 
+async function fetchWeatherForecast(
+  lat: number,
+  lon: number,
+  signal: AbortSignal,
+  includeDaily: boolean,
+): Promise<ForecastJson> {
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    includeHourly: '1',
+  })
+  if (includeDaily) params.set('includeDaily', '1')
+  return pluginApiJson<ForecastJson>('weather', `/forecast?${params}`, {
+    signal,
+    cache: 'no-store',
+    timeoutMs: FORECAST_FETCH_TIMEOUT_MS,
+  })
+}
+
+/** Open-Meteo daily[0] = heute — Widget zeigt die nächsten `maxDays` Tage ab morgen. */
 function parseDailyForecast(j: ForecastJson, maxDays: number): DailyDay[] {
   const d = j.daily
   if (!d?.time?.length) return []
@@ -247,44 +330,89 @@ function parseDailyForecast(j: ForecastJson, maxDays: number): DailyDay[] {
   const maxT = d.temperature_2m_max ?? []
   const minT = d.temperature_2m_min ?? []
   const out: DailyDay[] = []
-  const n = Math.min(maxDays, d.time.length, codes.length, maxT.length, minT.length)
-  for (let i = 0; i < n; i++) {
+  const available = Math.min(d.time.length, codes.length, maxT.length, minT.length)
+  for (let i = 1; i < available && out.length < maxDays; i++) {
     const date = d.time[i]!
     const code = num(codes[i], 0)
-    out.push({
+    const day: DailyDay = {
       date,
       code,
       max: num(maxT[i], NaN),
       min: num(minT[i], NaN),
-    })
+    }
+    if (Number.isFinite(day.max) && Number.isFinite(day.min)) out.push(day)
   }
-  return out.filter((x) => Number.isFinite(x.max) && Number.isFinite(x.min))
+  return out
 }
 
-async function fetchForecast(
-  lat: number,
-  lon: number,
-  signal: AbortSignal,
-  de: boolean,
-  includeDaily: boolean,
-): Promise<{ current: CurrentJson; daily: DailyDay[] }> {
-  const params = new URLSearchParams({
-    latitude: String(lat),
-    longitude: String(lon),
-    timezone: 'auto',
-    current:
-      'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m',
-  })
-  if (includeDaily) {
-    params.set('daily', 'weather_code,temperature_2m_max,temperature_2m_min')
-    params.set('forecast_days', '7')
+function todayDateKeyFromHourly(times: string[]): string | null {
+  const now = Date.now()
+  let best: string | null = null
+  for (const iso of times) {
+    const t = new Date(iso).getTime()
+    if (Number.isFinite(t) && t <= now + 60_000) best = iso.slice(0, 10)
   }
-  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal, cache: 'no-store' })
-  if (!res.ok) throw new Error(`Forecast HTTP ${res.status}`)
-  const j = (await res.json()) as ForecastJson
+  return best ?? times[0]?.slice(0, 10) ?? null
+}
+
+function hourBucket(hour: number): number {
+  if (hour >= 18) return 3
+  if (hour >= 12) return 2
+  if (hour >= 6) return 1
+  return 0
+}
+
+function parseTodayDayPeriods(j: ForecastJson): DayPeriod[] {
+  const h = j.hourly
+  if (!h?.time?.length) return []
+  const temps = h.temperature_2m ?? []
+  const labels = ['0–6', '6–12', '12–18', '18–24']
+  const todayKey = todayDateKeyFromHourly(h.time)
+  if (!todayKey) return []
+  const buckets: number[][] = [[], [], [], []]
+  const n = Math.min(h.time.length, temps.length)
+  for (let i = 0; i < n; i++) {
+    const iso = h.time[i]!
+    if (!iso.startsWith(todayKey)) continue
+    const temp = num(temps[i], NaN)
+    if (!Number.isFinite(temp)) continue
+    const hour = new Date(iso).getHours()
+    buckets[hourBucket(hour)]!.push(temp)
+  }
+  const out: DayPeriod[] = []
+  for (let b = 0; b < 4; b++) {
+    const vals = buckets[b]!
+    if (!vals.length) {
+      out.push({ label: labels[b]!, min: NaN, max: NaN })
+      continue
+    }
+    out.push({
+      label: labels[b]!,
+      min: Math.min(...vals),
+      max: Math.max(...vals),
+    })
+  }
+  return out
+}
+
+function formatPeriodTemps(min: number, max: number): string {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return '—'
+  const a = Math.round(min)
+  const b = Math.round(max)
+  return a === b ? `${a}°` : `${a}°–${b}°`
+}
+
+function parseForecastPayload(
+  j: ForecastJson,
+  includeDaily: boolean,
+  de: boolean,
+): { current: CurrentJson; daily: DailyDay[]; dayPeriods: DayPeriod[] } {
   if (!j.current) throw new Error(de ? 'Keine aktuellen Werte' : 'No current values')
-  const daily = includeDaily ? parseDailyForecast(j, 7) : []
-  return { current: j.current, daily }
+  return {
+    current: j.current,
+    daily: includeDaily ? parseDailyForecast(j, 7) : [],
+    dayPeriods: parseTodayDayPeriods(j),
+  }
 }
 
 /** Ab dieser Widget-Breite (px): aktuelles Wetter links, 7-Tage-Vorschau rechts (mit gleichmäßigem Tages-Raster). */
@@ -297,51 +425,122 @@ function Widget({ config }: PluginWidgetProps) {
   const locationQuery = str(config.locationQuery)
   const countryCode = str(config.countryCode)
   const refreshMinutes = clampRefresh(config.refreshMinutes)
-  const showDailyForecast = (config as Record<string, unknown>).showDailyForecast === true
-  const showPlaceLabel = (config as Record<string, unknown>).showPlaceLabel !== false
-  const dailyForecastScale = clampDailyForecastWidthPct((config as Record<string, unknown>).dailyForecastWidthPct) / 100
+  const cfgRaw = config as Record<string, unknown>
+  const showDailyForecast = cfgShowDailyForecast(cfgRaw)
+  const showPlaceLabel = cfgRaw.showPlaceLabel !== false
+  const dailyForecastScale = cfgDailyForecastWidthPct(cfgRaw) / 100
 
   const [placeLabel, setPlaceLabel] = useState<string | null>(null)
   const [current, setCurrent] = useState<CurrentJson | null>(null)
   const [daily, setDaily] = useState<DailyDay[]>([])
+  const [dayPeriods, setDayPeriods] = useState<DayPeriod[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fetchKeyRef = useRef('')
+  const coordsRef = useRef<{ lat: number; lon: number; hit: GeoHit } | null>(null)
+  const hasLiveDataRef = useRef(false)
+
   useEffect(() => {
     const ac = new AbortController()
     let cancelled = false
+    const fetchKey = `${locationQuery}\0${countryCode}\0${showDailyForecast ? 1 : 0}`
 
     async function run() {
       if (!locationQuery) {
+        fetchKeyRef.current = ''
+        coordsRef.current = null
+        hasLiveDataRef.current = false
         setPlaceLabel(null)
         setCurrent(null)
         setDaily([])
+        setDayPeriods([])
         setError(null)
         setLoading(false)
         return
       }
+
+      const queryChanged = fetchKeyRef.current !== fetchKey
+      if (queryChanged) {
+        fetchKeyRef.current = fetchKey
+        coordsRef.current = null
+        hasLiveDataRef.current = false
+        setPlaceLabel(null)
+        setCurrent(null)
+        setDaily([])
+        setDayPeriods([])
+      }
+
       setLoading(true)
-      setError(null)
+      if (queryChanged || !hasLiveDataRef.current) setError(null)
+      const fetchTimeoutMs = queryChanged || !coordsRef.current ? RESOLVE_FETCH_TIMEOUT_MS : FORECAST_FETCH_TIMEOUT_MS
+      const runSignal = abortSignalWithTimeout(ac.signal, fetchTimeoutMs)
       try {
-        const hit = await geocode(locationQuery, countryCode, ac.signal, de ? 'de' : 'en')
-        if (cancelled) return
-        if (!hit) {
-          setPlaceLabel(null)
-          setCurrent(null)
-          setDaily([])
-          setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
-          return
+        let hit: GeoHit
+        let forecast: ForecastJson
+        const cached = !queryChanged ? coordsRef.current : null
+        if (cached) {
+          forecast = await fetchWeatherForecast(
+            cached.lat,
+            cached.lon,
+            runSignal,
+            showDailyForecast,
+          )
+          hit = cached.hit
+        } else {
+          const resolved = await resolveWeather(
+            locationQuery,
+            countryCode,
+            runSignal,
+            de ? 'de' : 'en',
+            showDailyForecast,
+          )
+          if (cancelled) return
+          if (!resolved) {
+            coordsRef.current = null
+            hasLiveDataRef.current = false
+            setPlaceLabel(null)
+            setCurrent(null)
+            setDaily([])
+            setDayPeriods([])
+            setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
+            return
+          }
+          hit = resolved.hit
+          forecast = resolved.forecast
+          coordsRef.current = {
+            lat: hit.latitude,
+            lon: hit.longitude,
+            hit,
+          }
         }
-        setPlaceLabel(formatPlace(hit))
-        const { current: cur, daily: dail } = await fetchForecast(hit.latitude, hit.longitude, ac.signal, de, showDailyForecast)
         if (cancelled) return
+        const { current: cur, daily: dail, dayPeriods: periods } = parseForecastPayload(
+          forecast,
+          showDailyForecast,
+          de,
+        )
+        if (cancelled) return
+        setPlaceLabel(formatPlace(hit))
         setCurrent(cur)
         setDaily(dail)
+        setDayPeriods(periods)
+        hasLiveDataRef.current = true
+        setError(null)
       } catch (e) {
         if (cancelled || (e as Error).name === 'AbortError') return
         reportPluginCatch('weather', e, 'open-meteo')
-        setError(de ? 'Netzwerk- oder API-Fehler.' : 'Network or API error.')
-        setCurrent(null)
-        setDaily([])
+        if (!queryChanged && hasLiveDataRef.current) {
+          setError(null)
+          return
+        }
+        setError(mapWeatherError(e, de))
+        if (queryChanged) {
+          coordsRef.current = null
+          hasLiveDataRef.current = false
+          setCurrent(null)
+          setDaily([])
+          setDayPeriods([])
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -408,7 +607,42 @@ function Widget({ config }: PluginWidgetProps) {
     )
   }
 
-  if (error && !current) {
+  const hasLiveCurrent =
+    current != null && Number.isFinite(num(current.temperature_2m, NaN))
+
+  if (loading && !hasLiveCurrent && !error) {
+    return (
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          padding: '8px',
+          textAlign: 'center',
+        }}
+      >
+        <Loader2
+          aria-hidden
+          className="sd-widget-load-spin"
+          strokeWidth={1.75}
+          style={{
+            width: 'clamp(28px, 9cqmin, 40px)',
+            height: 'clamp(28px, 9cqmin, 40px)',
+            color: 'var(--accent)',
+          }}
+        />
+        <p style={{ fontSize: 'clamp(11px, 2.8cqmin, 13px)', color: muted, margin: 0, lineHeight: 1.35 }}>
+          {de ? 'Wetter wird geladen…' : 'Loading weather…'}
+        </p>
+      </div>
+    )
+  }
+
+  if (error && !hasLiveCurrent) {
     return (
       <div
         style={{
@@ -443,6 +677,7 @@ function Widget({ config }: PluginWidgetProps) {
   const hum = current?.relative_humidity_2m
   const code = num(current?.weather_code, 0)
   const isDay = (current?.is_day ?? 1) === 1
+  const refreshing = loading && hasLiveCurrent
   const wdir = num(current?.wind_direction_10m, 0)
   const wspd = num(current?.wind_speed_10m, 0)
   const summary = wmoSummary(code, de)
@@ -477,8 +712,24 @@ function Widget({ config }: PluginWidgetProps) {
         padding: 'clamp(6px, 2cqmin, 12px)',
         boxSizing: 'border-box',
         overflow: 'auto',
+        opacity: refreshing ? 0.72 : 1,
+        transition: 'opacity 0.2s ease',
       }}
     >
+      {error && hasLiveCurrent && (
+        <p
+          style={{
+            margin: 0,
+            flexShrink: 0,
+            fontSize: 'clamp(10px, 2.2cqmin, 11px)',
+            color: '#fb7185',
+            textAlign: 'center',
+            lineHeight: 1.3,
+          }}
+        >
+          {error}
+        </p>
+      )}
       {placeLabel && showPlaceLabel && (
         <p
           style={{
@@ -547,7 +798,7 @@ function Widget({ config }: PluginWidgetProps) {
                 height: 'clamp(28px, 11cqmin, 56px)',
                 color: iconColor,
                 filter: iconGlow,
-                opacity: loading && temp == null ? 0.45 : 1,
+                opacity: refreshing ? 0.55 : 1,
                 transition: 'opacity 0.2s, color 0.35s ease',
               }}
             />
@@ -564,7 +815,7 @@ function Widget({ config }: PluginWidgetProps) {
                 lineHeight: 1,
               }}
             >
-              {loading && temp == null ? '…' : temp != null ? `${Math.round(temp)}°` : '—'}
+              {temp != null ? `${Math.round(temp)}°` : '—'}
             </span>
             {feels != null && temp != null && Math.abs(feels - temp) >= 0.5 && (
               <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted }}>
@@ -585,6 +836,61 @@ function Widget({ config }: PluginWidgetProps) {
           >
             {summary}
           </p>
+
+          {dayPeriods.length > 0 && (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 'clamp(4px, 1.2cqmin, 8px)',
+                width: '100%',
+                maxWidth: 'min(100%, 320px)',
+                margin: '2px 0 0',
+              }}
+            >
+              {dayPeriods.map((slot) => (
+                <div
+                  key={slot.label}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2px',
+                    padding: '4px 2px',
+                    borderRadius: '8px',
+                    background: 'color-mix(in srgb, var(--surface) 88%, var(--background))',
+                    border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)',
+                    minWidth: 0,
+                  }}
+                  title={de ? `${slot.label} Uhr` : `${slot.label}`}
+                >
+                  <span
+                    style={{
+                      fontSize: 'clamp(9px, 2cqmin, 11px)',
+                      fontWeight: 700,
+                      color: muted,
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {slot.label}
+                  </span>
+                  <span
+                    className="tabular-nums"
+                    style={{
+                      fontSize: 'clamp(10px, 2.2cqmin, 12px)',
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      fontVariantNumeric: 'tabular-nums',
+                      lineHeight: 1.1,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {formatPeriodTemps(slot.min, slot.max)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div
             style={{
@@ -756,9 +1062,10 @@ function Widget({ config }: PluginWidgetProps) {
 function Settings({ config, onChange }: PluginSettingsProps) {
   const locale = useDashboardStore((s) => s.locale) as Locale
   const de = locale !== 'en'
-  const dailyOn = (config as Record<string, unknown>).showDailyForecast === true
-  const placeOn = (config as Record<string, unknown>).showPlaceLabel !== false
-  const widthPct = clampDailyForecastWidthPct((config as Record<string, unknown>).dailyForecastWidthPct)
+  const cfgRaw = config as Record<string, unknown>
+  const dailyOn = cfgShowDailyForecast(cfgRaw)
+  const placeOn = cfgRaw.showPlaceLabel !== false
+  const widthPct = cfgDailyForecastWidthPct(cfgRaw)
 
   const inp: React.CSSProperties = {
     background: 'var(--surface)',
@@ -775,28 +1082,30 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          Stadt oder PLZ
+          {de ? 'Stadt oder PLZ' : 'City or postal code'}
         </label>
         <input
           style={inp}
           value={str(config.locationQuery)}
           onChange={(e) => onChange('locationQuery', e.target.value)}
-          placeholder="z. B. Berlin, Köln, 80331"
+          placeholder={de ? 'z. B. Berlin, Köln, 80331' : 'e.g. Berlin, London, 10001'}
         />
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.4 }}>
-          Nach dem Speichern lädt das Widget automatisch Wetterdaten (Open-Meteo). Bei PLZ optional Land setzen.
+          {de
+            ? 'Nach dem Speichern lädt das Widget automatisch Wetterdaten (Open-Meteo). Bei PLZ optional Land setzen.'
+            : 'After saving, the widget loads weather data (Open-Meteo). For postal codes, set country optionally.'}
         </p>
       </div>
 
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          Land (ISO, optional)
+          {de ? 'Land (ISO, optional)' : 'Country (ISO, optional)'}
         </label>
         <input
           style={inp}
           value={str(config.countryCode)}
           onChange={(e) => onChange('countryCode', e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2))}
-          placeholder="z. B. DE"
+          placeholder={de ? 'z. B. DE' : 'e.g. DE'}
           maxLength={2}
         />
       </div>
@@ -823,8 +1132,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             <strong>{de ? '7-Tage-Vorschau' : '7-day forecast'}</strong>
             <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400, marginTop: '4px' }}>
               {de
-                ? 'Zeigt die nächsten sieben Tage mit Symbol, Höchst- und Tiefsttemperatur (Open-Meteo daily).'
-                : 'Shows the next seven days with icon, high and low temperatures (Open-Meteo daily).'}
+                ? 'Tagesabschnitte (0–6 … 18–24) bleiben links beim aktuellen Wetter. Rechts: die nächsten 7 Tage ab morgen (heute nicht doppelt).'
+                : 'Day blocks (0–6 … 18–24) stay on the left. Right: next 7 days starting tomorrow (today omitted).'}
             </span>
           </span>
         </label>
@@ -893,7 +1202,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <div>
         <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-          Aktualisieren alle (Minuten)
+          {de ? 'Aktualisieren alle (Minuten)' : 'Refresh every (minutes)'}
         </label>
         <input
           style={inp}
@@ -906,11 +1215,11 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
 
       <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-        Wetterdaten:{' '}
+        {de ? 'Wetterdaten:' : 'Weather data:'}{' '}
         <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)' }}>
           Open-Meteo
         </a>{' '}
-        (nicht kommerziell, ohne API-Key).
+        {de ? '(nicht kommerziell, ohne API-Key).' : '(non-commercial, no API key).'}
       </p>
     </div>
   )

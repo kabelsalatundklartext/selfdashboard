@@ -5,14 +5,15 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginWidgetProps, PluginSettingsProps } from '@/types'
+import { pluginApiJson } from '@/lib/pluginDev'
 import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'docker',
   name: 'Docker',
   description:
-    'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.',
-  version: '1.8.10',
+    'Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar. API: /api/plugins/docker/containers.',
+  version: '1.9.0',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🐳',
@@ -1239,21 +1240,10 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     fetchBusyRef.current = true
     const id = ++latestFetch.current
     const q = showAll ? 'all=1' : 'all=0'
-    const url = fetchStats ? `/api/docker-containers?${q}&stats=1` : `/api/docker-containers?${q}`
+    const path = `/containers?${q}${fetchStats ? '&stats=1' : ''}`
 
     try {
-      const res = await fetch(url, { method: 'GET', cache: 'no-store' })
-      const raw = await res.text()
-      let data: unknown
-      try {
-        data = JSON.parse(raw) as unknown
-      } catch {
-        throw new Error(res.ok ? 'Ungültige JSON-Antwort' : `HTTP ${res.status}`)
-      }
-      if (!res.ok) {
-        const err = (data as { error?: string })?.error
-        throw new Error(err || `HTTP ${res.status}`)
-      }
+      const data = await pluginApiJson<unknown[]>('docker', path, { method: 'GET', cache: 'no-store' })
       if (!Array.isArray(data)) throw new Error('Unerwartetes Antwortformat')
       if (latestFetch.current !== id) return
 
@@ -1291,23 +1281,11 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     setBusyId(p.id)
     setActionError(null)
     try {
-      const res = await fetch('/api/docker-containers', {
+      await pluginApiJson('docker', '/containers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: p.id, action: p.action }),
         cache: 'no-store',
       })
-      const raw = await res.text()
-      let data: unknown
-      try {
-        data = raw ? (JSON.parse(raw) as unknown) : null
-      } catch {
-        throw new Error(res.ok ? 'Ungültige JSON-Antwort' : `HTTP ${res.status}`)
-      }
-      if (!res.ok) {
-        const err = (data as { error?: string })?.error
-        throw new Error(err || `HTTP ${res.status}`)
-      }
       setPending(null)
       await fetch_()
     } catch (e: unknown) {

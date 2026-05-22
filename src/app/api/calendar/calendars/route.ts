@@ -1,11 +1,8 @@
-/**
- * GET /api/calendar/calendars        — list all calendars (across all accounts)
- */
+import { calendarServerHandler } from '@/lib/pluginServers/calendar'
 
-import { ok } from '@/lib/calendar/api-helpers'
-import { readStore } from '@/lib/calendar/store'
+export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  const store = await readStore()
-  return ok(store.calendars)
+/** @deprecated Use `/api/plugins/calendar/calendars` */
+export async function GET(req: Request) {
+  return calendarServerHandler({ pluginId: 'calendar', path: ['calendars'], request: req })
 }

@@ -7,6 +7,7 @@ import { useDashboardStore } from '@/lib/store'
 import { Portal } from '@/components/ui/Portal'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 import { t } from '@/lib/i18n'
+import { displayPluginMeta } from '@/lib/pluginMetaI18n'
 import type { PluginInstance, WidgetLayout } from '@/types'
 
 interface Props {
@@ -73,6 +74,7 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
   if (!open || !registered) return null
 
   const { Settings: SettingsComponent } = registered.component
+  const { name: pluginTitle } = displayPluginMeta(registered.meta, locale)
 
   const handleChange = (key: string, value: unknown) => {
     setLocalConfig((prev) => ({ ...prev, [key]: value }))
@@ -169,10 +171,10 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             <PluginMetaIcon meta={registered.meta} size={40} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                {registered.meta.name}
+                {pluginTitle}
               </p>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
-                v{registered.meta.version} · Einstellungen
+                v{registered.meta.version} · {t(locale, 'settings')}
               </p>
             </div>
             <button className="btn-ghost" style={{ padding: '6px' }} onClick={onClose}>
@@ -186,7 +188,7 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             ) : (
               <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Settings size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <p style={{ fontSize: '14px' }}>Dieses Plugin hat keine Einstellungen.</p>
+                <p style={{ fontSize: '14px' }}>{t(locale, 'pluginNoSettings')}</p>
               </div>
             )}
 
@@ -247,8 +249,8 @@ export function PluginConfigModal({ instance, open, onClose }: Props) {
             display: 'flex', gap: '12px', padding: '16px 20px',
             borderTop: '1px solid var(--border)', flexShrink: 0,
           }}>
-            <button className="btn-ghost" style={{ flex: 1 }} onClick={onClose}>Abbrechen</button>
-            <button className="btn-accent" style={{ flex: 1 }} onClick={handleSave}>Speichern</button>
+            <button className="btn-ghost" style={{ flex: 1 }} onClick={onClose}>{t(locale, 'cancel')}</button>
+            <button className="btn-accent" style={{ flex: 1 }} onClick={handleSave}>{t(locale, 'save')}</button>
           </div>
         </div>
       </div>

@@ -2,13 +2,28 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useDashboardStore } from '@/lib/store'
+import { useDashboardStore, useDashboardStoreHydrated } from '@/lib/store'
 import { Navbar } from '@/components/layout/Navbar'
 import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
+import { DashboardMain } from '@/components/layout/DashboardMain'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
+import { PluginUpdateBanner } from '@/components/plugins/PluginUpdateBanner'
+import { PluginMissingBanner } from '@/components/plugins/PluginMissingBanner'
+
+function DashboardLoadingShell() {
+  return (
+    <div
+      className="min-h-screen w-full"
+      style={{ background: 'var(--background)' }}
+      aria-busy="true"
+      aria-label="Loading dashboard"
+    />
+  )
+}
 
 export function DashboardPage({ id }: { id: string }) {
+  const storeHydrated = useDashboardStoreHydrated()
   const { dashboards, setActiveDashboard, activeDashboardId, locale } = useDashboardStore()
   const router = useRouter()
 
@@ -22,26 +37,21 @@ export function DashboardPage({ id }: { id: string }) {
     }
   }, [id, dashboards, setActiveDashboard, router])
 
+  if (!storeHydrated) {
+    return <DashboardLoadingShell />
+  }
+
   return (
     <>
       <PluginBootstrap />
       <KioskNavbarShell locale={locale}>
         <Navbar />
+        <PluginMissingBanner />
+        <PluginUpdateBanner />
       </KioskNavbarShell>
-      <main
-        style={{
-          width: '100%',
-          minWidth: 0,
-          minHeight: 0,
-          background: 'var(--background)',
-          display: 'block',
-          paddingBottom: 0,
-          paddingLeft: 'env(safe-area-inset-left, 0)',
-          paddingRight: 'env(safe-area-inset-right, 0)',
-        }}
-      >
+      <DashboardMain>
         <DashboardGrid />
-      </main>
+      </DashboardMain>
     </>
   )
 }

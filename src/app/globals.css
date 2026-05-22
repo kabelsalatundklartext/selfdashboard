@@ -366,3 +366,13 @@ html, body {
     line-height: 18px;
   }
 }
+
+@keyframes sd-widget-load-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sd-widget-load-spin {
+  animation: sd-widget-load-spin 0.9s linear infinite;
+}

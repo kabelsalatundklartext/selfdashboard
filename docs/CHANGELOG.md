@@ -6,6 +6,62 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ## 🇬🇧 English
 
+### Core app (2026-05)
+
+| Topic | Change |
+|--------|--------|
+| **Design backgrounds** | **Settings → Design**: navbar wallpaper; dashboard background **off / single / dual** (JPG/PNG/WebP, overlay %). Persisted in `dashboard.json`. |
+| **`/api/weather`** | Server proxy for Open-Meteo geocode + forecast (hourly + daily). Required for current Weather plugin. |
+| **Settings modal** | Fixed width `720px`; log list scrolls internally. |
+
+### Weather plugin **1.3.x**
+
+| Topic | Change |
+|--------|--------|
+| **Day blocks** | Under current summary: temps for **0–6**, **6–12**, **12–18**, **18–24** (today, from hourly API). |
+| **7-day strip** | Shows **next 7 days starting tomorrow** (API `forecast_days=8`, skips index 0). |
+| **Removed** | Full-width hourly timeline that replaced the 7-day view in 1.3.0. |
+
+### Unraid plugin **1.5.x**
+
+| Topic | Change |
+|--------|--------|
+| **Version** | Targets **Unraid 7.2+** GraphQL (not 7.3-only). |
+| **Disks** | Pool/cache rows; optional suffix: role / `fsType` / comment. |
+| **Browser** | Direct `fetch` to `https://NAS/graphql` — **CORS** must allow your dashboard origin per NAS. |
+
+---
+
+## 🇩🇪 Deutsch
+
+### Kern-App (2026-05)
+
+| Thema | Änderung |
+|--------|----------|
+| **Hintergrundbilder** | **Einstellungen → Design**: Navbar + Dashboard (**Aus / 1 / 2 Bilder**, Overlay). In `dashboard.json`. |
+| **`/api/weather`** | Server-Proxy für Open-Meteo (Geocoding + Forecast). |
+| **Einstellungs-Dialog** | Feste Breite; Protokoll-Liste scrollt intern. |
+
+### Wetter-Plugin **1.3.x**
+
+| Thema | Änderung |
+|--------|----------|
+| **Tagesabschnitte** | Unter aktuellem Wetter: **0–6**, **6–12**, **12–18**, **18–24**. |
+| **7-Tage** | Ab **morgen** (8 API-Tage, heute ausgeblendet). |
+| **Entfernt** | Stündliche Gesamt-Leiste aus 1.3.0. |
+
+### Unraid-Plugin **1.5.x**
+
+| Thema | Änderung |
+|--------|----------|
+| **Version** | **Unraid 7.2+** GraphQL (nicht nur 7.3). |
+| **Disks** | Pool/Cache; Zusatz-Label: Rolle / `fsType` / Kommentar. |
+| **Browser** | Direkt `https://NAS/graphql` — **CORS** pro NAS für Dashboard-Origin. |
+
+---
+
+## 🇬🇧 English (older entries)
+
 ### Docker plugin **1.7.9** (core: `src/lib/dockerEngine.ts`)
 
 | Topic | Change |
@@ -55,7 +111,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ---
 
-## 🇩🇪 Deutsch
+## 🇩🇪 Deutsch (ältere Einträge)
 
 ### Docker-Plugin **1.7.9** (Kern: `src/lib/dockerEngine.ts`)
 

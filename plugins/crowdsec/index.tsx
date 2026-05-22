@@ -8,13 +8,14 @@ import {
   LOOKUP_SERVICES,
   type LookupServiceId,
 } from './ipLookup'
+import { DAY_RANGE_PRESETS, MAX_ALERT_PRESETS } from './presets'
 
 export const meta: PluginMeta = {
   id: 'crowdsec',
   name: 'CrowdSec',
   description:
-    'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.',
-  version: '1.3.3',
+    'Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.',
+  version: '1.4.4',
   author: 'SelfDashboard',
   category: 'security',
   icon: '🛡️',
@@ -45,24 +46,17 @@ function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
         />
       </label>
       <label className="cs-settings-row">
-        <span>{de ? 'Tage zurück' : 'Days back'}</span>
-        <input
-          type="number"
-          min={1}
-          max={3650}
+        <span>{de ? 'Zeitraum (Alerts aus DB)' : 'Time range (alerts from DB)'}</span>
+        <select
           value={cfg.daysBack}
           onChange={(e) => onChange('daysBack', Number(e.target.value))}
-        />
-      </label>
-      <label className="cs-settings-row">
-        <span>{de ? 'Alerts-Zeitraum (Stunden)' : 'Alert window (hours)'}</span>
-        <input
-          type="number"
-          min={1}
-          max={168}
-          value={cfg.statsHours}
-          onChange={(e) => onChange('statsHours', Number(e.target.value))}
-        />
+        >
+          {DAY_RANGE_PRESETS.map((p) => (
+            <option key={p.days} value={p.days}>
+              {de ? p.de : p.en}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="cs-settings-row">
         <span>{de ? 'Aktualisierung (Sek.)' : 'Refresh (sec.)'}</span>
@@ -76,14 +70,19 @@ function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
       </label>
       <label className="cs-settings-row">
         <span>{de ? 'Max. Alerts aus DB' : 'Max alerts from DB'}</span>
-        <input
-          type="number"
-          min={50}
-          max={5000}
-          value={cfg.maxAlerts}
-          onChange={(e) => onChange('maxAlerts', Number(e.target.value))}
-        />
+        <select value={cfg.maxAlerts} onChange={(e) => onChange('maxAlerts', Number(e.target.value))}>
+          {MAX_ALERT_PRESETS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {de ? p.de : p.en}
+            </option>
+          ))}
+        </select>
       </label>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.45 }}>
+        {de
+          ? '„Alle“ beim Zeitraum = gesamte Datenbank. „Alle“ bei Max. Alerts = kein LIMIT (kann bei sehr großen DBs länger laden).'
+          : '“All” time range = entire database. “All” max alerts = no LIMIT (large DBs may load slower).'}
+      </p>
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <input
           type="checkbox"

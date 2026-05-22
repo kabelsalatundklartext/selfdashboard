@@ -8,7 +8,7 @@ export const meta: PluginMeta = {
   id: 'clock',
   name: 'Clock & Date',
   description: 'Displays the current time and date with timezone support.',
-  version: '1.2.1',
+  version: '1.2.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🕐',
@@ -38,7 +38,7 @@ const TIMEZONES = [
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
-  const [now, setNow] = useState(new Date())
+  const [now, setNow] = useState<Date | null>(null)
   const tz = (config.timezone as string) || undefined
   const is24h = config.format24h !== false
   const showSeconds = config.showSeconds !== false
@@ -46,25 +46,30 @@ function Widget({ config }: PluginWidgetProps) {
   const loc = de ? 'de-DE' : 'en-GB'
 
   useEffect(() => {
+    setNow(new Date())
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  const timeStr = now.toLocaleTimeString(loc, {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(showSeconds ? { second: '2-digit' } : {}),
-    hour12: !is24h,
-  })
+  const timeStr = now
+    ? now.toLocaleTimeString(loc, {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        ...(showSeconds ? { second: '2-digit' } : {}),
+        hour12: !is24h,
+      })
+    : '--:--:--'
 
-  const dateStr = now.toLocaleDateString(loc, {
+  const dateStr = now
+    ? now.toLocaleDateString(loc, {
     timeZone: tz,
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : ''
 
   const cityName = (config.cityName as string)?.trim()
   const tzLabel = cityName || tz || ''

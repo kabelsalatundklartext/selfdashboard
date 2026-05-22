@@ -11,7 +11,7 @@ export const meta: PluginMeta = {
   name: 'Unraid',
   description:
     'System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.',
-  version: '1.5.3',
+  version: '1.5.5',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
@@ -64,6 +64,8 @@ const QUERY = `query SelfDashboardUnraid {
       fsFree
       fsUsed
       type
+      fsType
+      comment
     }
     caches {
       id
@@ -74,6 +76,8 @@ const QUERY = `query SelfDashboardUnraid {
       fsFree
       fsUsed
       type
+      fsType
+      comment
     }
   }
 }`
@@ -86,7 +90,14 @@ export interface Disk {
   fsSize: number
   fsFree: number
   diskType?: string
+  fsType?: string
+  comment?: string
 }
+
+/** Disk row suffix in parentheses — configurable per Array / Pools in plugin settings. */
+export type DiskSuffixLabelMode = 'off' | 'cache' | 'fsType' | 'comment'
+/** @deprecated use DiskSuffixLabelMode */
+export type PoolDiskLabelMode = DiskSuffixLabelMode
 
 type RamDisplayMode = 'used' | 'available' | 'percentTotal'
 
@@ -191,6 +202,33 @@ function diskTypeLabel(t: string | undefined, de: boolean): string {
   }
   const map = de ? mapDe : mapEn
   return map[t] ?? t
+}
+
+function parseDiskSuffixLabelMode(v: unknown, fallback: DiskSuffixLabelMode): DiskSuffixLabelMode {
+  const s = String(v ?? fallback).trim()
+  if (s === 'off' || s === 'cache' || s === 'fsType' || s === 'comment') return s
+  return fallback
+}
+
+function fsTypeLabel(fsType: string | undefined): string {
+  const t = fsType?.trim()
+  if (!t) return ''
+  return t.toUpperCase()
+}
+
+function diskSuffixLabel(disk: Disk, mode: DiskSuffixLabelMode, de: boolean): string {
+  switch (mode) {
+    case 'off':
+      return ''
+    case 'cache':
+      return diskTypeLabel(disk.diskType, de)
+    case 'fsType':
+      return fsTypeLabel(disk.fsType)
+    case 'comment':
+      return disk.comment?.trim() ?? ''
+    default:
+      return ''
+  }
 }
 
 /** „Array — Started“ soll ohne redundanten Status nur „Array“ heißen. */
@@ -336,10 +374,18 @@ function Heading({ text }: { text: string }) {
   )
 }
 
-function DiskVolumeRow({ disk, de }: { disk: Disk; de: boolean }) {
+function DiskVolumeRow({
+  disk,
+  de,
+  suffixLabelMode,
+}: {
+  disk: Disk
+  de: boolean
+  suffixLabelMode: DiskSuffixLabelMode
+}) {
   const used = Math.max(0, disk.fsSize - disk.fsFree)
   const p = pct(used, disk.fsSize)
-  const kind = diskTypeLabel(disk.diskType, de)
+  const kind = diskSuffixLabel(disk, suffixLabelMode, de)
   const title = [disk.name, kind, formatDiskStatus(disk.status, de)].filter(Boolean).join(' — ')
   return (
     <div
@@ -420,6 +466,8 @@ function mapDisk(raw: Record<string, unknown>): Disk {
     fsSize: num(raw.fsSize),
     fsFree: num(raw.fsFree),
     diskType: raw.type ? String(raw.type) : undefined,
+    fsType: raw.fsType ? String(raw.fsType) : undefined,
+    comment: raw.comment ? String(raw.comment).trim() : undefined,
   }
 }
 
@@ -557,6 +605,14 @@ function Widget({ config }: PluginWidgetProps) {
   const showPoolsTotal = flag(config, 'showPoolsTotal')
   const showPoolsDisks = flag(config, 'showPoolsDisks')
   const ramMode = parseRamDisplayMode((config as Record<string, unknown>).ramDisplayMode)
+  const arrayLabelMode = parseDiskSuffixLabelMode(
+    (config as Record<string, unknown>).arrayDiskLabelMode,
+    'cache',
+  )
+  const poolLabelMode = parseDiskSuffixLabelMode(
+    (config as Record<string, unknown>).poolDiskLabelMode,
+    'fsType',
+  )
 
   const fetch_ = useCallback(async () => {
     if (!url || !apiKey) {
@@ -703,7 +759,9 @@ function Widget({ config }: PluginWidgetProps) {
           {showArrayDisks &&
             data.array.disks
               ?.filter((d) => d.status !== 'DISK_NP' && d.fsSize > 0)
-              .map((disk) => <DiskVolumeRow key={disk.id} disk={disk} de={de} />)}
+              .map((disk) => (
+                <DiskVolumeRow key={disk.id} disk={disk} de={de} suffixLabelMode={arrayLabelMode} />
+              ))}
         </>
       )}
 
@@ -713,7 +771,10 @@ function Widget({ config }: PluginWidgetProps) {
           {showPoolsTotal && poolAgg.total > 0 && (
             <Row label={de ? 'Gesamt (Cache)' : 'Total (cache)'} value={`${fmtKb(poolAgg.used)} / ${fmtKb(poolAgg.total)}`} bar pct={poolPct} />
           )}
-          {showPoolsDisks && poolDisks.map((disk) => <DiskVolumeRow key={disk.id} disk={disk} de={de} />)}
+          {showPoolsDisks &&
+            poolDisks.map((disk) => (
+              <DiskVolumeRow key={disk.id} disk={disk} de={de} suffixLabelMode={poolLabelMode} />
+            ))}
         </>
       )}
 
@@ -841,6 +902,28 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               on={sub('showArrayDisks')}
               onToggle={() => onChange('showArrayDisks', !sub('showArrayDisks'))}
             />
+            {sub('showArrayDisks') && (
+              <div style={{ marginTop: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  {de ? 'Zusatzlabel (in Klammern)' : 'Suffix label (in parentheses)'}
+                </label>
+                <select
+                  style={{ ...inp, cursor: 'pointer' }}
+                  value={parseDiskSuffixLabelMode((config as Record<string, unknown>).arrayDiskLabelMode, 'cache')}
+                  onChange={(e) => onChange('arrayDiskLabelMode', e.target.value)}
+                >
+                  <option value="off">{de ? 'Aus — nur Diskname' : 'Off — disk name only'}</option>
+                  <option value="cache">{de ? 'Disk-Rolle (Daten/Parity …)' : 'Disk role (data/parity …)'}</option>
+                  <option value="fsType">{de ? 'Dateisystem (fsType)' : 'Filesystem (fsType)'}</option>
+                  <option value="comment">{de ? 'Kommentar (falls gesetzt)' : 'Comment (if set)'}</option>
+                </select>
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '8px 0 0' }}>
+                  {de
+                    ? 'Standard: Disk-Rolle (z. B. disk1 (Daten)). fsType zeigt XFS/ZFS, falls die API es liefert.'
+                    : 'Default: disk role (e.g. disk1 (Data)). fsType shows XFS/ZFS when the API provides it.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -857,6 +940,28 @@ function Settings({ config, onChange }: PluginSettingsProps) {
               onToggle={() => onChange('showPoolsTotal', !sub('showPoolsTotal'))}
             />
             <ToggleRow label={de ? 'Einzelne Cache-Disks' : 'Individual cache disks'} on={sub('showPoolsDisks')} onToggle={() => onChange('showPoolsDisks', !sub('showPoolsDisks'))} />
+            {sub('showPoolsDisks') && (
+              <div style={{ marginTop: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
+                  {de ? 'Zusatzlabel (in Klammern)' : 'Suffix label (in parentheses)'}
+                </label>
+                <select
+                  style={{ ...inp, cursor: 'pointer' }}
+                  value={parseDiskSuffixLabelMode((config as Record<string, unknown>).poolDiskLabelMode, 'fsType')}
+                  onChange={(e) => onChange('poolDiskLabelMode', e.target.value)}
+                >
+                  <option value="off">{de ? 'Aus — nur Poolname' : 'Off — pool name only'}</option>
+                  <option value="fsType">{de ? 'Dateisystem (fsType)' : 'Filesystem (fsType)'}</option>
+                  <option value="cache">{de ? 'Cache-Typ (API type)' : 'Cache type (API type)'}</option>
+                  <option value="comment">{de ? 'Kommentar (falls gesetzt)' : 'Comment (if set)'}</option>
+                </select>
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.45, margin: '8px 0 0' }}>
+                  {de
+                    ? 'z. B. nvme-raid (ZFS). Allocation Profile liefert die GraphQL-API derzeit nicht — fsType ist meist die beste Alternative.'
+                    : 'e.g. nvme-raid (ZFS). Allocation profile is not in the GraphQL API yet — fsType is usually the best alternative.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

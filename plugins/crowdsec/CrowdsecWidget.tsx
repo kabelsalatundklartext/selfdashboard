@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
+import { pluginApiJson } from '@/lib/pluginDev'
 import { reportPluginError } from '@/lib/pluginLog'
 import type { ThemeId } from '@/types'
 import { CrowdsecLogo } from './CrowdsecLogo'
@@ -16,13 +17,13 @@ import {
   LOOKUP_SERVICES,
   type LookupServiceId,
 } from './ipLookup'
+import { alertRangeLabel, nearestDayPreset, nearestMaxAlerts } from './presets'
 import './crowdsec.css'
 
 export type CrowdsecConfig = {
   dbPath: string
   daysBack: number
   refreshSeconds: number
-  statsHours: number
   maxAlerts: number
   dockerUnban: boolean
   crowdsecContainer: string
@@ -34,14 +35,6 @@ export type CrowdsecConfig = {
 
 type SidebarTab = 'overview' | 'bans' | 'countries'
 type LayoutMode = 'phone' | 'tablet' | 'desktop'
-
-const TIME_RANGES = [
-  { days: 1, de: '1 Tag', en: '1 day' },
-  { days: 7, de: '7 Tage', en: '7 days' },
-  { days: 30, de: '30 Tage', en: '30 days' },
-  { days: 90, de: '90 Tage', en: '90 days' },
-  { days: 365, de: '365 Tage', en: '365 days' },
-] as const
 
 function cfgBool(v: unknown, fallback: boolean): boolean {
   if (v === undefined || v === null || v === '') return fallback
@@ -70,10 +63,9 @@ export function parseCrowdsecConfig(raw: Record<string, unknown>): CrowdsecConfi
   }
   return {
     dbPath: cfgStr(raw.dbPath, '/crowdsec-data/crowdsec.db'),
-    daysBack: Math.min(3650, Math.max(1, cfgNum(raw.daysBack, 30))),
+    daysBack: nearestDayPreset(cfgNum(raw.daysBack, 30)),
     refreshSeconds: Math.min(600, Math.max(5, cfgNum(raw.refreshSeconds, 30))),
-    statsHours: Math.min(168, Math.max(1, cfgNum(raw.statsHours, 24))),
-    maxAlerts: Math.min(5000, Math.max(50, cfgNum(raw.maxAlerts, 500))),
+    maxAlerts: nearestMaxAlerts(cfgNum(raw.maxAlerts, 500)),
     dockerUnban: cfgBool(raw.dockerUnban, false),
     crowdsecContainer: cfgStr(raw.crowdsecContainer, 'crowdsec'),
     confirmUnban: cfgBool(raw.confirmUnban, true),
@@ -118,12 +110,6 @@ function feedMatchesSearch(item: CrowdsecFeedItem, q: string): boolean {
   return hay.includes(q)
 }
 
-function nearestRange(days: number): number {
-  const presets = TIME_RANGES.map((t) => t.days)
-  if (presets.some((d) => d === days)) return days
-  return presets.reduce((best, d) => (Math.abs(d - days) < Math.abs(best - days) ? d : best), 30)
-}
-
 type Props = {
   config: Record<string, unknown>
   locale: Locale
@@ -137,7 +123,6 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
   const layoutClass =
     layoutMode === 'phone' ? 'cs-layout-phone' : layoutMode === 'tablet' ? 'cs-layout-tablet' : ''
 
-  const [daysBack, setDaysBack] = useState(() => nearestRange(cfg.daysBack))
   const [data, setData] = useState<CrowdsecDashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -150,10 +135,6 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
   const [unbanBusy, setUnbanBusy] = useState(false)
   const [unbanMsg, setUnbanMsg] = useState<string | null>(null)
 
-  useEffect(() => {
-    setDaysBack(nearestRange(cfg.daysBack))
-  }, [cfg.daysBack])
-
   const lookupServices = useMemo(
     () => LOOKUP_SERVICES.filter((s) => cfg.lookupEnabled[s.id]),
     [cfg.lookupEnabled],
@@ -162,39 +143,31 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
   const fetchData = useCallback(async () => {
     const params = new URLSearchParams({
       dbPath: cfg.dbPath,
-      daysBack: String(daysBack),
-      statsHours: String(cfg.statsHours),
-      maxAlerts: String(cfg.maxAlerts),
+      daysBack: String(cfg.daysBack),
+      maxAlerts: String(Math.min(cfg.maxAlerts, 2000)),
     })
     try {
-      const res = await fetch(`/api/crowdsec?${params}`)
-      const json = await res.json()
-      if (!res.ok) {
-        const code = typeof json.error === 'string' ? json.error : 'crowdsec_error'
-        reportPluginError('crowdsec', code, {
-          category: 'fetch',
-          detail: JSON.stringify(json).slice(0, 500),
-        })
-        setError(code)
-        setData(null)
-        return
-      }
-      setData(json as CrowdsecDashboardData)
+      const json = await pluginApiJson<CrowdsecDashboardData>('crowdsec', `/?${params}`, {
+        timeoutMs: 50_000,
+      })
+      setData(json)
       setError(null)
-    } catch {
-      setError('network_error')
+    } catch (e) {
+      const code = e instanceof Error ? e.message : 'crowdsec_error'
+      reportPluginError('crowdsec', code, { category: 'fetch' })
+      setError(code.startsWith('HTTP ') ? 'network_error' : code)
       setData(null)
     } finally {
       setLoading(false)
     }
-  }, [cfg.dbPath, cfg.statsHours, cfg.maxAlerts, daysBack])
+  }, [cfg.dbPath, cfg.daysBack, cfg.maxAlerts])
 
   useEffect(() => {
     setLoading(true)
     void fetchData()
     const id = window.setInterval(() => void fetchData(), cfg.refreshSeconds * 1000)
     return () => window.clearInterval(id)
-  }, [fetchData, cfg.refreshSeconds])
+  }, [fetchData, cfg.refreshSeconds, cfg.daysBack, cfg.maxAlerts])
 
   const q = search.trim().toLowerCase()
 
@@ -205,21 +178,6 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
   }, [data, tab])
 
   const filteredFeed = useMemo(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q])
-
-  const rangeSelect = (
-    <select
-      className="cs-range-select"
-      value={daysBack}
-      onChange={(e) => setDaysBack(Number(e.target.value))}
-      aria-label={de ? 'Zeitraum' : 'Time range'}
-    >
-      {TIME_RANGES.map((r) => (
-        <option key={r.days} value={r.days}>
-          {de ? r.de : r.en}
-        </option>
-      ))}
-    </select>
-  )
 
   const errLabel = (code: string) => {
     const map: Record<string, string> = de
@@ -252,20 +210,14 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
     setUnbanBusy(true)
     setUnbanMsg(null)
     try {
-      const res = await fetch('/api/crowdsec/decision', {
+      await pluginApiJson('crowdsec', '/decision', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip: item.ip, container: cfg.crowdsecContainer }),
       })
-      const json = await res.json()
-      if (!res.ok) {
-        setUnbanMsg(typeof json.error === 'string' ? json.error : 'delete_failed')
-        return
-      }
       setUnbanPending(null)
       void fetchData()
-    } catch {
-      setUnbanMsg('network_error')
+    } catch (e) {
+      setUnbanMsg(e instanceof Error ? e.message : 'network_error')
     } finally {
       setUnbanBusy(false)
     }
@@ -297,9 +249,11 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
               </span>
               {data && (
                 <>
-                  <span className="cs-nav-stat">{formatInt(data.alertsLast24h, locale)}</span>
+                  <span className="cs-nav-stat">{formatInt(data.alertsInRange, locale)}</span>
                   <span className="cs-nav-sub">
-                    {de ? `Alerts (${cfg.statsHours}h)` : `Alerts (${cfg.statsHours}h)`}
+                    {de
+                      ? `Alerts (${alertRangeLabel(cfg.daysBack, true)})`
+                      : `Alerts (${alertRangeLabel(cfg.daysBack, false)})`}
                   </span>
                 </>
               )}
@@ -332,16 +286,11 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
               {data && (
                 <>
                   <span className="cs-nav-stat">{formatInt(data.countryCount, locale)}</span>
-                  <span className="cs-nav-sub">{de ? 'Länder' : 'Countries'}</span>
+                  <span className="cs-nav-sub">{de ? 'alle in DB' : 'all in DB'}</span>
                 </>
               )}
             </button>
           </nav>
-
-          <section className="cs-range-mobile">
-            <span className="cs-range-label">{de ? 'Zeitraum' : 'Time range'}</span>
-            {rangeSelect}
-          </section>
 
           {data && (cfg.showCountriesList || tab === 'countries') && (
             <section
@@ -364,17 +313,15 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
             </section>
           )}
 
-          <section className="cs-range-wrap">
-            <span className="cs-range-label">{de ? 'Zeitraum' : 'Time range'}</span>
-            {rangeSelect}
-            {data?.geoip && !data.geoip.enabled && (
+          {data?.geoip && !data.geoip.enabled && (
+            <section className="cs-range-wrap">
               <p className="cs-geoip-hint">
                 {de
                   ? 'GeoIP: GeoLite2-*.mmdb fehlt im CrowdSec-Ordner (Länder/Flaggen).'
                   : 'GeoIP: GeoLite2-*.mmdb missing in CrowdSec data folder (countries/flags).'}
               </p>
-            )}
-          </section>
+            </section>
+          )}
         </aside>
 
         <section className="cs-feed-panel">
@@ -429,11 +376,11 @@ export function CrowdsecWidget({ config: raw, locale, layoutMode = 'desktop', th
                       title={
                         item.active_ban
                           ? de
-                            ? 'Zu diesem Alert existiert ein Ban-Eintrag in der CrowdSec-Datenbank (decisions).'
-                            : 'This alert has a linked ban record in the CrowdSec database (decisions).'
+                            ? 'Aktiver Ban wie cscli: decisions.until liegt in der Zukunft (IP oder Alert verknüpft).'
+                            : 'Active ban (cscli-aligned): decisions.until is in the future (IP or linked alert).'
                           : de
-                            ? 'Nur Alert — kein Ban zu diesem Alert (abgelaufen, nie gesperrt, oder anderer Vorfall). Das ist kein manuelles Entsperren in SelfDashboard.'
-                            : 'Alert only — no ban linked to this alert (expired, never banned, or a separate incident). Not a manual unban in SelfDashboard.'
+                            ? 'Nur Alert — kein aktiver Ban (until abgelaufen/leer oder cscli listet die IP nicht). CrowdSec kann später erneut sperren.'
+                            : 'Alert only — no active ban (until past/empty or cscli shows none). CrowdSec may ban later.'
                       }
                     >
                       {item.active_ban ? (de ? 'Ban aktiv' : 'Ban active') : de ? 'Nur Alert' : 'Alert only'}

@@ -1,0 +1,10 @@
+{
+  "id": "fritz-energy",
+  "name": "FRITZ! Steckdose Energie",
+  "description": "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
+  "version": "1.2.0",
+  "author": "SelfDashboard",
+  "category": "network",
+  "icon": "⚡",
+  "iconUrl": "/plugin-logos/fritzbox.svg"
+}

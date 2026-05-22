@@ -1,16 +1,29 @@
 'use client'
 
 import { useEffect } from 'react'
-import { loadBuiltinPlugins } from '@/lib/pluginLoader'
+import { bootstrapVolumePlugins } from '@/lib/pluginCustomClient'
+import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
+import { registerCorePluginSettingsPanels } from '@/lib/registerCorePluginSettings'
 
-let loaded = false
+let loadGeneration = 0
 
 export function PluginBootstrap() {
   useEffect(() => {
-    if (!loaded) {
-      loadBuiltinPlugins()
-      loaded = true
-    }
+    const gen = ++loadGeneration
+    void (async () => {
+      installPluginExternalBridge()
+      registerCorePluginSettingsPanels()
+      try {
+        await bootstrapVolumePlugins()
+        if (gen === loadGeneration) {
+          window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
+        }
+      } catch {
+        if (gen === loadGeneration) {
+          window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))
+        }
+      }
+    })()
   }, [])
 
   return null

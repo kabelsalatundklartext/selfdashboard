@@ -1,0 +1,9 @@
+{
+  "id": "scratchpad",
+  "name": "Notizzettel",
+  "description": "Kurzer Merkzettel — direkt im Widget bearbeitbar, Speichern mit Sicherheitsabfrage.",
+  "version": "1.1.1",
+  "author": "Du",
+  "category": "utility",
+  "icon": "📝"
+}

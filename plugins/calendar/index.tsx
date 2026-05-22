@@ -38,6 +38,11 @@ import {
 } from './api-client'
 import { localeToBcp47, t as tr, type Locale } from './i18n'
 
+/** Stacking: full calendar shell < day/event dialogs < account dialog (opened from accounts tab). */
+const Z_CALENDAR_SHELL = 25000
+const Z_CALENDAR_OVERLAY = 26000
+const Z_CALENDAR_DIALOG = 28000
+
 // ---------------------------------------------------------------------------
 // Plugin meta — shown in the Plugin Store
 // ---------------------------------------------------------------------------
@@ -45,8 +50,9 @@ import { localeToBcp47, t as tr, type Locale } from './i18n'
 export const meta: PluginMeta = {
   id: 'calendar',
   name: 'Kalender',
-  description: 'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …',
-  version: '1.2.2',
+  description:
+    'CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo … API: /api/plugins/calendar.',
+  version: '1.3.5',
   author: 'SelfDashboard Community',
   category: 'productivity',
   icon: '📅',
@@ -105,11 +111,44 @@ function startOfLocalDay(d: Date): Date {
   return x
 }
 
+/** Full-screen overlay (no portal). Use inside an already-portaled modal shell. */
+function ModalOverlay({ zIndex, onBackdropClick, children }: {
+  zIndex: number
+  onBackdropClick?: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      role="presentation"
+      onClick={e => { if (onBackdropClick && e.target === e.currentTarget) onBackdropClick() }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+        boxSizing: 'border-box',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function ModalPortal({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false)
+  const [mounted, setMounted] = useState(() => typeof document !== 'undefined')
   useEffect(() => { setMounted(true) }, [])
-  if (!mounted || typeof document === 'undefined') return null
-  return createPortal(children, document.body)
+  const fallback = (
+    <div style={{ position: 'fixed', inset: 0, zIndex: Z_CALENDAR_DIALOG, pointerEvents: 'none' }}>
+      <div style={{ pointerEvents: 'auto', width: '100%', height: '100%' }}>{children}</div>
+    </div>
+  )
+  if (!mounted || typeof document === 'undefined') return fallback
+  try {
+    if (typeof createPortal === 'function') {
+      return createPortal(children, document.body)
+    }
+  } catch {
+    /* volume widget without ReactDOM bridge — inline fallback */
+  }
+  return fallback
 }
 
 function weekdayShortLabels(locale: Locale): string[] {
@@ -250,10 +289,8 @@ function Widget({ config }: PluginWidgetProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const writableCalendars = useMemo(
-    () => calendars.filter(c => !c.readOnly && isCalendarVisible(c)),
-    [calendars],
-  )
+  /** Any non-readonly calendar — visibility filter is for display only, not for creating events. */
+  const writableCalendars = useMemo(() => calendars.filter(c => !c.readOnly), [calendars])
   const visibleCalendarIds = useMemo(
     () => new Set(calendars.filter(isCalendarVisible).map(c => c.id)),
     [calendars],
@@ -489,11 +526,12 @@ function Widget({ config }: PluginWidgetProps) {
             <IconButton title={t('viewCompact')} active={tileView === 'compact'} onClick={() => setTileViewPersist('compact')}>
               <List size={14} />
             </IconButton>
-            {writableCalendars.length > 0 && (
-              <IconButton title={t('addEvent')} onClick={openNewEvent}>
-                <Plus size={14} />
-              </IconButton>
-            )}
+            <IconButton
+              title={writableCalendars.length > 0 ? t('addEvent') : t('setupCalendarFirst')}
+              onClick={openNewEvent}
+            >
+              <Plus size={14} />
+            </IconButton>
             <IconButton title={t('monthView')} onClick={openMonthModal}>{ICONS.calendar}</IconButton>
             <IconButton title={t('sync')} onClick={triggerSyncAll} busy={status === 'syncing'}>{ICONS.sync}</IconButton>
             <IconButton title={t('accounts')} onClick={() => { setModalInitialView('accounts'); setModalOpen(true) }}>{ICONS.cog}</IconButton>
@@ -586,7 +624,7 @@ function Widget({ config }: PluginWidgetProps) {
               locale={locale}
               day={selectedDay}
               events={selectedDayEvents}
-              canAdd={writableCalendars.length > 0}
+              canAdd
               onAdd={openNewEvent}
               onClickEvent={openEventFromMonth}
               onOpenDayPopup={() => openDayPopup(selectedDay)}
@@ -657,7 +695,7 @@ function Widget({ config }: PluginWidgetProps) {
           locale={locale}
           day={dayPopup}
           events={monthEventsByDay[dateKeyLocal(dayPopup)] ?? []}
-          canAdd={writableCalendars.length > 0}
+          canAdd
           onClose={() => setDayPopup(null)}
           onAdd={() => {
             setDayPopup(null)
@@ -776,6 +814,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
   >(null)
   const [loading, setLoading] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => startOfLocalDay(new Date()))
+  const [dayPopup, setDayPopup] = useState<Date | null>(null)
 
   const range = useMemo(() => {
     if (view === 'agenda') {
@@ -828,8 +867,8 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
 
   const selectedDayEvents = eventsByDay[dateKeyLocal(selectedDay)] ?? []
 
-  const writableCalendars = calendars.filter(c => !c.readOnly && isCalendarVisible(c))
-  const allWritableCalendars = calendars.filter(c => !c.readOnly)
+  const writableCalendars = calendars.filter(c => !c.readOnly)
+  const allWritableCalendars = writableCalendars
 
   // ----- title -----
   const title = view === 'agenda'
@@ -838,14 +877,23 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
     : cursor.toLocaleDateString(localeToBcp47(locale), { month: 'long', year: 'numeric' })
 
   const openNewOnDay = (day: Date) => {
-    if (!writableCalendars[0]) return
+    const pick = pickDefaultWritableCalendar(writableCalendars)
+    if (!pick) {
+      setView('accounts')
+      return
+    }
     setEventDialog({
       event: {
-        calendarId: writableCalendars[0].id,
+        calendarId: pick.id,
         allDay: false,
         dtstart: startOfLocalDay(day).toISOString(),
       },
     })
+  }
+
+  const openDayPopup = (day: Date) => {
+    setSelectedDay(startOfLocalDay(day))
+    setDayPopup(startOfLocalDay(day))
   }
 
   return (
@@ -854,7 +902,7 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(4px)', zIndex: 20000,
+        backdropFilter: 'blur(4px)', zIndex: Z_CALENDAR_SHELL,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '16px', boxSizing: 'border-box',
       }}
@@ -892,8 +940,20 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
             <ModalBtn onClick={() => setView('agenda')} active={view === 'agenda'}>{t('agenda')}</ModalBtn>
             <ModalBtn onClick={() => setView('accounts')} active={view === 'accounts'}>{t('accounts')}</ModalBtn>
           </div>
-          {view !== 'accounts' && writableCalendars.length > 0 && (
-            <ModalBtn primary onClick={() => setEventDialog({ event: { calendarId: writableCalendars[0].id, allDay: true, dtstart: new Date().toISOString() } })}>
+          {view !== 'accounts' && (
+            <ModalBtn
+              primary
+              onClick={() => {
+                const pick = pickDefaultWritableCalendar(writableCalendars)
+                if (!pick) {
+                  setView('accounts')
+                  return
+                }
+                setEventDialog({
+                  event: { calendarId: pick.id, allDay: true, dtstart: new Date().toISOString() },
+                })
+              }}
+            >
               {t('newEvent')}
             </ModalBtn>
           )}
@@ -972,14 +1032,14 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
                   selectedDay={selectedDay}
                   eventsByDay={eventsByDay}
                   onSelectDay={day => setSelectedDay(startOfLocalDay(day))}
-                  onClickDay={day => setSelectedDay(startOfLocalDay(day))}
+                  onClickDay={openDayPopup}
                   onClickEvent={ev => setEventDialog({ event: ev })}
                 />
                 <DayEventsPanel
                   locale={locale}
                   day={selectedDay}
                   events={selectedDayEvents}
-                  canAdd={writableCalendars.length > 0}
+                  canAdd
                   onAdd={() => openNewOnDay(selectedDay)}
                   onClickEvent={ev => setEventDialog({ event: ev })}
                 />
@@ -1024,6 +1084,24 @@ function CalendarModal({ locale, onClose, initialView = 'month' }: {
           onSaved={() => { setAccountDialog(null); refresh() }}
         />
       )}
+      {dayPopup && (
+        <DayEventsPopup
+          stacked
+          locale={locale}
+          day={dayPopup}
+          events={eventsByDay[dateKeyLocal(dayPopup)] ?? []}
+          canAdd
+          onClose={() => setDayPopup(null)}
+          onAdd={() => {
+            setDayPopup(null)
+            openNewOnDay(dayPopup)
+          }}
+          onClickEvent={ev => {
+            setDayPopup(null)
+            setEventDialog({ event: ev })
+          }}
+        />
+      )}
     </div>
     </ModalPortal>
   )
@@ -1062,7 +1140,7 @@ function CalendarFilterBar({ accounts, calendars, onToggle, t }: {
   )
 }
 
-function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEvent }: {
+function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEvent, stacked }: {
   locale: Locale
   day: Date
   events: EventView[]
@@ -1070,22 +1148,17 @@ function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEv
   onClose: () => void
   onAdd: () => void
   onClickEvent: (ev: EventView) => void
+  stacked?: boolean
 }) {
   const t = (k: string) => tr(k, locale)
   const sorted = useMemo(
     () => [...events].sort((a, b) => a.dtstart.localeCompare(b.dtstart)),
     [events],
   )
-  return (
-    <ModalPortal>
-      <div
-        onClick={e => { if (e.target === e.currentTarget) onClose() }}
-        style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-        }}
-      >
-        <div style={{
+  const panel = (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
           background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: '8px', width: 'min(420px, 92vw)', maxHeight: '80vh',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -1140,7 +1213,14 @@ function DayEventsPopup({ locale, day, events, canAdd, onClose, onAdd, onClickEv
             {canAdd && <ModalBtn primary onClick={onAdd}>{t('newEvent')}</ModalBtn>}
           </div>
         </div>
-      </div>
+  )
+
+  if (stacked) {
+    return <ModalOverlay zIndex={Z_CALENDAR_OVERLAY} onBackdropClick={onClose}>{panel}</ModalOverlay>
+  }
+  return (
+    <ModalPortal>
+      <ModalOverlay zIndex={Z_CALENDAR_OVERLAY} onBackdropClick={onClose}>{panel}</ModalOverlay>
     </ModalPortal>
   )
 }
@@ -1281,6 +1361,7 @@ function ModalBtn({ children, onClick, active, primary, ghost, disabled }: {
   const color = primary ? '#fff' : active ? 'var(--accent)' : 'var(--text)'
   return (
     <button
+      type="button"
       onClick={() => !disabled && onClick && onClick()}
       disabled={disabled}
       style={{
@@ -1510,8 +1591,8 @@ function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onEd
   return (
     <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-        <ModalBtn primary onClick={onAddCaldav}>{t('addCaldav')}</ModalBtn>
-        <ModalBtn primary onClick={onAddIcs}>{t('addIcs')}</ModalBtn>
+        <ModalBtn primary onClick={() => onAddCaldav()}>{t('addCaldav')}</ModalBtn>
+        <ModalBtn primary onClick={() => onAddIcs()}>{t('addIcs')}</ModalBtn>
       </div>
 
       {accounts.length === 0 && (
@@ -1609,12 +1690,14 @@ function AccountsView({ accounts, calendars, locale, onAddCaldav, onAddIcs, onEd
 // Event dialog
 // ===========================================================================
 
-function EventDialog({ event, calendars, locale, onClose, onSaved }: {
+function EventDialog({ event, calendars, locale, onClose, onSaved, stacked }: {
   event: Partial<EventView> | null
   calendars: CalendarView[]
   locale: 'de' | 'en'
   onClose: () => void
   onSaved: (msg?: string) => void
+  /** True when opened inside CalendarModal (skip nested portal). */
+  stacked?: boolean
 }) {
   const t = (k: string) => tr(k, locale)
   const isNew = !event?.id
@@ -1700,16 +1783,10 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
     try { await api.resolveConflict(event.id, side); onSaved() } catch (e: any) { setError(e?.message ?? String(e)) }
   }
 
-  return (
-    <ModalPortal>
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-      }}
-    >
-      <div style={{
+  const panel = (
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: '8px', width: 'min(520px, 92vw)', maxHeight: '90vh', overflowY: 'auto',
         boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
@@ -1810,7 +1887,14 @@ function EventDialog({ event, calendars, locale, onClose, onSaved }: {
           )}
         </div>
       </div>
-    </div>
+  )
+
+  if (stacked) {
+    return <ModalOverlay zIndex={Z_CALENDAR_DIALOG} onBackdropClick={onClose}>{panel}</ModalOverlay>
+  }
+  return (
+    <ModalPortal>
+      <ModalOverlay zIndex={Z_CALENDAR_DIALOG} onBackdropClick={onClose}>{panel}</ModalOverlay>
     </ModalPortal>
   )
 }
@@ -1835,11 +1919,12 @@ type AccountDialogTarget =
   | { mode: 'create'; provider: 'caldav' | 'ics' }
   | { mode: 'edit'; account: AccountView }
 
-function AccountDialog({ target, locale, onClose, onSaved }: {
+function AccountDialog({ target, locale, onClose, onSaved, stacked }: {
   target: AccountDialogTarget
   locale: 'de' | 'en'
   onClose: () => void
   onSaved: () => void
+  stacked?: boolean
 }) {
   const t = (k: string) => tr(k, locale)
   const isEdit = target.mode === 'edit'
@@ -1900,16 +1985,10 @@ function AccountDialog({ target, locale, onClose, onSaved }: {
     }
   }
 
-  return (
-    <ModalPortal>
-    <div
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 20001,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-      }}
-    >
-      <div style={{
+  const panel = (
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: '8px', width: 'min(480px, 92vw)', maxHeight: '90vh', overflowY: 'auto',
         boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
@@ -1985,7 +2064,14 @@ function AccountDialog({ target, locale, onClose, onSaved }: {
           <ModalBtn primary onClick={save}>{saving ? '…' : (isEdit ? t('save') : t('add'))}</ModalBtn>
         </div>
       </div>
-    </div>
+  )
+
+  if (stacked) {
+    return <ModalOverlay zIndex={Z_CALENDAR_DIALOG} onBackdropClick={onClose}>{panel}</ModalOverlay>
+  }
+  return (
+    <ModalPortal>
+      <ModalOverlay zIndex={Z_CALENDAR_DIALOG} onBackdropClick={onClose}>{panel}</ModalOverlay>
     </ModalPortal>
   )
 }

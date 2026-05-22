@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * Copy this folder to plugins/<your-id>/ and adjust meta.id.
- * Register in src/lib/pluginLoader.ts — see docs/PLUGIN_DEV.md
+ * Vorlage: nach plugins/<deine-id>/ kopieren, plugin.json anpassen.
+ * Veröffentlichen: cd selfdashboard && npm run publish:plugin-pack
+ * Doku: selfdashboard/docs/PLUGIN_DEV.md · Architektur: docs/PLUGIN_ARCH_BETA.md
  */
 
 import { useCallback, useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginWidgetProps } from '@/types'
+import { registerPlugin } from '@/lib/pluginRegistry'
 import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
 
 export const meta: PluginMeta = {
@@ -20,14 +22,12 @@ export const meta: PluginMeta = {
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
 }
 
-function Widget({ instanceId, config }: PluginWidgetProps) {
+function Widget({ config }: PluginWidgetProps) {
   const [text, setText] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      // Example: once you add src/app/api/myplugin/route.ts
-      // const data = await pluginApiJson<{ ok: boolean }>('myplugin', '/')
-      // setText(data.ok ? 'OK' : 'Error')
+      // Beispiel mit Server-Route: await pluginApiJson('myplugin', '/status')
       setText((config.label as string) || 'Hello')
     } catch (e) {
       reportPluginCatch('myplugin', e, 'load')
@@ -52,10 +52,10 @@ function Widget({ instanceId, config }: PluginWidgetProps) {
       }}
     >
       {text ?? '…'}
-
-
-</div>
+    </div>
   )
 }
 
 export const component: PluginComponent = { Widget }
+
+registerPlugin(meta, component, { replace: true })

@@ -31,6 +31,14 @@ export type DashboardStatePersisted = {
   navbarSearchCustomProviders: NavbarCustomSearchProvider[]
   kioskModeEnabled: boolean
   kioskModeIdleSeconds: number
+  /** data: URL or https — Navbar-Hintergrund */
+  navbarBackgroundImage: string
+  /** 0–80: Abdunkeln über dem Bild für lesbare Icons/Text */
+  navbarBackgroundOverlay: number
+  dashboardBackgroundMode: 'off' | 'single' | 'dual'
+  dashboardBackgroundImage: string
+  dashboardBackgroundImage2: string
+  dashboardBackgroundOverlay: number
 }
 
 const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
@@ -160,7 +168,49 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
     if (typeof data.kioskModeIdleSeconds !== 'number' || !Number.isFinite(data.kioskModeIdleSeconds)) return false
     if (data.kioskModeIdleSeconds < 3 || data.kioskModeIdleSeconds > 60) return false
   }
+  if (data.navbarBackgroundImage !== undefined && typeof data.navbarBackgroundImage !== 'string') return false
+  if (data.navbarBackgroundImage && data.navbarBackgroundImage.length > 4_000_000) return false
+  if (data.navbarBackgroundOverlay !== undefined) {
+    if (typeof data.navbarBackgroundOverlay !== 'number' || !Number.isFinite(data.navbarBackgroundOverlay)) return false
+    if (data.navbarBackgroundOverlay < 0 || data.navbarBackgroundOverlay > 80) return false
+  }
+  if (data.dashboardBackgroundMode !== undefined) {
+    const m = data.dashboardBackgroundMode
+    if (m !== 'off' && m !== 'single' && m !== 'dual') return false
+  }
+  if (data.dashboardBackgroundImage !== undefined && typeof data.dashboardBackgroundImage !== 'string') return false
+  if (data.dashboardBackgroundImage && data.dashboardBackgroundImage.length > 5_000_000) return false
+  if (data.dashboardBackgroundImage2 !== undefined && typeof data.dashboardBackgroundImage2 !== 'string') return false
+  if (data.dashboardBackgroundImage2 && data.dashboardBackgroundImage2.length > 5_000_000) return false
+  if (data.dashboardBackgroundOverlay !== undefined) {
+    if (typeof data.dashboardBackgroundOverlay !== 'number' || !Number.isFinite(data.dashboardBackgroundOverlay)) return false
+    if (data.dashboardBackgroundOverlay < 0 || data.dashboardBackgroundOverlay > 80) return false
+  }
   return true
+}
+
+/** Keep phone/tablet layout from local cache when server `dashboard.json` predates responsive fields. */
+export function mergeServerDashboardState(
+  server: DashboardStatePersisted,
+  local: DashboardStatePersisted,
+): DashboardStatePersisted {
+  const dashboards = server.dashboards.map((sd) => {
+    const ld = local.dashboards.find((d) => d.id === sd.id)
+    if (!ld) return sd
+    return {
+      ...sd,
+      plugins: sd.plugins.map((sp) => {
+        const lp = ld.plugins.find((p) => p.instanceId === sp.instanceId)
+        if (!lp) return sp
+        return {
+          ...sp,
+          layoutPhone: sp.layoutPhone ?? lp.layoutPhone,
+          layoutTablet: sp.layoutTablet ?? lp.layoutTablet,
+        }
+      }),
+    }
+  })
+  return { ...server, dashboards }
 }
 
 export function pickPersistedDashboardState(s: DashboardStatePersisted): DashboardStatePersisted {
@@ -185,5 +235,20 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
       typeof s.kioskModeIdleSeconds === 'number' && Number.isFinite(s.kioskModeIdleSeconds)
         ? Math.min(60, Math.max(3, Math.round(s.kioskModeIdleSeconds)))
         : 5,
+    navbarBackgroundImage: typeof s.navbarBackgroundImage === 'string' ? s.navbarBackgroundImage : '',
+    navbarBackgroundOverlay:
+      typeof s.navbarBackgroundOverlay === 'number' && Number.isFinite(s.navbarBackgroundOverlay)
+        ? Math.min(80, Math.max(0, Math.round(s.navbarBackgroundOverlay)))
+        : 45,
+    dashboardBackgroundMode:
+      s.dashboardBackgroundMode === 'single' || s.dashboardBackgroundMode === 'dual'
+        ? s.dashboardBackgroundMode
+        : 'off',
+    dashboardBackgroundImage: typeof s.dashboardBackgroundImage === 'string' ? s.dashboardBackgroundImage : '',
+    dashboardBackgroundImage2: typeof s.dashboardBackgroundImage2 === 'string' ? s.dashboardBackgroundImage2 : '',
+    dashboardBackgroundOverlay:
+      typeof s.dashboardBackgroundOverlay === 'number' && Number.isFinite(s.dashboardBackgroundOverlay)
+        ? Math.min(80, Math.max(0, Math.round(s.dashboardBackgroundOverlay)))
+        : 50,
   }
 }

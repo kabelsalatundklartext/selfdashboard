@@ -3,6 +3,7 @@
  * Kept as a separate file so the giant index.tsx can stay readable.
  */
 
+import { pluginApiJson } from '@/lib/pluginDev'
 import { reportPluginError } from '@/lib/pluginLog'
 
 export interface AccountView {
@@ -69,23 +70,13 @@ export interface SummaryView {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch('/api/calendar' + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`
-    let detail: string | undefined
-    try {
-      const j = (await res.json()) as { error?: string; message?: string; syncError?: string }
-      msg = j.error ?? j.message ?? j.syncError ?? msg
-      detail = JSON.stringify(j).slice(0, 500)
-    } catch { /* ignore */ }
-    reportPluginError('calendar', msg, { category: `api${path.split('?')[0]}`, detail })
-    throw new Error(msg)
+  try {
+    return await pluginApiJson<T>('calendar', path, init)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    reportPluginError('calendar', msg, { category: `api${path.split('?')[0]}` })
+    throw e
   }
-  if (res.status === 204) return undefined as T
-  return res.json()
 }
 
 export const api = {

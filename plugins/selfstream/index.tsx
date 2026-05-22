@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from '@/lib/selfstreamTypes'
-import { reportPluginCatch } from '@/lib/pluginLog'
+import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
 
 export const meta: PluginMeta = {
   id: 'selfstream',
   name: 'Selfstream',
   description:
-    'Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt.',
-  version: '1.0.3',
+    'Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt. API: /api/plugins/selfstream.',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
@@ -100,20 +100,11 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     try {
-      const res = await fetch('/api/selfstream', {
+      const j = await pluginApiJson<SelfstreamDashboardPayload>('selfstream', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({ url: base, password }),
       })
-      const j = (await res.json()) as SelfstreamDashboardPayload & { error?: string; detail?: string }
-      if (!res.ok) {
-        const code = j.error || 'selfstream_error'
-        const detail = j.detail ? ` — ${j.detail}` : ''
-        setError(`${code}${detail}`)
-        setData(null)
-        return
-      }
       setData(j)
       setError(null)
     } catch (e: unknown) {

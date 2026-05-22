@@ -2,10 +2,10 @@ name: Build & Push Docker Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
     tags: ['v*']
   pull_request:
-    branches: [main]
+    branches: [main, beta]
 
 env:
   REGISTRY: ghcr.io
@@ -23,11 +23,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Prepare plugin sources for image build
+        run: sh scripts/ci-prepare-plugins.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,14 +61,15 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/beta' }}
 
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

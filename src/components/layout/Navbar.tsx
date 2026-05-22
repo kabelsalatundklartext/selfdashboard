@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
 import { SettingsModal } from '@/components/ui/SettingsModal'
 import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
-import { NavbarMail } from '@/components/layout/NavbarMail'
+import { getNavbarSlots, getNavbarSlotsVersion, subscribeNavbarSlots } from '@/lib/pluginNavbarRegistry'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 import { t } from '@/lib/i18n'
 import { anySearchProviderEnabled } from '@/lib/searchProviders'
@@ -42,11 +42,34 @@ export function Navbar() {
     activeDashboard, setTheme, showDashboardTabs, navbarStyle,
     dashboardZoom, setDashboardZoom,
     navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders, navbarSearchCustomProviders,
+    navbarBackgroundImage, navbarBackgroundOverlay,
   } = useDashboardStore()
   const dash = activeDashboard()
   const isLight = dash.theme === 'light'
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [storeOpen, setStoreOpen] = useState(false)
+  const [pluginUpdatesPending, setPluginUpdatesPending] = useState(0)
+
+  useEffect(() => {
+    const refreshUpdates = async () => {
+      try {
+        const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
+        const j = (await res.json()) as { updatesCount?: number }
+        setPluginUpdatesPending(typeof j.updatesCount === 'number' ? j.updatesCount : 0)
+      } catch {
+        setPluginUpdatesPending(0)
+      }
+    }
+    const onOpenStore = () => setStoreOpen(true)
+    void refreshUpdates()
+    const onCatalog = () => void refreshUpdates()
+    window.addEventListener('sd-plugin-catalog-changed', onCatalog)
+    window.addEventListener('sd-open-plugin-store', onOpenStore)
+    return () => {
+      window.removeEventListener('sd-plugin-catalog-changed', onCatalog)
+      window.removeEventListener('sd-open-plugin-store', onOpenStore)
+    }
+  }, [])
 
   const showIcon = navbarStyle !== 'text-only'
   const showText = navbarStyle !== 'icon-only'
@@ -68,12 +91,28 @@ export function Navbar() {
   const searchFullWidthRow = showNavbarSearch && stackSearchBar
   const { compact: navbarCompact, phone: navbarPhone } = useNavbarCompact()
 
+  useSyncExternalStore(subscribeNavbarSlots, getNavbarSlotsVersion, () => 0)
+  const navbarSlots = getNavbarSlots()
+
+  const navBg = navbarBackgroundImage.trim()
+  const overlay = Math.min(80, Math.max(0, Math.round(navbarBackgroundOverlay)))
+  const navSurfaceStyle: CSSProperties = navBg
+    ? {
+        backgroundImage: `linear-gradient(color-mix(in srgb, var(--surface) ${overlay}%, transparent), color-mix(in srgb, var(--surface) ${Math.min(90, overlay + 12)}%, transparent)), url(${navBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : { background: 'var(--surface)' }
+
   return (
     <>
-      <nav style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-        className={`flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}>
+      <nav
+        style={{ ...navSurfaceStyle, borderBottom: '1px solid var(--border)', position: 'relative' }}
+        className={`flex flex-col min-w-0 navbar-root${navbarPhone ? ' navbar-root--phone' : navbarCompact ? ' navbar-root--compact' : ''}`}
+      >
 
-        <div className="flex flex-wrap items-center gap-3 min-w-0 w-full">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 w-full" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0, minWidth: 0 }}>
         <div className="flex items-center gap-2 flex-shrink-0">
           {showIcon && (
@@ -133,7 +172,10 @@ export function Navbar() {
 
         <div className="navbar-actions" style={{ display: 'flex', alignItems: 'center', gap: navbarPhone ? '4px' : '8px', flexShrink: 0 }}>
           {searchInTopRow && navbarSearchPosition === 'right' && <NavbarSearch locale={locale} editMode={editMode} />}
-          <NavbarMail locale={locale} />
+          {navbarSlots.map(({ id, component: Slot }) => {
+            const C = Slot
+            return <C key={id} locale={locale} />
+          })}
           <div className="navbar-zoom" style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'var(--surface-2)', borderRadius: '8px', padding: '3px', border: '1px solid var(--border)' }}>
             <button
               onClick={() => canZoomOut && setDashboardZoom(z - zoomStep)}
@@ -159,9 +201,31 @@ export function Navbar() {
               {editMode ? <><Check size={14} />{!navbarPhone && (locale === 'de' ? 'Fertig' : 'Done')}</> : <Pencil size={navbarPhone ? 16 : 15} />}
             </button>
             {editMode && (
-              <button className="btn-accent" style={{ padding: '7px 10px' }}
-                onClick={() => setStoreOpen(true)} title={t(locale, 'addPlugin')}>
+              <button
+                className="btn-accent"
+                style={{ padding: '7px 10px', position: 'relative' }}
+                onClick={() => setStoreOpen(true)}
+                title={
+                  pluginUpdatesPending > 0
+                    ? t(locale, 'pluginUpdatesBadgeTitle')
+                    : t(locale, 'addPlugin')
+                }
+              >
                 <Plus size={17} />
+                {pluginUpdatesPending > 0 ? (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#f59e0b',
+                      border: '2px solid var(--surface)',
+                    }}
+                  />
+                ) : null}
               </button>
             )}
             <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => setSettingsOpen(true)}>
@@ -178,8 +242,8 @@ export function Navbar() {
         ) : null}
       </nav>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <PluginStoreModal open={storeOpen} onClose={() => setStoreOpen(false)} />
+      {settingsOpen ? <SettingsModal open onClose={() => setSettingsOpen(false)} /> : null}
+      {storeOpen ? <PluginStoreModal open onClose={() => setStoreOpen(false)} /> : null}
     </>
   )
 }

@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefO
 import { Bolt, Calendar, CalendarDays, ChevronLeft, ChevronRight, Zap, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { pluginApiJson } from '@/lib/pluginDev'
 import { reportPluginCatch } from '@/lib/pluginLog'
 
 export const meta: PluginMeta = {
   id: 'fritz-energy',
   name: 'FRITZ! Steckdose Energie',
-  description: 'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).',
-  version: '1.1.8',
+  description:
+    'Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '⚡',
@@ -438,15 +440,12 @@ function Widget({ config }: PluginWidgetProps) {
     }
     setErr(null)
     try {
-      const res = await fetch('/api/fritz-energy', {
+      const j = await pluginApiJson<EnergyPayload>('fritz-energy', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ baseUrl, username, password, ain, insecureTls }),
       })
-      const j = (await res.json()) as EnergyPayload
-      if (!res.ok || !j.ok) {
-        const code = j.error ?? `http_${res.status}`
-        setErr(code)
+      if (!j.ok) {
+        setErr(j.error ?? 'fetch_failed')
         setData(null)
         return
       }
@@ -621,9 +620,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     setImporting(true)
     setImportMsg(null)
     try {
-      const res = await fetch('/api/fritz-energy', {
+      const j = await pluginApiJson<{ ok?: boolean; error?: string; historyImported?: boolean }>('fritz-energy', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'importHistory',
           importHistory: true,
@@ -634,8 +632,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           insecureTls: r.insecureTls === true,
         }),
       })
-      const j = (await res.json()) as { ok?: boolean; error?: string; historyImported?: boolean }
-      if (!res.ok || !j.ok) {
+      if (!j.ok) {
         setImportMsg(fritzEnergyError(j.error ?? 'import_failed', de))
         return
       }
@@ -659,9 +656,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     setListing(true)
     setListErr(null)
     try {
-      const res = await fetch('/api/fritz-energy', {
+      const j = await pluginApiJson<{
+        ok?: boolean
+        devices?: { ain: string; name: string }[]
+        error?: string
+      }>('fritz-energy', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'listDevices',
           baseUrl: str(r.baseUrl) || 'http://192.168.1.1',
@@ -670,8 +670,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           insecureTls: r.insecureTls === true,
         }),
       })
-      const j = (await res.json()) as { ok?: boolean; devices?: { ain: string; name: string }[]; error?: string }
-      if (!res.ok || !j.ok) {
+      if (!j.ok) {
         setListErr(fritzEnergyError(j.error ?? 'list_failed', de))
         setDevices([])
         return

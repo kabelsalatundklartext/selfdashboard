@@ -25,11 +25,28 @@ function wrapWidgetWithLogging(meta: PluginMeta, Widget: ComponentType<PluginWid
   return SafeWidget
 }
 
+let registryVersion = 0
+const registryListeners = new Set<() => void>()
+
+function notifyPluginRegistry() {
+  registryVersion += 1
+  for (const fn of registryListeners) fn()
+}
+
+export function subscribePluginRegistry(onStoreChange: () => void): () => void {
+  registryListeners.add(onStoreChange)
+  return () => registryListeners.delete(onStoreChange)
+}
+
+export function getPluginRegistryVersion(): number {
+  return registryVersion
+}
+
 class PluginRegistry {
   private plugins: Map<string, RegisteredPlugin> = new Map()
 
-  register(meta: PluginMeta, component: PluginComponent) {
-    if (this.plugins.has(meta.id)) {
+  register(meta: PluginMeta, component: PluginComponent, opts?: { replace?: boolean }) {
+    if (this.plugins.has(meta.id) && !opts?.replace) {
       console.warn(`[SelfDashboard] Plugin "${meta.id}" is already registered. Skipping.`)
       return
     }
@@ -41,6 +58,7 @@ class PluginRegistry {
     console.info(
       `[SelfDashboard] Plugin registered: ${meta.name} v${meta.version} (id=${meta.id}, errors → Protokoll)`,
     )
+    notifyPluginRegistry()
   }
 
   get(id: string): RegisteredPlugin | undefined {
@@ -58,12 +76,20 @@ class PluginRegistry {
   isRegistered(id: string): boolean {
     return this.plugins.has(id)
   }
+
+  unregister(id: string): void {
+    if (this.plugins.delete(id)) notifyPluginRegistry()
+  }
 }
 
 // Singleton – one registry for the whole app
 export const pluginRegistry = new PluginRegistry()
 
 /** Register a plugin — Widget is wrapped for automatic error logging (see docs/LOGGING.md). */
-export const registerPlugin = (meta: PluginMeta, component: PluginComponent) => {
-  pluginRegistry.register(meta, component)
+export const registerPlugin = (
+  meta: PluginMeta,
+  component: PluginComponent,
+  opts?: { replace?: boolean },
+) => {
+  pluginRegistry.register(meta, component, opts)
 }

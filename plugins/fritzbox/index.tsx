@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
+import { pluginApiJson } from '@/lib/pluginDev'
 import { usePluginLocale } from '@/lib/pluginLocale'
 
 /** Plot-Höhe: 0 = Standardhöhe; 1–FB_PLOT_H_MAX = exakte Pixelhöhe. */
@@ -20,8 +21,8 @@ export const meta: PluginMeta = {
   id: 'fritzbox',
   name: 'Fritzbox Internet Verlauf',
   description:
-    'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.',
-  version: '2.4.3',
+    'WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten. API: /api/plugins/fritzbox.',
+  version: '2.5.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📈',
@@ -1001,20 +1002,11 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     try {
-      const res = await fetch('/api/fritzbox', {
+      const j = await pluginApiJson<Summary & { ok?: boolean; error?: string; message?: string }>('fritzbox', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({ baseUrl, username, password, insecureTls }),
       })
-      const j = (await res.json()) as Summary & { ok?: boolean; error?: string; message?: string }
-      if (!res.ok) {
-        if (res.status === 401) setError(de ? 'Anmeldung fehlgeschlagen.' : 'Login failed.')
-        else if (j.error === 'timeout') setError(de ? 'Zeitüberschreitung.' : 'Timeout.')
-        else setError(j.message || j.error || `HTTP ${res.status}`)
-        setData(null)
-        return
-      }
       if (j.ok === false) {
         setError(j.message || j.error || 'Error')
         setData(null)
@@ -1035,18 +1027,16 @@ function Widget({ config }: PluginWidgetProps) {
     const cur = dataRef.current
     if (!cur || (!cur.wanTotalBytesReceived && !cur.wanTotalBytesSent)) return
     try {
-      const res = await fetch('/api/fritzbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ baseUrl, username, password, insecureTls, lite: true }),
-      })
-      const j = (await res.json()) as {
+      const j = await pluginApiJson<{
         ok?: boolean
         wanTotalBytesReceived?: string | null
         wanTotalBytesSent?: string | null
-      }
-      if (!res.ok || j.ok === false) return
+      }>('fritzbox', '/', {
+        method: 'POST',
+        cache: 'no-store',
+        body: JSON.stringify({ baseUrl, username, password, insecureTls, lite: true }),
+      })
+      if (j.ok === false) return
       setData((d) => {
         if (!d) return d
         const next = { ...d }

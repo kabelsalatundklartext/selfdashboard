@@ -4,15 +4,15 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ChevronRight, Globe, Hand, List, PieChart, Shield, ShieldOff, type LucideIcon } from 'lucide-react'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 import type { Locale } from '@/lib/i18n'
-import { reportPluginCatch } from '@/lib/pluginLog'
+import { pluginApiJson, reportPluginCatch } from '@/lib/pluginDev'
 import { useDashboardStore } from '@/lib/store'
 
 export const meta: PluginMeta = {
   id: 'pihole',
   name: 'Pi-hole',
   description:
-    'Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/pihole.',
-  version: '1.1.1',
+    'Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/plugins/pihole.',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🕳️',
@@ -226,26 +226,11 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     try {
-      const res = await fetch('/api/pihole', {
+      const j = await pluginApiJson<ApiOk & ApiErr>('pihole', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({ url: base, password, totp: totp || undefined }),
       })
-      const j = (await res.json()) as ApiOk & ApiErr
-      if (!res.ok) {
-        const code = j.status ?? res.status
-        if (res.status === 401 || res.status === 403 || j.error === 'auth_failed') {
-          setError(de ? 'Anmeldung fehlgeschlagen (Passwort / 2FA).' : 'Login failed (password / 2FA).')
-        } else if (j.error === 'timeout') {
-          setError(de ? 'Zeitüberschreitung — Pi-hole erreichbar?' : 'Timeout — is Pi-hole reachable?')
-        } else {
-          const d = j.detail ? ` ${j.detail}` : ''
-          setError(de ? `API-Fehler (${code}).${d}` : `API error (${code}).${d}`)
-        }
-        setData(null)
-        return
-      }
       setData({
         summary: (j.summary ?? null) as Record<string, unknown> | null,
         blocking: typeof j.blocking === 'boolean' ? j.blocking : null,
@@ -266,9 +251,8 @@ function Widget({ config }: PluginWidgetProps) {
     setBlockBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/pihole', {
+      await pluginApiJson('pihole', '/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({
           action: 'blocking',
@@ -278,14 +262,6 @@ function Widget({ config }: PluginWidgetProps) {
           blocking: next,
         }),
       })
-      const j = (await res.json()) as { error?: string; detail?: string }
-      if (!res.ok) {
-        const d = j.detail ? ` ${j.detail}` : ''
-        setError(
-          de ? `Blocking konnte nicht geändert werden (${res.status}).${d}` : `Could not change blocking (${res.status}).${d}`,
-        )
-        return
-      }
       await fetch_()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

@@ -1,0 +1,16 @@
+/** Client-side: Navbar refreshes after mail enable/disable in settings. */
+export const MAIL_CONFIG_CHANGED = 'selfdashboard:mail-config-changed'
+
+export type MailConfigChangedDetail = {
+  openUrl?: string | null
+  unread?: number
+  pollIntervalSeconds?: number
+  /** Nach Speichern/Test: einmal IMAP-Sync statt nur Cache lesen */
+  forceRefresh?: boolean
+}
+
+export function dispatchMailConfigChanged(detail?: MailConfigChangedDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<MailConfigChangedDetail>(MAIL_CONFIG_CHANGED, { detail }))
+  }
+}
