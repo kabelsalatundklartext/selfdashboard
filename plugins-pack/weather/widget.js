@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.5.7",
+    version: "1.5.8",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -421,6 +421,24 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         defaultValue: true
       },
       {
+        key: "showHumidityWind",
+        label: "Luftfeuchtigkeit & Wind",
+        type: "boolean",
+        defaultValue: true
+      },
+      {
+        key: "showSunTimes",
+        label: "Sonnenauf- & -untergang",
+        type: "boolean",
+        defaultValue: true
+      },
+      {
+        key: "showHourTimeline",
+        label: "3-Stunden-Verlauf (0\u201324)",
+        type: "boolean",
+        defaultValue: true
+      },
+      {
         key: "dailyForecastWidthPct",
         label: "7-Tage: Kartenbreite (%)",
         type: "number",
@@ -444,11 +462,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const n = Math.round(num(v, 100));
     return Math.min(130, Math.max(70, n));
   }
-  function cfgShowDailyForecast(raw) {
-    const v = raw.showDailyForecast;
+  function cfgBool(raw, key, defaultValue = true) {
+    const v = raw[key];
     if (v === false || v === "false" || v === 0 || v === "0") return false;
     if (v === true || v === "true" || v === 1 || v === "1") return true;
-    return true;
+    return defaultValue;
+  }
+  function cfgShowDailyForecast(raw) {
+    return cfgBool(raw, "showDailyForecast", true);
   }
   function cfgDailyForecastWidthPct(raw) {
     return clampDailyForecastWidthPct(raw.dailyForecastWidthPct ?? raw.dayTimelineWidthPct);
@@ -718,7 +739,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const refreshMinutes = clampRefresh(config.refreshMinutes);
     const cfgRaw = config;
     const showDailyForecast = cfgShowDailyForecast(cfgRaw);
-    const showPlaceLabel = cfgRaw.showPlaceLabel !== false;
+    const showPlaceLabel = cfgBool(cfgRaw, "showPlaceLabel", true);
+    const showHumidityWind = cfgBool(cfgRaw, "showHumidityWind", true);
+    const showSunTimesRow = cfgBool(cfgRaw, "showSunTimes", true);
+    const showHourTimeline = cfgBool(cfgRaw, "showHourTimeline", true);
     const dailyForecastScale = cfgDailyForecastWidthPct(cfgRaw) / 100;
     const [placeLabel, setPlaceLabel] = (0, import_react3.useState)(null);
     const [current, setCurrent] = (0, import_react3.useState)(null);
@@ -1065,13 +1089,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       } : {}
                     },
                     children: [
-                      (hum != null || wspd > 0 || sunTimes) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                      showHumidityWind && (hum != null || wspd > 0) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
                           style: {
                             display: "flex",
                             justifyContent: "center",
-                            gap: "clamp(6px, 2.2cqmin, 14px)",
+                            gap: "clamp(8px, 3cqmin, 16px)",
                             flexWrap: "wrap",
                             fontSize: "clamp(10px, 2.2cqmin, 12px)",
                             color: muted,
@@ -1091,12 +1115,29 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                               Math.round(wspd),
                               " km/h ",
                               windCompass(wdir, de)
-                            ] }),
-                            sunTimes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px" }, children: [
+                            ] })
+                          ]
+                        }
+                      ),
+                      showSunTimesRow && sunTimes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                        "div",
+                        {
+                          style: {
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: "clamp(10px, 3cqmin, 18px)",
+                            flexWrap: "wrap",
+                            fontSize: "clamp(10px, 2.2cqmin, 12px)",
+                            color: muted,
+                            width: "100%",
+                            flexShrink: 0
+                          },
+                          children: [
+                            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px" }, children: [
                               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunrise, { "aria-hidden": true, style: { width: 13, height: 13, color: "#fbbf24", flexShrink: 0 } }),
                               formatSunTime(sunTimes.sunrise, de)
                             ] }),
-                            sunTimes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px" }, children: [
+                            /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px" }, children: [
                               /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunset, { "aria-hidden": true, style: { width: 13, height: 13, color: "#fb923c", flexShrink: 0 } }),
                               formatSunTime(sunTimes.sunset, de)
                             ] })
@@ -1185,7 +1226,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           children: summary
                         }
                       ),
-                      dayPeriods.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      showHourTimeline && dayPeriods.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "div",
                         {
                           style: {
@@ -1432,8 +1473,41 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const de = locale !== "en";
     const cfgRaw = config;
     const dailyOn = cfgShowDailyForecast(cfgRaw);
-    const placeOn = cfgRaw.showPlaceLabel !== false;
+    const placeOn = cfgBool(cfgRaw, "showPlaceLabel", true);
+    const humidityWindOn = cfgBool(cfgRaw, "showHumidityWind", true);
+    const sunTimesOn = cfgBool(cfgRaw, "showSunTimes", true);
+    const hourTimelineOn = cfgBool(cfgRaw, "showHourTimeline", true);
     const widthPct = cfgDailyForecastWidthPct(cfgRaw);
+    const checkRow = (key, checked, title, hint) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+      "label",
+      {
+        style: {
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "10px",
+          cursor: "pointer",
+          fontSize: "13px",
+          color: "var(--text)",
+          lineHeight: 1.35
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+            "input",
+            {
+              type: "checkbox",
+              checked,
+              onChange: (e) => onChange(key, e.target.checked),
+              style: { marginTop: "3px", width: "16px", height: "16px", flexShrink: 0, accentColor: "var(--accent)" }
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: title }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: hint })
+          ] })
+        ]
+      },
+      key
+    );
     const inp = {
       background: "var(--surface)",
       border: "1px solid var(--border)",
@@ -1471,6 +1545,27 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
         )
       ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: "12px" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: { fontSize: "11px", color: "var(--text-muted)", margin: "0 0 2px", fontWeight: 600 }, children: de ? "Anzeige im Widget" : "Widget display" }),
+        checkRow(
+          "showHumidityWind",
+          humidityWindOn,
+          de ? "Luftfeuchtigkeit & Wind" : "Humidity & wind",
+          de ? "Zeile oben mit Luftfeuchte und Wind (km/h, Himmelsrichtung)." : "Top row with humidity and wind speed/direction."
+        ),
+        checkRow(
+          "showSunTimes",
+          sunTimesOn,
+          de ? "Sonnenauf- & -untergang" : "Sunrise & sunset",
+          de ? "Zeiten mit Symbolen unter Luftfeuchte/Wind (Open-Meteo, heute)." : "Times with icons below humidity/wind (Open-Meteo, today)."
+        ),
+        checkRow(
+          "showHourTimeline",
+          hourTimelineOn,
+          de ? "3-Stunden-Verlauf (0\u201324)" : "3-hour timeline (0\u201324)",
+          de ? "Kleine Kacheln mit Uhrzeit, Icon und Temperatur unter dem aktuellen Wetter." : "Small tiles with hour, icon and temperature below current weather."
+        )
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
         "label",
         {
@@ -1495,7 +1590,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("strong", { children: de ? "7-Tage-Vorschau" : "7-day forecast" }),
-              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "3-Stunden-Verlauf (0, 3, 6 \u2026 24) bleibt links beim aktuellen Wetter. Rechts: die n\xE4chsten 7 Tage ab morgen (heute nicht doppelt)." : "3-hour timeline (0, 3, 6 \u2026 24) stays on the left. Right: next 7 days starting tomorrow (today omitted)." })
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { display: "block", fontSize: "11px", color: "var(--text-muted)", fontWeight: 400, marginTop: "4px" }, children: de ? "Rechts die n\xE4chsten 7 Tage ab morgen (heute nicht doppelt). Der 3-Stunden-Verlauf ist separat ein-/ausblendbar." : "Next 7 days on the right (from tomorrow). The 3-hour timeline is toggled separately." })
             ] })
           ]
         }
