@@ -1,0 +1,12 @@
+---
+description: Plugin- und Code-Änderungen nur im Git-Repo selfdashboard/
+alwaysApply: true
+---
+
+# Änderungen nur im Repo-Ordner
+
+- **Alle Bearbeitungen** unter `C:\Users\svens\Desktop\SelfDashboard\selfdashboard\` (dieses Git-Repo), damit GitHub Desktop sie anzeigt und `git push` funktioniert.
+- **Plugins:** Quelle ist `selfdashboard/plugins/<id>/` — **nicht** den Nachbarordner `../plugins/` (nur lokale Kopie / Legacy).
+- Nach Plugin-UI-Änderungen: `npm run build:plugin-pack` ausführen und `plugins-pack/<id>/` mit committen.
+- Server-Plugins für Docker: bei Bedarf `npm run vendor-plugins` → `src/builtin-plugins/<id>/`.
+- Vor Push: `plugins/`, `plugins-pack/`, ggf. `plugin-pack/default-plugins.zip` und `scripts/` im Commit.

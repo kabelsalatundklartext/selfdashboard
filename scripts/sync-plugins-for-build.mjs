@@ -1,7 +1,10 @@
 /**
  * Copies plugin sources into selfdashboard/plugins/ for Next.js / Docker builds.
- * Sources: ./plugins (already present), ../plugins (sibling), or SELFDASHBOARD_PLUGINS_SRC.
  *
+ * **Edit plugins in this repo:** `selfdashboard/plugins/<id>/` (Git-tracked).
+ * Sibling `../plugins/` is only used when `plugins/weather/server.ts` is missing here.
+ *
+ * Sources (priority): ./plugins (in repo) → ../plugins (sibling) → SELFDASHBOARD_PLUGINS_SRC.
  * Run automatically via npm prebuild or Docker before `npm run build`.
  */
 import fs from 'fs'
@@ -43,9 +46,14 @@ try {
   } else {
     const inRepo = path.join(repoRoot, 'plugins')
     const sibling = path.join(repoRoot, '..', 'plugins')
-    if (fs.existsSync(path.join(inRepo, 'weather', 'server.ts'))) source = inRepo
-    else if (fs.existsSync(path.join(sibling, 'weather', 'server.ts'))) source = sibling
-    else source = inRepo
+    if (fs.existsSync(path.join(inRepo, 'weather', 'server.ts'))) {
+      source = inRepo
+    } else if (fs.existsSync(path.join(sibling, 'weather', 'server.ts'))) {
+      console.warn('[SelfDashboard] plugins/ missing in repo — copying from ../plugins (one-time bootstrap).')
+      source = sibling
+    } else {
+      source = inRepo
+    }
   }
 } catch {
   source = path.join(repoRoot, 'plugins')

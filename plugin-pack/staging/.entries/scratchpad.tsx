@@ -1,4 +1,4 @@
-import * as plugin from 'C:/Users/svens/Desktop/SelfDashboard/plugins/scratchpad/index.tsx'
+import * as plugin from 'C:/Users/svens/Desktop/SelfDashboard/selfdashboard/plugins/scratchpad/index.tsx'
 ;(function (SD) {
   if (!SD || !SD.registerPlugin) throw new Error('SelfDashboard bridge missing')
   SD.registerPlugin(plugin.meta, plugin.component, { replace: true })

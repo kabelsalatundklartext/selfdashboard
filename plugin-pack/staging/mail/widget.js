@@ -1,4 +1,4 @@
-if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');
+if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missing — reload page');if(!globalThis.SelfDashboard?.ReactDOM?.createPortal)throw new Error('SelfDashboard.ReactDOM missing — reload page');if(!globalThis.SelfDashboard?.useDashboardStore)throw new Error('SelfDashboard store bridge missing — reload page');
 "use strict";
 (() => {
   var __create = Object.create;
@@ -48,7 +48,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     }
   });
 
-  // ../plugins/mail/index.tsx
+  // plugins/mail/index.tsx
   var import_react5 = __toESM(require_react());
 
   // src/components/layout/NavbarMail.tsx
@@ -131,10 +131,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     ["path", { d: "m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7", key: "1ocrg3" }]
   ]);
 
-  // src/lib/mail/events.ts
+  // src/builtin-plugins/mail/lib/events.ts
   var MAIL_CONFIG_CHANGED = "selfdashboard:mail-config-changed";
 
-  // src/lib/mail/errors.ts
+  // src/builtin-plugins/mail/lib/errors.ts
   function formatMailError(message) {
     const m = message.toLowerCase();
     if (m.includes("unsupported state") || m.includes("unable to authenticate data") || m.includes("auth tag") || m.includes("encrypted payload")) {
@@ -160,7 +160,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     return m.includes("passwort nicht lesbar") || m.includes("passwort speichern") || m.includes("kein abrufbares konto") || m.includes("unsupported state") || m.includes("unable to authenticate data");
   }
 
-  // src/lib/mail/types.ts
+  // src/builtin-plugins/mail/lib/types.ts
   var MAIL_POLL_INTERVAL_MIN = 1;
   var MAIL_POLL_INTERVAL_MAX = 900;
   var MAIL_POLL_INTERVAL_DEFAULT = 120;
@@ -198,7 +198,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     return { compact, phone };
   }
 
-  // src/lib/mail/clientApi.ts
+  // src/builtin-plugins/mail/lib/clientApi.ts
   var MAIL_PLUGIN_ID = "mail";
   function mailApiUrl(path, query = "") {
     const p = path.startsWith("/") ? path : `/${path}`;
@@ -304,33 +304,44 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   // src/lib/pluginDev.ts
   async function pluginApiJson(pluginId, path, init) {
     const url = path.startsWith("/api/") ? path : `/api/plugins/${pluginId}${path.startsWith("/") ? path : `/${path}`}`;
-    const res = await fetch(url, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...init?.headers
+    const { timeoutMs, ...rest } = init ?? {};
+    const ac = new AbortController();
+    const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : void 0;
+    try {
+      const res = await fetch(url, {
+        ...rest,
+        signal: rest.signal ?? ac.signal,
+        headers: {
+          "Content-Type": "application/json",
+          ...rest.headers
+        }
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try {
+          const j = await res.json();
+          msg = j.error ?? j.message ?? msg;
+        } catch {
+        }
+        throw new Error(msg);
       }
-    });
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try {
-        const j = await res.json();
-        msg = j.error ?? j.message ?? msg;
-      } catch {
-      }
-      throw new Error(msg);
+      if (res.status === 204) return void 0;
+      return res.json();
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") throw new Error("timeout");
+      throw e;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-    if (res.status === 204) return void 0;
-    return res.json();
   }
 
-  // ../plugins/mail/index.tsx
+  // plugins/mail/index.tsx
   var import_jsx_runtime2 = __toESM(require_jsx_runtime());
   var meta = {
     id: "mail",
     name: "E-Mail / IMAP",
-    description: "Navbar-Badge mit ungelesenen Mails, mehrere IMAP-Konten.",
-    version: "1.0.0",
+    description: "Navbar-Badge mit ungelesenen Mails, mehrere IMAP-Konten. API: /api/plugins/mail.",
+    version: "1.1.0",
     author: "SelfDashboard",
     category: "productivity",
     icon: "\u2709\uFE0F",

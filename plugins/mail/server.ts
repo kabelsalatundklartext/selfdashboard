@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
 import {
   handleMailMarkAllRead,
@@ -8,7 +7,7 @@ import {
   handleMailStatus,
   handleMailTest,
   handleMailUnreadPreview,
-} from '@/lib/mail/httpHandlers'
+} from './lib/httpHandlers'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,8 +40,10 @@ export async function mailServerHandler(ctx: PluginServerContext): Promise<Respo
     return handleMailResetCache()
   }
 
-  return NextResponse.json(
+  return Response.json(
     { error: 'not_found', pluginId: ctx.pluginId, path: ctx.path.join('/') },
     { status: 404 },
   )
 }
+
+export default mailServerHandler

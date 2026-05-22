@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-21T21:23:19.390Z",
+  "generatedAt": "2026-05-22T10:23:39.045Z",
   "plugins": [
     {
       "id": "adguard",
@@ -16,8 +16,10 @@
       "iconUrl": "/plugin-logos/adguard.png",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "bookmarks",
@@ -35,15 +37,17 @@
     {
       "id": "calendar",
       "name": "Kalender",
-      "description": "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo …",
-      "version": "1.2.4",
+      "description": "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo … API: /api/plugins/calendar.",
+      "version": "1.3.3",
       "author": "SelfDashboard Community",
       "category": "productivity",
       "icon": "📅",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "clock",
@@ -61,8 +65,8 @@
     {
       "id": "crowdsec",
       "name": "CrowdSec",
-      "description": "Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli.",
-      "version": "1.3.8",
+      "description": "Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.",
+      "version": "1.4.3",
       "author": "SelfDashboard",
       "category": "security",
       "icon": "🛡️",
@@ -70,22 +74,26 @@
       "files": [
         "plugin.json",
         "widget.js",
-        "widget.css"
-      ]
+        "widget.css",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "docker",
       "name": "Docker",
-      "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar.",
-      "version": "1.8.10",
+      "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar. API: /api/plugins/docker/containers.",
+      "version": "1.9.0",
       "author": "SelfDashboard",
       "category": "system",
       "icon": "🐳",
       "iconUrl": "/plugin-logos/docker.png",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "emby",
@@ -104,30 +112,34 @@
     {
       "id": "fritz-energy",
       "name": "FRITZ! Steckdose Energie",
-      "description": "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat).",
-      "version": "1.1.8",
+      "description": "Stromverbrauch FRITZ!Smart Energy / Steckdose per TR-064 (aktuell, heute, 7 Tage, Monat). API: /api/plugins/fritz-energy.",
+      "version": "1.2.0",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "⚡",
       "iconUrl": "/plugin-logos/fritzbox.svg",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "fritzbox",
       "name": "Fritzbox Internet Verlauf",
-      "description": "WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten.",
-      "version": "2.4.3",
+      "description": "WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten. API: /api/plugins/fritzbox.",
+      "version": "2.5.0",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "📈",
       "iconUrl": "/plugin-logos/fritzbox.svg",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "iframe",
@@ -158,22 +170,26 @@
       },
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "pihole",
       "name": "Pi-hole",
-      "description": "Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/pihole.",
-      "version": "1.1.1",
+      "description": "Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/plugins/pihole.",
+      "version": "1.2.0",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🕳️",
       "iconUrl": "/plugin-logos/pihole.png",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "scratchpad",
@@ -191,16 +207,18 @@
     {
       "id": "selfstream",
       "name": "Selfstream",
-      "description": "Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt.",
-      "version": "1.0.3",
+      "description": "Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt. API: /api/plugins/selfstream.",
+      "version": "1.1.0",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
       "iconUrl": "/plugin-logos/selfstream.png",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "unraid",
@@ -233,15 +251,17 @@
     {
       "id": "weather",
       "name": "Weather",
-      "description": "Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key.",
-      "version": "1.3.2",
+      "description": "Stadt oder PLZ — aktuelles Wetter mit Tagesabschnitten (0–6, 6–12, 12–18, 18–24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
+      "version": "1.5.0",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🌤️",
       "files": [
         "plugin.json",
-        "widget.js"
-      ]
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     }
   ]
 }
