@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.6.3",
+    version: "1.6.4",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1017,8 +1017,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           containerType: "size",
           display: "flex",
           flexDirection: "column",
-          gap: splitView ? "clamp(2px, 0.8cqmin, 6px)" : "clamp(4px, 1.1cqmin, 8px)",
-          padding: splitView ? "clamp(5px, 1.5cqmin, 10px) clamp(6px, 2cqmin, 12px) clamp(4px, 1cqmin, 6px)" : "clamp(6px, 2cqmin, 12px)",
+          gap: "clamp(4px, 1.1cqmin, 8px)",
+          padding: "clamp(6px, 2cqmin, 12px)",
           boxSizing: "border-box",
           overflow: "auto",
           opacity: refreshing ? 0.72 : 1,
@@ -1078,16 +1078,16 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       flex: splitView ? "0 1 38%" : void 0,
                       maxWidth: splitView ? "42%" : void 0,
                       minWidth: splitView ? 0 : void 0,
+                      minHeight: splitView ? 0 : void 0,
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: splitView ? "flex-start" : "center",
                       alignItems: "center",
-                      gap: splitView ? "clamp(2px, 0.6cqmin, 5px)" : "clamp(4px, 1.2cqmin, 8px)",
+                      gap: splitView ? "clamp(3px, 0.9cqmin, 7px)" : "clamp(4px, 1.2cqmin, 8px)",
                       alignSelf: splitView ? "stretch" : void 0,
                       ...splitView ? {
                         paddingRight: "clamp(6px, 1.5cqmin, 12px)",
-                        borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)",
-                        marginTop: "-2px"
+                        borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)"
                       } : {}
                     },
                     children: [
@@ -1123,21 +1123,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
                               t.wind,
                               " \u2014"
-                            ] }),
-                            splitView && showSunTimesRow && sunTimes ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-                              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "3px" }, children: [
-                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunrise, { "aria-hidden": true, style: { width: 12, height: 12, color: "#fbbf24", flexShrink: 0 } }),
-                                formatSunTime(sunTimes.sunrise, de)
-                              ] }),
-                              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "3px" }, children: [
-                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunset, { "aria-hidden": true, style: { width: 12, height: 12, color: "#fb923c", flexShrink: 0 } }),
-                                formatSunTime(sunTimes.sunset, de)
-                              ] })
-                            ] }) : null
+                            ] })
                           ]
                         }
                       ),
-                      showSunTimesRow && sunTimes && !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                      showSunTimesRow && sunTimes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
                           style: {
@@ -1230,13 +1220,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           ]
                         }
                       ),
-                      !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
                           style: {
                             margin: 0,
                             textAlign: "center",
-                            fontSize: "clamp(11px, 2.6cqmin, 14px)",
+                            fontSize: splitView ? "clamp(10px, 2.2cqmin, 12px)" : "clamp(11px, 2.6cqmin, 14px)",
                             color: text,
                             fontWeight: 600,
                             lineHeight: 1.25
@@ -1250,10 +1240,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           style: {
                             display: "grid",
                             gridTemplateColumns: `repeat(${dayPeriods.length}, minmax(0, 1fr))`,
-                            gap: splitView ? "clamp(1px, 0.5cqmin, 4px)" : "clamp(2px, 0.8cqmin, 6px)",
+                            gap: "clamp(2px, 0.8cqmin, 6px)",
                             width: "100%",
                             maxWidth: "100%",
-                            margin: splitView ? 0 : "2px 0 0",
+                            margin: splitView ? "auto 0 0" : "2px 0 0",
                             flexShrink: 0
                           },
                           children: dayPeriods.map((slot) => {
@@ -1268,8 +1258,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                   display: "flex",
                                   flexDirection: "column",
                                   alignItems: "center",
-                                  gap: splitView ? "1px" : "2px",
-                                  padding: splitView ? "2px 0 1px" : "4px 1px 3px",
+                                  gap: "2px",
+                                  padding: "4px 1px 3px",
                                   borderRadius: "7px",
                                   background: "color-mix(in srgb, var(--surface) 88%, var(--background))",
                                   border: "1px solid color-mix(in srgb, var(--border) 65%, transparent)",
@@ -1334,7 +1324,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                     style: {
                       flex: splitView ? "1 1 0" : void 0,
                       minWidth: splitView ? 0 : void 0,
-                      minHeight: 0,
+                      minHeight: splitView ? 0 : void 0,
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: splitView ? "flex-start" : void 0,
@@ -1380,13 +1370,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                         "div",
                         {
                           style: {
+                            flex: splitView ? 1 : void 0,
+                            minHeight: splitView ? 0 : void 0,
                             display: "grid",
                             gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
                             gap: splitView ? `${Math.max(4, Math.round(7 * dayScale))}px` : dayGapStackTight,
                             width: "100%",
                             minWidth: 0,
-                            minHeight: 0,
-                            alignContent: "center"
+                            alignContent: splitView ? "end" : "center"
                           },
                           children: daily.map((day) => {
                             const d = /* @__PURE__ */ new Date(day.date + "T12:00:00");
