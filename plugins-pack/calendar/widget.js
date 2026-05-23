@@ -304,6 +304,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   var api = {
     summary: () => request("/summary"),
     status: () => request("/status"),
+    listShareUsers: () => request("/share-users"),
     listAccounts: () => request("/accounts"),
     createAccount: (body) => request("/accounts", { method: "POST", body: JSON.stringify(body) }),
     updateAccount: (id, body) => request(`/accounts/${id}`, { method: "PUT", body: JSON.stringify(body) }),
@@ -412,7 +413,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       calendarActive: "Kalender einblenden",
       calendarInactive: "Kalender ausblenden",
       defaultCalendar: "Standard",
-      setDefaultCalendar: "Als Standard f\xFCr neue Termine"
+      setDefaultCalendar: "Als Standard f\xFCr neue Termine",
+      sharing: "Freigabe",
+      sharingPrivate: "Nur f\xFCr mich (privat)",
+      sharingShared: "Mit anderen Benutzern teilen",
+      shareWithUsers: "Benutzer ausw\xE4hlen",
+      shareWithHint: "Geteilte Kalender sind f\xFCr die ausgew\xE4hlten Benutzer nur lesbar.",
+      sharedFrom: "Geteilt von",
+      sharedWith: "Geteilt mit",
+      noShareUsers: "Keine weiteren Benutzer mit Kalender-Berechtigung."
     },
     en: {
       calendar: "Calendar",
@@ -501,7 +510,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       calendarActive: "Show calendar",
       calendarInactive: "Hide calendar",
       defaultCalendar: "Default",
-      setDefaultCalendar: "Default for new events"
+      setDefaultCalendar: "Default for new events",
+      sharing: "Sharing",
+      sharingPrivate: "Private (only me)",
+      sharingShared: "Share with other users",
+      shareWithUsers: "Select users",
+      shareWithHint: "Shared calendars are read-only for selected users.",
+      sharedFrom: "Shared by",
+      sharedWith: "Shared with",
+      noShareUsers: "No other users with calendar permission."
     }
   };
   function t(key, locale = "de") {
@@ -517,7 +534,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "calendar",
     name: "Kalender",
     description: "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo \u2026 API: /api/plugins/calendar.",
-    version: "1.3.5",
+    version: "1.4.0",
     author: "SelfDashboard Community",
     category: "productivity",
     icon: "\u{1F4C5}",
@@ -2010,6 +2027,16 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               textTransform: "uppercase",
               letterSpacing: "0.05em"
             }, children: a.provider }),
+            !a.ownedByMe && a.ownerUsername && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: "11px", color: "var(--accent)" }, children: [
+              t2("sharedFrom"),
+              ": ",
+              a.ownerUsername
+            ] }),
+            a.ownedByMe && a.sharing === "shared" && (a.sharedWithUsernames?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: "11px", color: "var(--text-muted)" }, children: [
+              t2("sharedWith"),
+              ": ",
+              a.sharedWithUsernames.join(", ")
+            ] }),
             a.lastSyncStatus === "ok" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { color: "#4ade80", fontSize: "11px" }, children: [
               "\u2713 ",
               t("syncedAt", locale)
@@ -2025,16 +2052,18 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               a.lastSyncError ?? t2("error")
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: () => onEditAccount(a), children: t2("editAccount") }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: async () => {
-              await api.syncAccount(a.id);
-              onRefresh();
-            }, children: t2("sync") }),
-            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: async () => {
-              if (!confirm(t2("confirmDeleteAccount"))) return;
-              await api.deleteAccount(a.id);
-              onRefresh();
-            }, children: t2("remove") })
+            a.canManage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: () => onEditAccount(a), children: t2("editAccount") }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: async () => {
+                await api.syncAccount(a.id);
+                onRefresh();
+              }, children: t2("sync") }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModalBtn, { onClick: async () => {
+                if (!confirm(t2("confirmDeleteAccount"))) return;
+                await api.deleteAccount(a.id);
+                onRefresh();
+              }, children: t2("remove") })
+            ] })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px" }, children: [
             a.endpoint ?? "",
@@ -2062,7 +2091,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 onChange: () => {
                   void toggleVisible(c);
                 },
-                style: { width: "16px", height: "16px", cursor: "pointer", flexShrink: 0 }
+                disabled: !a.canManage,
+                style: { width: "16px", height: "16px", cursor: a.canManage ? "pointer" : "not-allowed", flexShrink: 0 }
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2070,11 +2100,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               {
                 type: "color",
                 value: c.color,
+                disabled: !a.canManage,
                 onChange: async (e) => {
                   await api.updateCalendar(c.id, { color: e.target.value });
                   onRefresh();
                 },
-                style: { width: "32px", height: "24px", padding: 0, border: 0, background: "transparent", cursor: "pointer" }
+                style: { width: "32px", height: "24px", padding: 0, border: 0, background: "transparent", cursor: a.canManage ? "pointer" : "not-allowed" }
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: {
@@ -2332,6 +2363,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const t2 = (k) => t(k, locale);
     const isEdit = target.mode === "edit";
     const provider = isEdit ? target.account.provider : target.provider;
+    const [shareUsers, setShareUsers] = (0, import_react3.useState)([]);
     const [form, setForm] = (0, import_react3.useState)(() => {
       if (isEdit) {
         return {
@@ -2339,13 +2371,43 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           url: target.account.url ?? "",
           username: target.account.username ?? "",
           password: "",
-          verifySsl: true
+          verifySsl: true,
+          sharing: target.account.sharing ?? "private",
+          sharedWithUserIds: [...target.account.sharedWithUserIds ?? []]
         };
       }
-      return { name: "", url: "", username: "", password: "", verifySsl: true };
+      return {
+        name: "",
+        url: "",
+        username: "",
+        password: "",
+        verifySsl: true,
+        sharing: "private",
+        sharedWithUserIds: []
+      };
     });
     const [error, setError] = (0, import_react3.useState)(null);
     const [saving, setSaving] = (0, import_react3.useState)(false);
+    (0, import_react3.useEffect)(() => {
+      let cancelled = false;
+      api.listShareUsers().then((users) => {
+        if (!cancelled) setShareUsers(users);
+      }).catch(() => {
+        if (!cancelled) setShareUsers([]);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+    const toggleShareUser = (userId) => {
+      setForm((f) => {
+        const has = f.sharedWithUserIds.includes(userId);
+        return {
+          ...f,
+          sharedWithUserIds: has ? f.sharedWithUserIds.filter((id) => id !== userId) : [...f.sharedWithUserIds, userId]
+        };
+      });
+    };
     const inp = {
       background: "var(--surface)",
       border: "1px solid var(--border)",
@@ -2361,7 +2423,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       setSaving(true);
       try {
         if (isEdit) {
-          const body = { name: form.name || target.account.name };
+          const body = {
+            name: form.name || target.account.name,
+            sharing: form.sharing,
+            sharedWithUserIds: form.sharing === "shared" ? form.sharedWithUserIds : []
+          };
           if (provider === "caldav") {
             body.caldav = {
               url: form.url,
@@ -2378,7 +2444,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
           await api.updateAccount(target.account.id, body);
         } else {
-          const body = provider === "caldav" ? { name: form.name || form.url, provider, caldav: { url: form.url, username: form.username, password: form.password, verifySsl: form.verifySsl } } : { name: form.name || form.url, provider, ics: { url: form.url, username: form.username || void 0, password: form.password || void 0 } };
+          const sharePayload = {
+            sharing: form.sharing,
+            sharedWithUserIds: form.sharing === "shared" ? form.sharedWithUserIds : []
+          };
+          const body = provider === "caldav" ? { name: form.name || form.url, provider, ...sharePayload, caldav: { url: form.url, username: form.username, password: form.password, verifySsl: form.verifySsl } } : { name: form.name || form.url, provider, ...sharePayload, ics: { url: form.url, username: form.username || void 0, password: form.password || void 0 } };
           await api.createAccount(body);
         }
         onSaved();
@@ -2455,6 +2525,57 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 borderRadius: "4px",
                 color: "var(--text)"
               }, children: t2("iCloudHint") })
+            ] }),
+            /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: t2("sharing"), children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: "8px" }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: { display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text)" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "input",
+                  {
+                    type: "radio",
+                    name: "sharing",
+                    checked: form.sharing === "private",
+                    onChange: () => setForm({ ...form, sharing: "private", sharedWithUserIds: [] })
+                  }
+                ),
+                t2("sharingPrivate")
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: { display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text)" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "input",
+                  {
+                    type: "radio",
+                    name: "sharing",
+                    checked: form.sharing === "shared",
+                    onChange: () => setForm({ ...form, sharing: "shared" })
+                  }
+                ),
+                t2("sharingShared")
+              ] })
+            ] }) }),
+            form.sharing === "shared" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Field, { label: t2("shareWithUsers"), children: [
+              shareUsers.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "12px", color: "var(--text-muted)" }, children: t2("noShareUsers") }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px" }, children: shareUsers.map((u) => {
+                const active = form.sharedWithUserIds.includes(u.id);
+                return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: () => toggleShareUser(u.id),
+                    style: {
+                      all: "unset",
+                      cursor: "pointer",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      fontSize: "12px",
+                      border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                      background: active ? "rgba(90,155,212,0.15)" : "var(--surface)",
+                      color: "var(--text)"
+                    },
+                    children: u.username
+                  },
+                  u.id
+                );
+              }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }, children: t2("shareWithHint") })
             ] }),
             provider === "ics" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { style: { fontSize: "12px", color: "var(--text-muted)", cursor: "pointer" }, children: locale === "de" ? "Mit Authentifizierung (selten)" : "With authentication (rare)" }),
