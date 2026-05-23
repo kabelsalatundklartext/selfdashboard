@@ -26,6 +26,7 @@ export type KioskConfig = {
   sessionHours: number
   passwordHash: string | null
   ownerUserId: string
+  pluginIds: string[]
 }
 
 type StoredKioskConfig = {
@@ -35,6 +36,7 @@ type StoredKioskConfig = {
   sessionHours?: number
   passwordHash?: string | null
   ownerUserId?: string
+  pluginIds?: string[]
 }
 
 function clampIdleSeconds(v: unknown): number {
@@ -50,6 +52,7 @@ function defaultConfig(): KioskConfig {
     sessionHours: 24,
     passwordHash: null,
     ownerUserId: '',
+    pluginIds: [],
   }
 }
 
@@ -71,6 +74,9 @@ export function getKioskConfig(): KioskConfig {
       passwordHash:
         typeof parsed.passwordHash === 'string' && parsed.passwordHash ? parsed.passwordHash : null,
       ownerUserId: typeof parsed.ownerUserId === 'string' ? parsed.ownerUserId : '',
+      pluginIds: Array.isArray(parsed.pluginIds)
+        ? parsed.pluginIds.filter((id): id is string => typeof id === 'string')
+        : [],
     }
   } catch {
     return defaultConfig()
@@ -91,6 +97,7 @@ export function saveKioskConfig(input: Partial<KioskConfig> & { ownerUserId: str
           ? input.passwordHash
           : current.passwordHash,
     ownerUserId: input.ownerUserId,
+    pluginIds: input.pluginIds ?? current.pluginIds,
   }
   getAuthDb()
     .prepare(
@@ -113,6 +120,16 @@ export function verifyKioskPassword(password: string): boolean {
   const cfg = getKioskConfig()
   if (!cfg.passwordHash) return true
   return verifyPassword(password, cfg.passwordHash)
+}
+
+export function persistKioskPluginIds(pluginIds: string[], ownerUserId: string): KioskConfig {
+  const unique = [...new Set(pluginIds.filter((id) => typeof id === 'string' && id))]
+  const current = getKioskConfig()
+  if (current.ownerUserId !== ownerUserId) return current
+  const prev = current.pluginIds.join('\0')
+  const next = unique.join('\0')
+  if (prev === next) return current
+  return saveKioskConfig({ ownerUserId, pluginIds: unique })
 }
 
 export async function loadKioskDashboardBundle(): Promise<{
@@ -138,6 +155,7 @@ export async function loadKioskDashboardBundle(): Promise<{
     const dashboard = picked.dashboards.find((d) => d.id === config.dashboardId)
     if (!dashboard) return { config, state: null, pluginIds: [] }
     const pluginIds = dashboard.plugins.map((p) => p.pluginId)
+    const updatedConfig = persistKioskPluginIds(pluginIds, config.ownerUserId)
     const state: DashboardStatePersisted = {
       ...picked,
       dashboards: [dashboard],
@@ -147,7 +165,7 @@ export async function loadKioskDashboardBundle(): Promise<{
       kioskModeEnabled: true,
       kioskModeIdleSeconds: config.idleSeconds,
     }
-    return { config, state, pluginIds }
+    return { config: updatedConfig, state, pluginIds }
   } catch {
     return { config, state: null, pluginIds: [] }
   }

@@ -14,10 +14,9 @@ import {
 import { isAuthDisabled } from '@/lib/auth/service'
 import {
   isPluginAllowedForKiosk,
-  readKioskAccessFromRequest,
   resolvePluginIdFromApiPath,
 } from '@/lib/kiosk/kioskApiAccess'
-import { getKioskViewAccess } from '@/lib/kiosk/kioskViewRequest'
+import { resolveKioskAccess } from '@/lib/kiosk/kioskViewRequest'
 import { needsSetup } from '@/lib/auth/users'
 
 export const runtime = 'nodejs'
@@ -37,7 +36,7 @@ function nextWithKioskHeaders(request: NextRequest, kioskAccess: { ownerUserId: 
 function allowKioskPluginApi(request: NextRequest): NextResponse | null {
   const { pathname } = request.nextUrl
   if (!pathname.startsWith('/api/')) return null
-  const kioskAccess = getKioskViewAccess(request) ?? readKioskAccessFromRequest(request)
+  const kioskAccess = resolveKioskAccess(request)
   if (!kioskAccess) return null
   const pluginId = resolvePluginIdFromApiPath(pathname)
   const volumeOk = pathname === '/api/plugins/volume'

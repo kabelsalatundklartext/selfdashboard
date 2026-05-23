@@ -28,7 +28,12 @@ export async function GET(req: Request) {
   }
 
   const res = NextResponse.json(state)
-  if (!config.passwordHash) {
+  const granted = kioskAccessGranted(req, config)
+  if (config.passwordHash) {
+    if (granted) {
+      applyKioskCookie(res, issueKioskToken(granted, true, config), config)
+    }
+  } else {
     applyKioskCookie(res, issueKioskToken(access, false, config), config)
   }
   return res

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guard'
 import { isPluginAllowed } from '@/lib/auth/pluginPolicy'
-import { getKioskViewAccess } from '@/lib/kiosk/kioskViewRequest'
+import { resolveKioskAccess } from '@/lib/kiosk/kioskViewRequest'
 import { readKioskAccessFromRequest } from '@/lib/kiosk/session'
 import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 import {
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
   const installedIds = listInstalledVolumePluginIds()
   const missingWidgetJs = installedIds.filter((id) => !hasVolumeFile(id, 'widget.js'))
 
-  const kioskView = getKioskViewAccess(req)
+  const kioskView = resolveKioskAccess(req)
   if (kioskView) {
     return NextResponse.json(
       buildVolumePayload(
