@@ -21,7 +21,7 @@ export function DashboardMain({ children }: { children: ReactNode }) {
     minWidth: 0,
     minHeight: 0,
     display: 'block',
-    paddingBottom: 'max(8px, env(safe-area-inset-bottom, 0px))',
+    paddingBottom: 0,
     paddingLeft: 'env(safe-area-inset-left, 0)',
     paddingRight: 'env(safe-area-inset-right, 0)',
     position: 'relative',

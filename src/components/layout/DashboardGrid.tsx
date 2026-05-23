@@ -31,20 +31,6 @@ function stackedRowBoost(pluginId: string): number {
   return Math.min(24, Math.round(n))
 }
 
-/** Pixel height of the grid track at zoom 1 (for viewport auto-fit). */
-function gridLayoutPixelHeight(
-  layout: Layout[],
-  rowHeight: number,
-  gapY: number,
-  padding: number,
-  editBannerH: number,
-): number {
-  if (layout.length === 0) return 0
-  const rows = Math.max(...layout.map((item) => item.y + item.h), 0)
-  if (rows <= 0) return 0
-  return rows * rowHeight + Math.max(0, rows - 1) * gapY + padding * 2 + editBannerH
-}
-
 /** Plugin-Meta minW/minH gilt für das Raster (überschreibt alte gespeicherte Mindestwerte). */
 function pluginLayoutMins(pluginId: string, layout?: PluginInstance['layout']): { minW: number; minH: number } {
   const meta = pluginRegistry.get(pluginId)?.meta.defaultLayout
@@ -125,14 +111,11 @@ export function DashboardGrid() {
     gridGap,
     gridPadding,
   } = useDashboardStore()
-  const userZoom = coerceZoom(dashboardZoom)
+  const zoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins
   const measureRef = useRef<HTMLDivElement>(null)
   const scaleInnerRef = useRef<HTMLDivElement>(null)
-  const fitAnchorRef = useRef<HTMLDivElement>(null)
-  /** Max zoom so the grid fits vertically in the viewport (1 = no cap). */
-  const [fitZoomCap, setFitZoomCap] = useState(1)
   /** Skip RGL's first onLayoutChange after layout/plugin meta updates (would overwrite layoutPhone with wrong h). */
   const layoutPersistReadyRef = useRef(false)
   /** Same value on server and first client paint — real width applied in useLayoutEffect (avoids React #418). */
@@ -149,7 +132,7 @@ export function DashboardGrid() {
       // Inside a transformed ancestor, getBoundingClientRect() is in viewport (scaled) pixels.
       // GridLayout needs the CSS layout width — prefer offsetWidth, else undo zoom on rect width.
       const rectW = el.getBoundingClientRect().width
-      const layoutW = el.offsetWidth > 0 ? el.offsetWidth : Math.ceil(rectW / userZoom)
+      const layoutW = el.offsetWidth > 0 ? el.offsetWidth : Math.ceil(rectW / zoom)
       const next = Math.max(200, Math.floor(layoutW))
       setContainerWidth((prev) => (prev === next ? prev : next))
     }
@@ -158,7 +141,34 @@ export function DashboardGrid() {
     const ro = new ResizeObserver(() => apply())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [gridPadding, userZoom])
+  }, [gridPadding, zoom])
+
+  // Collapse vertical layout space to the *visual* height when zoom ≠ 1 (transform does not shrink document flow).
+  useLayoutEffect(() => {
+    if (zoom === 1) {
+      setScaledWrapHeight(null)
+      return
+    }
+    const el = scaleInnerRef.current
+    if (!el) return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      setScaledWrapHeight((prev) => {
+        const next = Math.max(0, Math.ceil(h))
+        return prev === next ? prev : next
+      })
+    }
+    measure()
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(el)
+    const t0 = window.setTimeout(measure, 0)
+    const t1 = window.setTimeout(measure, 120)
+    return () => {
+      window.clearTimeout(t0)
+      window.clearTimeout(t1)
+      ro.disconnect()
+    }
+  }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode, registryVersion])
 
   const isPhone = containerWidth < PHONE_BREAKPOINT_PX
   const isTablet = !isPhone && containerWidth < DESKTOP_BREAKPOINT_PX
@@ -196,64 +206,6 @@ export function DashboardGrid() {
   const tabletLayout = useMemo(() => buildTabletLayout(plugins), [plugins, registryVersion])
 
   const gridLayout = isPhone ? stackedLayout : isTablet ? tabletLayout : desktopLayout
-
-  // Shrink zoom when the grid is taller than the viewport so the bottom row is not clipped.
-  useLayoutEffect(() => {
-    const measureFit = () => {
-      const anchor = fitAnchorRef.current
-      if (!anchor) return
-      const top = anchor.getBoundingClientRect().top
-      const available = window.innerHeight - top - 10
-      const editBannerH = editMode ? 52 : 0
-      const contentH = gridLayoutPixelHeight(gridLayout, ROW_HEIGHT, gridGap, gridPadding, editBannerH)
-      if (available <= 0 || contentH <= 0) return
-      const cap = Math.min(1, Math.max(0.6, available / contentH))
-      setFitZoomCap((prev) => (Math.abs(prev - cap) < 0.004 ? prev : cap))
-    }
-    measureFit()
-    window.addEventListener('resize', measureFit)
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measureFit) : null
-    ro?.observe(document.documentElement)
-    const nav = document.querySelector('nav.navbar-root')
-    if (nav && ro) ro.observe(nav)
-    const t0 = window.setTimeout(measureFit, 0)
-    const t1 = window.setTimeout(measureFit, 160)
-    return () => {
-      window.removeEventListener('resize', measureFit)
-      ro?.disconnect()
-      window.clearTimeout(t0)
-      window.clearTimeout(t1)
-    }
-  }, [gridLayout, gridGap, gridPadding, editMode, layoutMode, plugins.length, containerWidth, registryVersion])
-
-  const zoom = Math.min(userZoom, fitZoomCap)
-
-  // Collapse vertical layout space to the *visual* height when zoom ≠ 1 (transform does not shrink document flow).
-  useLayoutEffect(() => {
-    if (zoom === 1) {
-      setScaledWrapHeight(null)
-      return
-    }
-    const el = scaleInnerRef.current
-    if (!el) return
-    const measure = () => {
-      const h = el.getBoundingClientRect().height
-      setScaledWrapHeight((prev) => {
-        const next = Math.max(0, Math.ceil(h))
-        return prev === next ? prev : next
-      })
-    }
-    measure()
-    const ro = new ResizeObserver(() => measure())
-    ro.observe(el)
-    const t0 = window.setTimeout(measure, 0)
-    const t1 = window.setTimeout(measure, 120)
-    return () => {
-      window.clearTimeout(t0)
-      window.clearTimeout(t1)
-      ro.disconnect()
-    }
-  }, [zoom, containerWidth, plugins.length, gridGap, gridPadding, editMode, registryVersion, fitZoomCap])
 
   const handleLayoutChange = useCallback(
     (next: Layout[]) => {
@@ -340,7 +292,7 @@ export function DashboardGrid() {
           transition: 'transform 0.2s ease',
         }}
       >
-      <div ref={fitAnchorRef} style={{ padding: `${gridPadding}px`, width: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
+      <div style={{ padding: `${gridPadding}px`, width: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {editMode && (
           <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', borderRadius: '10px', background: 'var(--accent)18', border: '1px solid var(--accent)40', color: 'var(--accent)', fontSize: '13px' }}>
             <span>✏️</span>
