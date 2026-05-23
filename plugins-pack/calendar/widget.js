@@ -432,7 +432,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       monthBadgeMode: "Monats\xFCbersicht \u2014 Termin-Badges",
       monthBadgeTotal: "Gesamtzahl (wie bisher)",
       monthBadgeByCalendar: "Pro Unterkalender (Farbe + Anzahl)",
-      monthBadgeModeHint: "Nur in der Monatsansicht auf der Karte. Pro Tag entweder eine Zahl oder farbige Badges je Unterkalender."
+      monthBadgeModeHint: "Nur in der Monatsansicht auf der Karte. Pro Tag entweder eine Zahl oder farbige Badges je Unterkalender.",
+      monthDayColors: "Kalenderfarben in Monatsansicht",
+      monthDayColorsHint: "Tage mit Terminen farblich markieren (Streifen und Hintergrund in Unterkalender-Farben)."
     },
     en: {
       calendar: "Calendar",
@@ -540,7 +542,9 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       monthBadgeMode: "Month view \u2014 event badges",
       monthBadgeTotal: "Total count (current)",
       monthBadgeByCalendar: "Per sub-calendar (color + count)",
-      monthBadgeModeHint: "Tile month view only. Either one total number or colored badges per sub-calendar per day."
+      monthBadgeModeHint: "Tile month view only. Either one total number or colored badges per sub-calendar per day.",
+      monthDayColors: "Calendar colors in month view",
+      monthDayColorsHint: "Color days with events (stripes and tint using sub-calendar colors)."
     }
   };
   function t(key, locale = "de") {
@@ -556,7 +560,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "calendar",
     name: "Kalender",
     description: "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo \u2026 API: /api/plugins/calendar.",
-    version: "1.5.1",
+    version: "1.5.2",
     author: "SelfDashboard Community",
     category: "productivity",
     icon: "\u{1F4C5}",
@@ -746,6 +750,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const t2 = (k) => t(k, locale);
     const refreshInterval = Math.max(15, config.refreshInterval ?? 60) * 1e3;
     const monthBadgeMode = config.monthBadgeMode === "byCalendar" ? "byCalendar" : "total";
+    const monthDayColors = config.monthDayColors === true;
     const [summary, setSummary] = (0, import_react3.useState)(null);
     const [status, setStatus] = (0, import_react3.useState)("loading");
     const [errorMsg, setErrorMsg] = (0, import_react3.useState)(null);
@@ -1086,6 +1091,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               compact: true,
               countOnly: true,
               badgeMode: monthBadgeMode,
+              dayColors: monthDayColors,
               cursor: monthCursor,
               range: monthRange,
               selectedDay,
@@ -1290,6 +1296,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }, children: t2("monthBadgeModeHint") })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("label", { style: { display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text)", cursor: "pointer" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+            type: "checkbox",
+            checked: config.monthDayColors === true,
+            onChange: (e) => onChange("monthDayColors", e.target.checked)
+          }),
+          t2("monthDayColors")
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }, children: t2("monthDayColorsHint") })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", color: "var(--text-muted)" }, children: locale === "de" ? "Konten und Kalender werden direkt im Kalender-Vollbild verwaltet (Zahnrad-Icon auf der Karte)." : "Manage accounts and calendars in the full-screen calendar view (cog icon on the tile)." })
     ] });
@@ -1853,7 +1870,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       }
     );
   }
-  function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, countOnly, badgeMode = "total", onSelectDay, onClickDay, onClickEvent }) {
+  function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, countOnly, badgeMode = "total", dayColors = false, onSelectDay, onClickDay, onClickEvent }) {
     const t2 = (k) => t(k, locale);
     const weekdays = (0, import_react3.useMemo)(() => weekdayShortLabels(locale), [locale]);
     const today = startOfLocalDay(/* @__PURE__ */ new Date());
@@ -1891,7 +1908,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         const isOther = day.getMonth() !== month;
         const isToday = dateKeyLocal(day) === dateKeyLocal(today);
         const isSelected = key === selectedKey;
-        const calendarGroups = countOnly && badgeMode === "byCalendar" && dayEvents.length > 0 ? groupDayEventsByCalendar(dayEvents) : null;
+        const calendarGroups = countOnly && dayEvents.length > 0 ? groupDayEventsByCalendar(dayEvents) : null;
+        const dayColorTint = countOnly && dayColors && calendarGroups?.length && !isSelected && !isOther ? `${calendarGroups[0].color}22` : void 0;
         return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
           "div",
           {
@@ -1907,7 +1925,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               flexDirection: "column",
               gap: "2px",
               cursor: "pointer",
-              background: isSelected ? "var(--accent)14" : isOther ? "rgba(0,0,0,0.10)" : void 0,
+              background: isSelected ? "var(--accent)14" : isOther ? "rgba(0,0,0,0.10)" : dayColorTint,
               outline: isSelected ? "2px solid var(--accent)" : void 0,
               outlineOffset: "-2px",
               overflow: "hidden",
@@ -1939,7 +1957,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 justifyContent: "center",
                 gap: "2px",
                 paddingBottom: "2px"
-              }, children: calendarGroups ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+              }, children: badgeMode === "byCalendar" && calendarGroups ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
                 calendarGroups.slice(0, 4).map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                   "span",
                   {
@@ -1967,7 +1985,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                 fontSize: "10px",
                 fontWeight: 700,
                 lineHeight: 1,
-                background: "var(--accent)",
+                background: dayColors && calendarGroups?.length ? calendarGroups[0].color : "var(--accent)",
                 color: "#fff",
                 borderRadius: "10px",
                 minWidth: "18px",
@@ -2010,7 +2028,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                   " ",
                   t2("moreEvents")
                 ] })
-              ] })
+              ] }),
+              countOnly && dayColors && calendarGroups?.length && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { display: "flex", height: "3px", marginTop: "auto", flexShrink: 0, borderRadius: "1px", overflow: "hidden" }, children: calendarGroups.slice(0, 5).map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { flex: 1, background: g.color }, title: g.name }, g.calendarId)) })
             ]
           },
           i
