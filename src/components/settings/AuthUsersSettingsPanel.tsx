@@ -11,7 +11,7 @@ type UserRow = {
   allowedPlugins: string[] | null
 }
 
-type CatalogPlugin = { id: string; highRisk: boolean }
+type CatalogPlugin = { id: string; highRisk?: boolean; warning?: 'host' | 'shared' | null }
 
 export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
   const de = locale === 'de'
@@ -129,8 +129,25 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
     <div className="flex flex-col gap-4 text-sm">
       <p style={{ color: 'var(--text-muted)', lineHeight: 1.5 }}>
         {de
-          ? 'Normale Benutzer sehen nur freigegebene Plugins. APIs (z. B. Docker-Socket) sind ohne Freigabe blockiert. Admins haben immer alle Plugins.'
-          : 'Regular users only see allowed plugins. APIs (e.g. Docker socket) are blocked without permission. Admins always have all plugins.'}
+          ? 'Normale Benutzer sehen nur freigegebene Plugins. APIs sind ohne Häkchen blockiert. Das orangene Dreieck ist nur ein Hinweis für dich — kein Fehler.'
+          : 'Regular users only see allowed plugins. APIs are blocked without a checkmark. The orange triangle is a hint for you — not an error.'}
+      </p>
+      <p className="text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.45 }}>
+        {de ? (
+          <>
+            <AlertTriangle size={11} className="inline mr-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
+            Host/System (Docker, FRITZ!, …) ·{' '}
+            <AlertTriangle size={11} className="inline mx-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
+            Gemeinsame Daten (Kalender, Mail — alle freigegebenen User teilen sich dieselbe Instanz)
+          </>
+        ) : (
+          <>
+            <AlertTriangle size={11} className="inline mr-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
+            Host/system (Docker, FRITZ!, …) ·{' '}
+            <AlertTriangle size={11} className="inline mx-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
+            Shared data (calendar, mail — granted users share one instance)
+          </>
+        )}
       </p>
 
       <section
@@ -229,9 +246,28 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
                   onChange={() => togglePlugin(p.id)}
                 />
                 <span className="font-mono">{p.id}</span>
-                {p.highRisk ? (
-                  <span title={de ? 'Kritisch (Host/API)' : 'High risk'} style={{ display: 'flex', flexShrink: 0 }}>
+                {p.warning === 'host' ? (
+                  <span
+                    title={
+                      de
+                        ? 'Host/System: z. B. Docker-Socket, FRITZ!, Router — nur freigeben wenn nötig'
+                        : 'Host/system: e.g. Docker socket, FRITZ!, router — grant only if needed'
+                    }
+                    style={{ display: 'flex', flexShrink: 0 }}
+                  >
                     <AlertTriangle size={12} style={{ color: '#f59e0b' }} aria-hidden />
+                  </span>
+                ) : null}
+                {p.warning === 'shared' ? (
+                  <span
+                    title={
+                      de
+                        ? 'Gemeinsame Instanz: Kalender/Mail-Daten liegen global unter /app/data — alle mit Freigabe sehen dieselben Konten/Termine'
+                        : 'Shared instance: calendar/mail data is global under /app/data — all granted users see the same accounts/events'
+                    }
+                    style={{ display: 'flex', flexShrink: 0 }}
+                  >
+                    <AlertTriangle size={12} style={{ color: '#f59e0b', opacity: 0.65 }} aria-hidden />
                   </span>
                 ) : null}
               </label>

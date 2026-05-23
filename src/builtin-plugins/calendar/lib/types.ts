@@ -18,6 +18,9 @@ export type SyncState =
 
 export type SyncStatus = 'idle' | 'ok' | 'error' | 'conflict'
 
+/** `private` = only owner; `shared` = owner + sharedWithUserIds may view (read-only). */
+export type AccountSharing = 'private' | 'shared'
+
 export interface CalDAVConfig {
   url: string
   username: string
@@ -43,6 +46,11 @@ export interface Account {
   lastSyncAt?: string
   lastSyncStatus?: SyncStatus
   lastSyncError?: string
+  /** Owner SelfDashboard user id (set on create; omitted on legacy global store). */
+  ownerUserId?: string
+  sharing?: AccountSharing
+  /** SelfDashboard user ids that may view this account when sharing === 'shared'. */
+  sharedWithUserIds?: string[]
 }
 
 export interface Calendar {
@@ -125,6 +133,8 @@ export const EMPTY_STORE: CalendarStore = {
 export interface AccountCreateBody {
   name: string
   provider: ProviderId
+  sharing?: AccountSharing
+  sharedWithUserIds?: string[]
   caldav?: {
     url: string
     username: string
@@ -141,6 +151,8 @@ export interface AccountCreateBody {
 export interface AccountUpdateBody {
   name?: string
   enabled?: boolean
+  sharing?: AccountSharing
+  sharedWithUserIds?: string[]
   caldav?: {
     url?: string
     username?: string

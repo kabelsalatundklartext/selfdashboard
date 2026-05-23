@@ -7,9 +7,11 @@
 
 import { encrypt } from './crypto'
 import { newId, nowIso } from './store'
+import { sanitizeSharedWith } from './access'
 import type {
   Account,
   AccountCreateBody,
+  AccountSharing,
   AccountUpdateBody,
   CalDAVConfig,
   Calendar,
@@ -39,12 +41,29 @@ export interface AccountView {
   /** Full URL for edit forms */
   url?: string
   username?: string
+  sharing: AccountSharing
+  sharedWithUserIds: string[]
+  sharedWithUsernames?: string[]
+  ownerUserId?: string
+  ownerUsername?: string
+  ownedByMe: boolean
+  canManage: boolean
 }
 
-export function toAccountView(a: Account, calendars: Calendar[]): AccountView {
+export function toAccountView(
+  a: Account,
+  calendars: Calendar[],
+  opts?: {
+    ownedByMe?: boolean
+    canManage?: boolean
+    ownerUsername?: string
+    sharedWithUsernames?: string[]
+  },
+): AccountView {
   const cfg = a.config as CalDAVConfig | ICSConfig
   let endpoint = ''
   try { endpoint = new URL(cfg.url).host } catch { endpoint = cfg.url }
+  const sharing = a.sharing ?? 'private'
   return {
     id: a.id,
     name: a.name,
@@ -58,6 +77,13 @@ export function toAccountView(a: Account, calendars: Calendar[]): AccountView {
     endpoint,
     url: cfg.url,
     username: (cfg as CalDAVConfig).username,
+    sharing,
+    sharedWithUserIds: a.sharedWithUserIds ?? [],
+    sharedWithUsernames: opts?.sharedWithUsernames,
+    ownerUserId: a.ownerUserId,
+    ownerUsername: opts?.ownerUsername,
+    ownedByMe: opts?.ownedByMe ?? true,
+    canManage: opts?.canManage ?? true,
   }
 }
 
@@ -65,7 +91,12 @@ export function toAccountView(a: Account, calendars: Calendar[]): AccountView {
 // Build an Account from a request body
 // ---------------------------------------------------------------------------
 
-export function buildAccount(body: AccountCreateBody): Account {
+export function buildAccount(body: AccountCreateBody, ownerUserId: string): Account {
+  const { sharing, sharedWithUserIds } = sanitizeSharedWith(
+    body.sharing,
+    body.sharedWithUserIds,
+    ownerUserId,
+  )
   if (body.provider === 'caldav') {
     if (!body.caldav) throw new Error('caldav config required')
     return {
@@ -74,6 +105,9 @@ export function buildAccount(body: AccountCreateBody): Account {
       provider: 'caldav',
       enabled: true,
       createdAt: nowIso(),
+      ownerUserId,
+      sharing,
+      sharedWithUserIds,
       config: {
         url: body.caldav.url,
         username: body.caldav.username,
@@ -90,6 +124,9 @@ export function buildAccount(body: AccountCreateBody): Account {
       provider: 'ics',
       enabled: true,
       createdAt: nowIso(),
+      ownerUserId,
+      sharing,
+      sharedWithUserIds,
       config: {
         url: body.ics.url,
         username: body.ics.username,
@@ -100,9 +137,18 @@ export function buildAccount(body: AccountCreateBody): Account {
   throw new Error(`unknown provider: ${(body as any).provider}`)
 }
 
-export function applyAccountUpdate(a: Account, body: AccountUpdateBody): void {
+export function applyAccountUpdate(a: Account, body: AccountUpdateBody, ownerUserId: string): void {
   if (body.name !== undefined) a.name = body.name
   if (body.enabled !== undefined) a.enabled = body.enabled
+  if (body.sharing !== undefined || body.sharedWithUserIds !== undefined) {
+    const next = sanitizeSharedWith(
+      body.sharing ?? a.sharing,
+      body.sharedWithUserIds ?? a.sharedWithUserIds,
+      ownerUserId,
+    )
+    a.sharing = next.sharing
+    a.sharedWithUserIds = next.sharedWithUserIds
+  }
   if (a.provider === 'caldav' && body.caldav) {
     const cfg = a.config as CalDAVConfig
     a.config = {
@@ -211,6 +257,10 @@ export function notFound(message = 'not found') {
 
 export function badRequest(message: string) {
   return Response.json({ error: message }, { status: 400 })
+}
+
+export function forbidden(message = 'forbidden') {
+  return Response.json({ error: message }, { status: 403 })
 }
 
 export function ok<T>(data: T) {

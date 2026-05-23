@@ -74,7 +74,10 @@ export function middleware(request: NextRequest) {
     if (pluginDenied) return pluginDenied
   }
 
-  const res = NextResponse.next()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-sd-user-id', session.userId)
+  requestHeaders.set('x-sd-role', session.role)
+  const res = NextResponse.next({ request: { headers: requestHeaders } })
   res.headers.set('x-sd-user-id', session.userId)
   res.headers.set('x-sd-role', session.role)
   return res

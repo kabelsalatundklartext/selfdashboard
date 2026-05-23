@@ -6,8 +6,8 @@ import type { SessionInfo, UserRole } from '@/lib/auth/types'
 import { isAuthDisabled } from '@/lib/auth/service'
 import type { DashboardStatePersisted } from '@/lib/dashboardStatePayload'
 
-/** Plugins with host/system impact — shown as „kritisch“ in the Admin-UI. */
-export const HIGH_RISK_PLUGIN_IDS = new Set([
+/** Host/system access (socket, router, bans, …) — extra caution when granting. */
+export const HOST_SYSTEM_PLUGIN_IDS = new Set([
   'docker',
   'unraid-docker',
   'crowdsec',
@@ -17,9 +17,24 @@ export const HIGH_RISK_PLUGIN_IDS = new Set([
   'pihole',
   'adguard',
   'selfstream',
-  'calendar',
-  'mail',
 ])
+
+/** Shared backend for the whole instance (mail). Calendar is per-user with optional sharing. */
+export const SHARED_INSTANCE_PLUGIN_IDS = new Set(['mail'])
+
+/** @deprecated use getPluginGrantWarning() */
+export const HIGH_RISK_PLUGIN_IDS = new Set([
+  ...HOST_SYSTEM_PLUGIN_IDS,
+  ...SHARED_INSTANCE_PLUGIN_IDS,
+])
+
+export type PluginGrantWarning = 'host' | 'shared'
+
+export function getPluginGrantWarning(pluginId: string): PluginGrantWarning | null {
+  if (HOST_SYSTEM_PLUGIN_IDS.has(pluginId)) return 'host'
+  if (SHARED_INSTANCE_PLUGIN_IDS.has(pluginId)) return 'shared'
+  return null
+}
 
 /** Built-in widgets without a registered server handler (still restrictable). */
 const CLIENT_ONLY_PLUGIN_IDS = [
