@@ -381,12 +381,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.5.9",
+    version: "1.5.10",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
-    /** Gestapelte Ansicht: +2 Zeilen, damit Vorschau/„Nächste Tage“ nicht abgeschnitten wirkt. */
-    stackedExtraH: 2,
+ /** Gestapelte Ansicht: +3 Zeilen, damit 3-Stunden-Verlauf / „Nächste Tage“ nicht abgeschnitten wirkt. */
+ stackedExtraH: 3,
     configSchema: [
       {
         key: "locationQuery",
@@ -731,6 +731,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     };
   }
   var WEATHER_SPLIT_MIN_PX = 420;
+ var WEATHER_SPLIT_MIN_H_PX = 320;
   function Widget({ config }) {
     const locale = useDashboardStore((s) => s.locale);
     const de = locale !== "en";
@@ -875,11 +876,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     (0, import_react3.useLayoutEffect)(() => {
       const el = rootRef.current;
       if (!el) return;
-      const measure = () => {
-        const w = el.getBoundingClientRect().width;
-        const next = w >= WEATHER_SPLIT_MIN_PX && showDailyForecast && daily.length > 0;
-        setSplitLayout((p) => p === next ? p : next);
-      };
+ const measure = () => {
+ const { width: w, height: h } = el.getBoundingClientRect();
+ const next = w >= WEATHER_SPLIT_MIN_PX && h >= WEATHER_SPLIT_MIN_H_PX && showDailyForecast && daily.length > 0;
+ setSplitLayout((p) => p === next ? p : next);
+ };
       measure();
       if (typeof ResizeObserver === "undefined") return;
       const ro = new ResizeObserver(measure);
@@ -1061,15 +1062,16 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
             "div",
             {
-              style: {
-                flex: 1,
-                minHeight: 0,
-                display: "flex",
-                flexDirection: splitView ? "row" : "column",
-                alignItems: splitView ? "stretch" : void 0,
-                justifyContent: splitView ? "flex-start" : "center",
-                gap: splitView ? "clamp(10px, 2.2cqmin, 20px)" : void 0
-              },
+ style: {
+ flex: 1,
+ minHeight: 0,
+ display: "flex",
+ flexDirection: splitView ? "row" : "column",
+ alignItems: splitView ? "stretch" : void 0,
+ justifyContent: splitView ? "flex-start" : "center",
+ gap: splitView ? "clamp(10px, 2.2cqmin, 20px)" : void 0,
+ overflowY: splitView ? "auto" : void 0
+ },
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                   "div",
@@ -1084,10 +1086,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       alignItems: "center",
                       gap: "clamp(4px, 1.2cqmin, 8px)",
                       alignSelf: splitView ? "stretch" : void 0,
-                      ...splitView ? {
-                        paddingRight: "clamp(6px, 1.5cqmin, 12px)",
-                        borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)"
-                      } : {}
+ ...splitView ? {
+ minHeight: 0,
+ overflowY: "auto",
+ paddingRight: "clamp(6px, 1.5cqmin, 12px)",
+ borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)"
+ } : {}
                     },
                     children: [
                       showHumidityWind && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
@@ -1240,11 +1244,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             display: "grid",
                             gridTemplateColumns: `repeat(${dayPeriods.length}, minmax(0, 1fr))`,
                             gap: "clamp(2px, 0.8cqmin, 6px)",
-                            width: "100%",
-                            maxWidth: "100%",
-                            margin: "2px 0 0"
-                          },
-                          children: dayPeriods.map((slot) => {
+ width: "100%",
+ maxWidth: "100%",
+ margin: "2px 0 0",
+ flexShrink: 0,
+ paddingBottom: "2px"
+ },
+ children: dayPeriods.map((slot) => {
                             const SlotIcon = wmoIconComponent(slot.code, slot.isDay);
                             const slotColor = wmoIconColor(slot.code, slot.isDay);
                             const slotSummary = wmoSummary(slot.code, de);
