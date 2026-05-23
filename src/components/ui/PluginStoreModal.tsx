@@ -278,11 +278,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
         const res = await fetch('/api/auth/my-plugins', { cache: 'no-store' })
         if (res.ok) {
           const j = (await res.json()) as { plugins?: PluginMeta[] }
-          const list = j.plugins ?? []
+          const list = (j.plugins ?? []) as Array<PluginMeta & { widgetReady?: boolean }>
           setUserAllowedPlugins(list)
-          if (list.length > 0) {
+          const readyIds = list.filter((p) => p.widgetReady !== false).map((p) => p.id)
+          if (readyIds.length > 0) {
             try {
-              await loadVolumeWidgetScripts(list.map((p) => p.id))
+              await loadVolumeWidgetScripts(readyIds)
             } catch (e) {
               console.warn('[SelfDashboard] allowed plugin widgets preload', e)
             }
@@ -470,6 +471,24 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const handleAdd = useCallback(
     async (pluginId: string) => {
       try {
+        setReloadMsg(null)
+        const ensureRes = await fetch('/api/plugins/ensure-widget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pluginId }),
+        })
+        if (!ensureRes.ok) {
+          const j = (await ensureRes.json().catch(() => ({}))) as { error?: string; hint?: string }
+          setReloadMsgKind('error')
+          setReloadMsg(
+            j.hint ??
+              (locale === 'de'
+                ? `Plugin „${pluginId}“ konnte nicht geladen werden (${j.error ?? ensureRes.status}). Bitte Admin: GitHub-Plugins-Repo konfigurieren oder Plugin als Admin einmal installieren.`
+                : `Could not load plugin “${pluginId}” (${j.error ?? ensureRes.status}). Ask admin to configure GitHub plugins or install once as admin.`),
+          )
+          return
+        }
+
         let plugin = pluginRegistry.get(pluginId)
         if (!plugin) {
           try {
@@ -529,7 +548,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
         console.error('[SelfDashboard] addPlugin failed', pluginId, e)
       }
     },
-    [addPlugin, existingPlugins, githubConfigured, remotePlugins, handleInstallRemote, locale],
+    [addPlugin, existingPlugins, githubConfigured, remotePlugins, handleInstallRemote, locale, setReloadMsg, setReloadMsgKind],
   )
 
   const categoryLabel = useCallback(
