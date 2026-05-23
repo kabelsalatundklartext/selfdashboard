@@ -10,6 +10,7 @@ import { listUsers } from '@/lib/auth/users'
 
 import {
   applyCalendarReadOnlyForViewer,
+  calendarCanEditEvents,
   readViewerStore,
 } from './lib/access'
 import {
@@ -69,9 +70,9 @@ function mapAccountsToViews(
 }
 
 async function loadViewer(viewer: CalendarViewer) {
-  const { store, permissions } = await readViewerStore(viewer.userId, viewer.role)
-  const calendars = applyCalendarReadOnlyForViewer(store.calendars, permissions)
-  return { store: { ...store, calendars }, permissions, calendars }
+  const { store, permissions, calendarPermissions } = await readViewerStore(viewer.userId, viewer.role)
+  const calendars = applyCalendarReadOnlyForViewer(store.calendars, calendarPermissions)
+  return { store: { ...store, calendars }, permissions, calendarPermissions, calendars }
 }
 
 async function requireManageAccount(accountId: string, viewer: CalendarViewer) {
@@ -84,11 +85,10 @@ async function requireManageAccount(accountId: string, viewer: CalendarViewer) {
 }
 
 async function calendarWritable(calendarId: string, viewer: CalendarViewer) {
-  const { store, permissions, calendars } = await loadViewer(viewer)
+  const { store, calendarPermissions, calendars } = await loadViewer(viewer)
   const cal = calendars.find((c) => c.id === calendarId)
   if (!cal || cal.readOnly) return null
-  const perm = permissions.get(cal.accountId)
-  if (!perm?.canManage) return null
+  if (!calendarCanEditEvents(calendarId, calendarPermissions)) return null
   const ownerUserId = await findAccountOwnerUserId(cal.accountId)
   if (!ownerUserId) return null
   return { store, cal, ownerUserId }
@@ -158,7 +158,7 @@ async function handleAccountsPost(req: Request, viewer: CalendarViewer): Promise
   if (!body?.name || !body?.provider) return badRequest('name and provider required')
   let newIdVal: string
   try {
-    const account = buildAccount(body, viewer.userId)
+    const account = buildAccount(body, viewer.userId, new Set())
     newIdVal = account.id
     await mutateUserStore(viewer.userId, (s) => {
       s.accounts.push(account)
@@ -193,7 +193,10 @@ async function handleAccountPut(req: Request, id: string, viewer: CalendarViewer
     const a = s.accounts.find((x) => x.id === id)
     if (!a) return
     found = true
-    applyAccountUpdate(a, body, manage.ownerUserId)
+    const validCalendarIds = new Set(
+      s.calendars.filter((c) => c.accountId === id).map((c) => c.id),
+    )
+    applyAccountUpdate(a, body, manage.ownerUserId, validCalendarIds)
   })
   if (!found) return notFound('account not found')
   const { store, permissions } = await loadViewer(viewer)
@@ -385,13 +388,21 @@ async function handleEventPut(req: Request, id: string, viewer: CalendarViewer):
     return badRequest('invalid JSON')
   }
 
-  const { store, permissions, calendars } = await loadViewer(viewer)
+  const { store, calendarPermissions, calendars } = await loadViewer(viewer)
   const existing = store.events.find((e) => e.id === id)
   if (!existing) return notFound('event not found')
   const cal = calendars.find((c) => c.id === existing.calendarId)
   if (!cal || cal.readOnly) return notFound('event not found or its calendar is read-only')
-  const perm = permissions.get(cal.accountId)
-  if (!perm?.canManage) return forbidden('not allowed to edit this event')
+  if (!calendarCanEditEvents(cal.id, calendarPermissions)) {
+    return forbidden('not allowed to edit this event')
+  }
+  if (
+    body.calendarId !== undefined &&
+    body.calendarId !== cal.id &&
+    !calendarCanEditEvents(body.calendarId, calendarPermissions)
+  ) {
+    return badRequest('target calendar not found or read-only')
+  }
 
   const ownerUserId = await findAccountOwnerUserId(cal.accountId)
   if (!ownerUserId) return notFound('event not found')
@@ -484,13 +495,14 @@ async function handleEventPut(req: Request, id: string, viewer: CalendarViewer):
 }
 
 async function handleEventDelete(id: string, viewer: CalendarViewer): Promise<Response> {
-  const { store, permissions, calendars } = await loadViewer(viewer)
+  const { store, calendarPermissions, calendars } = await loadViewer(viewer)
   const existing = store.events.find((e) => e.id === id)
   if (!existing) return notFound('event not found')
   const cal = calendars.find((c) => c.id === existing.calendarId)
   if (!cal || cal.readOnly) return notFound('event not found or its calendar is read-only')
-  const perm = permissions.get(cal.accountId)
-  if (!perm?.canManage) return forbidden('not allowed to delete this event')
+  if (!calendarCanEditEvents(cal.id, calendarPermissions)) {
+    return forbidden('not allowed to delete this event')
+  }
 
   const ownerUserId = await findAccountOwnerUserId(cal.accountId)
   if (!ownerUserId) return notFound('event not found')
@@ -552,13 +564,14 @@ async function handleConflictResolvePost(
   }
   if (body.side !== 'local' && body.side !== 'remote') return badRequest("side must be 'local' or 'remote'")
 
-  const { store, permissions, calendars } = await loadViewer(viewer)
+  const { store, calendarPermissions, calendars } = await loadViewer(viewer)
   const existing = store.events.find((e) => e.id === id)
   if (!existing) return notFound('no conflict on this event')
   const cal = calendars.find((c) => c.id === existing.calendarId)
   if (!cal || cal.readOnly) return notFound('no conflict on this event')
-  const perm = permissions.get(cal.accountId)
-  if (!perm?.canManage) return forbidden('not allowed to resolve this conflict')
+  if (!calendarCanEditEvents(cal.id, calendarPermissions)) {
+    return forbidden('not allowed to resolve this conflict')
+  }
 
   const ownerUserId = await findAccountOwnerUserId(cal.accountId)
   if (!ownerUserId) return notFound('no conflict on this event')

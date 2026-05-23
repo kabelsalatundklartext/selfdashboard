@@ -7,7 +7,7 @@
 
 import { encrypt } from './crypto'
 import { newId, nowIso } from './store'
-import { sanitizeSharedWith } from './access'
+import { sanitizeSharedCalendarGrants, sanitizeSharedWith } from './access'
 import type {
   Account,
   AccountCreateBody,
@@ -19,6 +19,7 @@ import type {
   ExpandedEvent,
   ICSConfig,
   ProviderId,
+  SharedCalendarGrant,
   SummaryResponse,
 } from './types'
 
@@ -48,6 +49,7 @@ export interface AccountView {
   ownerUsername?: string
   ownedByMe: boolean
   canManage: boolean
+  sharedCalendarGrants?: SharedCalendarGrant[]
 }
 
 export function toAccountView(
@@ -80,6 +82,7 @@ export function toAccountView(
     sharing,
     sharedWithUserIds: a.sharedWithUserIds ?? [],
     sharedWithUsernames: opts?.sharedWithUsernames,
+    sharedCalendarGrants: a.sharedCalendarGrants ?? [],
     ownerUserId: a.ownerUserId,
     ownerUsername: opts?.ownerUsername,
     ownedByMe: opts?.ownedByMe ?? true,
@@ -91,10 +94,21 @@ export function toAccountView(
 // Build an Account from a request body
 // ---------------------------------------------------------------------------
 
-export function buildAccount(body: AccountCreateBody, ownerUserId: string): Account {
+export function buildAccount(
+  body: AccountCreateBody,
+  ownerUserId: string,
+  validCalendarIds: Set<string> = new Set(),
+): Account {
   const { sharing, sharedWithUserIds } = sanitizeSharedWith(
     body.sharing,
     body.sharedWithUserIds,
+    ownerUserId,
+  )
+  const sharedCalendarGrants = sanitizeSharedCalendarGrants(
+    sharing,
+    sharedWithUserIds,
+    body.sharedCalendarGrants,
+    validCalendarIds,
     ownerUserId,
   )
   if (body.provider === 'caldav') {
@@ -108,6 +122,7 @@ export function buildAccount(body: AccountCreateBody, ownerUserId: string): Acco
       ownerUserId,
       sharing,
       sharedWithUserIds,
+      sharedCalendarGrants,
       config: {
         url: body.caldav.url,
         username: body.caldav.username,
@@ -127,6 +142,7 @@ export function buildAccount(body: AccountCreateBody, ownerUserId: string): Acco
       ownerUserId,
       sharing,
       sharedWithUserIds,
+      sharedCalendarGrants,
       config: {
         url: body.ics.url,
         username: body.ics.username,
@@ -137,10 +153,19 @@ export function buildAccount(body: AccountCreateBody, ownerUserId: string): Acco
   throw new Error(`unknown provider: ${(body as any).provider}`)
 }
 
-export function applyAccountUpdate(a: Account, body: AccountUpdateBody, ownerUserId: string): void {
+export function applyAccountUpdate(
+  a: Account,
+  body: AccountUpdateBody,
+  ownerUserId: string,
+  validCalendarIds: Set<string>,
+): void {
   if (body.name !== undefined) a.name = body.name
   if (body.enabled !== undefined) a.enabled = body.enabled
-  if (body.sharing !== undefined || body.sharedWithUserIds !== undefined) {
+  if (
+    body.sharing !== undefined ||
+    body.sharedWithUserIds !== undefined ||
+    body.sharedCalendarGrants !== undefined
+  ) {
     const next = sanitizeSharedWith(
       body.sharing ?? a.sharing,
       body.sharedWithUserIds ?? a.sharedWithUserIds,
@@ -148,6 +173,25 @@ export function applyAccountUpdate(a: Account, body: AccountUpdateBody, ownerUse
     )
     a.sharing = next.sharing
     a.sharedWithUserIds = next.sharedWithUserIds
+    if (next.sharing !== 'shared') {
+      a.sharedCalendarGrants = []
+    } else if (body.sharedCalendarGrants !== undefined) {
+      a.sharedCalendarGrants = sanitizeSharedCalendarGrants(
+        next.sharing,
+        next.sharedWithUserIds,
+        body.sharedCalendarGrants,
+        validCalendarIds,
+        ownerUserId,
+      )
+    } else {
+      a.sharedCalendarGrants = sanitizeSharedCalendarGrants(
+        next.sharing,
+        next.sharedWithUserIds,
+        a.sharedCalendarGrants,
+        validCalendarIds,
+        ownerUserId,
+      )
+    }
   }
   if (a.provider === 'caldav' && body.caldav) {
     const cfg = a.config as CalDAVConfig

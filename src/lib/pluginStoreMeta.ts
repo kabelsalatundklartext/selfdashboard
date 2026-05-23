@@ -11,7 +11,7 @@ const BUILTIN_STORE_META: Record<string, PluginMeta> = {
     id: 'calendar',
     name: 'Kalender',
     description: 'CalDAV + ICS Kalender',
-    version: '1.4.0',
+    version: '1.5.0',
     author: 'SelfDashboard',
     category: 'productivity',
     icon: '📅',

@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-23T12:06:50.597Z",
+  "generatedAt": "2026-05-23T12:33:59.881Z",
   "plugins": [
     {
       "id": "adguard",
@@ -37,7 +37,7 @@
       "id": "calendar",
       "name": "Kalender",
       "description": "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo … API: /api/plugins/calendar.",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "author": "SelfDashboard Community",
       "category": "productivity",
       "icon": "📅",

@@ -418,10 +418,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       sharingPrivate: "Nur f\xFCr mich (privat)",
       sharingShared: "Mit anderen Benutzern teilen",
       shareWithUsers: "Benutzer ausw\xE4hlen",
-      shareWithHint: "Geteilte Kalender sind f\xFCr die ausgew\xE4hlten Benutzer nur lesbar.",
+      shareWithHint: "Geteilte Kalender sind f\xFCr die ausgew\xE4hlten Benutzer nur lesbar, sofern \u201EBearbeiten\u201C nicht gesetzt ist.",
       sharedFrom: "Geteilt von",
       sharedWith: "Geteilt mit",
-      noShareUsers: "Keine weiteren Benutzer mit Kalender-Berechtigung."
+      noShareUsers: "Keine weiteren Benutzer mit Kalender-Berechtigung.",
+      shareCalendarsTitle: "Unterkalender freigeben",
+      shareCalendarsHint: "Pro Kalender und Benutzer: nicht teilen, nur lesen oder bearbeiten erlauben.",
+      shareCalendarsAfterSync: "Nach dem ersten Sync Konto bearbeiten, um Unterkalender gezielt freizugeben.",
+      shareAccessNone: "Nicht teilen",
+      shareAccessRead: "Lesen",
+      shareAccessWrite: "Bearbeiten",
+      shareLegacyAllReadOnly: "Alle Unterkalender werden geteilt (nur lesen). Speichern, um gezielt auszuw\xE4hlen."
     },
     en: {
       calendar: "Calendar",
@@ -515,10 +522,17 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       sharingPrivate: "Private (only me)",
       sharingShared: "Share with other users",
       shareWithUsers: "Select users",
-      shareWithHint: "Shared calendars are read-only for selected users.",
+      shareWithHint: "Shared calendars are read-only unless \u201CEdit\u201D is set for that user.",
       sharedFrom: "Shared by",
       sharedWith: "Shared with",
-      noShareUsers: "No other users with calendar permission."
+      noShareUsers: "No other users with calendar permission.",
+      shareCalendarsTitle: "Share sub-calendars",
+      shareCalendarsHint: "Per calendar and user: do not share, read only, or allow editing.",
+      shareCalendarsAfterSync: "After the first sync, edit the account to pick which calendars to share.",
+      shareAccessNone: "Not shared",
+      shareAccessRead: "Read",
+      shareAccessWrite: "Edit",
+      shareLegacyAllReadOnly: "All sub-calendars are shared (read-only). Save to pick specific calendars."
     }
   };
   function t(key, locale = "de") {
@@ -534,7 +548,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "calendar",
     name: "Kalender",
     description: "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo \u2026 API: /api/plugins/calendar.",
-    version: "1.4.0",
+    version: "1.5.0",
     author: "SelfDashboard Community",
     category: "productivity",
     icon: "\u{1F4C5}",
@@ -1493,11 +1507,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             {
               locale,
               target: accountDialog,
+              accountCalendars: accountDialog.mode === "edit" ? calendars.filter((c) => c.accountId === accountDialog.account.id) : [],
               onClose: () => setAccountDialog(null),
               onSaved: () => {
                 setAccountDialog(null);
                 refresh();
-              }
+              },
+              stacked: true
             }
           ),
           dayPopup && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -2359,10 +2375,44 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       children
     ] });
   }
-  function AccountDialog({ target, locale, onClose, onSaved, stacked }) {
+  function initShareMatrix(calendars, userIds, grants, legacyAllReadOnly) {
+    const matrix = {};
+    for (const cal of calendars) {
+      matrix[cal.id] = {};
+      for (const userId of userIds) {
+        const grant = grants.find((g) => g.calendarId === cal.id && g.userId === userId);
+        if (grant) matrix[cal.id][userId] = grant.access;
+        else if (legacyAllReadOnly) matrix[cal.id][userId] = "read";
+        else matrix[cal.id][userId] = "none";
+      }
+    }
+    return matrix;
+  }
+  function reconcileShareMatrix(prev, calendars, userIds) {
+    const out = {};
+    for (const cal of calendars) {
+      out[cal.id] = {};
+      for (const userId of userIds) {
+        out[cal.id][userId] = prev[cal.id]?.[userId] ?? "none";
+      }
+    }
+    return out;
+  }
+  function buildShareGrantsFromMatrix(calendars, userIds, matrix) {
+    const out = [];
+    for (const cal of calendars) {
+      for (const userId of userIds) {
+        const cell = matrix[cal.id]?.[userId] ?? "none";
+        if (cell === "read" || cell === "write") out.push({ calendarId: cal.id, userId, access: cell });
+      }
+    }
+    return out;
+  }
+  function AccountDialog({ target, locale, accountCalendars, onClose, onSaved, stacked }) {
     const t2 = (k) => t(k, locale);
     const isEdit = target.mode === "edit";
     const provider = isEdit ? target.account.provider : target.provider;
+    const legacyAllReadOnly = isEdit && target.account.sharing === "shared" && (target.account.sharedCalendarGrants?.length ?? 0) === 0;
     const [shareUsers, setShareUsers] = (0, import_react3.useState)([]);
     const [form, setForm] = (0, import_react3.useState)(() => {
       if (isEdit) {
@@ -2386,6 +2436,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         sharedWithUserIds: []
       };
     });
+    const [shareMatrix, setShareMatrix] = (0, import_react3.useState)(
+      () => initShareMatrix(
+        accountCalendars,
+        isEdit ? target.account.sharedWithUserIds ?? [] : [],
+        isEdit ? target.account.sharedCalendarGrants ?? [] : [],
+        legacyAllReadOnly
+      )
+    );
     const [error, setError] = (0, import_react3.useState)(null);
     const [saving, setSaving] = (0, import_react3.useState)(false);
     (0, import_react3.useEffect)(() => {
@@ -2399,6 +2457,13 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         cancelled = true;
       };
     }, []);
+    const accountCalendarKey = accountCalendars.map((c) => c.id).join(",");
+    const sharedUserKey = form.sharedWithUserIds.join(",");
+    (0, import_react3.useEffect)(() => {
+      if (form.sharing !== "shared") return;
+      setShareMatrix((prev) => reconcileShareMatrix(prev, accountCalendars, form.sharedWithUserIds));
+    }, [form.sharing, sharedUserKey, accountCalendarKey, accountCalendars, form.sharedWithUserIds]);
+    const selectedShareUsers = shareUsers.filter((u) => form.sharedWithUserIds.includes(u.id));
     const toggleShareUser = (userId) => {
       setForm((f) => {
         const has = f.sharedWithUserIds.includes(userId);
@@ -2407,6 +2472,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           sharedWithUserIds: has ? f.sharedWithUserIds.filter((id) => id !== userId) : [...f.sharedWithUserIds, userId]
         };
       });
+    };
+    const setShareCell = (calendarId, userId, access) => {
+      setShareMatrix((prev) => ({
+        ...prev,
+        [calendarId]: { ...prev[calendarId], [userId]: access }
+      }));
     };
     const inp = {
       background: "var(--surface)",
@@ -2418,6 +2489,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       outline: "none",
       width: "100%"
     };
+    const shareGrantPayload = form.sharing === "shared" && isEdit && accountCalendars.length > 0 ? buildShareGrantsFromMatrix(accountCalendars, form.sharedWithUserIds, shareMatrix) : [];
     const save = async () => {
       setError(null);
       setSaving(true);
@@ -2426,7 +2498,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           const body = {
             name: form.name || target.account.name,
             sharing: form.sharing,
-            sharedWithUserIds: form.sharing === "shared" ? form.sharedWithUserIds : []
+            sharedWithUserIds: form.sharing === "shared" ? form.sharedWithUserIds : [],
+            sharedCalendarGrants: shareGrantPayload
           };
           if (provider === "caldav") {
             body.caldav = {
@@ -2466,7 +2539,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           background: "var(--surface)",
           border: "1px solid var(--border)",
           borderRadius: "8px",
-          width: "min(480px, 92vw)",
+          width: "min(560px, 92vw)",
           maxHeight: "90vh",
           overflowY: "auto",
           boxShadow: "0 4px 16px rgba(0,0,0,0.35)"
@@ -2577,6 +2650,65 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               }) }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", color: "var(--text-muted)", marginTop: "6px" }, children: t2("shareWithHint") })
             ] }),
+            form.sharing === "shared" && form.sharedWithUserIds.length > 0 && (isEdit && accountCalendars.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Field, { label: t2("shareCalendarsTitle"), children: [
+              legacyAllReadOnly && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: {
+                padding: "8px 10px",
+                fontSize: "11px",
+                marginBottom: "8px",
+                background: "rgba(90,155,212,0.08)",
+                border: "1px solid #5a9bd4",
+                borderRadius: "4px",
+                color: "var(--text)"
+              }, children: t2("shareLegacyAllReadOnly") }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px" }, children: t2("shareCalendarsHint") }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: "6px" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: {
+                  display: "grid",
+                  gridTemplateColumns: `minmax(100px, 1fr) repeat(${selectedShareUsers.length}, minmax(88px, auto))`,
+                  gap: "6px",
+                  fontSize: "10px",
+                  color: "var(--text-muted)",
+                  textTransform: "uppercase"
+                }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: t2("calendars") }),
+                  selectedShareUsers.map((u) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { textAlign: "center" }, children: u.username }, u.id))
+                ] }),
+                accountCalendars.map((cal) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: {
+                  display: "grid",
+                  gridTemplateColumns: `minmax(100px, 1fr) repeat(${selectedShareUsers.length}, minmax(88px, auto))`,
+                  gap: "6px",
+                  alignItems: "center",
+                  padding: "4px 0",
+                  borderTop: "1px solid var(--border)"
+                }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--text)" }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { width: "10px", height: "10px", borderRadius: "2px", background: cal.color, flexShrink: 0 } }),
+                    cal.name,
+                    cal.readOnly && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { title: t2("readOnly"), children: "\u{1F512}" })
+                  ] }),
+                  selectedShareUsers.map((u) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                    "select",
+                    {
+                      value: shareMatrix[cal.id]?.[u.id] ?? "none",
+                      onChange: (e) => setShareCell(cal.id, u.id, e.target.value),
+                      style: {
+                        ...inp,
+                        width: "100%",
+                        padding: "4px 6px",
+                        fontSize: "11px",
+                        opacity: cal.readOnly ? 0.85 : 1
+                      },
+                      children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "none", children: t2("shareAccessNone") }),
+                        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "read", children: t2("shareAccessRead") }),
+                        !cal.readOnly && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "write", children: t2("shareAccessWrite") })
+                      ]
+                    },
+                    u.id
+                  ))
+                ] }, cal.id))
+              ] })
+            ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "12px", color: "var(--text-muted)" }, children: t2("shareCalendarsAfterSync") })),
             provider === "ics" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { children: [
               /* @__PURE__ */ (0, import_jsx_runtime.jsx)("summary", { style: { fontSize: "12px", color: "var(--text-muted)", cursor: "pointer" }, children: locale === "de" ? "Mit Authentifizierung (selten)" : "With authentication (rare)" }),
               /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { marginTop: "8px", display: "flex", flexDirection: "column", gap: "10px" }, children: [
