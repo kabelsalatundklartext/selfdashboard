@@ -1,0 +1,23 @@
+---
+description: Plugin-Store — nach plugins-pack-Änderungen immer plugins-index.json regenerieren
+globs: plugins-pack/**
+alwaysApply: false
+---
+
+# Plugin-Store: plugins-index.json nicht vergessen
+
+Der Plugin-Store liest **`plugins-pack/plugins-index.json`**, nicht einzelne `plugin.json`-Dateien.
+
+Nach jeder Änderung unter `plugins-pack/<id>/` (Version, widget.js, neue Plugins):
+
+1. Index neu erzeugen:
+   ```bash
+   SELFDASHBOARD_PLUGINS_GITHUB_REF=main npm run generate:plugins-index
+   ```
+   (Windows PowerShell: `$env:SELFDASHBOARD_PLUGINS_GITHUB_REF="main"; npm run generate:plugins-index`)
+
+2. **`plugins-pack/plugins-index.json` mit committen und pushen** — sonst zeigt der Store die alte Version.
+
+Alternativ: `npm run publish:plugin-pack` (baut Widgets + Index).
+
+Server-Cache des Index: ~5 Minuten. Nach Push im Store „Aktualisieren“ oder kurz warten.
