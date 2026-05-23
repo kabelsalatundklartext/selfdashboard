@@ -123,9 +123,34 @@ export function setAllowedPluginIds(userId: string, pluginIds: string[]): string
   return normalized
 }
 
+/** First path segment under `/api/plugins/` that is not a plugin id (store, volume, …). */
+const RESERVED_PLUGINS_API_SEGMENTS = new Set([
+  'volume',
+  'remote-catalog',
+  'install-remote',
+  'install-missing',
+  'missing-dashboard',
+  'ensure-widget',
+  'reload',
+  'seed-custom',
+  'upload-zip',
+  'uninstall',
+  'custom-assets',
+])
+
 export function resolvePluginIdFromApiPath(pathname: string): string | null {
+  if (pathname.startsWith('/api/plugins/custom-assets/')) {
+    const m = pathname.match(/^\/api\/plugins\/custom-assets\/([a-z0-9][a-z0-9-]*)/)
+    return m ? m[1] : null
+  }
+
   const m = pathname.match(/^\/api\/plugins\/([a-z0-9][a-z0-9-]*)(?:\/|$)/)
-  if (m) return m[1]
+  if (m) {
+    const segment = m[1]
+    if (RESERVED_PLUGINS_API_SEGMENTS.has(segment)) return null
+    return segment
+  }
+
   for (const { prefix, pluginId } of LEGACY_API_PLUGIN) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return pluginId
   }

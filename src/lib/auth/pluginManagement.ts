@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/guard'
 /** Pfade, die Plugins auf dem Server verändern (nur Rolle `admin`). */
 export const PLUGIN_MANAGEMENT_API_PREFIXES = [
   '/api/plugins/install-remote',
+  '/api/plugins/install-missing',
   '/api/plugins/uninstall',
   '/api/plugins/upload-zip',
   '/api/plugins/seed-custom',
