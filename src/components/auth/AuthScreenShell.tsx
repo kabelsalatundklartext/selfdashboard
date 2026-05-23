@@ -15,15 +15,22 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
       style={{ background: 'var(--background)', color: 'var(--text)' }}
     >
       <div className="w-full max-w-md flex flex-col items-center gap-6">
-        <a href="/" className="no-underline" aria-label="SelfDashboard">
-          <img
-            src="/logo-auth.svg"
-            alt=""
-            width={280}
-            height={47}
-            style={{ maxWidth: 'min(100%, 280px)', height: 'auto', display: 'block' }}
-          />
-        </a>
+        <div className="w-full flex justify-center">
+          <a
+            href="/"
+            className="inline-flex justify-center no-underline"
+            aria-label="SelfDashboard"
+          >
+            <img
+              src="/logo-auth.svg"
+              alt=""
+              width={280}
+              height={59}
+              className="mx-auto"
+              style={{ width: 'min(100%, 280px)', height: 'auto', display: 'block' }}
+            />
+          </a>
+        </div>
 
         <div
           className="relative w-full rounded-2xl"
