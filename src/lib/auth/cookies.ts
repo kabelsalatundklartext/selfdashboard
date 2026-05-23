@@ -1,11 +1,16 @@
 import { AUTH_COOKIE } from '@/lib/auth/paths'
 import type { SessionInfo } from '@/lib/auth/types'
 
+/** Homelab: HTTP on LAN is common — do not default to Secure-only cookies. */
+export function resolveSessionCookieSecure(): boolean {
+  if (process.env.SELFDASHBOARD_INSECURE_COOKIES === '1') return false
+  if (process.env.SELFDASHBOARD_SECURE_COOKIES === '1') return true
+  return false
+}
+
 export function sessionCookieOptions(session: SessionInfo) {
   const expires = new Date(session.expiresAt)
-  const secure =
-    process.env.NODE_ENV === 'production' &&
-    process.env.SELFDASHBOARD_INSECURE_COOKIES !== '1'
+  const secure = resolveSessionCookieSecure()
   return {
     name: AUTH_COOKIE,
     value: session.id,
@@ -18,9 +23,7 @@ export function sessionCookieOptions(session: SessionInfo) {
 }
 
 export function clearSessionCookieOptions() {
-  const secure =
-    process.env.NODE_ENV === 'production' &&
-    process.env.SELFDASHBOARD_INSECURE_COOKIES !== '1'
+  const secure = resolveSessionCookieSecure()
   return {
     name: AUTH_COOKIE,
     value: '',

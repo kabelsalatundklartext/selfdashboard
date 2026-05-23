@@ -1,13 +1,12 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
 import { authT } from '@/lib/authScreenI18n'
 import { useDashboardStore } from '@/lib/store'
 
 export function LoginForm() {
-  const router = useRouter()
   const search = useSearchParams()
   const locale = useDashboardStore((s) => s.locale)
   const nextPath = search.get('next') || '/dashboard/home'
@@ -24,10 +23,17 @@ export function LoginForm() {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, rememberMe }),
+        body: JSON.stringify({ username: username.trim(), password, rememberMe }),
       })
-      const j = (await res.json()) as { error?: string }
+      let j: { error?: string; ok?: boolean }
+      try {
+        j = (await res.json()) as typeof j
+      } catch {
+        setError(authT(locale, 'badResponse'))
+        return
+      }
       if (!res.ok) {
         setError(
           j.error === 'invalid_credentials'
@@ -36,8 +42,15 @@ export function LoginForm() {
         )
         return
       }
-      router.replace(nextPath.startsWith('/') ? nextPath : '/dashboard/home')
-      router.refresh()
+
+      const me = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      if (!me.ok) {
+        setError(authT(locale, 'sessionNotStored'))
+        return
+      }
+
+      const target = nextPath.startsWith('/') ? nextPath : '/dashboard/home'
+      window.location.assign(target)
     } catch {
       setError(authT(locale, 'networkError'))
     } finally {
@@ -47,12 +60,8 @@ export function LoginForm() {
 
   return (
     <AuthScreenShell>
-      <form
-        onSubmit={onSubmit}
-        className="w-full rounded-2xl p-8 flex flex-col gap-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <div className="text-center sm:text-left">
+      <form onSubmit={onSubmit} className="w-full flex flex-col gap-4">
+        <div className="text-center sm:text-left pr-16">
           <h1 className="text-xl font-bold sr-only">SelfDashboard</h1>
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
             {authT(locale, 'loginTitle')}
@@ -86,7 +95,7 @@ export function LoginForm() {
           {authT(locale, 'rememberMe')}
         </label>
         {error ? (
-          <p className="text-sm" style={{ color: '#f87171' }}>
+          <p className="text-sm" role="alert" style={{ color: '#f87171' }}>
             {error}
           </p>
         ) : null}

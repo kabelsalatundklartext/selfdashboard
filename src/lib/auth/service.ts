@@ -1,7 +1,6 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { AUTH_COOKIE } from '@/lib/auth/paths'
-import { clearSessionCookieOptions, sessionCookieOptions } from '@/lib/auth/cookies'
 import { migrateLegacyDashboard } from '@/lib/auth/migrate'
 import {
   validatePasswordStrength,
@@ -44,8 +43,6 @@ export async function setupAdmin(input: {
   })
   const migration = await migrateLegacyDashboard(user.id)
   const session = createSession(user.id, true)
-  const jar = await cookies()
-  jar.set(sessionCookieOptions(session))
   return { user: session, migration }
 }
 
@@ -59,15 +56,12 @@ export async function login(input: {
   if (!found || !verifyPassword(input.password, found.passwordHash)) {
     throw new Error('invalid_credentials')
   }
-  const session = createSession(found.id, !!input.remember)
-  const jar = await cookies()
-  jar.set(sessionCookieOptions(session))
-  return session
+  return createSession(found.id, !!input.remember)
 }
 
-export async function logout(): Promise<void> {
+export async function logout(): Promise<string | null> {
   const jar = await cookies()
-  const id = jar.get(AUTH_COOKIE)?.value
+  const id = jar.get(AUTH_COOKIE)?.value ?? null
   if (id) deleteSession(id)
-  jar.set(clearSessionCookieOptions())
+  return id
 }

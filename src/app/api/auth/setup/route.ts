@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { applySessionCookie } from '@/lib/auth/sessionResponse'
 import { setupAdmin } from '@/lib/auth/service'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   }
   try {
     const result = await setupAdmin({ username, password })
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       user: {
         id: result.user.userId,
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
       },
       migration: result.migration,
     })
+    return applySessionCookie(res, result.user)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'setup_failed'
     return NextResponse.json({ error: msg }, { status: 400 })

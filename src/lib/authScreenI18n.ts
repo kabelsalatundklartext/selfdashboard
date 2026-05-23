@@ -14,6 +14,9 @@ export const authScreenTexts = {
     passwordsMismatch: 'Passwörter stimmen nicht überein.',
     setupFailed: 'Setup fehlgeschlagen.',
     networkError: 'Netzwerkfehler.',
+    sessionNotStored:
+      'Anmeldung war erfolgreich, aber die Session wurde nicht gespeichert. Bei HTTP (Unraid ohne HTTPS): Container neu starten nach Update oder Support kontaktieren.',
+    badResponse: 'Ungültige Server-Antwort.',
     usernameInvalid: 'Benutzername: 2–32 Zeichen, Buchstaben/Zahlen/._-',
     passwordTooShort: 'Passwort mindestens 8 Zeichen.',
     passwordTooLong: 'Passwort zu lang.',
@@ -40,6 +43,9 @@ export const authScreenTexts = {
     passwordsMismatch: 'Passwords do not match.',
     setupFailed: 'Setup failed.',
     networkError: 'Network error.',
+    sessionNotStored:
+      'Sign-in succeeded but the session cookie was not stored. On HTTP (Unraid without HTTPS), rebuild/restart the container after updating.',
+    badResponse: 'Invalid server response.',
     usernameInvalid: 'Username: 2–32 characters, letters/numbers/._-',
     passwordTooShort: 'Password must be at least 8 characters.',
     passwordTooLong: 'Password is too long.',

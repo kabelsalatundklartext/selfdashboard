@@ -38,7 +38,8 @@ Optional wie bisher: Docker-Socket, CrowdSec-Mount — nur relevant, wenn Plugin
 |----------|------|
 | *(keine Auth-Env nötig)* | Standard: Auth **an** |
 | `SELFDASHBOARD_AUTH_DISABLED=1` | **Nur Dev** — Auth aus |
-| `SELFDASHBOARD_INSECURE_COOKIES=1` | Nur **HTTP** ohne HTTPS (reines LAN), sonst bleibt Login nach Reload weg |
+| `SELFDASHBOARD_SECURE_COOKIES=1` | Nur wenn du **HTTPS** vor dem Container hast (Reverse Proxy) |
+| `SELFDASHBOARD_INSECURE_COOKIES=1` | Legacy-Flag (ab Fix meist unnötig); Cookies ohne `Secure` erzwingen |
 | `TZ=Europe/Berlin` | wie bisher |
 
 Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
@@ -112,7 +113,7 @@ Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
 | Problem | Lösung |
 |---------|--------|
 | Kein Login-Screen | Altes Image; pull + restart |
-| Login geht, sofort wieder raus | HTTPS hinter Proxy: Secure-Cookies; oder `SELFDASHBOARD_INSECURE_COOKIES=1` bei reinem HTTP |
+| Login ohne Fehler, bleibt auf `/login` | Session-Cookie (häufig **HTTP** + altes Image mit `Secure`-Cookie). **Fix:** neues Image pullen **oder** `SELFDASHBOARD_INSECURE_COOKIES=1` + Restart |
 | Leeres Dashboard nach Setup | Normal bei neuem User-Ordner; Admin nutzt migriertes JSON |
 | Plugins „weg“ für User | Whitelist leer — Häkchen setzen |
 | Store geht als User | Image zu alt oder Auth disabled |

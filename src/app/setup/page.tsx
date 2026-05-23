@@ -55,8 +55,12 @@ export default function SetupPage() {
         else setError(authT(locale, 'setupFailed'))
         return
       }
-      router.replace('/dashboard/home')
-      router.refresh()
+      const me = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      if (!me.ok) {
+        setError(authT(locale, 'sessionNotStored'))
+        return
+      }
+      window.location.assign('/dashboard/home')
     } catch {
       setError(authT(locale, 'networkError'))
     } finally {
@@ -72,12 +76,8 @@ export default function SetupPage() {
 
   return (
     <AuthScreenShell>
-      <form
-        onSubmit={onSubmit}
-        className="w-full rounded-2xl p-8 flex flex-col gap-4"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-      >
-        <div>
+      <form onSubmit={onSubmit} className="w-full flex flex-col gap-4">
+        <div className="pr-16">
           <h1 className="text-xl font-bold">{authT(locale, 'setupTitle')}</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             {authT(locale, 'setupDesc')}

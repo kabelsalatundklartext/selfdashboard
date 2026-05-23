@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { login } from '@/lib/auth/service'
+import { applySessionCookie } from '@/lib/auth/sessionResponse'
 import { needsSetup } from '@/lib/auth/users'
 
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
       password,
       remember: !!body.rememberMe,
     })
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       user: {
         id: session.userId,
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
         role: session.role,
       },
     })
+    return applySessionCookie(res, session)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'login_failed'
     if (msg === 'invalid_credentials') {

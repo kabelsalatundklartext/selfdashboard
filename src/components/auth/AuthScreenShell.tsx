@@ -15,13 +15,9 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
       style={{ background: 'var(--background)', color: 'var(--text)' }}
     >
       <div className="w-full max-w-md flex flex-col items-center gap-6">
-        <div className="w-full flex justify-end">
-          <LangToggle locale={locale} setLocale={setLocale} />
-        </div>
-
-        <a href="/" className="flex flex-col items-center gap-3 no-underline" aria-label="SelfDashboard">
+        <a href="/" className="no-underline" aria-label="SelfDashboard">
           <img
-            src="/logo.svg"
+            src="/logo-auth.svg"
             alt=""
             width={280}
             height={47}
@@ -29,7 +25,15 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
           />
         </a>
 
-        {children}
+        <div
+          className="relative w-full rounded-2xl"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
+          <div className="absolute top-3 right-3 z-10">
+            <LangToggle locale={locale} setLocale={setLocale} />
+          </div>
+          <div className="p-8 pt-10 flex flex-col gap-4">{children}</div>
+        </div>
       </div>
     </div>
   )
@@ -42,13 +46,13 @@ function LangToggle({
   locale: Locale
   setLocale: (l: Locale) => void
 }) {
-  const btn = (id: Locale, flag: string, label: string) => (
+  const btn = (id: Locale, label: string) => (
     <button
       type="button"
       onClick={() => setLocale(id)}
       title={label}
       aria-pressed={locale === id}
-      className="text-xs font-semibold rounded-lg px-2.5 py-1.5 transition-colors"
+      className="text-xs font-semibold rounded-md px-2 py-1 transition-colors min-w-[2rem]"
       style={{
         background: locale === id ? 'var(--accent)' : 'var(--surface-2)',
         color: locale === id ? '#fff' : 'var(--text-muted)',
@@ -56,7 +60,7 @@ function LangToggle({
         cursor: 'pointer',
       }}
     >
-      {flag} {id.toUpperCase()}
+      {id.toUpperCase()}
     </button>
   )
 
@@ -66,8 +70,8 @@ function LangToggle({
       role="group"
       aria-label={locale === 'de' ? 'Sprache' : 'Language'}
     >
-      {btn('de', '🇩🇪', authT(locale, 'langDe'))}
-      {btn('en', '🇬🇧', authT(locale, 'langEn'))}
+      {btn('de', authT(locale, 'langDe'))}
+      {btn('en', authT(locale, 'langEn'))}
     </div>
   )
 }
