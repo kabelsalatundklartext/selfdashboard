@@ -124,7 +124,7 @@ export function setAllowedPluginIds(userId: string, pluginIds: string[]): string
 }
 
 /** First path segment under `/api/plugins/` that is not a plugin id (store, volume, …). */
-const RESERVED_PLUGINS_API_SEGMENTS = new Set([
+export const RESERVED_PLUGINS_API_SEGMENTS = new Set([
   'volume',
   'remote-catalog',
   'install-remote',
@@ -137,6 +137,10 @@ const RESERVED_PLUGINS_API_SEGMENTS = new Set([
   'uninstall',
   'custom-assets',
 ])
+
+export function isReservedPluginApiSegment(segment: string): boolean {
+  return RESERVED_PLUGINS_API_SEGMENTS.has(segment)
+}
 
 export function resolvePluginIdFromApiPath(pathname: string): string | null {
   if (pathname.startsWith('/api/plugins/custom-assets/')) {

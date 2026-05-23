@@ -472,24 +472,30 @@ export function PluginStoreModal({ open, onClose }: Props) {
     async (pluginId: string) => {
       try {
         setReloadMsg(null)
-        const ensureRes = await fetch('/api/plugins/ensure-widget', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pluginId }),
-        })
-        if (!ensureRes.ok) {
-          const j = (await ensureRes.json().catch(() => ({}))) as { error?: string; hint?: string }
-          setReloadMsgKind('error')
-          setReloadMsg(
-            j.hint ??
-              (locale === 'de'
-                ? `Plugin „${pluginId}“ konnte nicht geladen werden (${j.error ?? ensureRes.status}). Bitte Admin: GitHub-Plugins-Repo konfigurieren oder Plugin als Admin einmal installieren.`
-                : `Could not load plugin “${pluginId}” (${j.error ?? ensureRes.status}). Ask admin to configure GitHub plugins or install once as admin.`),
-          )
-          return
-        }
-
         let plugin = pluginRegistry.get(pluginId)
+        if (!plugin) {
+          const ensureRes = await fetch('/api/auth/ensure-plugin-widget', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pluginId }),
+          })
+          const j = (await ensureRes.json().catch(() => ({}))) as {
+            error?: string
+            hint?: string
+            pluginId?: string
+          }
+          if (!ensureRes.ok) {
+            setReloadMsgKind('error')
+            const err = j.error ?? `http_${ensureRes.status}`
+            setReloadMsg(
+              j.hint ??
+                (locale === 'de'
+                  ? `Plugin „${pluginId}“ konnte nicht geladen werden (${err}).`
+                  : `Could not load plugin “${pluginId}” (${err}).`),
+            )
+            return
+          }
+        }
         if (!plugin) {
           try {
             await loadVolumeWidgetScripts([pluginId])
