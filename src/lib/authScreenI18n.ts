@@ -40,6 +40,7 @@ export const authScreenTexts = {
     totpInvalid: 'Code ungültig.',
     totpBackupTitle: 'Backup-Codes (einmal anzeigen)',
     totpBackupHint: 'Sicher aufbewahren — jeder Code nur einmal nutzbar.',
+    rateLimited: 'Zu viele Versuche. Bitte in {sec} Sekunden erneut versuchen.',
     langDe: 'Deutsch',
     langEn: 'English',
   },
@@ -82,6 +83,7 @@ export const authScreenTexts = {
     totpInvalid: 'Invalid code.',
     totpBackupTitle: 'Backup codes (shown once)',
     totpBackupHint: 'Store safely — each code works only once.',
+    rateLimited: 'Too many attempts. Try again in {sec} seconds.',
     langDe: 'Deutsch',
     langEn: 'English',
   },
@@ -89,4 +91,8 @@ export const authScreenTexts = {
 
 export function authT(locale: Locale, key: keyof (typeof authScreenTexts)['de']): string {
   return authScreenTexts[locale][key] ?? authScreenTexts.en[key] ?? key
+}
+
+export function authRateLimitMessage(locale: Locale, retryAfterSec: number): string {
+  return authT(locale, 'rateLimited').replace('{sec}', String(retryAfterSec))
 }

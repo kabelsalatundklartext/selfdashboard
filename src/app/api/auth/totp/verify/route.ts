@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guard'
+import { rateLimitResponse, rateLimitTotpVerify } from '@/lib/auth/rateLimit'
 import { markSessionMfaVerified } from '@/lib/auth/sessions'
 import {
   adminMustSetupTotp,
-  enableTotpForUser,
-  generateBackupCodes,
-  generateTotpSecret,
   isTotpEnabledForUser,
-  verifyTotpCode,
   verifyUserSecondFactor,
 } from '@/lib/auth/totp'
 
@@ -19,6 +16,9 @@ export async function POST(req: Request) {
   if (auth.mfaVerified) {
     return NextResponse.json({ error: 'already_verified' }, { status: 400 })
   }
+
+  const rl = rateLimitTotpVerify(req, auth.userId)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
 
   let body: { code?: string }
   try {

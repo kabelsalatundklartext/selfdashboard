@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { Shield } from 'lucide-react'
+import { TotpQrImage } from '@/components/auth/TotpQrImage'
 import type { Locale } from '@/lib/i18n'
 import { useAuthRole } from '@/components/layout/AuthUserMenu'
 
@@ -14,6 +15,7 @@ export function AuthTotpSettingsPanel({ locale }: { locale: Locale }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [setupSecret, setSetupSecret] = useState('')
   const [setupUri, setSetupUri] = useState('')
+  const [setupQrDataUrl, setSetupQrDataUrl] = useState('')
   const [setupCode, setSetupCode] = useState('')
   const [disablePassword, setDisablePassword] = useState('')
   const [disableCode, setDisableCode] = useState('')
@@ -37,10 +39,16 @@ export function AuthTotpSettingsPanel({ locale }: { locale: Locale }) {
     setBackupCodes(null)
     try {
       const res = await fetch('/api/auth/totp/setup', { cache: 'no-store' })
-      const j = (await res.json()) as { secret?: string; uri?: string; error?: string }
-      if (!res.ok) throw new Error(j.error ?? 'setup_failed')
+      const j = (await res.json()) as { secret?: string; uri?: string; qrDataUrl?: string; error?: string; retryAfterSec?: number }
+      if (!res.ok) {
+        if (j.error === 'rate_limited' && j.retryAfterSec) {
+          throw new Error(de ? `Zu viele Versuche. In ${j.retryAfterSec} s erneut.` : `Too many attempts. Retry in ${j.retryAfterSec}s.`)
+        }
+        throw new Error(j.error ?? 'setup_failed')
+      }
       setSetupSecret(j.secret ?? '')
       setSetupUri(j.uri ?? '')
+      setSetupQrDataUrl(j.qrDataUrl ?? '')
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
     } finally {
@@ -58,8 +66,13 @@ export function AuthTotpSettingsPanel({ locale }: { locale: Locale }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: setupSecret, code: setupCode.trim() }),
       })
-      const j = (await res.json()) as { backupCodes?: string[]; error?: string }
-      if (!res.ok) throw new Error(j.error ?? 'invalid_code')
+      const j = (await res.json()) as { backupCodes?: string[]; error?: string; retryAfterSec?: number }
+      if (!res.ok) {
+        if (j.error === 'rate_limited' && j.retryAfterSec) {
+          throw new Error(de ? `Zu viele Versuche. In ${j.retryAfterSec} s erneut.` : `Too many attempts. Retry in ${j.retryAfterSec}s.`)
+        }
+        throw new Error(j.error ?? 'invalid_code')
+      }
       setBackupCodes(j.backupCodes ?? [])
       setSetupSecret('')
       setSetupCode('')
@@ -175,6 +188,7 @@ export function AuthTotpSettingsPanel({ locale }: { locale: Locale }) {
 
         {!enabled && setupSecret ? (
           <form onSubmit={confirmEnable} className="flex flex-col gap-2">
+            {setupQrDataUrl ? <TotpQrImage dataUrl={setupQrDataUrl} locale={locale} /> : null}
             <input readOnly style={{ ...inp, fontFamily: 'monospace', fontSize: '11px' }} value={setupSecret} />
             {setupUri ? <p className="text-[10px] break-all font-mono" style={{ color: 'var(--text-muted)' }}>{setupUri}</p> : null}
             <input

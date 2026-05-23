@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
-import { authT } from '@/lib/authScreenI18n'
+import { TotpQrImage } from '@/components/auth/TotpQrImage'
+import { authRateLimitMessage, authT } from '@/lib/authScreenI18n'
 import { useDashboardStore } from '@/lib/store'
 
 export function TotpLoginForm() {
@@ -17,6 +18,7 @@ export function TotpLoginForm() {
   const [setupRequired, setSetupRequired] = useState(false)
   const [secret, setSecret] = useState('')
   const [uri, setUri] = useState('')
+  const [qrDataUrl, setQrDataUrl] = useState('')
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null)
   const [checking, setChecking] = useState(true)
 
@@ -38,9 +40,10 @@ export function TotpLoginForm() {
           setSetupRequired(true)
           const setup = await fetch('/api/auth/totp/setup', { cache: 'no-store' })
           if (setup.ok) {
-            const s = (await setup.json()) as { secret?: string; uri?: string }
+            const s = (await setup.json()) as { secret?: string; uri?: string; qrDataUrl?: string }
             setSecret(s.secret ?? '')
             setUri(s.uri ?? '')
+            setQrDataUrl(s.qrDataUrl ?? '')
           }
         }
       } catch {
@@ -61,8 +64,12 @@ export function TotpLoginForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: code.trim() }),
       })
-      const j = (await res.json()) as { error?: string }
+      const j = (await res.json()) as { error?: string; retryAfterSec?: number }
       if (!res.ok) {
+        if (j.error === 'rate_limited' && j.retryAfterSec) {
+          setError(authRateLimitMessage(locale, j.retryAfterSec))
+          return
+        }
         if (j.error === 'totp_setup_required') {
           setSetupRequired(true)
           setError(locale === 'de' ? 'Bitte zuerst 2FA einrichten.' : 'Please set up 2FA first.')
@@ -90,8 +97,12 @@ export function TotpLoginForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret, code: code.trim() }),
       })
-      const j = (await res.json()) as { error?: string; backupCodes?: string[] }
+      const j = (await res.json()) as { error?: string; backupCodes?: string[]; retryAfterSec?: number }
       if (!res.ok) {
+        if (j.error === 'rate_limited' && j.retryAfterSec) {
+          setError(authRateLimitMessage(locale, j.retryAfterSec))
+          return
+        }
         setError(authT(locale, 'totpInvalid'))
         return
       }
@@ -143,6 +154,7 @@ export function TotpLoginForm() {
         </div>
         {setupRequired && secret ? (
           <>
+            {qrDataUrl ? <TotpQrImage dataUrl={qrDataUrl} locale={locale} /> : null}
             <label className="flex flex-col gap-1 text-sm">
               <span style={{ color: 'var(--text-muted)' }}>{authT(locale, 'totpSecret')}</span>
               <input

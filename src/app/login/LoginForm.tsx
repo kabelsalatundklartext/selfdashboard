@@ -3,7 +3,7 @@
 import { FormEvent, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
-import { authT } from '@/lib/authScreenI18n'
+import { authRateLimitMessage, authT } from '@/lib/authScreenI18n'
 import { useDashboardStore } from '@/lib/store'
 
 export function LoginForm() {
@@ -27,7 +27,7 @@ export function LoginForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), password, rememberMe }),
       })
-      let j: { error?: string; ok?: boolean; needsTotp?: boolean }
+      let j: { error?: string; ok?: boolean; needsTotp?: boolean; retryAfterSec?: number }
       try {
         j = (await res.json()) as typeof j
       } catch {
@@ -35,6 +35,10 @@ export function LoginForm() {
         return
       }
       if (!res.ok) {
+        if (j.error === 'rate_limited' && j.retryAfterSec) {
+          setError(authRateLimitMessage(locale, j.retryAfterSec))
+          return
+        }
         setError(
           j.error === 'invalid_credentials'
             ? authT(locale, 'invalidCredentials')

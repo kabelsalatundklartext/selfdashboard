@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guard'
-import {
-  adminMustSetupTotp,
+import { buildTotpQrDataUrl } from '@/lib/auth/totpQr'
+import {  adminMustSetupTotp,
   buildOtpAuthUri,
   generateTotpSecret,
   isTotpEnabledForUser,
@@ -23,9 +23,12 @@ export async function GET(req: Request) {
   }
 
   const secret = generateTotpSecret()
+  const uri = buildOtpAuthUri(auth.username, secret)
+  const qrDataUrl = await buildTotpQrDataUrl(uri)
   return NextResponse.json({
     ok: true,
     secret,
-    uri: buildOtpAuthUri(auth.username, secret),
+    uri,
+    qrDataUrl,
   })
 }

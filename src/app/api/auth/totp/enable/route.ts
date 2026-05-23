@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guard'
+import { rateLimitResponse, rateLimitTotpEnable } from '@/lib/auth/rateLimit'
 import { markSessionMfaVerified } from '@/lib/auth/sessions'
 import {
   adminMustSetupTotp,
@@ -23,6 +24,9 @@ export async function POST(req: Request) {
   if (!auth.mfaVerified && !mandatorySetup) {
     return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
   }
+
+  const rl = rateLimitTotpEnable(req, auth.userId)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
 
   let body: { secret?: string; code?: string }
   try {
