@@ -6,8 +6,10 @@ import {
   isAdminOnlyApiPath,
   isLoginPath,
   isPublicPath,
+  isRecoverPath,
   isSetupPath,
 } from '@/lib/auth/guard'
+import { isRecoveryConfigured } from '@/lib/auth/recovery'
 import { isAuthDisabled } from '@/lib/auth/service'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -43,6 +45,21 @@ export function middleware(request: NextRequest) {
   }
 
   if (isLoginPath(pathname)) {
+    const sessionId = readSessionIdFromCookieHeader(request.headers.get('cookie'))
+    if (sessionId && getSessionFromRequest(request)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard/home'
+      return NextResponse.redirect(url)
+    }
+    return NextResponse.next()
+  }
+
+  if (isRecoverPath(pathname)) {
+    if (!isRecoveryConfigured()) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
     const sessionId = readSessionIdFromCookieHeader(request.headers.get('cookie'))
     if (sessionId && getSessionFromRequest(request)) {
       const url = request.nextUrl.clone()
@@ -88,6 +105,7 @@ export const config = {
     '/',
     '/dashboard/:path*',
     '/login',
+    '/recover',
     '/setup',
     '/api/:path*',
   ],

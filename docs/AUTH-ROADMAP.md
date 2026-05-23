@@ -18,7 +18,7 @@ Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell: Widgets global installier
 | **Komfort** | Admin mit **„Angemeldet bleiben“** (lange Session). |
 | **Betrieb** | Weiter **ein Container**, ein Plugin-Store, ein Update-Weg (nur Admin bedient). |
 
-**Nicht Ziel in v1:** Passkeys, SSO, E-Mail-„Passwort vergessen“, Mandanten mit eigenem Container.
+**Nicht Ziel in v1:** Passkeys, SSO, E-Mail-„Passwort vergessen“. Stattdessen: **Recovery-Token** (Appdata/Env) oder **CLI-Reset** — siehe README.
 
 ---
 
@@ -122,6 +122,7 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 - [x] Admin: Plugin-Whitelist pro User
 - [x] User: kein Plugin-Store, **kein ZIP-Upload**, keine Install-APIs
 - [x] Admin: Passwort zurücksetzen (UI)
+- [x] Notfall-Wiederherstellung ohne E-Mail (`/recover`, Recovery-Token, CLI)
 
 ### Daten pro User
 

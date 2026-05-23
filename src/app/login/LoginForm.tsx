@@ -1,6 +1,7 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
 import { authT } from '@/lib/authScreenI18n'
@@ -15,6 +16,20 @@ export function LoginForm() {
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [recoveryAvailable, setRecoveryAvailable] = useState(false)
+  const recovered = search.get('recovered') === '1'
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/auth/recovery-status', { cache: 'no-store' })
+        const j = (await res.json()) as { available?: boolean }
+        setRecoveryAvailable(Boolean(j.available))
+      } catch {
+        setRecoveryAvailable(false)
+      }
+    })()
+  }, [])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -99,9 +114,23 @@ export function LoginForm() {
             {error}
           </p>
         ) : null}
+        {recovered ? (
+          <p className="text-sm" style={{ color: 'var(--accent)' }}>
+            {authT(locale, 'recoverySuccess')}
+          </p>
+        ) : null}
         <button type="submit" className="btn-accent py-2.5 rounded-lg font-semibold" disabled={busy}>
           {busy ? authT(locale, 'loginBusy') : authT(locale, 'loginSubmit')}
         </button>
+        {recoveryAvailable ? (
+          <Link
+            href="/recover"
+            className="text-xs text-center"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {authT(locale, 'recoveryLink')}
+          </Link>
+        ) : null}
       </form>
     </AuthScreenShell>
   )

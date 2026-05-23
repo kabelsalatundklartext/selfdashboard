@@ -243,10 +243,30 @@ From the `:beta` image onward, SelfDashboard requires login. On first start (no 
 | **Auth data** | `/app/data/auth/auth.db` (users, sessions, plugin whitelist) |
 | **Admin UI** | **Settings → Users** — create/delete users, reset passwords, plugin checkmarks |
 | **Self-service** | **Settings → General → Change password** |
+| **Forgot password (no email)** | Pre-configured **recovery token** → `/recover` (see below) |
 | **Backup** | Back up all of **`/app/data`** (at least `auth/` + `users/`) |
 | **Dev only** | `SELFDASHBOARD_AUTH_DISABLED=1` disables auth (never in production) |
 
 Details & test checklist: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
+
+### Admin locked out (forgot password)
+
+There is **no email reset** (would need SMTP — not typical for homelab). **Simplest: env reset on Unraid:**
+
+1. **Env password reset (recommended on Unraid)** — edit container, add variable:
+   - `SELFDASHBOARD_AUTH_RESET_PASSWORD` = your new password (min. 8 chars)
+   - optional: `SELFDASHBOARD_AUTH_RESET_USER=admin` (default: first admin)
+   - or one field: `SELFDASHBOARD_AUTH_RESET=admin:NewPassword`
+   - **Restart container** → sign in → **clear the variable(s)** → restart again
+
+2. **Recovery token + `/recover`** — set `SELFDASHBOARD_AUTH_RECOVERY=<long-random-string>` or run `auth-recovery-token.mjs`, then use the web form.
+
+3. **Direct CLI** (shell access):
+   ```bash
+   docker exec selfdashboard node /app/scripts/auth-reset-password.mjs --username admin --password 'NewSecurePass'
+   ```
+
+4. **Second admin** — reset password under **Settings → Users**.
 
 ---
 
@@ -619,10 +639,30 @@ Ab dem `:beta`-Image ist ein Login nötig. Beim ersten Start (noch kein Benutzer
 | **Auth-Daten** | `/app/data/auth/auth.db` (Benutzer, Sessions, Plugin-Whitelist) |
 | **Admin-UI** | **Einstellungen → Benutzer** — anlegen/löschen, Passwort zurücksetzen, Plugin-Häkchen |
 | **Selbst** | **Einstellungen → Allgemein → Passwort ändern** |
+| **Passwort vergessen (ohne E-Mail)** | Vorher gesetzter **Recovery-Token** → `/recover` (siehe unten) |
 | **Backup** | Gesamtes **`/app/data`** sichern (mindestens `auth/` + `users/`) |
 | **Nur Dev** | `SELFDASHBOARD_AUTH_DISABLED=1` schaltet Auth aus (nicht in Production) |
 
 Details & Test-Checkliste: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
+
+### Admin ausgesperrt (Passwort vergessen)
+
+**Kein E-Mail-Reset** (bräuchte SMTP — im Homelab unüblich). **Am einfachsten auf Unraid: Env-Reset**
+
+1. **Passwort per Env (empfohlen)** — Container bearbeiten, Variable setzen:
+   - `SELFDASHBOARD_AUTH_RESET_PASSWORD` = neues Passwort (min. 8 Zeichen)
+   - optional: `SELFDASHBOARD_AUTH_RESET_USER=admin` (Standard: erster Admin)
+   - oder kombiniert: `SELFDASHBOARD_AUTH_RESET=admin:NeuesPasswort`
+   - **Container neu starten** → einloggen → Variable **leeren** → erneut starten
+
+2. **Recovery-Token + `/recover`** — `SELFDASHBOARD_AUTH_RECOVERY=…` oder `auth-recovery-token.mjs`, dann Web-Formular.
+
+3. **CLI** (Shell):
+   ```bash
+   docker exec selfdashboard node /app/scripts/auth-reset-password.mjs --username admin --password 'NeuesPasswort'
+   ```
+
+4. **Zweiter Admin** — **Einstellungen → Benutzer** → Passwort zurücksetzen.
 
 ---
 

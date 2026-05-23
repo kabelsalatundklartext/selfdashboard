@@ -2,6 +2,7 @@ import 'server-only'
 import { mkdirSync } from 'fs'
 import { join } from 'path'
 import Database from 'better-sqlite3'
+import { applyEnvPasswordReset } from '@/lib/auth/envReset'
 import { authDbPath, authDir } from '@/lib/auth/paths'
 
 let db: Database.Database | null = null
@@ -48,5 +49,6 @@ export function getAuthDb(): Database.Database {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   migrate(db)
+  applyEnvPasswordReset()
   return db
 }

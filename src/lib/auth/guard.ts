@@ -15,6 +15,8 @@ const AUTH_PATHS_WITHOUT_SESSION = new Set([
   '/api/auth/setup',
   '/api/auth/login',
   '/api/auth/logout',
+  '/api/auth/recovery-status',
+  '/api/auth/recovery',
 ])
 
 export function isPublicPath(pathname: string): boolean {
@@ -35,6 +37,10 @@ export function isSetupPath(pathname: string): boolean {
 
 export function isLoginPath(pathname: string): boolean {
   return pathname === '/login'
+}
+
+export function isRecoverPath(pathname: string): boolean {
+  return pathname === '/recover'
 }
 
 export function isAdminOnlyApiPath(pathname: string, method: string): boolean {

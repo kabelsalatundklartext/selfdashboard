@@ -122,6 +122,39 @@
     Mask="false">/var/run/docker.sock</Config>
 
   <Config
+    Name="Auth Reset Password (optional)"
+    Target="SELFDASHBOARD_AUTH_RESET_PASSWORD"
+    Default=""
+    Mode=""
+    Description="OPTIONAL — Admin-Passwort per Env zurücksetzen (wenn vergessen). Neues Passwort setzen (min. 8 Zeichen), Container neu starten, einloggen, dann Variable LEEREN und erneut starten. Optional SELFDASHBOARD_AUTH_RESET_USER=admin (sonst erster Admin). Alternative: SELFDASHBOARD_AUTH_RESET=admin:NeuesPasswort"
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="true"></Config>
+
+  <Config
+    Name="Auth Reset User (optional)"
+    Target="SELFDASHBOARD_AUTH_RESET_USER"
+    Default=""
+    Mode=""
+    Description="OPTIONAL — Benutzername für Passwort-Reset (mit SELFDASHBOARD_AUTH_RESET_PASSWORD). Leer = erster Admin."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false"></Config>
+
+  <Config
+    Name="Auth Recovery Token (optional)"
+    Target="SELFDASHBOARD_AUTH_RECOVERY"
+    Default=""
+    Mode=""
+    Description="OPTIONAL — Notfall-Passwort-Reset ohne E-Mail. Langen Zufallsstring setzen (min. 16 Zeichen), Container neu starten → /recover im Browser. Nach erfolgreichem Reset Variable leeren und erneut starten. Alternativ: docker exec … node /app/scripts/auth-recovery-token.mjs"
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="true"></Config>
+
+  <Config
     Name="Node Environment"
     Target="NODE_ENV"
     Default="production"
