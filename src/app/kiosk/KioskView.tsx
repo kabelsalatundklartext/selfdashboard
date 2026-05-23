@@ -3,49 +3,47 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
 import { DashboardMain } from '@/components/layout/DashboardMain'
-import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 import { useDashboardStore, useDashboardStoreHydrated } from '@/lib/store'
 import type { DashboardStatePersisted } from '@/lib/dashboardStatePayload'
 
 type Phase = 'loading' | 'disabled' | 'password' | 'ready' | 'error'
 
+const kioskFetch: RequestInit = { cache: 'no-store', credentials: 'same-origin' }
+
 export function KioskView() {
   const hydrated = useDashboardStoreHydrated()
   const locale = useDashboardStore((s) => s.locale)
   const [phase, setPhase] = useState<Phase>('loading')
-  const [idleSeconds, setIdleSeconds] = useState(5)
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const de = locale === 'de'
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (): Promise<'ready' | 'password' | 'disabled' | 'error'> => {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/kiosk/dashboard', { cache: 'no-store' })
+      const st = await fetch('/api/kiosk/status', kioskFetch)
+      const status = (await st.json()) as { enabled?: boolean }
+      if (!st.ok || !status.enabled) return 'disabled'
+
+      const res = await fetch('/api/kiosk/dashboard', kioskFetch)
       const j = (await res.json()) as DashboardStatePersisted & { error?: string }
-      if (res.status === 401 && j.error === 'password_required') {
-        setPhase('password')
-        return
-      }
-      if (!res.ok) {
-        setPhase(j.error === 'kiosk_disabled' ? 'disabled' : 'error')
-        return
-      }
+      if (res.status === 401 && j.error === 'password_required') return 'password'
+      if (!res.ok) return j.error === 'kiosk_disabled' ? 'disabled' : 'error'
+
       const idle = j.kioskModeIdleSeconds ?? 5
-      setIdleSeconds(idle)
       useDashboardStore.setState({
         ...j,
         editMode: false,
         showDashboardTabs: false,
-        kioskModeEnabled: true,
+        kioskModeEnabled: false,
         kioskModeIdleSeconds: idle,
       })
-      setPhase('ready')
+      return 'ready'
     } catch {
-      setPhase('error')
+      return 'error'
     } finally {
       setBusy(false)
     }
@@ -53,26 +51,8 @@ export function KioskView() {
 
   useEffect(() => {
     void (async () => {
-      try {
-        const st = await fetch('/api/kiosk/status', { cache: 'no-store' })
-        const status = (await st.json()) as {
-          enabled?: boolean
-          requiresPassword?: boolean
-          idleSeconds?: number
-        }
-        if (!st.ok || !status.enabled) {
-          setPhase('disabled')
-          return
-        }
-        setIdleSeconds(typeof status.idleSeconds === 'number' ? status.idleSeconds : 5)
-        if (status.requiresPassword) {
-          setPhase('password')
-          return
-        }
-        await loadDashboard()
-      } catch {
-        setPhase('error')
-      }
+      const next = await loadDashboard()
+      setPhase(next)
     })()
   }, [loadDashboard])
 
@@ -82,6 +62,7 @@ export function KioskView() {
     setError(null)
     try {
       const res = await fetch('/api/kiosk/unlock', {
+        ...kioskFetch,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -90,7 +71,8 @@ export function KioskView() {
         setError(de ? 'Passwort falsch.' : 'Wrong password.')
         return
       }
-      await loadDashboard()
+      const next = await loadDashboard()
+      setPhase(next)
     } catch {
       setError(de ? 'Netzwerkfehler.' : 'Network error.')
     } finally {
@@ -147,19 +129,6 @@ export function KioskView() {
   return (
     <>
       <PluginBootstrap />
-      <KioskNavbarShell locale={locale} idleSeconds={idleSeconds} startHidden>
-        <nav
-          style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
-          className="flex items-center justify-center px-4 py-2"
-        >
-          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
-            Self<span style={{ color: 'var(--accent)' }}>Dashboard</span>
-            <span className="ml-2 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>
-              {de ? '· Nur Ansicht' : '· View only'}
-            </span>
-          </span>
-        </nav>
-      </KioskNavbarShell>
       <DashboardMain>
         <DashboardGrid />
       </DashboardMain>

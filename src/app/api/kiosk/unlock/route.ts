@@ -4,7 +4,7 @@ import {
   loadKioskDashboardBundle,
   verifyKioskPassword,
 } from '@/lib/kiosk/config'
-import { issueKioskToken, kioskCookieOptions } from '@/lib/kiosk/session'
+import { issueKioskToken, applyKioskCookie } from '@/lib/kiosk/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,9 +32,8 @@ export async function POST(req: Request) {
   const access = buildKioskAccess(config, pluginIds)
   if (!access) return NextResponse.json({ error: 'kiosk_unavailable' }, { status: 503 })
 
-  const token = issueKioskToken(access)
+  const token = issueKioskToken(access, true)
   const res = NextResponse.json({ ok: true })
-  const opts = kioskCookieOptions(token)
-  res.cookies.set(opts)
+  applyKioskCookie(res, token)
   return res
 }

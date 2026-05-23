@@ -4,11 +4,7 @@ import {
   getKioskConfig,
   loadKioskDashboardBundle,
 } from '@/lib/kiosk/config'
-import {
-  issueKioskToken,
-  kioskAccessGranted,
-  kioskCookieOptions,
-} from '@/lib/kiosk/session'
+import { issueKioskToken, applyKioskCookie, kioskAccessGranted } from '@/lib/kiosk/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,9 +29,7 @@ export async function GET(req: Request) {
 
   const res = NextResponse.json(state)
   if (!config.passwordHash) {
-    const token = issueKioskToken(access)
-    const opts = kioskCookieOptions(token)
-    res.cookies.set(opts)
+    applyKioskCookie(res, issueKioskToken(access, false))
   }
   return res
 }

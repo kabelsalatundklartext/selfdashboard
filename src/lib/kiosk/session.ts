@@ -33,7 +33,7 @@ function signPayload(payload: Record<string, unknown>): string {
   return `${body}.${sig}`
 }
 
-function readKioskToken(token: string | null): KioskAccess | null {
+function readKioskToken(token: string | null, cfg = getKioskConfig()): KioskAccess | null {
   if (!token || !token.includes('.')) return null
   const [body, sig] = token.split('.', 2)
   if (!body || !sig) return null
@@ -52,10 +52,11 @@ function readKioskToken(token: string | null): KioskAccess | null {
       ou?: string
       did?: string
       pids?: string[]
+      aut?: number
     }
     if (parsed.v !== 1 || !parsed.exp || Date.now() > parsed.exp) return null
     if (!parsed.ou || !parsed.did || !Array.isArray(parsed.pids)) return null
-    const cfg = getKioskConfig()
+    if (cfg.passwordHash && parsed.aut !== 1) return null
     if (!cfg.enabled || cfg.ownerUserId !== parsed.ou || cfg.dashboardId !== parsed.did) return null
     return {
       ownerUserId: parsed.ou,
@@ -76,14 +77,21 @@ export function readKioskTokenFromCookieHeader(cookieHeader: string | null): Kio
   for (const part of cookieHeader.split(';')) {
     const [rawKey, ...rest] = part.trim().split('=')
     if (rawKey?.trim() !== KIOSK_COOKIE) continue
-    const val = decodeURIComponent(rest.join('=').trim())
+    const val = rest.join('=').trim()
     if (!val) return null
-    return readKioskToken(val)
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(val)
+      } catch {
+        return val
+      }
+    })()
+    return readKioskToken(decoded)
   }
   return null
 }
 
-export function issueKioskToken(access: KioskAccess): string {
+export function issueKioskToken(access: KioskAccess, passwordUnlocked = false): string {
   const exp = Date.now() + TOKEN_TTL_MS
   return signPayload({
     v: 1,
@@ -91,33 +99,30 @@ export function issueKioskToken(access: KioskAccess): string {
     ou: access.ownerUserId,
     did: access.dashboardId,
     pids: access.pluginIds,
+    ...(passwordUnlocked ? { aut: 1 } : {}),
   })
 }
 
-export function kioskCookieOptions(token: string) {
+export function applyKioskCookie(res: import('next/server').NextResponse, token: string): void {
   const secure = resolveSessionCookieSecure()
-  return {
-    name: KIOSK_COOKIE,
-    value: encodeURIComponent(token),
+  res.cookies.set(KIOSK_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax' as const,
+    sameSite: 'lax',
     secure,
     path: '/',
     maxAge: Math.floor(TOKEN_TTL_MS / 1000),
-  }
+  })
 }
 
-export function clearKioskCookieOptions() {
+export function applyClearKioskCookie(res: import('next/server').NextResponse): void {
   const secure = resolveSessionCookieSecure()
-  return {
-    name: KIOSK_COOKIE,
-    value: '',
+  res.cookies.set(KIOSK_COOKIE, '', {
     httpOnly: true,
-    sameSite: 'lax' as const,
+    sameSite: 'lax',
     secure,
     path: '/',
     maxAge: 0,
-  }
+  })
 }
 
 export function isPluginAllowedForKiosk(access: KioskAccess, pluginId: string): boolean {

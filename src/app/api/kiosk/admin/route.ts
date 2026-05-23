@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth/guard'
 import { getKioskConfig, saveKioskConfig, setKioskPassword } from '@/lib/kiosk/config'
+import { applyClearKioskCookie } from '@/lib/kiosk/session'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,7 @@ export async function PUT(req: Request) {
     } else if (typeof body.password === 'string' && body.password.trim()) {
       cfg = setKioskPassword(body.password.trim(), auth.userId)
     }
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       enabled: cfg.enabled,
       dashboardId: cfg.dashboardId,
@@ -54,6 +55,10 @@ export async function PUT(req: Request) {
       hasPassword: Boolean(cfg.passwordHash),
       publicUrl: '/kiosk',
     })
+    if (body.clearPassword || (typeof body.password === 'string' && body.password.trim())) {
+      applyClearKioskCookie(res)
+    }
+    return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'save_failed'
     return NextResponse.json({ error: msg }, { status: 400 })
