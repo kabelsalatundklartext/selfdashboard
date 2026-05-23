@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { purgeExpiredLogs, readLogSettings, writeLogSettings } from '@/lib/errorLog'
 import { isLogRetentionDays, type LogRetentionDays } from '@/lib/errorLogTypes'
+import { requireAdmin } from '@/lib/auth/guard'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
   try {
     const settings = await readLogSettings()
     return NextResponse.json({ ok: true, ...settings })
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const auth = requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
   let body: Record<string, unknown>
   try {
     body = (await req.json()) as Record<string, unknown>

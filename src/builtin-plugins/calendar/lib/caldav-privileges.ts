@@ -1,6 +1,9 @@
 /**
  * Detect whether a CalDAV collection accepts writes (WEB.DE often marks
- * Geburtstage / "web" as read-only but omits DAV privileges in discovery).
+ * "web" as read-only but omits DAV privileges in discovery).
+ *
+ * Do not match generic names like "Geburtstag" — users may name writable
+ * calendars that way; rely on caldavHasWritePrivilege for those.
  */
 
 import { createDAVClient } from 'tsdav'
@@ -11,11 +14,15 @@ export function heuristicCalendarReadOnly(name: string, url: string): boolean {
   const n = name.toLowerCase().trim()
   const u = url.toLowerCase()
   const blob = `${n} ${u}`
-  if (/geburt|birth|feiertag|holiday|kontakt|contact|abonnement|subscription/.test(blob)) {
+  if (/feiertag|holiday|kontakt|contact|abonnement|subscription/.test(blob)) {
     return true
   }
   // WEB.DE begenda: collection named "web" is usually the portal mirror, not the writable inbox.
   if ((u.includes('web.de') || u.includes('begenda')) && (n === 'web' || n === 'web.de')) {
+    return true
+  }
+  // WEB.DE / provider system calendar — name + begenda path (not user-renamed collections).
+  if ((u.includes('web.de') || u.includes('begenda')) && /geburt|birth/.test(n)) {
     return true
   }
   return false

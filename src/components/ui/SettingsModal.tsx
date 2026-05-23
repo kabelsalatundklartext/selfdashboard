@@ -14,6 +14,7 @@ import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
 import { MailNavbarToggle } from '@/components/settings/MailNavbarToggle'
 import { AuthUsersSettingsPanel } from '@/components/settings/AuthUsersSettingsPanel'
+import { AuthChangePasswordPanel } from '@/components/settings/AuthChangePasswordPanel'
 import { useAuthRole } from '@/components/layout/AuthUserMenu'
 import {
   getAppSettingsPanels,
@@ -547,6 +548,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </p>
               </div>
 
+
+              {authRole ? <AuthChangePasswordPanel locale={locale} /> : null}
 
               <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v0.1.0</p>
             </>)}

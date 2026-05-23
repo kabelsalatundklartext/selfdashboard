@@ -1,7 +1,7 @@
 import 'server-only'
 import { randomUUID } from 'crypto'
 import { getAuthDb } from '@/lib/auth/db'
-import { hashPassword } from '@/lib/auth/password'
+import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import type { AuthUser, UserRole } from '@/lib/auth/types'
 
 type UserRow = {
@@ -90,5 +90,21 @@ export function updateUserRole(id: string, role: UserRole): AuthUser | null {
     throw new Error('last_admin')
   }
   getAuthDb().prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id)
+  return getUserById(id)
+}
+
+export function verifyUserPassword(userId: string, password: string): boolean {
+  const row = getAuthDb()
+    .prepare('SELECT password_hash FROM users WHERE id = ?')
+    .get(userId) as { password_hash: string } | undefined
+  if (!row) return false
+  return verifyPassword(password, row.password_hash)
+}
+
+export function updateUserPassword(id: string, password: string): AuthUser | null {
+  const user = getUserById(id)
+  if (!user) return null
+  const passwordHash = hashPassword(password)
+  getAuthDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id)
   return getUserById(id)
 }

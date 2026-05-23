@@ -2,7 +2,7 @@
 
 Planungsdokument für **ein SelfDashboard, mehrere Benutzer**, jeweils **eigenes Dashboard**.  
 **Phase 2:** TOTP (Authenticator) optional/pflicht für Admin.  
-**Stand:** Phase **1a/1b** umgesetzt (Auth, pro-User-Dashboard, Plugin-Whitelist, Plugin-Verwaltung nur Admin).
+**Stand:** Phase **1a/1b/1c** umgesetzt (Auth, pro-User-Dashboard, Plugin-Whitelist, Passwort-Reset, Logs-API-Audit).
 
 Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell: Widgets global installiert, **Konfiguration pro User**, **Nutzung pro User** über Whitelist).
 
@@ -121,7 +121,7 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 - [x] Admin: User anlegen/löschen (**Einstellungen → Benutzer**)
 - [x] Admin: Plugin-Whitelist pro User
 - [x] User: kein Plugin-Store, **kein ZIP-Upload**, keine Install-APIs
-- [ ] Admin: Passwort zurücksetzen (UI)
+- [x] Admin: Passwort zurücksetzen (UI)
 
 ### Daten pro User
 
@@ -141,12 +141,12 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 - [x] Legacy-Routen (`/api/docker-containers`, …) über gleiche Plugin-ID-Prüfung
 - [x] Plugin-Verwaltung (Store, ZIP, …) → **403** für `user`
 - [x] `/api/auth/users`, `/api/auth/plugin-catalog` → Admin
-- [ ] Vollständiger Audit aller übrigen `/api/*` (Logs-Download, …)
+- [x] Vollständiger Audit aller übrigen `/api/*` (Logs-Download, …)
 
 ### Dokumentation
 
 - [x] Dieses Dokument (`AUTH-ROADMAP.md`)
-- [ ] README + Unraid-Template (Backup `/app/data/users/` + `/app/data/auth/`)
+- [x] README + Unraid-Template (Backup `/app/data/users/` + `/app/data/auth/`)
 
 ---
 
@@ -155,8 +155,8 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 | Feature | Nutzen |
 |---------|--------|
 | Presets „Nur Anzeige“ / „Vollzugriff“ für Plugin-Whitelist | Schnellere User-Pflege |
-| Plugin-Anzeigenamen in Benutzer-UI (aus `plugin.json`) | Lesbarer als IDs |
-| User Passwort selbst ändern | Weniger Admin-Arbeit |
+| Plugin-Anzeigenamen in Benutzer-UI (aus `plugin.json`) | **Umgesetzt** (Name + ID) |
+| User Passwort selbst ändern | **Einstellungen → Allgemein** (umgesetzt) |
 | Rate-Limit Login | Brute-Force |
 | Session-Liste / alle Geräte abmelden | Security |
 | i18n EN für Auth-UI | Konsistenz |
@@ -188,7 +188,7 @@ Siehe vorherige Fassung (TOTP, Backup-Codes, Admin-Pflicht optional).
 |-------|--------|--------|
 | **1a** | Auth-Kern, Login, Middleware | erledigt |
 | **1b** | Pro-User-State, Plugin-Whitelist, API Plugin-Gates | erledigt |
-| **1c** | README/Unraid, Passwort-Reset, API-Audit Rest | offen |
+| **1c** | README/Unraid, Passwort-Reset, API-Audit Rest | erledigt |
 | **2** | TOTP | geplant |
 
 ---

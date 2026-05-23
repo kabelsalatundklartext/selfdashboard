@@ -222,7 +222,7 @@ docker-compose up -d
 
 | Mount / setting | Content |
 |-----------------|--------|
-| **`/app/data`** | `dashboard.json`, `data/calendar/`, central log — **back up** regularly |
+| **`/app/data`** | Per-user dashboards (`users/`), auth DB (`auth/`), calendar, central log — **back up** regularly |
 | **`/app/plugins/custom`** | Installed plugins (`<id>/plugin.json`, `widget.js`) — **back up** with appdata |
 | **GitHub env vars** | Pre-set in `:beta` image: repo `kabelsalatundklartext/selfdashboard`, ref `beta`, path `plugins-pack` |
 | **Docker Socket** (optional) | Local host only — **[Docker plugin](docs/plugins/docker/README.md)** |
@@ -231,6 +231,22 @@ docker-compose up -d
 Unraid: **`unraid/selfdashboard.xml`** on branch **`beta`** — **Config Storage**, **Plugins Storage** (both required for a normal setup).
 
 After a **plugin** update: Store → **Update** → **Ctrl+F5**. After an **app** update: pull new image, restart — layouts and installed plugins stay on the volumes.
+
+## Login & multi-user
+
+From the `:beta` image onward, SelfDashboard requires login. On first start (no users yet) you are redirected to **`/setup`** to create the admin account. Existing `dashboard.json` in appdata is migrated to that admin automatically (backup: `dashboard.json.pre-auth-migrated`).
+
+| Topic | Details |
+|-------|---------|
+| **Roles** | **admin** — full access, plugin store, user management · **user** — only whitelisted plugins |
+| **User data** | `/app/data/users/<id>/dashboard.json` per user |
+| **Auth data** | `/app/data/auth/auth.db` (users, sessions, plugin whitelist) |
+| **Admin UI** | **Settings → Users** — create/delete users, reset passwords, plugin checkmarks |
+| **Self-service** | **Settings → General → Change password** |
+| **Backup** | Back up all of **`/app/data`** (at least `auth/` + `users/`) |
+| **Dev only** | `SELFDASHBOARD_AUTH_DISABLED=1` disables auth (never in production) |
+
+Details & test checklist: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
 
 ---
 
@@ -582,7 +598,7 @@ docker-compose up -d
 
 | Mount / Einstellung | Inhalt |
 |---------------------|--------|
-| **`/app/data`** | `dashboard.json`, `data/calendar/`, Protokoll — **Backup** |
+| **`/app/data`** | Pro-User-Dashboards (`users/`), Auth-DB (`auth/`), Kalender, Protokoll — **Backup** |
 | **`/app/plugins/custom`** | Installierte Plugins (`<id>/plugin.json`, `widget.js`) — **mit Appdata sichern** |
 | **GitHub-Env** | Im `:beta`-Image voreingestellt: Repo `kabelsalatundklartext/selfdashboard`, Ref `beta`, Pfad `plugins-pack` |
 | **Docker Socket** (optional) | Nur lokaler Host — **[Docker-Plugin](docs/plugins/docker/README.md)** |
@@ -591,6 +607,22 @@ docker-compose up -d
 Unraid: **`unraid/selfdashboard.xml`** auf Branch **`beta`** — **Config Storage** und **Plugins Storage** (für den Normalbetrieb beide nötig).
 
 Nach **Plugin**-Update: Store → **Aktualisieren** → **Strg+F5**. Nach **App**-Update: neues Image pullen, neu starten — Layout und installierte Plugins bleiben auf den Volumes.
+
+## Login & Mehrbenutzer
+
+Ab dem `:beta`-Image ist ein Login nötig. Beim ersten Start (noch kein Benutzer) → **`/setup`** (Admin anlegen). Bestehendes `dashboard.json` im Appdata wird diesem Admin zugeordnet (Backup: `dashboard.json.pre-auth-migrated`).
+
+| Thema | Details |
+|-------|---------|
+| **Rollen** | **admin** — alles, Plugin-Store, Benutzerverwaltung · **user** — nur freigegebene Plugins |
+| **User-Daten** | `/app/data/users/<id>/dashboard.json` pro Benutzer |
+| **Auth-Daten** | `/app/data/auth/auth.db` (Benutzer, Sessions, Plugin-Whitelist) |
+| **Admin-UI** | **Einstellungen → Benutzer** — anlegen/löschen, Passwort zurücksetzen, Plugin-Häkchen |
+| **Selbst** | **Einstellungen → Allgemein → Passwort ändern** |
+| **Backup** | Gesamtes **`/app/data`** sichern (mindestens `auth/` + `users/`) |
+| **Nur Dev** | `SELFDASHBOARD_AUTH_DISABLED=1` schaltet Auth aus (nicht in Production) |
+
+Details & Test-Checkliste: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
 
 ---
 

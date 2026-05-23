@@ -38,7 +38,10 @@ export function isLoginPath(pathname: string): boolean {
 }
 
 export function isAdminOnlyApiPath(pathname: string, method: string): boolean {
-  if (pathname.startsWith('/api/logs') && (method === 'GET' || method === 'DELETE')) {
+  if (
+    pathname.startsWith('/api/logs') &&
+    (method === 'GET' || method === 'DELETE' || method === 'PUT')
+  ) {
     return true
   }
   if (

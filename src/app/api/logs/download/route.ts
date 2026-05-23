@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
 import { exportLogsJsonl, formatLogsAsText, listErrorLogs } from '@/lib/errorLog'
+import { requireAdmin } from '@/lib/auth/guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
+  const auth = requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
   const url = new URL(req.url)
   const format = url.searchParams.get('format') === 'txt' ? 'txt' : 'jsonl'
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')

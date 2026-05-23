@@ -66,9 +66,9 @@ Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
 - [x] User: **kein** Plugin-Store (+), **kein** ZIP/Install per API
 - [x] User: nur freigegebene Plugins (API + Widgets); z. B. **Docker** ohne Häkchen = blockiert
 - [x] Admin: alles + Store + Plugin-Verwaltung
-- [ ] Passwort zurücksetzen (Admin-UI) — **noch offen (1c)**
+- [x] Passwort zurücksetzen (Admin-UI) — **1c**
 - [ ] TOTP / 2FA — **Phase 2**
-- [ ] README/Unraid-Template Auth-Abschnitt — **noch offen (1c)**
+- [x] README/Unraid-Template Auth-Abschnitt — **1c**
 
 ---
 
@@ -122,11 +122,6 @@ Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
 
 ## Wenn alles passt → „weiter“
 
-Nächster Entwicklungsblock (**1c** laut Roadmap):
+**Phase 1c** ist umgesetzt (README, Passwort-Reset, Logs-API-Audit, Passwort selbst ändern).
 
-1. README + Unraid-Template (Auth, Backup-Pfade)
-2. Admin: Passwort zurücksetzen
-3. Rest-API-Audit (z. B. Logs-Download)
-4. Optional: Presets für Plugin-Whitelist, EN-Übersetzungen Auth-UI
-
-Sag im Chat einfach **„weiter“** (oder was davon Priorität hat).
+Nächster Block: **Phase 2 — TOTP / 2FA** (oder Abnahme-Tests aus [AUTH-ROADMAP.md](./AUTH-ROADMAP.md)).

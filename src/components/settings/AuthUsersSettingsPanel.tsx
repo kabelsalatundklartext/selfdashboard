@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Save, AlertTriangle, KeyRound } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 
 type UserRow = {
@@ -11,7 +11,7 @@ type UserRow = {
   allowedPlugins: string[] | null
 }
 
-type CatalogPlugin = { id: string; highRisk?: boolean; warning?: 'host' | 'shared' | null }
+type CatalogPlugin = { id: string; name?: string; highRisk?: boolean; warning?: 'host' | 'shared' | null }
 
 async function readApiError(res: Response, de: boolean): Promise<string> {
   const ct = res.headers.get('content-type') ?? ''
@@ -43,6 +43,8 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState<'user' | 'admin'>('user')
+  const [resetPassword, setResetPassword] = useState('')
+  const [draftRole, setDraftRole] = useState<'user' | 'admin'>('user')
 
   const refresh = useCallback(async () => {
     const [uRes, cRes] = await Promise.all([
@@ -65,7 +67,13 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     const u = users.find((x) => x.id === selectedId)
-    if (!u || u.role === 'admin') {
+    if (!u) {
+      setDraftPlugins([])
+      setResetPassword('')
+      return
+    }
+    setDraftRole(u.role)
+    if (u.role === 'admin') {
       setDraftPlugins([])
       return
     }
@@ -94,6 +102,35 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
       setNewPassword('')
       setNewRole('user')
       setMsg(de ? 'Benutzer angelegt.' : 'User created.')
+      await refresh()
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveUserDetails() {
+    if (!selected) return
+    setBusy(true)
+    setMsg(null)
+    try {
+      const body: { password?: string; role?: 'user' | 'admin' } = {}
+      if (resetPassword.trim()) body.password = resetPassword.trim()
+      if (draftRole !== selected.role) body.role = draftRole
+      if (!body.password && body.role === undefined) {
+        setMsg(de ? 'Nichts zu speichern.' : 'Nothing to save.')
+        setBusy(false)
+        return
+      }
+      const res = await fetch(`/api/auth/users/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(await readApiError(res, de))
+      setResetPassword('')
+      setMsg(de ? 'Benutzer aktualisiert.' : 'User updated.')
       await refresh()
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e))
@@ -246,6 +283,57 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
         ))}
       </section>
 
+      {selected ? (
+        <section
+          className="rounded-xl p-4 flex flex-col gap-3"
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+        >
+          <h3 className="font-semibold">
+            {de ? `„${selected.username}" bearbeiten` : `Edit “${selected.username}”`}
+          </h3>
+          <label className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <span>{de ? 'Rolle' : 'Role'}</span>
+            <select
+              value={draftRole}
+              onChange={(e) => setDraftRole(e.target.value as 'user' | 'admin')}
+              className="rounded-lg px-2 py-1"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+            >
+              <option value="user">{de ? 'Benutzer' : 'User'}</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              {de ? 'Passwort zurücksetzen (optional)' : 'Reset password (optional)'}
+            </label>
+            <input
+              type="password"
+              className="rounded-lg px-3 py-2"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              placeholder={de ? 'Neues Passwort (min. 8 Zeichen)' : 'New password (min. 8 chars)'}
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)', lineHeight: 1.45 }}>
+              {de
+                ? 'Setzt das Passwort zurück und meldet den Benutzer auf allen Geräten ab.'
+                : 'Resets the password and signs the user out on all devices.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-accent self-start flex items-center gap-1.5 px-3 py-1.5"
+            disabled={busy}
+            onClick={() => void saveUserDetails()}
+          >
+            <KeyRound size={14} />
+            {de ? 'Speichern' : 'Save'}
+          </button>
+        </section>
+      ) : null}
+
       {selected && selected.role === 'user' ? (
         <section
           className="rounded-xl p-4 flex flex-col gap-3"
@@ -258,39 +346,49 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
             {catalog.map((p) => (
               <label
                 key={p.id}
-                className="flex items-center gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5"
+                className="flex items-start gap-2 text-xs cursor-pointer rounded-md px-2 py-1.5"
                 style={{ background: 'var(--surface)' }}
               >
                 <input
                   type="checkbox"
+                  className="mt-0.5"
                   checked={draftPlugins.includes(p.id)}
                   onChange={() => togglePlugin(p.id)}
                 />
-                <span className="font-mono">{p.id}</span>
-                {p.warning === 'host' ? (
-                  <span
-                    title={
-                      de
-                        ? 'Host/System: z. B. Docker-Socket, FRITZ!, Router — nur freigeben wenn nötig'
-                        : 'Host/system: e.g. Docker socket, FRITZ!, router — grant only if needed'
-                    }
-                    style={{ display: 'flex', flexShrink: 0 }}
-                  >
-                    <AlertTriangle size={12} style={{ color: '#f59e0b' }} aria-hidden />
+                <span className="flex flex-col min-w-0 flex-1">
+                  <span className="flex items-center gap-1 min-w-0">
+                    <span className="truncate">{p.name && p.name !== p.id ? p.name : p.id}</span>
+                    {p.warning === 'host' ? (
+                      <span
+                        title={
+                          de
+                            ? 'Host/System: z. B. Docker-Socket, FRITZ!, Router — nur freigeben wenn nötig'
+                            : 'Host/system: e.g. Docker socket, FRITZ!, router — grant only if needed'
+                        }
+                        style={{ display: 'flex', flexShrink: 0 }}
+                      >
+                        <AlertTriangle size={12} style={{ color: '#f59e0b' }} aria-hidden />
+                      </span>
+                    ) : null}
+                    {p.warning === 'shared' ? (
+                      <span
+                        title={
+                          de
+                            ? 'Gemeinsame Instanz: Mail-Daten liegen global unter /app/data'
+                            : 'Shared instance: mail data is global under /app/data'
+                        }
+                        style={{ display: 'flex', flexShrink: 0 }}
+                      >
+                        <AlertTriangle size={12} style={{ color: '#f59e0b', opacity: 0.65 }} aria-hidden />
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
-                {p.warning === 'shared' ? (
-                  <span
-                    title={
-                      de
-                        ? 'Gemeinsame Instanz: Mail-Daten liegen global unter /app/data'
-                        : 'Shared instance: mail data is global under /app/data'
-                    }
-                    style={{ display: 'flex', flexShrink: 0 }}
-                  >
-                    <AlertTriangle size={12} style={{ color: '#f59e0b', opacity: 0.65 }} aria-hidden />
-                  </span>
-                ) : null}
+                  {p.name && p.name !== p.id ? (
+                    <span className="font-mono text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                      {p.id}
+                    </span>
+                  ) : null}
+                </span>
               </label>
             ))}
           </div>
@@ -299,10 +397,6 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
             {de ? 'Freigaben speichern' : 'Save permissions'}
           </button>
         </section>
-      ) : selected?.role === 'admin' ? (
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {de ? 'Administratoren haben automatisch Zugriff auf alle Plugins.' : 'Administrators automatically have access to all plugins.'}
-        </p>
       ) : null}
 
       {msg ? (

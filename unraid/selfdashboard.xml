@@ -49,7 +49,7 @@
     Target="/app/data"
     Default="/mnt/user/appdata/selfdashboard"
     Mode="rw"
-    Description="App-Daten (/app/data): dashboard.json, Kalender, Logs. Backup dieses Host-Ordners empfohlen. Optional: SELFDASHBOARD_DATA_DIR überschreibt den Pfad im Container."
+    Description="App-Daten (/app/data): pro User dashboard.json unter users/, Auth unter auth/auth.db, Kalender, Logs. Backup dieses Host-Ordners empfohlen. Optional: SELFDASHBOARD_DATA_DIR überschreibt den Pfad im Container."
     Type="Path"
     Display="always"
     Required="true"

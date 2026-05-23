@@ -70,3 +70,13 @@ export function deleteSession(sessionId: string) {
 export function deleteSessionsForUser(userId: string) {
   getAuthDb().prepare('DELETE FROM sessions WHERE user_id = ?').run(userId)
 }
+
+export function deleteSessionsForUserExcept(userId: string, keepSessionId: string | null) {
+  if (keepSessionId) {
+    getAuthDb()
+      .prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?')
+      .run(userId, keepSessionId)
+  } else {
+    deleteSessionsForUser(userId)
+  }
+}
