@@ -13,6 +13,7 @@ export type SessionInfo = {
   username: string
   role: UserRole
   expiresAt: string
+  mfaVerified: boolean
 }
 
 export type AuthSettings = {

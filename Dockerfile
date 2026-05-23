@@ -39,7 +39,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-COPY --from=builder /app/scripts/auth-recovery-token.mjs ./scripts/auth-recovery-token.mjs
 COPY --from=builder /app/scripts/auth-reset-password.mjs ./scripts/auth-reset-password.mjs
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks

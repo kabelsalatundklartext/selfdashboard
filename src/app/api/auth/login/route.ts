@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     })
     const res = NextResponse.json({
       ok: true,
+      needsTotp: !session.mfaVerified,
       user: {
         id: session.userId,
         username: session.username,

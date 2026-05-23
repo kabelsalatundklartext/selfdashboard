@@ -9,7 +9,6 @@ scripts/*
 !scripts/resolve-plugins-root.mjs
 !scripts/ci-prepare-plugins.sh
 !scripts/vendor-builtin-plugins.mjs
-!scripts/auth-recovery-token.mjs
 !scripts/auth-reset-password.mjs
 # plugins-pack wird auf GitHub verteilt, nicht ins Image kopiert (zu groß)
 plugins-pack/

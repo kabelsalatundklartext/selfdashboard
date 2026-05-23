@@ -5,11 +5,11 @@ import {
   getSessionFromRequest,
   isAdminOnlyApiPath,
   isLoginPath,
+  isMfaPendingAllowedApi,
   isPublicPath,
-  isRecoverPath,
   isSetupPath,
+  isTotpLoginPath,
 } from '@/lib/auth/guard'
-import { isRecoveryConfigured } from '@/lib/auth/recovery'
 import { isAuthDisabled } from '@/lib/auth/service'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -46,22 +46,29 @@ export function middleware(request: NextRequest) {
 
   if (isLoginPath(pathname)) {
     const sessionId = readSessionIdFromCookieHeader(request.headers.get('cookie'))
-    if (sessionId && getSessionFromRequest(request)) {
+    const session = sessionId ? getSessionFromRequest(request) : null
+    if (session?.mfaVerified) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard/home'
+      return NextResponse.redirect(url)
+    }
+    if (session && !session.mfaVerified) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login/totp'
+      url.searchParams.set('next', request.nextUrl.searchParams.get('next') || '/dashboard/home')
       return NextResponse.redirect(url)
     }
     return NextResponse.next()
   }
 
-  if (isRecoverPath(pathname)) {
-    if (!isRecoveryConfigured()) {
+  if (isTotpLoginPath(pathname)) {
+    const session = getSessionFromRequest(request)
+    if (!session) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
-    const sessionId = readSessionIdFromCookieHeader(request.headers.get('cookie'))
-    if (sessionId && getSessionFromRequest(request)) {
+    if (session.mfaVerified) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard/home'
       return NextResponse.redirect(url)
@@ -70,6 +77,19 @@ export function middleware(request: NextRequest) {
   }
 
   const session = getSessionFromRequest(request)
+  if (session && !session.mfaVerified) {
+    if (pathname.startsWith('/api/') && isMfaPendingAllowedApi(pathname)) {
+      return NextResponse.next()
+    }
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
+    }
+    const url = request.nextUrl.clone()
+    url.pathname = '/login/totp'
+    url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
+  }
+
   if (!session) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -105,7 +125,7 @@ export const config = {
     '/',
     '/dashboard/:path*',
     '/login',
-    '/recover',
+    '/login/totp',
     '/setup',
     '/api/:path*',
   ],

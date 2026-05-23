@@ -8,6 +8,10 @@ import {
   verifyPassword,
 } from '@/lib/auth/password'
 import { createSession, deleteSession, getSession } from '@/lib/auth/sessions'
+import {
+  adminMustSetupTotp,
+  isTotpEnabledForUser,
+} from '@/lib/auth/totp'
 import type { SessionInfo } from '@/lib/auth/types'
 import { createUser, getUserByUsername, needsSetup } from '@/lib/auth/users'
 
@@ -56,7 +60,11 @@ export async function login(input: {
   if (!found || !verifyPassword(input.password, found.passwordHash)) {
     throw new Error('invalid_credentials')
   }
-  return createSession(found.id, !!input.remember)
+  const needsMfa =
+    isTotpEnabledForUser(found.id) || adminMustSetupTotp(found.id, found.role)
+  return createSession(found.id, !!input.remember, {
+    mfaVerified: !needsMfa,
+  })
 }
 
 export async function logout(): Promise<string | null> {

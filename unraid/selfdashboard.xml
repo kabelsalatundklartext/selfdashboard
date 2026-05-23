@@ -144,17 +144,6 @@
     Mask="false"></Config>
 
   <Config
-    Name="Auth Recovery Token (optional)"
-    Target="SELFDASHBOARD_AUTH_RECOVERY"
-    Default=""
-    Mode=""
-    Description="OPTIONAL — Notfall-Passwort-Reset ohne E-Mail. Langen Zufallsstring setzen (min. 16 Zeichen), Container neu starten → /recover im Browser. Nach erfolgreichem Reset Variable leeren und erneut starten. Alternativ: docker exec … node /app/scripts/auth-recovery-token.mjs"
-    Type="Variable"
-    Display="advanced"
-    Required="false"
-    Mask="true"></Config>
-
-  <Config
     Name="Node Environment"
     Target="NODE_ENV"
     Default="production"

@@ -2,7 +2,7 @@
 
 Planungsdokument für **ein SelfDashboard, mehrere Benutzer**, jeweils **eigenes Dashboard**.  
 **Phase 2:** TOTP (Authenticator) optional/pflicht für Admin.  
-**Stand:** Phase **1a/1b/1c** umgesetzt (Auth, pro-User-Dashboard, Plugin-Whitelist, Passwort-Reset, Logs-API-Audit).
+**Stand:** Phase **1a/1b/1c** + **2 (TOTP)** Kern umgesetzt.
 
 Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell: Widgets global installiert, **Konfiguration pro User**, **Nutzung pro User** über Whitelist).
 
@@ -18,7 +18,7 @@ Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell: Widgets global installier
 | **Komfort** | Admin mit **„Angemeldet bleiben“** (lange Session). |
 | **Betrieb** | Weiter **ein Container**, ein Plugin-Store, ein Update-Weg (nur Admin bedient). |
 
-**Nicht Ziel in v1:** Passkeys, SSO, E-Mail-„Passwort vergessen“. Stattdessen: **Recovery-Token** (Appdata/Env) oder **CLI-Reset** — siehe README.
+**Nicht Ziel in v1:** Passkeys, SSO, E-Mail-„Passwort vergessen“. Stattdessen: **Env-Reset** (`SELFDASHBOARD_AUTH_RESET_PASSWORD`) oder **CLI** — siehe README.
 
 ---
 
@@ -122,7 +122,7 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 - [x] Admin: Plugin-Whitelist pro User
 - [x] User: kein Plugin-Store, **kein ZIP-Upload**, keine Install-APIs
 - [x] Admin: Passwort zurücksetzen (UI)
-- [x] Notfall-Wiederherstellung ohne E-Mail (`/recover`, Recovery-Token, CLI)
+- [x] Notfall-Wiederherstellung ohne E-Mail (Env-Reset + optional CLI)
 
 ### Daten pro User
 
@@ -166,7 +166,12 @@ Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen
 
 ## Phase 2 — TOTP / 2FA
 
-Siehe vorherige Fassung (TOTP, Backup-Codes, Admin-Pflicht optional).
+- [x] TOTP pro User (optional) — **Einstellungen → Allgemein → Zwei-Faktor**
+- [x] Login: Passwort → `/login/totp` (6-stelliger Code oder Backup-Code)
+- [x] 8 Backup-Codes (einmalig, gehasht)
+- [x] Admin-Policy: „Admins müssen 2FA nutzen“ (Checkbox, nur Admin)
+- [ ] Rate-Limit Login/TOTP
+- [ ] QR-Code-Bild (aktuell: Secret + otpauth-URI als Text)
 
 ---
 
@@ -190,7 +195,7 @@ Siehe vorherige Fassung (TOTP, Backup-Codes, Admin-Pflicht optional).
 | **1a** | Auth-Kern, Login, Middleware | erledigt |
 | **1b** | Pro-User-State, Plugin-Whitelist, API Plugin-Gates | erledigt |
 | **1c** | README/Unraid, Passwort-Reset, API-Audit Rest | erledigt |
-| **2** | TOTP | geplant |
+| **2** | TOTP / 2FA | **Beta** (Kern umgesetzt) |
 
 ---
 

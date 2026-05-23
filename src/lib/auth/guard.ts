@@ -15,8 +15,15 @@ const AUTH_PATHS_WITHOUT_SESSION = new Set([
   '/api/auth/setup',
   '/api/auth/login',
   '/api/auth/logout',
-  '/api/auth/recovery-status',
-  '/api/auth/recovery',
+])
+
+const MFA_PENDING_ALLOWED_API = new Set([
+  '/api/auth/totp/verify',
+  '/api/auth/totp/setup',
+  '/api/auth/totp/enable',
+  '/api/auth/totp/status',
+  '/api/auth/me',
+  '/api/auth/logout',
 ])
 
 export function isPublicPath(pathname: string): boolean {
@@ -39,8 +46,12 @@ export function isLoginPath(pathname: string): boolean {
   return pathname === '/login'
 }
 
-export function isRecoverPath(pathname: string): boolean {
-  return pathname === '/recover'
+export function isTotpLoginPath(pathname: string): boolean {
+  return pathname === '/login/totp'
+}
+
+export function isMfaPendingAllowedApi(pathname: string): boolean {
+  return MFA_PENDING_ALLOWED_API.has(pathname)
 }
 
 export function isAdminOnlyApiPath(pathname: string, method: string): boolean {
@@ -69,6 +80,7 @@ export function getSessionFromRequest(req: Request): SessionInfo | null {
       username: 'dev',
       role: 'admin',
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      mfaVerified: true,
     }
   }
   if (needsSetup()) return null
@@ -83,6 +95,15 @@ export function requireAuth(req: Request): AuthContext | NextResponse {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
   return session
+}
+
+export function requireFullAuth(req: Request): AuthContext | NextResponse {
+  const auth = requireAuth(req)
+  if (auth instanceof NextResponse) return auth
+  if (!auth.mfaVerified) {
+    return NextResponse.json({ error: 'mfa_required' }, { status: 403 })
+  }
+  return auth
 }
 
 export function requireAdmin(req: Request): AuthContext | NextResponse {

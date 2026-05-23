@@ -39,6 +39,25 @@ function migrate(database: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_user_allowed_plugins_user ON user_allowed_plugins(user_id);
   `)
+  ensureColumn(database, 'users', 'totp_secret', 'TEXT')
+  ensureColumn(database, 'users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0')
+  ensureColumn(database, 'sessions', 'mfa_verified', 'INTEGER NOT NULL DEFAULT 1')
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS user_backup_codes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_backup_codes_user ON user_backup_codes(user_id);
+  `)
+}
+
+function ensureColumn(database: Database.Database, table: string, column: string, def: string) {
+  const cols = database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  if (cols.some((c) => c.name === column)) return
+  database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`)
 }
 
 export function getAuthDb(): Database.Database {

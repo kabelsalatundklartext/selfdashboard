@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       username: session.username,
       role: session.role,
     },
-    /** `null` = alle Plugins (Admin). Sonst Whitelist. */
+    mfaVerified: session.mfaVerified,
     allowedPlugins,
   })
 }

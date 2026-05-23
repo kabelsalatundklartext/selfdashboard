@@ -12,7 +12,6 @@
     "build:plugin-pack": "node scripts/build-plugin-pack.mjs",
     "generate:plugins-index": "node scripts/generate-plugins-index.mjs",
     "publish:plugin-pack": "npm run build:plugin-pack",
-    "auth:recovery-token": "node scripts/auth-recovery-token.mjs",
     "auth:reset-password": "node scripts/auth-reset-password.mjs",
     "start": "next start",
     "lint": "next lint"

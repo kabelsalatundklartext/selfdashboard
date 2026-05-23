@@ -40,8 +40,7 @@ Optional wie bisher: Docker-Socket, CrowdSec-Mount — nur relevant, wenn Plugin
 | `SELFDASHBOARD_AUTH_DISABLED=1` | **Nur Dev** — Auth aus |
 | `SELFDASHBOARD_SECURE_COOKIES=1` | Nur wenn du **HTTPS** vor dem Container hast (Reverse Proxy) |
 | `SELFDASHBOARD_INSECURE_COOKIES=1` | Legacy-Flag (ab Fix meist unnötig); Cookies ohne `Secure` erzwingen |
-| `SELFDASHBOARD_AUTH_RESET_PASSWORD=<neu>` | **Einfachster Notfall:** Env setzen → Container restart → einloggen → Env **leeren** → restart. Optional `SELFDASHBOARD_AUTH_RESET_USER=admin` |
-| `SELFDASHBOARD_AUTH_RECOVERY=<geheim>` | Alternative: Token für `/recover` (min. 16 Zeichen). Nach Reset Env leeren |
+| `SELFDASHBOARD_AUTH_RESET_PASSWORD=<neu>` | **Notfall:** Env setzen → Container restart → einloggen → Env **leeren** → restart. Optional `SELFDASHBOARD_AUTH_RESET_USER=admin` |
 | `TZ=Europe/Berlin` | wie bisher |
 
 Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
@@ -69,8 +68,8 @@ Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
 - [x] User: nur freigegebene Plugins (API + Widgets); z. B. **Docker** ohne Häkchen = blockiert
 - [x] Admin: alles + Store + Plugin-Verwaltung
 - [x] Passwort zurücksetzen (Admin-UI) — **1c**
-- [x] Notfall-Wiederherstellung (`/recover`, Token-Datei oder Env) — **1c**
-- [ ] TOTP / 2FA — **Phase 2**
+- [x] Notfall-Wiederherstellung (Env-Reset `SELFDASHBOARD_AUTH_RESET_PASSWORD`) — **1c**
+- [x] TOTP / 2FA (optional, Einstellungen → Allgemein) — **Phase 2**
 - [x] README/Unraid-Template Auth-Abschnitt — **1c**
 
 ---
@@ -123,8 +122,15 @@ Store: `SELFDASHBOARD_PLUGINS_GITHUB_*` im `:beta`-Image meist schon gesetzt.
 
 ---
 
-## Wenn alles passt → „weiter“
+### 2FA (optional)
 
-**Phase 1c** ist umgesetzt (README, Passwort-Reset, Logs-API-Audit, Passwort selbst ändern).
+- [ ] **Einstellungen → Allgemein → Zwei-Faktor** → einrichten (Secret in Authenticator-App)
+- [ ] Backup-Codes notieren
+- [ ] Logout → Login → Passwort → **/login/totp** → 6-stelliger Code
+- [ ] Optional (Admin): „Admins müssen 2FA nutzen“ aktivieren → Admin ohne 2FA muss beim Login einrichten
 
-Nächster Block: **Phase 2 — TOTP / 2FA** (oder Abnahme-Tests aus [AUTH-ROADMAP.md](./AUTH-ROADMAP.md)).
+---
+
+**Phase 1c + 2 (TOTP-Kern)** sind umgesetzt.
+
+Optional später: QR-Code-Grafik, Rate-Limit Login/TOTP.
