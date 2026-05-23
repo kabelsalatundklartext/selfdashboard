@@ -4,6 +4,7 @@ import {
   checkApiPluginAccess,
   getSessionFromRequest,
   isAdminOnlyApiPath,
+  isKioskApiPath,
   isLoginPath,
   isMfaPendingAllowedApi,
   isPublicPath,
@@ -11,6 +12,11 @@ import {
   isTotpLoginPath,
 } from '@/lib/auth/guard'
 import { isAuthDisabled } from '@/lib/auth/service'
+import {
+  isPluginAllowedForKiosk,
+  readKioskAccessFromRequest,
+  resolvePluginIdFromApiPath,
+} from '@/lib/kiosk/kioskApiAccess'
 import { needsSetup } from '@/lib/auth/users'
 
 export const runtime = 'nodejs'
@@ -91,6 +97,25 @@ export function middleware(request: NextRequest) {
   }
 
   if (!session) {
+    if (isKioskApiPath(pathname)) {
+      return NextResponse.next()
+    }
+    const kioskAccess = readKioskAccessFromRequest(request)
+    if (kioskAccess && pathname.startsWith('/api/')) {
+      const pluginId = resolvePluginIdFromApiPath(pathname)
+      const volumeOk = pathname === '/api/plugins/volume'
+      if (volumeOk || (pluginId && isPluginAllowedForKiosk(kioskAccess, pluginId))) {
+        const requestHeaders = new Headers(request.headers)
+        requestHeaders.set('x-sd-user-id', kioskAccess.ownerUserId)
+        requestHeaders.set('x-sd-role', 'admin')
+        requestHeaders.set('x-sd-kiosk', '1')
+        const res = NextResponse.next({ request: { headers: requestHeaders } })
+        res.headers.set('x-sd-user-id', kioskAccess.ownerUserId)
+        res.headers.set('x-sd-role', 'admin')
+        res.headers.set('x-sd-kiosk', '1')
+        return res
+      }
+    }
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
@@ -124,6 +149,7 @@ export const config = {
   matcher: [
     '/',
     '/dashboard/:path*',
+    '/kiosk',
     '/login',
     '/login/totp',
     '/setup',

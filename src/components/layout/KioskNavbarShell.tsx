@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { useDashboardStore } from '@/lib/store'
 
 const IDLE_MIN_SEC = 3
 const IDLE_MAX_SEC = 60
@@ -15,22 +14,22 @@ function clampIdleSec(v: unknown): number {
 type Props = {
   children: ReactNode
   locale: 'de' | 'en'
+  idleSeconds?: number
+  enabled?: boolean
+  startHidden?: boolean
 }
 
-/**
- * Wand-Tablet / Kiosk: Navbar nach Inaktivität ausblenden (ohne Layout-Lücke).
- * Wieder einblenden nur über den „Leiste“-Button — Maus/Klicks auf Widgets öffnen sie nicht.
- * Deaktiviert im Bearbeitungsmodus.
- */
-export function KioskNavbarShell({ children, locale }: Props) {
-  const kioskModeEnabled = useDashboardStore((s) => s.kioskModeEnabled)
-  const kioskModeIdleSeconds = useDashboardStore((s) => s.kioskModeIdleSeconds)
-  const editMode = useDashboardStore((s) => s.editMode)
+export function KioskNavbarShell({
+  children,
+  locale,
+  idleSeconds = 5,
+  enabled = true,
+  startHidden = false,
+}: Props) {
+  const idleMs = clampIdleSec(idleSeconds) * 1000
+  const active = enabled
 
-  const idleMs = clampIdleSec(kioskModeIdleSeconds) * 1000
-  const active = kioskModeEnabled && !editMode
-
-  const [barVisible, setBarVisible] = useState(true)
+  const [barVisible, setBarVisible] = useState(!startHidden)
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearHideTimer = useCallback(() => {
@@ -60,10 +59,14 @@ export function KioskNavbarShell({ children, locale }: Props) {
       setBarVisible(true)
       return
     }
-    setBarVisible(true)
-    scheduleHide()
+    if (startHidden) {
+      setBarVisible(false)
+    } else {
+      setBarVisible(true)
+      scheduleHide()
+    }
     return () => clearHideTimer()
-  }, [active, scheduleHide, clearHideTimer])
+  }, [active, startHidden, scheduleHide, clearHideTimer])
 
   const de = locale === 'de'
 
@@ -123,13 +126,6 @@ export function KioskNavbarShell({ children, locale }: Props) {
             color: '#fff',
             cursor: 'pointer',
             boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
-            transition: 'opacity 0.15s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '0.92'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '1'
           }}
         >
           <ChevronDown size={14} strokeWidth={2.5} aria-hidden />

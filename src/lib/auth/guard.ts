@@ -6,6 +6,8 @@ import type { SessionInfo, UserRole } from '@/lib/auth/types'
 import { isAuthDisabled } from '@/lib/auth/service'
 import { isPluginManagementApiPath } from '@/lib/auth/pluginManagement'
 import { isPluginAllowedForSession, resolvePluginIdFromApiPath } from '@/lib/auth/pluginPolicy'
+import { isPluginAllowedForKiosk, readKioskAccessFromRequest } from '@/lib/kiosk/session'
+import type { KioskAccess } from '@/lib/kiosk/session'
 import { needsSetup } from '@/lib/auth/users'
 
 export type AuthContext = SessionInfo
@@ -34,6 +36,8 @@ export function isPublicPath(pathname: string): boolean {
   ) {
     return true
   }
+  if (pathname === '/kiosk' || pathname.startsWith('/kiosk/')) return true
+  if (pathname === '/api/kiosk/status' || pathname === '/api/kiosk/unlock') return true
   if (AUTH_PATHS_WITHOUT_SESSION.has(pathname)) return true
   return false
 }
@@ -48,6 +52,10 @@ export function isLoginPath(pathname: string): boolean {
 
 export function isTotpLoginPath(pathname: string): boolean {
   return pathname === '/login/totp'
+}
+
+export function isKioskApiPath(pathname: string): boolean {
+  return pathname.startsWith('/api/kiosk/')
 }
 
 export function isMfaPendingAllowedApi(pathname: string): boolean {
@@ -70,6 +78,21 @@ export function isAdminOnlyApiPath(pathname: string, method: string): boolean {
   }
   if (isPluginManagementApiPath(pathname)) return true
   return false
+}
+
+export function kioskSessionFromAccess(access: KioskAccess): SessionInfo {
+  return {
+    id: 'kiosk-viewer',
+    userId: access.ownerUserId,
+    username: 'kiosk',
+    role: 'admin',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    mfaVerified: true,
+  }
+}
+
+export function getKioskAccessFromRequest(req: Request): KioskAccess | null {
+  return readKioskAccessFromRequest(req)
 }
 
 export function getSessionFromRequest(req: Request): SessionInfo | null {
@@ -128,12 +151,21 @@ export function requirePluginAccess(
   req: Request,
   pluginId: string,
 ): AuthContext | NextResponse {
-  const auth = requireAuth(req)
-  if (auth instanceof NextResponse) return auth
-  if (!isPluginAllowedForSession(auth, pluginId)) {
-    return NextResponse.json({ error: 'plugin_forbidden', pluginId }, { status: 403 })
+  const session = getSessionFromRequest(req)
+  if (session) {
+    if (!isPluginAllowedForSession(session, pluginId)) {
+      return NextResponse.json({ error: 'plugin_forbidden', pluginId }, { status: 403 })
+    }
+    return session
   }
-  return auth
+  const kiosk = readKioskAccessFromRequest(req)
+  if (kiosk) {
+    if (!isPluginAllowedForKiosk(kiosk, pluginId)) {
+      return NextResponse.json({ error: 'plugin_forbidden', pluginId }, { status: 403 })
+    }
+    return kioskSessionFromAccess(kiosk)
+  }
+  return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 }
 
 export function checkApiPluginAccess(
