@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getKioskAccessFromRequest, requireAuth } from '@/lib/auth/guard'
+import { requireAuth } from '@/lib/auth/guard'
 import { isPluginAllowed } from '@/lib/auth/pluginPolicy'
+import { getKioskViewAccess } from '@/lib/kiosk/kioskViewRequest'
+import { readKioskAccessFromRequest } from '@/lib/kiosk/session'
 import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 import {
   getCustomServerPluginIds,
@@ -19,37 +21,14 @@ function filterIdsForKiosk(ids: string[], kioskPluginIds: string[]) {
   return ids.filter((id) => allowed.has(id))
 }
 
-export async function GET(req: Request) {
-  const kiosk = getKioskAccessFromRequest(req)
-  const auth = requireAuth(req)
-  if (auth instanceof NextResponse && !kiosk) return auth
-
-  const widgetOverrideIds = getCustomWidgetOverrideIds()
-  const customWidgetIds = listInstalledVolumePluginIds().filter((id) => hasVolumeFile(id, 'widget.js'))
-  const customServerIds = getCustomServerPluginIds()
-  const installedIds = listInstalledVolumePluginIds()
-  const missingWidgetJs = installedIds.filter((id) => !hasVolumeFile(id, 'widget.js'))
-
-  let installedFiltered: string[]
-  let widgetsFiltered: string[]
-  let overridesFiltered: string[]
-  let serversFiltered: string[]
-
-  if (kiosk && auth instanceof NextResponse) {
-    installedFiltered = filterIdsForKiosk(installedIds, kiosk.pluginIds)
-    widgetsFiltered = filterIdsForKiosk(customWidgetIds, kiosk.pluginIds)
-    overridesFiltered = filterIdsForKiosk(widgetOverrideIds, kiosk.pluginIds)
-    serversFiltered = filterIdsForKiosk(customServerIds, kiosk.pluginIds)
-  } else if (!(auth instanceof NextResponse)) {
-    installedFiltered = filterIdsForUser(installedIds, auth.userId, auth.role)
-    widgetsFiltered = filterIdsForUser(customWidgetIds, auth.userId, auth.role)
-    overridesFiltered = filterIdsForUser(widgetOverrideIds, auth.userId, auth.role)
-    serversFiltered = filterIdsForUser(customServerIds, auth.userId, auth.role)
-  } else {
-    return auth
-  }
-
-  return NextResponse.json({
+function buildVolumePayload(
+  installedFiltered: string[],
+  widgetsFiltered: string[],
+  overridesFiltered: string[],
+  serversFiltered: string[],
+  missingWidgetJs: string[],
+) {
+  return {
     customRoot: getCustomPluginsRoot(),
     volumeOnly: true,
     installedIds: installedFiltered,
@@ -61,5 +40,54 @@ export async function GET(req: Request) {
       missingWidgetJs.length > 0
         ? 'plugin.json without widget.js — install from Store or upload a ZIP with widget.js.'
         : undefined,
-  })
+  }
+}
+
+export async function GET(req: Request) {
+  const widgetOverrideIds = getCustomWidgetOverrideIds()
+  const customWidgetIds = listInstalledVolumePluginIds().filter((id) => hasVolumeFile(id, 'widget.js'))
+  const customServerIds = getCustomServerPluginIds()
+  const installedIds = listInstalledVolumePluginIds()
+  const missingWidgetJs = installedIds.filter((id) => !hasVolumeFile(id, 'widget.js'))
+
+  const kioskView = getKioskViewAccess(req)
+  if (kioskView) {
+    return NextResponse.json(
+      buildVolumePayload(
+        filterIdsForKiosk(installedIds, kioskView.pluginIds),
+        filterIdsForKiosk(customWidgetIds, kioskView.pluginIds),
+        filterIdsForKiosk(widgetOverrideIds, kioskView.pluginIds),
+        filterIdsForKiosk(customServerIds, kioskView.pluginIds),
+        missingWidgetJs,
+      ),
+    )
+  }
+
+  const kiosk = readKioskAccessFromRequest(req)
+  const auth = requireAuth(req)
+
+  if (auth instanceof NextResponse) {
+    if (kiosk) {
+      return NextResponse.json(
+        buildVolumePayload(
+          filterIdsForKiosk(installedIds, kiosk.pluginIds),
+          filterIdsForKiosk(customWidgetIds, kiosk.pluginIds),
+          filterIdsForKiosk(widgetOverrideIds, kiosk.pluginIds),
+          filterIdsForKiosk(customServerIds, kiosk.pluginIds),
+          missingWidgetJs,
+        ),
+      )
+    }
+    return auth
+  }
+
+  return NextResponse.json(
+    buildVolumePayload(
+      filterIdsForUser(installedIds, auth.userId, auth.role),
+      filterIdsForUser(customWidgetIds, auth.userId, auth.role),
+      filterIdsForUser(widgetOverrideIds, auth.userId, auth.role),
+      filterIdsForUser(customServerIds, auth.userId, auth.role),
+      missingWidgetJs,
+    ),
+  )
 }

@@ -6,11 +6,10 @@ import { DashboardMain } from '@/components/layout/DashboardMain'
 import { KioskAuthShell } from '@/components/kiosk/KioskAuthShell'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 import { useDashboardStore, useDashboardStoreHydrated } from '@/lib/store'
+import { kioskPageFetch } from '@/lib/kiosk/kioskClientFetch'
 import type { DashboardStatePersisted } from '@/lib/dashboardStatePayload'
 
 type Phase = 'loading' | 'disabled' | 'password' | 'ready' | 'error'
-
-const kioskFetch: RequestInit = { cache: 'no-store', credentials: 'same-origin' }
 
 export function KioskView() {
   const hydrated = useDashboardStoreHydrated()
@@ -25,11 +24,11 @@ export function KioskView() {
     setBusy(true)
     setError(null)
     try {
-      const st = await fetch('/api/kiosk/status', kioskFetch)
+      const st = await kioskPageFetch('/api/kiosk/status')
       const status = (await st.json()) as { enabled?: boolean }
       if (!st.ok || !status.enabled) return 'disabled'
 
-      const res = await fetch('/api/kiosk/dashboard', kioskFetch)
+      const res = await kioskPageFetch('/api/kiosk/dashboard')
       const j = (await res.json()) as DashboardStatePersisted & { error?: string }
       if (res.status === 401 && j.error === 'password_required') return 'password'
       if (!res.ok) return j.error === 'kiosk_disabled' ? 'disabled' : 'error'
@@ -62,8 +61,7 @@ export function KioskView() {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/kiosk/unlock', {
-        ...kioskFetch,
+      const res = await kioskPageFetch('/api/kiosk/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),

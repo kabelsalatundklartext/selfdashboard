@@ -8,6 +8,7 @@ import { isPluginManagementApiPath } from '@/lib/auth/pluginManagement'
 import { isPluginAllowedForSession, resolvePluginIdFromApiPath } from '@/lib/auth/pluginPolicy'
 import { isPluginAllowedForKiosk, readKioskAccessFromRequest } from '@/lib/kiosk/session'
 import type { KioskAccess } from '@/lib/kiosk/session'
+import { getKioskViewAccess } from '@/lib/kiosk/kioskViewRequest'
 import { needsSetup } from '@/lib/auth/users'
 
 export type AuthContext = SessionInfo
@@ -151,6 +152,10 @@ export function requirePluginAccess(
   req: Request,
   pluginId: string,
 ): AuthContext | NextResponse {
+  const kioskView = getKioskViewAccess(req)
+  if (kioskView && isPluginAllowedForKiosk(kioskView, pluginId)) {
+    return kioskSessionFromAccess(kioskView)
+  }
   const session = getSessionFromRequest(req)
   if (session) {
     if (!isPluginAllowedForSession(session, pluginId)) {

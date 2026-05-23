@@ -9,6 +9,7 @@ import {
   loadAuthProfile,
   subscribeAuthProfile,
 } from '@/lib/authProfileClient'
+import { isPublicKioskPage } from '@/lib/kiosk/kioskClientFetch'
 
 export function AuthUserMenu({ locale }: { locale: 'de' | 'en' }) {
   const router = useRouter()
@@ -58,6 +59,7 @@ export function useAuthRole(): 'admin' | 'user' | null {
 }
 
 export function useCanUsePlugin(pluginId: string): boolean {
+  if (isPublicKioskPage()) return true
   useSyncExternalStore(subscribeAuthProfile, () => {
     const p = getAuthProfileSnapshot()
     if (!p) return ''
