@@ -428,7 +428,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       shareAccessNone: "Nicht teilen",
       shareAccessRead: "Lesen",
       shareAccessWrite: "Bearbeiten",
-      shareLegacyAllReadOnly: "Alle Unterkalender werden geteilt (nur lesen). Speichern, um gezielt auszuw\xE4hlen."
+      shareLegacyAllReadOnly: "Alle Unterkalender werden geteilt (nur lesen). Speichern, um gezielt auszuw\xE4hlen.",
+      monthBadgeMode: "Monats\xFCbersicht \u2014 Termin-Badges",
+      monthBadgeTotal: "Gesamtzahl (wie bisher)",
+      monthBadgeByCalendar: "Pro Unterkalender (Farbe + Anzahl)",
+      monthBadgeModeHint: "Nur in der Monatsansicht auf der Karte. Pro Tag entweder eine Zahl oder farbige Badges je Unterkalender."
     },
     en: {
       calendar: "Calendar",
@@ -532,7 +536,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       shareAccessNone: "Not shared",
       shareAccessRead: "Read",
       shareAccessWrite: "Edit",
-      shareLegacyAllReadOnly: "All sub-calendars are shared (read-only). Save to pick specific calendars."
+      shareLegacyAllReadOnly: "All sub-calendars are shared (read-only). Save to pick specific calendars.",
+      monthBadgeMode: "Month view \u2014 event badges",
+      monthBadgeTotal: "Total count (current)",
+      monthBadgeByCalendar: "Per sub-calendar (color + count)",
+      monthBadgeModeHint: "Tile month view only. Either one total number or colored badges per sub-calendar per day."
     }
   };
   function t(key, locale = "de") {
@@ -548,7 +556,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "calendar",
     name: "Kalender",
     description: "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo \u2026 API: /api/plugins/calendar.",
-    version: "1.5.0",
+    version: "1.5.1",
     author: "SelfDashboard Community",
     category: "productivity",
     icon: "\u{1F4C5}",
@@ -653,6 +661,19 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   var fromInputDateTime = (val) => new Date(val).toISOString();
   var TILE_VIEW_STORAGE_KEY = "sd-cal-tile-view";
   var DEFAULT_CALENDAR_STORAGE_KEY = "sd-cal-default-calendar-id";
+  function groupDayEventsByCalendar(dayEvents) {
+    const map = /* @__PURE__ */ new Map();
+    for (const ev of dayEvents) {
+      const prev = map.get(ev.calendarId);
+      if (prev) prev.count += 1;
+      else map.set(ev.calendarId, {
+        color: ev.calendarColor ?? "#5a9bd4",
+        name: ev.calendarName,
+        count: 1
+      });
+    }
+    return Array.from(map.entries()).map(([calendarId, v]) => ({ calendarId, ...v })).sort((a, b) => b.count - a.count || (a.name ?? "").localeCompare(b.name ?? ""));
+  }
   function isCalendarVisible(c) {
     return c.visible !== false;
   }
@@ -724,6 +745,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const { locale } = usePluginLocale();
     const t2 = (k) => t(k, locale);
     const refreshInterval = Math.max(15, config.refreshInterval ?? 60) * 1e3;
+    const monthBadgeMode = config.monthBadgeMode === "byCalendar" ? "byCalendar" : "total";
     const [summary, setSummary] = (0, import_react3.useState)(null);
     const [status, setStatus] = (0, import_react3.useState)("loading");
     const [errorMsg, setErrorMsg] = (0, import_react3.useState)(null);
@@ -1063,6 +1085,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
               locale,
               compact: true,
               countOnly: true,
+              badgeMode: monthBadgeMode,
               cursor: monthCursor,
               range: monthRange,
               selectedDay,
@@ -1251,6 +1274,22 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
             onChange: (e) => onChange("refreshInterval", Math.max(15, Number(e.target.value)))
           }
         )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { style: { fontSize: "11px", color: "var(--text-muted)", display: "block", marginBottom: "4px" }, children: t2("monthBadgeMode") }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+          "select",
+          {
+            style: inp,
+            value: config.monthBadgeMode === "byCalendar" ? "byCalendar" : "total",
+            onChange: (e) => onChange("monthBadgeMode", e.target.value),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "total", children: t2("monthBadgeTotal") }),
+              /* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", { value: "byCalendar", children: t2("monthBadgeByCalendar") })
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }, children: t2("monthBadgeModeHint") })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: "11px", color: "var(--text-muted)" }, children: locale === "de" ? "Konten und Kalender werden direkt im Kalender-Vollbild verwaltet (Zahnrad-Icon auf der Karte)." : "Manage accounts and calendars in the full-screen calendar view (cog icon on the tile)." })
     ] });
@@ -1814,7 +1853,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       }
     );
   }
-  function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, countOnly, onSelectDay, onClickDay, onClickEvent }) {
+  function MonthView({ locale, cursor, range, eventsByDay, selectedDay, compact, countOnly, badgeMode = "total", onSelectDay, onClickDay, onClickEvent }) {
     const t2 = (k) => t(k, locale);
     const weekdays = (0, import_react3.useMemo)(() => weekdayShortLabels(locale), [locale]);
     const today = startOfLocalDay(/* @__PURE__ */ new Date());
@@ -1852,6 +1891,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
         const isOther = day.getMonth() !== month;
         const isToday = dateKeyLocal(day) === dateKeyLocal(today);
         const isSelected = key === selectedKey;
+        const calendarGroups = countOnly && badgeMode === "byCalendar" && dayEvents.length > 0 ? groupDayEventsByCalendar(dayEvents) : null;
         return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
           "div",
           {
@@ -1891,7 +1931,39 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                   justifyContent: "center"
                 } : {}
               }, children: day.getDate() }),
-              countOnly ? dayEvents.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: "2px" }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: {
+              countOnly ? dayEvents.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: {
+                flex: 1,
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "flex-end",
+                justifyContent: "center",
+                gap: "2px",
+                paddingBottom: "2px"
+              }, children: calendarGroups ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+                calendarGroups.slice(0, 4).map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                  "span",
+                  {
+                    title: g.name ? `${g.name}: ${g.count}` : String(g.count),
+                    style: {
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      background: g.color,
+                      color: "#fff",
+                      borderRadius: "8px",
+                      minWidth: "14px",
+                      padding: "1px 4px",
+                      textAlign: "center"
+                    },
+                    children: g.count
+                  },
+                  g.calendarId
+                )),
+                calendarGroups.length > 4 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { fontSize: "8px", color: "var(--text-muted)" }, children: [
+                  "+",
+                  calendarGroups.length - 4
+                ] })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: {
                 fontSize: "10px",
                 fontWeight: 700,
                 lineHeight: 1,
