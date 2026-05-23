@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePluginManagement } from '@/lib/auth/pluginManagement'
 import { installPluginZipBuffer } from '@/lib/pluginZipInstall'
 import { reloadCustomPluginServers } from '@/lib/pluginCustomServer'
 import { reloadPluginCatalog } from '@/lib/pluginScan'
@@ -7,6 +8,8 @@ import { getWidgetLoadedIdsForCatalog } from '@/lib/pluginCatalogIds'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
+  const auth = requirePluginManagement(req)
+  if (auth instanceof NextResponse) return auth
   const form = await req.formData()
   const file = form.get('file')
   if (!file || typeof file === 'string') {

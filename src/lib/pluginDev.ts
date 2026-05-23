@@ -6,6 +6,8 @@
 export { formatErrorDetail, reportPluginCatch, reportPluginError } from '@/lib/pluginLog'
 export type { PluginLogOptions } from '@/lib/pluginLog'
 
+import { kioskAwareFetch } from '@/lib/kiosk/kioskClientFetch'
+
 function fetchAbortSignal(outer?: AbortSignal, timeoutMs?: number): { signal?: AbortSignal; cleanup: () => void } {
   const timers: ReturnType<typeof setTimeout>[] = []
   const cleanup = () => {
@@ -52,7 +54,7 @@ export async function pluginApiJson<T>(
   const { timeoutMs, signal: outerSignal, ...rest } = init ?? {}
   const { signal, cleanup } = fetchAbortSignal(outerSignal ?? undefined, timeoutMs)
   try {
-    const res = await fetch(url, {
+    const res = await kioskAwareFetch(url, {
       ...rest,
       ...(signal ? { signal } : {}),
       headers: {

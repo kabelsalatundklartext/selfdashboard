@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePluginManagement } from '@/lib/auth/pluginManagement'
 import { installPluginFromGitHub, clearGitHubPluginIndexCache } from '@/lib/pluginGitHub'
 import { reloadCustomPluginServers } from '@/lib/pluginCustomServer'
 import { reloadPluginCatalog } from '@/lib/pluginScan'
@@ -7,6 +8,8 @@ import { getWidgetLoadedIdsForCatalog } from '@/lib/pluginCatalogIds'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
+  const auth = requirePluginManagement(req)
+  if (auth instanceof NextResponse) return auth
   let body: { pluginId?: string }
   try {
     body = (await req.json()) as { pluginId?: string }

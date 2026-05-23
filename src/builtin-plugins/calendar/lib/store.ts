@@ -1,22 +1,24 @@
 /**
  * JSON file storage for the calendar plugin.
  *
- * One file per install: `${CALENDAR_DATA_DIR}/store.json`.
- * Default data dir resolution mirrors `SELFDASHBOARD_DATA_DIR` /
- * `/app/data` from the host app. Writes are atomic (tmp + rename) and
- * serialised through an in-process async mutex to prevent torn states
- * when multiple route handlers mutate at once.
- *
- * Scale note: for a typical home install (10 accounts, 5000 events) this
- * file stays well under 10 MB. If you ever push past that and notice
- * write latency, switch to per-calendar files — the API on this module
- * doesn't have to change.
+ * Each user has their own store at `${data}/users/<userId>/calendar/store.json`.
+ * Legacy installs may still have `${data}/calendar/store.json` (global) until an
+ * admin opens the calendar — then it is migrated into that admin's user folder.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import { CalendarStore, EMPTY_STORE, STORE_VERSION } from './types'
+
+export const LEGACY_OWNER_ID = '__legacy__'
 
 function resolveAppDataDir(): string {
   const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim()
@@ -28,28 +30,39 @@ const DEFAULT_ROOT =
   process.env.CALENDAR_DATA_DIR ||
   join(resolveAppDataDir(), 'calendar')
 
-let dataDirCache: string | null = null
-
 export function getDataDir(): string {
   return DEFAULT_ROOT
 }
 
-function ensureDataDir(): void {
-  if (!existsSync(DEFAULT_ROOT)) mkdirSync(DEFAULT_ROOT, { recursive: true })
-  dataDirCache = DEFAULT_ROOT
+export function usersDataDir(): string {
+  return join(resolveAppDataDir(), 'users')
 }
 
-const storePath = () => join(DEFAULT_ROOT, 'store.json')
+function ensureDir(dir: string): void {
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+}
+
+function legacyStorePath(): string {
+  ensureDir(DEFAULT_ROOT)
+  return join(DEFAULT_ROOT, 'store.json')
+}
+
+export function userStorePath(userId: string): string {
+  return join(usersDataDir(), userId, 'calendar', 'store.json')
+}
+
+export function legacyStoreExists(): boolean {
+  return existsSync(legacyStorePath())
+}
 
 // ---------------------------------------------------------------------------
-// async mutex
+// async mutex (single queue for all calendar files)
 // ---------------------------------------------------------------------------
 
 let chain: Promise<unknown> = Promise.resolve()
 
 function withLock<T>(fn: () => Promise<T> | T): Promise<T> {
   const next = chain.then(fn)
-  // ignore errors on the chain itself so a single failed task doesn't poison the queue
   chain = next.catch(() => undefined)
   return next as Promise<T>
 }
@@ -58,8 +71,7 @@ function withLock<T>(fn: () => Promise<T> | T): Promise<T> {
 // read / write
 // ---------------------------------------------------------------------------
 
-function readSyncOrEmpty(): CalendarStore {
-  const path = storePath()
+function readSyncFromPath(path: string): CalendarStore {
   if (!existsSync(path)) return structuredClone(EMPTY_STORE)
   try {
     const raw = readFileSync(path, 'utf8')
@@ -71,45 +83,145 @@ function readSyncOrEmpty(): CalendarStore {
       events: parsed.events ?? [],
       syncLog: parsed.syncLog ?? [],
     }
-  } catch (e) {
-    // corrupt file — back it up and start fresh rather than crash the API
-    try { renameSync(path, path + '.corrupt-' + Date.now()) } catch {}
+  } catch {
+    try {
+      renameSync(path, path + '.corrupt-' + Date.now())
+    } catch {
+      /* ignore */
+    }
     return structuredClone(EMPTY_STORE)
   }
 }
 
-function writeSync(store: CalendarStore): void {
-  ensureDataDir()
-  const path = storePath()
+function writeSyncToPath(path: string, store: CalendarStore): void {
+  ensureDir(join(path, '..'))
   const tmp = path + '.tmp'
   writeFileSync(tmp, JSON.stringify(store, null, 2), 'utf8')
   renameSync(tmp, path)
 }
 
-/** Read the entire store. Returns a deep copy so callers can mutate freely. */
-export function readStore(): Promise<CalendarStore> {
-  return withLock(() => {
-    return structuredClone(readSyncOrEmpty())
-  })
+export function listCalendarOwnerUserIds(): string[] {
+  const root = usersDataDir()
+  if (!existsSync(root)) return []
+  const ids: string[] = []
+  for (const ent of readdirSync(root, { withFileTypes: true })) {
+    if (!ent.isDirectory()) continue
+    if (existsSync(userStorePath(ent.name))) ids.push(ent.name)
+  }
+  return ids
 }
 
-/**
- * Mutate the store atomically. The callback receives the current store and
- * may mutate it in place; whatever it returns (or void) is fine — we persist
- * the (potentially mutated) snapshot.
- */
-export function mutateStore<T>(fn: (s: CalendarStore) => T | Promise<T>): Promise<T> {
+export async function readLegacyStore(): Promise<CalendarStore> {
+  return withLock(() => structuredClone(readSyncFromPath(legacyStorePath())))
+}
+
+export async function readUserStore(userId: string): Promise<CalendarStore> {
+  return withLock(() => structuredClone(readSyncFromPath(userStorePath(userId))))
+}
+
+export async function mutateUserStore<T>(
+  userId: string,
+  fn: (s: CalendarStore) => T | Promise<T>,
+): Promise<T> {
   return withLock(async () => {
-    const store = readSyncOrEmpty()
+    const path = userStorePath(userId)
+    const store = readSyncFromPath(path)
     const result = await fn(store)
-    writeSync(store)
+    writeSyncToPath(path, store)
     return result
   })
 }
 
-// ---------------------------------------------------------------------------
-// id generator — short, sortable, URL-safe
-// ---------------------------------------------------------------------------
+export async function mutateLegacyStore<T>(
+  fn: (s: CalendarStore) => T | Promise<T>,
+): Promise<T> {
+  return withLock(async () => {
+    const path = legacyStorePath()
+    const store = readSyncFromPath(path)
+    const result = await fn(store)
+    writeSyncToPath(path, store)
+    return result
+  })
+}
+
+export async function readOwnerStore(ownerUserId: string): Promise<CalendarStore> {
+  if (ownerUserId === LEGACY_OWNER_ID) return readLegacyStore()
+  return readUserStore(ownerUserId)
+}
+
+export async function mutateOwnerStore<T>(
+  ownerUserId: string,
+  fn: (s: CalendarStore) => T | Promise<T>,
+): Promise<T> {
+  if (ownerUserId === LEGACY_OWNER_ID) return mutateLegacyStore(fn)
+  return mutateUserStore(ownerUserId, fn)
+}
+
+/** Move legacy global store into the first admin user's folder (once). */
+export async function migrateLegacyStoreToUser(adminUserId: string): Promise<boolean> {
+  const legacyPath = legacyStorePath()
+  if (!existsSync(legacyPath)) return false
+  const legacy = readSyncFromPath(legacyPath)
+  if (
+    legacy.accounts.length === 0 &&
+    legacy.calendars.length === 0 &&
+    legacy.events.length === 0
+  ) {
+    try {
+      renameSync(legacyPath, legacyPath + '.empty-' + Date.now())
+    } catch {
+      /* ignore */
+    }
+    return false
+  }
+  await mutateUserStore(adminUserId, (target) => {
+    for (const a of legacy.accounts) {
+      a.ownerUserId = a.ownerUserId ?? adminUserId
+      a.sharing = a.sharing ?? 'private'
+      a.sharedWithUserIds = a.sharedWithUserIds ?? []
+    }
+    target.accounts.push(...legacy.accounts)
+    target.calendars.push(...legacy.calendars)
+    target.events.push(...legacy.events)
+    target.syncLog.unshift(...legacy.syncLog)
+    target.syncLog = target.syncLog.slice(0, 50)
+  })
+  const backup = legacyPath + '.pre-user-migrated'
+  try {
+    renameSync(legacyPath, backup)
+  } catch {
+    /* keep legacy if rename fails */
+  }
+  return true
+}
+
+export async function findAccountOwnerUserId(accountId: string): Promise<string | null> {
+  if (legacyStoreExists()) {
+    const legacy = await readLegacyStore()
+    if (legacy.accounts.some((a) => a.id === accountId)) return LEGACY_OWNER_ID
+  }
+  for (const userId of listCalendarOwnerUserIds()) {
+    const store = await readUserStore(userId)
+    if (store.accounts.some((a) => a.id === accountId)) return userId
+  }
+  return null
+}
+
+/** @deprecated Use readViewerStore / readOwnerStore */
+export async function readStore(): Promise<CalendarStore> {
+  if (legacyStoreExists()) return readLegacyStore()
+  const owners = listCalendarOwnerUserIds()
+  if (owners.length === 1) return readUserStore(owners[0]!)
+  return structuredClone(EMPTY_STORE)
+}
+
+/** @deprecated Use mutateOwnerStore / mutateUserStore */
+export async function mutateStore<T>(fn: (s: CalendarStore) => T | Promise<T>): Promise<T> {
+  if (legacyStoreExists()) return mutateLegacyStore(fn)
+  const owners = listCalendarOwnerUserIds()
+  if (owners.length === 1) return mutateUserStore(owners[0]!, fn)
+  throw new Error('calendar store is multi-user; use mutateOwnerStore')
+}
 
 export function newId(prefix: string): string {
   const ts = Date.now().toString(36)

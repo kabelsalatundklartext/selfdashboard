@@ -13,6 +13,11 @@ import type { Locale } from '@/lib/i18n'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
 import { MailNavbarToggle } from '@/components/settings/MailNavbarToggle'
+import { AuthUsersSettingsPanel } from '@/components/settings/AuthUsersSettingsPanel'
+import { AuthChangePasswordPanel } from '@/components/settings/AuthChangePasswordPanel'
+import { AuthTotpSettingsPanel } from '@/components/settings/AuthTotpSettingsPanel'
+import { KioskSettingsPanel } from '@/components/settings/KioskSettingsPanel'
+import { useAuthRole } from '@/components/layout/AuthUserMenu'
 import {
   getAppSettingsPanels,
   getAppSettingsPanelsVersion,
@@ -88,8 +93,6 @@ export function SettingsModal({ open, onClose }: Props) {
     navbarSearchProviders, setNavbarSearchProviderEnabled,
     navbarSearchCustomProviders, setNavbarSearchCustomProviderEnabled,
     addNavbarSearchCustomProvider, removeNavbarSearchCustomProvider,
-    kioskModeEnabled, setKioskModeEnabled,
-    kioskModeIdleSeconds, setKioskModeIdleSeconds,
     navbarBackgroundImage, setNavbarBackgroundImage,
     navbarBackgroundOverlay, setNavbarBackgroundOverlay,
     dashboardBackgroundMode, setDashboardBackgroundMode,
@@ -194,6 +197,8 @@ export function SettingsModal({ open, onClose }: Props) {
 
   useSyncExternalStore(subscribeAppSettingsPanels, getAppSettingsPanelsVersion, () => 0)
   const appSettingsPanels = getAppSettingsPanels()
+  const authRole = useAuthRole()
+  const isAdmin = authRole === 'admin'
 
   if (!open) return null
 
@@ -274,7 +279,10 @@ export function SettingsModal({ open, onClose }: Props) {
       id: `plugin-${p.id}` as TabId,
       label: p.label[locale] ?? p.label.en ?? p.id,
     })),
-    { id: 'logs', label: locale === 'de' ? 'Protokoll' : 'Logs' },
+    ...(authRole
+      ? [{ id: 'users' as TabId, label: locale === 'de' ? 'Benutzer' : 'Users' }]
+      : []),
+    ...(isAdmin ? [{ id: 'logs' as TabId, label: locale === 'de' ? 'Protokoll' : 'Logs' }] : []),
   ]
 
   return (
@@ -347,43 +355,6 @@ export function SettingsModal({ open, onClose }: Props) {
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                  {locale === 'de' ? 'Kiosk-Modus (Wand-Tablet)' : 'Kiosk mode (wall tablet)'}
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', marginBottom: '10px' }}>
-                  <div>
-                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
-                      {locale === 'de' ? 'Navbar automatisch ausblenden' : 'Auto-hide top bar'}
-                    </p>
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0', lineHeight: 1.45 }}>
-                      {locale === 'de'
-                        ? 'Nach Inaktivität verschwindet die Leiste — nur der Akzent-Button „Leiste“ blendet sie wieder ein (Maus über Widgets nicht). Im Bearbeitungsmodus bleibt sie sichtbar.'
-                        : 'After idle time the bar hides — only the accent “Menu” button brings it back (not mouse over widgets). Stays visible in edit mode.'}
-                    </p>
-                  </div>
-                  <Toggle value={kioskModeEnabled} onChange={setKioskModeEnabled} />
-                </div>
-                {kioskModeEnabled ? (
-                  <div style={{ marginBottom: '4px' }}>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                      {locale === 'de' ? 'Ausblenden nach (Sekunden)' : 'Hide after (seconds)'}
-                    </label>
-                    <input
-                      type="number"
-                      min={3}
-                      max={60}
-                      step={1}
-                      value={kioskModeIdleSeconds}
-                      onChange={(e) => setKioskModeIdleSeconds(Number(e.target.value))}
-                      style={inp}
-                    />
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '6px 0 0' }}>
-                      {locale === 'de' ? '3–60 Sekunden ohne Maus/Touch, dann nur noch Widgets.' : '3–60 seconds without input, then widgets only.'}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
 
               {/* Navbar web search */}
               <div>
@@ -1251,6 +1222,25 @@ export function SettingsModal({ open, onClose }: Props) {
                 </WidgetErrorBoundary>
               )
             })}
+
+            {tab === 'users' && authRole ? (
+              <div className="flex flex-col gap-5">
+                <AuthChangePasswordPanel locale={locale} />
+                <AuthTotpSettingsPanel locale={locale} />
+                {isAdmin ? (
+                  <>
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--border)',
+                        paddingTop: '4px',
+                      }}
+                    />
+                    <KioskSettingsPanel locale={locale} />
+                    <AuthUsersSettingsPanel locale={locale} />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
 
             {tab === 'logs' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '20px' }}>

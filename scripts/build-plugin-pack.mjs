@@ -9,11 +9,11 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
-import { resolvePluginPackRoot, resolvePluginsRoot } from './resolve-plugins-root.mjs'
+import { resolvePluginPackRoot, resolvePluginSourceDir, listPluginSourceIds } from './resolve-plugins-root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const pluginsRoot = resolvePluginsRoot(root)
+const pluginsRoot = path.join(root, 'plugins')
 const pluginPackRoot = resolvePluginPackRoot(root)
 const outDir = path.join(pluginPackRoot, 'staging')
 const packPublishDir = path.join(root, 'plugins-pack')
@@ -45,7 +45,8 @@ function field(src, key) {
 }
 
 function readMeta(pluginId) {
-  const dir = path.join(pluginsRoot, pluginId)
+  const dir = resolvePluginSourceDir(root, pluginId)
+  if (!dir) return null
   const manifestPath = path.join(dir, 'plugin.json')
   if (fs.existsSync(manifestPath)) {
     return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
@@ -68,15 +69,13 @@ function readMeta(pluginId) {
 }
 
 function listPluginIds() {
-  return fs
-    .readdirSync(pluginsRoot, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !skip.has(d.name))
-    .map((d) => d.name)
-    .filter((id) => fs.existsSync(path.join(pluginsRoot, id, 'index.tsx')) && readMeta(id))
+  return listPluginSourceIds(root).filter((id) => readMeta(id))
 }
 
 function writeEntry(pluginId, entryPath) {
-  const pluginEntry = path.join(pluginsRoot, pluginId, 'index.tsx').replace(/\\/g, '/')
+  const srcDir = resolvePluginSourceDir(root, pluginId)
+  if (!srcDir) throw new Error(`no index.tsx for ${pluginId}`)
+  const pluginEntry = path.join(srcDir, 'index.tsx').replace(/\\/g, '/')
   const entry = `
 import * as plugin from '${pluginEntry}'
 ;(function (SD) {
@@ -155,8 +154,8 @@ module.exports = { createPortal: rd.createPortal, default: rd };
 
 /** Copy plugin-local *.css to plugins-pack as widget.css (esbuild does not bundle CSS imports). */
 function copyPluginWidgetCss(pluginId, destDir) {
-  const dir = path.join(pluginsRoot, pluginId)
-  if (!fs.existsSync(dir)) return
+  const dir = resolvePluginSourceDir(root, pluginId)
+  if (!dir) return
   const cssFiles = fs
     .readdirSync(dir)
     .filter((f) => f.endsWith('.css') && fs.statSync(path.join(dir, f)).isFile())
@@ -213,7 +212,8 @@ export async function logPluginApiFailure(pluginId, operation, message, detail) 
 }
 
 async function bundleServer(pluginId, destDir) {
-  const entry = path.join(pluginsRoot, pluginId, 'server.ts')
+  const srcDir = resolvePluginSourceDir(root, pluginId)
+  const entry = srcDir ? path.join(srcDir, 'server.ts') : path.join(pluginsRoot, pluginId, 'server.ts')
   if (!fs.existsSync(entry)) return false
   const outfile = path.join(destDir, 'server.mjs')
   await esbuild.build({
@@ -316,7 +316,8 @@ async function main() {
       console.warn(`widget bundle failed for ${id}:`, e.message || e)
       failed.push(id)
     }
-    const serverTs = path.join(pluginsRoot, id, 'server.ts')
+    const srcDir = resolvePluginSourceDir(root, id)
+    const serverTs = srcDir ? path.join(srcDir, 'server.ts') : path.join(pluginsRoot, id, 'server.ts')
     if (fs.existsSync(serverTs)) {
       try {
         if (await bundleServer(id, dest)) {

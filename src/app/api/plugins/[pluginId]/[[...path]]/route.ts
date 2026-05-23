@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { requirePluginAccess } from '@/lib/auth/guard'
+import { isReservedPluginApiSegment } from '@/lib/auth/pluginPolicy'
 import { loadAllPluginServers } from '@/lib/pluginServerLoader'
 import { getPluginServerHandler } from '@/lib/pluginServerRegistry'
 
@@ -14,8 +16,13 @@ void ensureServers()
 type RouteParams = { pluginId: string; path?: string[] }
 
 async function dispatch(req: Request, params: RouteParams): Promise<Response> {
-  await ensureServers()
   const pluginId = params.pluginId
+  if (isReservedPluginApiSegment(pluginId)) {
+    return NextResponse.json({ error: 'invalid_plugin_route', pluginId }, { status: 404 })
+  }
+  const denied = requirePluginAccess(req, pluginId)
+  if (denied instanceof NextResponse) return denied
+  await ensureServers()
   const path = params.path ?? []
   const handler = getPluginServerHandler(pluginId)
   if (!handler) {

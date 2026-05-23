@@ -7,13 +7,23 @@
  *   - `startScheduler()`   — kick off an in-process periodic sync loop;
  *      invoked from Next.js instrumentation (see `src/instrumentation.ts`)
  *
- * Concurrency: all writes go through `mutateStore` which is mutex'd, so we
+ * Concurrency: all writes go through `mutateOwnerStore` which is mutex'd, so we
  * can never corrupt the JSON. The sync itself runs network calls outside
  * the mutex and only enters it to merge results back into the store.
  */
 
 import { logPluginApiFailure } from './log'
-import { mutateStore, newId, nowIso, readStore } from './store'
+import {
+  findAccountOwnerUserId,
+  legacyStoreExists,
+  listCalendarOwnerUserIds,
+  mutateOwnerStore,
+  newId,
+  nowIso,
+  readLegacyStore,
+  readOwnerStore,
+  LEGACY_OWNER_ID,
+} from './store'
 import {
   discoverCaldavCalendars,
   getCaldavClientCache,
@@ -23,7 +33,7 @@ import {
   type CaldavClientCache,
 } from './caldav'
 import { discoverIcsCalendars, syncIcsCalendar, testIcs } from './ics'
-import type { Account, CalendarStore, SyncLogEntry, SyncStatus } from './types'
+import type { Account, SyncLogEntry, SyncStatus } from './types'
 
 const DEFAULT_INTERVAL_MS = parseInt(
   process.env.CALENDAR_SYNC_INTERVAL_SECONDS ?? '300',
@@ -71,12 +81,43 @@ export async function syncAfterMutation(
   return log.error ?? undefined
 }
 
+async function listEnabledAccounts(): Promise<Array<{ ownerUserId: string; account: Account }>> {
+  const out: Array<{ ownerUserId: string; account: Account }> = []
+  if (legacyStoreExists()) {
+    const legacy = await readLegacyStore()
+    for (const account of legacy.accounts) {
+      if (account.enabled) out.push({ ownerUserId: LEGACY_OWNER_ID, account })
+    }
+  }
+  for (const ownerUserId of listCalendarOwnerUserIds()) {
+    const store = await readOwnerStore(ownerUserId)
+    for (const account of store.accounts) {
+      if (account.enabled) out.push({ ownerUserId, account })
+    }
+  }
+  return out
+}
+
 export async function runSync(accountId: string, opts?: RunSyncOptions): Promise<SyncLogEntry> {
-  // snapshot — read once, do all network work without holding the mutex
-  const store = await readStore()
-  const account = store.accounts.find(a => a.id === accountId)
+  const ownerUserId = await findAccountOwnerUserId(accountId)
+  if (!ownerUserId) {
+    return makeLogEntry(accountId, 'disabled or not found', {
+      added: 0,
+      updated: 0,
+      deleted: 0,
+      conflicts: 0,
+    })
+  }
+
+  const store = await readOwnerStore(ownerUserId)
+  const account = store.accounts.find((a) => a.id === accountId)
   if (!account || !account.enabled) {
-    return makeLogEntry(accountId, 'disabled or not found', { added: 0, updated: 0, deleted: 0, conflicts: 0 })
+    return makeLogEntry(accountId, 'disabled or not found', {
+      added: 0,
+      updated: 0,
+      deleted: 0,
+      conflicts: 0,
+    })
   }
 
   let totalAdded = 0
@@ -85,14 +126,13 @@ export async function runSync(accountId: string, opts?: RunSyncOptions): Promise
   let totalConflicts = 0
   const errors: string[] = []
 
-  // step 1: discover calendars and upsert
   if (!opts?.skipDiscover) {
     try {
       const discovered = await discoverAccountCalendars(account)
-      const discoveredIds = new Set(discovered.map(d => d.remoteId))
-      await mutateStore(s => {
+      const discoveredIds = new Set(discovered.map((d) => d.remoteId))
+      await mutateOwnerStore(ownerUserId, (s) => {
         for (const d of discovered) {
-          let cal = s.calendars.find(c => c.accountId === account.id && c.remoteId === d.remoteId)
+          let cal = s.calendars.find((c) => c.accountId === account.id && c.remoteId === d.remoteId)
           if (!cal) {
             cal = {
               id: newId('cal'),
@@ -110,23 +150,33 @@ export async function runSync(accountId: string, opts?: RunSyncOptions): Promise
             if (d.color) cal.color = d.color
           }
         }
-        // Drop calendars removed on the server (e.g. deleted in Synology Calendar).
-        const stale = s.calendars.filter(c => c.accountId === account.id && !discoveredIds.has(c.remoteId))
+        const stale = s.calendars.filter(
+          (c) => c.accountId === account.id && !discoveredIds.has(c.remoteId),
+        )
         if (stale.length) {
-          const staleIds = new Set(stale.map(c => c.id))
-          s.calendars = s.calendars.filter(c => !staleIds.has(c.id))
-          s.events = s.events.filter(e => !staleIds.has(e.calendarId))
+          const staleIds = new Set(stale.map((c) => c.id))
+          s.calendars = s.calendars.filter((c) => !staleIds.has(c.id))
+          s.events = s.events.filter((e) => !staleIds.has(e.calendarId))
         }
       })
-    } catch (e: any) {
-      errors.push(`discover: ${e?.message ?? e}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`discover: ${msg}`)
       const errText = errors.join('; ')
-      void logPluginApiFailure('calendar', 'discover', errText, { accountId, provider: account.provider })
-      const log = makeLogEntry(accountId, errText, { added: 0, updated: 0, deleted: 0, conflicts: 0 })
-      await mutateStore(s => {
+      void logPluginApiFailure('calendar', 'discover', errText, {
+        accountId,
+        provider: account.provider,
+      })
+      const log = makeLogEntry(accountId, errText, {
+        added: 0,
+        updated: 0,
+        deleted: 0,
+        conflicts: 0,
+      })
+      await mutateOwnerStore(ownerUserId, (s) => {
         s.syncLog.unshift(log)
         s.syncLog = s.syncLog.slice(0, 50)
-        const acc = s.accounts.find(a => a.id === accountId)
+        const acc = s.accounts.find((a) => a.id === accountId)
         if (acc) {
           acc.lastSyncAt = nowIso()
           acc.lastSyncStatus = 'error'
@@ -137,56 +187,57 @@ export async function runSync(accountId: string, opts?: RunSyncOptions): Promise
     }
   }
 
-  // step 2: sync each calendar (network heavy → done with a fresh snapshot per cal)
-  let calendars = (await readStore()).calendars.filter(c => c.accountId === account.id)
+  let calendars = (await readOwnerStore(ownerUserId)).calendars.filter((c) => c.accountId === account.id)
   if (opts?.calendarIds?.length) {
     const want = new Set(opts.calendarIds)
-    calendars = calendars.filter(c => want.has(c.id))
+    calendars = calendars.filter((c) => want.has(c.id))
   }
 
   let caldavCache: CaldavClientCache | undefined
   if (account.provider === 'caldav' && calendars.length > 0) {
     try {
       caldavCache = await getCaldavClientCache(account)
-    } catch (e: any) {
-      errors.push(`caldav client: ${e?.message ?? e}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`caldav client: ${msg}`)
     }
   }
 
   for (const calendar of calendars) {
     try {
-      await mutateStore(async s => {
-        const live = s.calendars.find(c => c.id === calendar.id)!
-        const acc = s.accounts.find(a => a.id === accountId)!
-        const r = account.provider === 'caldav'
-          ? opts?.pushOnly
-            ? await syncCaldavCalendarPushOnly(acc, live, s, caldavCache)
-            : await syncCaldavCalendar(acc, live, s, caldavCache)
-          : opts?.pushOnly
-            ? { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [] as string[] }
-            : await syncIcsCalendar(acc, live, s)
+      await mutateOwnerStore(ownerUserId, async (s) => {
+        const live = s.calendars.find((c) => c.id === calendar.id)!
+        const acc = s.accounts.find((a) => a.id === accountId)!
+        const r =
+          account.provider === 'caldav'
+            ? opts?.pushOnly
+              ? await syncCaldavCalendarPushOnly(acc, live, s, caldavCache)
+              : await syncCaldavCalendar(acc, live, s, caldavCache)
+            : opts?.pushOnly
+              ? { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [] as string[] }
+              : await syncIcsCalendar(acc, live, s)
         totalAdded += r.added
         totalUpdated += r.updated
         totalDeleted += r.deleted
         totalConflicts += r.conflicts
         errors.push(...r.errors)
       })
-    } catch (e: any) {
-      errors.push(`cal ${calendar.name}: ${e?.message ?? e}`)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`cal ${calendar.name}: ${msg}`)
     }
   }
 
-  // step 3: write log + account status
   const status: SyncStatus = errors.length ? 'error' : totalConflicts ? 'conflict' : 'ok'
   const log = makeLogEntry(
     accountId,
     errors.length ? errors.join('; ') : undefined,
     { added: totalAdded, updated: totalUpdated, deleted: totalDeleted, conflicts: totalConflicts },
   )
-  await mutateStore(s => {
+  await mutateOwnerStore(ownerUserId, (s) => {
     s.syncLog.unshift(log)
     s.syncLog = s.syncLog.slice(0, 50)
-    const acc = s.accounts.find(a => a.id === accountId)
+    const acc = s.accounts.find((a) => a.id === accountId)
     if (acc) {
       acc.lastSyncAt = nowIso()
       acc.lastSyncStatus = status
@@ -220,33 +271,37 @@ function makeLogEntry(
 }
 
 function randomColor(seed: string): string {
-  // deterministic pastel from a string — same calendar always gets the same colour
   let h = 0
   for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   const hue = h % 360
   return `hsl(${hue}, 55%, 55%)`
 }
 
-// ---------------------------------------------------------------------------
-// background scheduler
-// ---------------------------------------------------------------------------
-
 export function startScheduler() {
   if (schedulerStarted) return
   schedulerStarted = true
   const tick = async () => {
     try {
-      const store = await readStore()
-      for (const acc of store.accounts) {
-        if (!acc.enabled) continue
-        // skip accounts that just synced within half the interval
-        if (acc.lastSyncAt && Date.now() - new Date(acc.lastSyncAt).getTime() < DEFAULT_INTERVAL_MS / 2) continue
-        try { await runSync(acc.id) } catch { /* swallow; already logged */ }
+      const entries = await listEnabledAccounts()
+      for (const { account } of entries) {
+        if (
+          account.lastSyncAt &&
+          Date.now() - new Date(account.lastSyncAt).getTime() < DEFAULT_INTERVAL_MS / 2
+        ) {
+          continue
+        }
+        try {
+          await runSync(account.id)
+        } catch {
+          /* swallow; already logged */
+        }
       }
-    } catch { /* swallow */ }
+    } catch {
+      /* swallow */
+    }
     schedulerTimer = setTimeout(tick, DEFAULT_INTERVAL_MS)
   }
-  schedulerTimer = setTimeout(tick, 5000)              // give the app a moment to settle
+  schedulerTimer = setTimeout(tick, 5000)
 }
 
 export function stopScheduler() {

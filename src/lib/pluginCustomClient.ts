@@ -1,6 +1,7 @@
 'use client'
 
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
+import { kioskAwareFetch } from '@/lib/kiosk/kioskClientFetch'
 import { setPluginVolumeLoadPhase } from '@/lib/pluginVolumeLoad'
 
 export type PluginVolumeClientInfo = {
@@ -15,7 +16,7 @@ export type PluginVolumeClientInfo = {
 }
 
 export async function fetchPluginVolumeInfo(): Promise<PluginVolumeClientInfo> {
-  const res = await fetch('/api/plugins/volume', { cache: 'no-store' })
+  const res = await kioskAwareFetch('/api/plugins/volume', { cache: 'no-store' })
   if (!res.ok) throw new Error('volume_info_failed')
   return res.json() as Promise<PluginVolumeClientInfo>
 }

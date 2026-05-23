@@ -18,6 +18,18 @@ export type SyncState =
 
 export type SyncStatus = 'idle' | 'ok' | 'error' | 'conflict'
 
+/** `private` = only owner; `shared` = owner + sharedWithUserIds may view shared calendars. */
+export type AccountSharing = 'private' | 'shared'
+
+/** Per shared user + sub-calendar: read-only or allow event edits (CalDAV sync from owner store). */
+export type SharedCalendarAccess = 'read' | 'write'
+
+export interface SharedCalendarGrant {
+  calendarId: string
+  userId: string
+  access: SharedCalendarAccess
+}
+
 export interface CalDAVConfig {
   url: string
   username: string
@@ -43,6 +55,16 @@ export interface Account {
   lastSyncAt?: string
   lastSyncStatus?: SyncStatus
   lastSyncError?: string
+  /** Owner SelfDashboard user id (set on create; omitted on legacy global store). */
+  ownerUserId?: string
+  sharing?: AccountSharing
+  /** SelfDashboard user ids that may view this account when sharing === 'shared'. */
+  sharedWithUserIds?: string[]
+  /**
+   * Explicit sub-calendar grants when sharing === 'shared'.
+   * Empty/omitted = legacy: all sub-calendars read-only for sharedWithUserIds.
+   */
+  sharedCalendarGrants?: SharedCalendarGrant[]
 }
 
 export interface Calendar {
@@ -125,6 +147,9 @@ export const EMPTY_STORE: CalendarStore = {
 export interface AccountCreateBody {
   name: string
   provider: ProviderId
+  sharing?: AccountSharing
+  sharedWithUserIds?: string[]
+  sharedCalendarGrants?: SharedCalendarGrant[]
   caldav?: {
     url: string
     username: string
@@ -141,6 +166,9 @@ export interface AccountCreateBody {
 export interface AccountUpdateBody {
   name?: string
   enabled?: boolean
+  sharing?: AccountSharing
+  sharedWithUserIds?: string[]
+  sharedCalendarGrants?: SharedCalendarGrant[]
   caldav?: {
     url?: string
     username?: string

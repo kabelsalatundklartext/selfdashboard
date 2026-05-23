@@ -38,7 +38,7 @@
 | 🌐 **Network / AdGuard** | Protection status, DNS stats (tiles fill the widget) |
 | ⚡ **FRITZ! energy** | Smart-outlet power: now, today, 7 days, month (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server (**Unraid 7.2+** GraphQL) |
-| 📺 **Kiosk / wall tablet** | Navbar auto-hides — show again only via the accent **Menu** button |
+| 📺 **Kiosk / wall tablet** | Public **view-only** URL `/kiosk` — full-screen widgets for guests/tablets (optional password) |
 | 📺 **Emby / SelfStream** | Is anything streaming right now? |
 | ✉️ **Navbar mail** | Unread IMAP badge (install **E-Mail** plugin from the store) — click opens webmail |
 
@@ -68,7 +68,7 @@ flowchart TB
   subgraph vol["Volume /app/plugins/custom"]
     W["per plugin: plugin.json + widget.js (UI only)"]
   end
-  subgraph gh["GitHub branch e.g. beta"]
+  subgraph gh["GitHub branch e.g. main"]
     IDX["plugins-pack/plugins-index.json"]
     PACK["plugins-pack/{id}/widget.js"]
   end
@@ -80,9 +80,9 @@ flowchart TB
 
 | Layer | Location | Purpose |
 |--------|----------|---------|
-| **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:beta` or `:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
+| **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
 | **Installed plugins** | Host → `/app/plugins/custom/<id>/` | Widgets the browser runs (`widget.js`); survives image updates |
-| **Plugin catalog** | GitHub `plugins-pack/` on branch `beta` (configurable) | `plugins-index.json` + files the store downloads on install/update |
+| **Plugin catalog** | GitHub `plugins-pack/` on branch `main` (configurable) | `plugins-index.json` + files the store downloads on install/update |
 | **Plugin source (dev)** | `selfdashboard/plugins/<id>/` (`index.tsx`, `server.ts`, `lib/`) | UI → `plugins-pack/`; API → `src/builtin-plugins/` in the image |
 | **App data** | Host → `/app/data` | `dashboard.json`, calendar DB, central log |
 
@@ -93,10 +93,13 @@ flowchart TB
 | A **plugin** (new `widget.js` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
 | **SelfDashboard core** (UI, APIs, store, loader) | **Yes** | `docker pull` + restart container; keep `/app/data` and `/app/plugins/custom` mounts |
 
-## What's new (beta / recent)
+## What's new (recent)
 
 ### Core app (Docker image)
 
+- **Public kiosk mode** — **`/kiosk`** view-only URL for wall tablets (no admin login); optional password & session duration. Configure under **Settings → Users → Kiosk**. Edit widgets via normal login on **`/dashboard/<id>`**.
+- **Two-factor auth (TOTP)** — **Settings → Users** — Authenticator apps supported at login.
+- **Multi-user settings** — password change, 2FA, and kiosk config moved to **Settings → Users** (admin: user management + plugin whitelist).
 - **Design backgrounds** — **Settings → Design**: **navbar** wallpaper (JPG/PNG/WebP + overlay) and **dashboard** background (**off / 1 image / 2 images** left+right), saved globally in `dashboard.json`.
 - **Weather API proxy** — **`GET /api/plugins/weather/resolve`** (legacy: `/api/weather`); Open-Meteo via container HTTPS.
 - **Settings modal** — fixed width, taller viewport; **Logs** tab scrolls inside the list.
@@ -106,7 +109,7 @@ flowchart TB
 - **Weather 1.5.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24); **7-day** from **tomorrow**. Uses `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
 - **CrowdSec** — alert count respects time range (`daysBack`).
-- **Volume-only model** — widgets live in `/app/plugins/custom`; **Plugin Store** from GitHub `plugins-pack/` (branch **`beta`**); **Update all** + **Ctrl+F5** after plugin bumps.
+- **Volume-only model** — widgets live in `/app/plugins/custom`; **Plugin Store** from GitHub `plugins-pack/` (branch **`main`**); **Update all** + **Ctrl+F5** after plugin bumps.
 - **Email plugin** — navbar IMAP badge + settings tab from the store.
 - **Central log** — **Settings → Logs** (app, API, plugins).
 
@@ -124,6 +127,7 @@ Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Recent API/plugin changes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Error log | [docs/LOGGING.md](docs/LOGGING.md) |
+| Unraid forum (update posts) | [docs/UNRAID_FORUM.md](docs/UNRAID_FORUM.md) |
 
 ## Features
 
@@ -148,7 +152,8 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
-| 📺 **Kiosk mode** | Wall tablet: navbar hides after idle; widgets use the full height (no gap under the bar); **Menu** button brings the bar back — not mouse movement over widgets |
+| 🔐 **Login & multi-user** | SQLite auth, admin/user roles, plugin whitelist, optional TOTP 2FA |
+| 📺 **Kiosk mode** | Public **`/kiosk`** URL — view-only full-screen dashboard for wall tablets; optional password (admin configures under **Settings → Users → Kiosk**) |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
 ---
@@ -183,7 +188,7 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 
 **Required:** map **`/app/data`** and **`/app/plugins/custom`**. Without the plugins folder, the store can install files but they will not persist.
 
-**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:beta`** (matches default GitHub branch `beta`). For stable releases use **`:latest`** and set `SELFDASHBOARD_PLUGINS_GITHUB_REF=main` if your catalog lives on `main`.
+**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
 
 ### Option 1 — Unraid Community Apps (recommended)
 
@@ -205,7 +210,7 @@ docker run -d \
   -v /mnt/user/appdata/selfdashboard:/app/data \
   -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:beta
+  ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
 *(**`/app/data`** → `dashboard.json`, calendar, logs. **`/app/plugins/custom`** → installed plugins. **Store → From GitHub** or ZIP, then **Ctrl+F5**. Docker socket optional — **Docker** plugin only. CrowdSec mount optional — **CrowdSec** plugin only.)*
@@ -222,15 +227,50 @@ docker-compose up -d
 
 | Mount / setting | Content |
 |-----------------|--------|
-| **`/app/data`** | `dashboard.json`, `data/calendar/`, central log — **back up** regularly |
+| **`/app/data`** | Per-user dashboards (`users/`), auth DB (`auth/`), calendar, central log — **back up** regularly |
 | **`/app/plugins/custom`** | Installed plugins (`<id>/plugin.json`, `widget.js`) — **back up** with appdata |
-| **GitHub env vars** | Pre-set in `:beta` image: repo `kabelsalatundklartext/selfdashboard`, ref `beta`, path `plugins-pack` |
+| **GitHub env vars** | Pre-set in `:latest` image: repo `kabelsalatundklartext/selfdashboard`, ref `main`, path `plugins-pack` |
 | **Docker Socket** (optional) | Local host only — **[Docker plugin](docs/plugins/docker/README.md)** |
 | **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec plugin](docs/plugins/crowdsec/README.md)** |
 
-Unraid: **`unraid/selfdashboard.xml`** on branch **`beta`** — **Config Storage**, **Plugins Storage** (both required for a normal setup).
+Unraid: **`unraid/selfdashboard.xml`** on branch **`main`** — **Config Storage**, **Plugins Storage** (both required for a normal setup).
 
 After a **plugin** update: Store → **Update** → **Ctrl+F5**. After an **app** update: pull new image, restart — layouts and installed plugins stay on the volumes.
+
+## Login & multi-user
+
+SelfDashboard requires login. On first start (no users yet) you are redirected to **`/setup`** to create the admin account. Existing `dashboard.json` in appdata is migrated to that admin automatically (backup: `dashboard.json.pre-auth-migrated`).
+
+| Topic | Details |
+|-------|---------|
+| **Roles** | **admin** — full access, plugin store, user management · **user** — only whitelisted plugins |
+| **User data** | `/app/data/users/<id>/dashboard.json` per user |
+| **Auth data** | `/app/data/auth/auth.db` (users, sessions, plugin whitelist) |
+| **Admin UI** | **Settings → Users** — create/delete users, reset passwords, plugin checkmarks, **kiosk config** |
+| **Self-service** | **Settings → Users** — change password, enable **2FA (TOTP)** |
+| **2FA** | Optional authenticator at login — setup under **Settings → Users** |
+| **Forgot password (no email)** | Env reset: `SELFDASHBOARD_AUTH_RESET_PASSWORD` → restart (see below) |
+| **Backup** | Back up all of **`/app/data`** (at least `auth/` + `users/`) |
+| **Dev only** | `SELFDASHBOARD_AUTH_DISABLED=1` disables auth (never in production) |
+
+Details & test checklist: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
+
+### Admin locked out (forgot password)
+
+There is **no email reset** (would need SMTP — not typical for homelab). **Simplest: env reset on Unraid:**
+
+1. **Env password reset (recommended on Unraid)** — edit container, add variable:
+   - `SELFDASHBOARD_AUTH_RESET_PASSWORD` = your new password (min. 8 chars)
+   - optional: `SELFDASHBOARD_AUTH_RESET_USER=admin` (default: first admin)
+   - or one field: `SELFDASHBOARD_AUTH_RESET=admin:NewPassword`
+   - **Restart container** → sign in → **clear the variable(s)** → restart again
+
+2. **Direct CLI** (shell access):
+   ```bash
+   docker exec selfdashboard node /app/scripts/auth-reset-password.mjs --username admin --password 'NewSecurePass'
+   ```
+
+3. **Second admin** — reset password under **Settings → Users**.
 
 ---
 
@@ -284,21 +324,26 @@ Plugins can optionally read the **`layoutMode`** prop (`'phone' \| 'tablet' \| '
 
 ## Kiosk mode (wall tablet)
 
+Public **view-only** display for a wall-mounted tablet or guest browser — separate from the normal logged-in dashboard.
+
 | Topic | Details |
 |---|---|
-| **Where** | **Settings → General → Kiosk mode (wall tablet)** — toggle **Auto-hide top bar** and idle time (**3–60 s**, default **5**). |
-| **Behaviour** | When enabled (and **not** in edit mode), the navbar slides away after idle time. **Widgets move to the top** — no empty strip reserved for the hidden bar. |
-| **Show bar again** | Only the accent **Menu** / **Leiste** button at the top — **not** mouse movement or clicks on widgets. |
-| **While bar is visible** | Clicks inside the navbar reset the hide timer so you can open settings. |
-| **Edit mode** | Navbar stays visible (normal sticky layout) so you can rearrange widgets. |
+| **Display URL** | **`http://YOUR-IP:3000/kiosk`** — no admin login, full-screen widgets, no navbar |
+| **Configure (admin)** | **Settings → Users → Kiosk / wall tablet** — enable, pick dashboard, optional password, session duration (2 h … unlimited) |
+| **Edit widgets** | Log in as admin → **`/dashboard/<id>`** (e.g. `/dashboard/kiosk`) → edit mode — same as any dashboard |
+| **Do not confuse** | **`/kiosk`** = display only · **`/dashboard/kiosk`** = edit with login |
+| **Plugins** | Only widgets on the chosen kiosk dashboard are loaded (works in any browser, no SelfDashboard account needed when passwordless) |
+| **HTTP / LAN** | Cookies work on HTTP by default; set `SELFDASHBOARD_SECURE_COOKIES=1` only behind HTTPS |
 
-Ideal for a wall-mounted tablet or kiosk browser in full-screen.
+Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 
 ---
 
 ## Settings Overview
 
-**General** — Language (DE/EN), Dashboard title, **kiosk mode (wall tablet)**, navbar web search, navbar mail badge, navbar display style, dashboard tab visibility
+**General** — Language (DE/EN), dashboard title, navbar web search, navbar mail badge, navbar display style, dashboard tab visibility
+
+**Users** — Change password, **2FA (TOTP)**, **kiosk / wall tablet** (admin). Admins also manage users and plugin whitelist here.
 
 **Dashboards** — Create, edit, delete dashboards. Toggle tab visibility per dashboard. Set emoji or custom PNG icon.
 
@@ -318,13 +363,16 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | `SELFDASHBOARD_CALENDAR_KEY` | auto-generated file in data dir | **Stable secret** for encrypting calendar and **mail** passwords. Set explicitly in Docker so credentials survive container recreation. |
 | `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Directory for **`mail.json`** (optional override) |
 | `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installed plugins (Unraid: map host folder here) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` in `:beta` image | GitHub repo for store (`owner/repo`) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch/tag for `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` in `:latest` image | GitHub repo for store (`owner/repo`) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `main` | Branch/tag for `plugins-pack/` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Path in repo to plugin files |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Allowed root for DB paths (CrowdSec widget only; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
 | `CROWDSEC_DB_PATH` | — | Default DB file if widget path is empty (optional) |
 | `CROWDSEC_CONTAINER` | `crowdsec` | Docker container name for optional unban via `cscli` (optional) |
+| `SELFDASHBOARD_SECURE_COOKIES` | off | Set `1` to mark session/kiosk cookies **Secure** (HTTPS only). Default: **off** (HTTP on LAN works). |
+| `SELFDASHBOARD_INSECURE_COOKIES` | — | Set `1` to force non-Secure cookies (same as default on HTTP). |
+| `SELFDASHBOARD_AUTH_RESET_PASSWORD` | — | One-shot admin password reset on container start (see **Login & multi-user**) |
 
 ---
 
@@ -334,7 +382,7 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 |---|---|
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
 | Config lost after update | Image updates do not remove your appdata volume; **`dashboard.json`** and **`localStorage`** keep your layout. If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
-| Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:beta` image defaults |
+| Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:latest` image defaults |
 | Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
 | Update installed, UI unchanged | **Ctrl+F5** (hard reload) — browser caches `widget.js` |
 | Plugin not found after install | Confirm **Plugins Storage** mount; folder must contain `plugin.json` + `widget.js` (not `index.tsx`) |
@@ -355,6 +403,9 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | Unraid: **`Failed to fetch`** | Browser calls Unraid **directly** (`https://NAS/graphql`). Not a 7.3-only issue — check **API key**, URL, HTTPS cert, and **CORS / allowed origins** for your dashboard URL (e.g. `http://192.168.x.x:3010`) on **each** NAS |
 | Unraid works on one NAS, not another | Compare API enabled, key permissions, and CORS on the failing box (**7.2.3** and **7.3** both supported if GraphQL API is active) |
 | Background image not visible | **Design** → mode not **Off**; image uploaded; after change **Ctrl+F5**; very large images are capped (~4–5 MB in config) |
+| Kiosk shows login instead of widgets | Use **`/kiosk`**, not **`/dashboard/…`**. Enable kiosk under **Settings → Users → Kiosk** |
+| Kiosk: “Plugin not found” | Open **`/kiosk`** once as admin (updates plugin list), then retry guest browser; **Ctrl+F5** |
+| Home dashboard broken after visiting `/kiosk` | Update to latest image (kiosk cookie no longer overrides admin session); **Ctrl+F5** |
 
 ---
 
@@ -402,7 +453,7 @@ Ideal for a wall-mounted tablet or kiosk browser in full-screen.
 | 🌐 **Netzwerk / AdGuard** | Schutz-Status, DNS-Statistik (Kacheln füllen das Widget) |
 | ⚡ **FRITZ! Energie** | Steckdose: aktuell, heute, 7 Tage, Monat (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server (**Unraid 7.2+** GraphQL) |
-| 📺 **Kiosk / Wand-Tablet** | Navbar blendet sich aus — nur Button **Leiste** holt sie zurück |
+| 📺 **Kiosk / Wand-Tablet** | Öffentliche **Nur-Ansicht** unter `/kiosk` — Vollbild für Gäste/Tablet (optional Passwort) |
 | 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
 | ✉️ **Navbar E-Mail** | IMAP-Badge (Plugin **E-Mail** aus dem Store installieren) — Klick öffnet Webmail |
 
@@ -426,7 +477,7 @@ flowchart TB
   subgraph vol["Volume /app/plugins/custom"]
     W["pro Plugin: plugin.json + widget.js (+ optional server.js)"]
   end
-  subgraph gh["GitHub z. B. Branch beta"]
+  subgraph gh["GitHub z. B. Branch main"]
     IDX["plugins-pack/plugins-index.json"]
     PACK["plugins-pack/{id}/widget.js"]
   end
@@ -438,9 +489,9 @@ flowchart TB
 
 | Schicht | Ort | Zweck |
 |--------|-----|--------|
-| **Kern-App** | Image `ghcr.io/…/selfdashboard` (`:beta` oder `:latest`) | UI, Einstellungen, Protokoll, Plugin-Store, die meisten `/api/*`-Routen |
+| **Kern-App** | Image `ghcr.io/…/selfdashboard` (`:latest`) | UI, Einstellungen, Protokoll, Plugin-Store, die meisten `/api/*`-Routen |
 | **Installierte Plugins** | Host → `/app/plugins/custom/<id>/` | Widgets im Browser (`widget.js`); überlebt Image-Updates |
-| **Plugin-Katalog** | GitHub `plugins-pack/` auf Branch `beta` (konfigurierbar) | `plugins-index.json` + Dateien für Install/Update |
+| **Plugin-Katalog** | GitHub `plugins-pack/` auf Branch `main` (konfigurierbar) | `plugins-index.json` + Dateien für Install/Update |
 | **Plugin-Quellcode (Dev)** | Ordner `plugins/<id>/` (TypeScript) | UI → `plugins-pack/`; Server-Code nach `src/builtin-plugins/` fürs Image |
 | **App-Daten** | Host → `/app/data` | `dashboard.json`, Kalender-DB, zentrales Protokoll |
 
@@ -451,10 +502,13 @@ flowchart TB
 | Ein **Plugin** (neues `widget.js` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
 | **SelfDashboard-Kern** (UI, APIs, Store, Loader) | **Ja** | `docker pull` + Container neu starten; Mounts `/app/data` und `/app/plugins/custom` behalten |
 
-## Neu (Beta / aktuelle Erweiterungen)
+## Neu (aktuelle Erweiterungen)
 
 ### Kern-App (Docker-Image)
 
+- **Öffentlicher Kiosk-Modus** — URL **`/kiosk`** (Nur-Ansicht, kein Admin-Login); optional Passwort & Sitzungsdauer. Konfiguration: **Einstellungen → Benutzer → Kiosk**. Widgets bearbeiten per Login unter **`/dashboard/<id>`**.
+- **Zwei-Faktor-Auth (TOTP)** — **Einstellungen → Benutzer** — Authenticator-Apps beim Login.
+- **Einstellungen Benutzer-Tab** — Passwort, 2FA, Kiosk; Admin: Benutzerverwaltung & Plugin-Freigaben.
 - **Hintergrundbilder im Design** — **Einstellungen → Design**: **Navbar**-Wallpaper (JPG/PNG/WebP + Overlay) und **Dashboard**-Hintergrund (**Aus / 1 Bild / 2 Bilder** links+rechts), global in `dashboard.json`.
 - **Wetter-API-Proxy** — **`GET /api/plugins/weather/resolve`** (Legacy: `/api/weather`); Open-Meteo über HTTPS im Container.
 - **Einstellungs-Dialog** — feste Breite, höheres Fenster; Tab **Protokoll** scrollt in der Liste.
@@ -464,7 +518,7 @@ flowchart TB
 - **Wetter 1.5.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24); **7-Tage** ab **morgen**. Nutzt `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
 - **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).
-- **Nur Plugins vom Volume** — Widgets unter `/app/plugins/custom`; **Plugin-Store** von GitHub `plugins-pack/` (Branch **`beta`**); **Alle aktualisieren** + **Strg+F5** nach Plugin-Updates.
+- **Nur Plugins vom Volume** — Widgets unter `/app/plugins/custom`; **Plugin-Store** von GitHub `plugins-pack/` (Branch **`main`**); **Alle aktualisieren** + **Strg+F5** nach Plugin-Updates.
 - **E-Mail-Plugin** — Navbar-IMAP-Badge + Einstellungs-Tab aus dem Store.
 - **Zentrales Protokoll** — **Einstellungen → Protokoll** (App, API, Plugins).
 
@@ -482,6 +536,7 @@ API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Aktuelle API-/Plugin-Änderungen | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Fehlerprotokoll | [docs/LOGGING.md](docs/LOGGING.md) |
+| Unraid-Forum (Update-Posts) | [docs/UNRAID_FORUM.md](docs/UNRAID_FORUM.md) |
 
 ## Features
 
@@ -506,7 +561,8 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
-| 📺 **Kiosk-Modus** | Wand-Tablet: Navbar nach Inaktivität aus; Widgets nutzen volle Höhe; **Leiste**-Button blendet sie ein (nicht Maus über Widgets) |
+| 🔐 **Login & Mehrbenutzer** | SQLite-Auth, Admin/User-Rollen, Plugin-Whitelist, optional TOTP-2FA |
+| 📺 **Kiosk-Modus** | Öffentliche URL **`/kiosk`** — Nur-Ansicht/Vollbild fürs Wand-Tablet; optional Passwort (**Einstellungen → Benutzer → Kiosk**) |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
 ---
@@ -543,7 +599,7 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 
 **Pflicht:** **`/app/data`** und **`/app/plugins/custom`** mounten. Ohne Plugin-Ordner gehen Store-Installationen beim Neustart verloren.
 
-**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:beta`** (passt zum Standard-Branch `beta`). Für Stable: **`:latest`** und ggf. `SELFDASHBOARD_PLUGINS_GITHUB_REF=main`.
+**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
 
 ### Option 1 — Unraid Community Apps (empfohlen)
 
@@ -565,7 +621,7 @@ docker run -d \
   -v /mnt/user/appdata/selfdashboard:/app/data \
   -v /mnt/user/appdata/selfdashboard/plugins:/app/plugins/custom \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  ghcr.io/kabelsalatundklartext/selfdashboard:beta
+  ghcr.io/kabelsalatundklartext/selfdashboard:latest
 ```
 
 *(**`/app/data`** → `dashboard.json`, Kalender, Protokoll. **`/app/plugins/custom`** → installierte Plugins. **Store → Von GitHub** oder ZIP, dann **Strg+F5**. Docker-Socket optional — **Docker**-Plugin. CrowdSec-Mount optional — **CrowdSec**-Plugin.)*
@@ -582,15 +638,50 @@ docker-compose up -d
 
 | Mount / Einstellung | Inhalt |
 |---------------------|--------|
-| **`/app/data`** | `dashboard.json`, `data/calendar/`, Protokoll — **Backup** |
+| **`/app/data`** | Pro-User-Dashboards (`users/`), Auth-DB (`auth/`), Kalender, Protokoll — **Backup** |
 | **`/app/plugins/custom`** | Installierte Plugins (`<id>/plugin.json`, `widget.js`) — **mit Appdata sichern** |
-| **GitHub-Env** | Im `:beta`-Image voreingestellt: Repo `kabelsalatundklartext/selfdashboard`, Ref `beta`, Pfad `plugins-pack` |
+| **GitHub-Env** | Im `:latest`-Image voreingestellt: Repo `kabelsalatundklartext/selfdashboard`, Ref `main`, Pfad `plugins-pack` |
 | **Docker Socket** (optional) | Nur lokaler Host — **[Docker-Plugin](docs/plugins/docker/README.md)** |
 | **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec-Plugin](docs/plugins/crowdsec/README.md)** |
 
-Unraid: **`unraid/selfdashboard.xml`** auf Branch **`beta`** — **Config Storage** und **Plugins Storage** (für den Normalbetrieb beide nötig).
+Unraid: **`unraid/selfdashboard.xml`** auf Branch **`main`** — **Config Storage** und **Plugins Storage** (für den Normalbetrieb beide nötig).
 
 Nach **Plugin**-Update: Store → **Aktualisieren** → **Strg+F5**. Nach **App**-Update: neues Image pullen, neu starten — Layout und installierte Plugins bleiben auf den Volumes.
+
+## Login & Mehrbenutzer
+
+Ein Login ist nötig. Beim ersten Start (noch kein Benutzer) → **`/setup`** (Admin anlegen). Bestehendes `dashboard.json` im Appdata wird diesem Admin zugeordnet (Backup: `dashboard.json.pre-auth-migrated`).
+
+| Thema | Details |
+|-------|---------|
+| **Rollen** | **admin** — alles, Plugin-Store, Benutzerverwaltung · **user** — nur freigegebene Plugins |
+| **User-Daten** | `/app/data/users/<id>/dashboard.json` pro Benutzer |
+| **Auth-Daten** | `/app/data/auth/auth.db` (Benutzer, Sessions, Plugin-Whitelist) |
+| **Admin-UI** | **Einstellungen → Benutzer** — anlegen/löschen, Passwort zurücksetzen, Plugin-Häkchen, **Kiosk-Konfiguration** |
+| **Selbst** | **Einstellungen → Benutzer** — Passwort ändern, **2FA (TOTP)** |
+| **2FA** | Optional Authenticator beim Login — einrichten unter **Einstellungen → Benutzer** |
+| **Passwort vergessen (ohne E-Mail)** | Env-Reset: `SELFDASHBOARD_AUTH_RESET_PASSWORD` → Restart (siehe unten) |
+| **Backup** | Gesamtes **`/app/data`** sichern (mindestens `auth/` + `users/`) |
+| **Nur Dev** | `SELFDASHBOARD_AUTH_DISABLED=1` schaltet Auth aus (nicht in Production) |
+
+Details & Test-Checkliste: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
+
+### Admin ausgesperrt (Passwort vergessen)
+
+**Kein E-Mail-Reset** (bräuchte SMTP — im Homelab unüblich). **Am einfachsten auf Unraid: Env-Reset**
+
+1. **Passwort per Env (empfohlen)** — Container bearbeiten, Variable setzen:
+   - `SELFDASHBOARD_AUTH_RESET_PASSWORD` = neues Passwort (min. 8 Zeichen)
+   - optional: `SELFDASHBOARD_AUTH_RESET_USER=admin` (Standard: erster Admin)
+   - oder kombiniert: `SELFDASHBOARD_AUTH_RESET=admin:NeuesPasswort`
+   - **Container neu starten** → einloggen → Variable **leeren** → erneut starten
+
+2. **CLI** (Shell):
+   ```bash
+   docker exec selfdashboard node /app/scripts/auth-reset-password.mjs --username admin --password 'NeuesPasswort'
+   ```
+
+3. **Zweiter Admin** — **Einstellungen → Benutzer** → Passwort zurücksetzen.
 
 ---
 
@@ -644,21 +735,26 @@ Plugins können optional die Prop **`layoutMode`** (`'phone' \| 'tablet' \| 'des
 
 ## Kiosk-Modus (Wand-Tablet)
 
+Öffentliche **Nur-Ansicht** für Wand-Tablet oder Gast-Browser — getrennt vom normalen Dashboard mit Login.
+
 | Thema | Details |
 |---|---|
-| **Wo** | **Einstellungen → Allgemein → Kiosk-Modus (Wand-Tablet)** — Schalter **Navbar automatisch ausblenden** und Wartezeit (**3–60 s**, Standard **5**). |
-| **Verhalten** | Wenn aktiv (und **nicht** im Bearbeitungsmodus), verschwindet die Navbar nach Inaktivität. **Widgets rutschen nach oben** — kein leerer Streifen für die ausgeblendete Leiste. |
-| **Leiste wieder** | Nur der Akzent-Button **Leiste** oben — **nicht** Mausbewegung oder Klicks auf Widgets. |
-| **Leiste sichtbar** | Klicks in der Navbar setzen den Ausblend-Timer zurück (Einstellungen bedienen). |
-| **Bearbeitungsmodus** | Navbar bleibt sichtbar (normales Layout), damit du Widgets anordnen kannst. |
+| **Anzeige-URL** | **`http://DEINE-IP:3000/kiosk`** — kein Admin-Login, Vollbild, keine Navbar |
+| **Konfiguration (Admin)** | **Einstellungen → Benutzer → Kiosk / Wand-Tablet** — aktivieren, Dashboard wählen, optional Passwort, Sitzungsdauer (2 Std. … unbegrenzt) |
+| **Widgets bearbeiten** | Als Admin einloggen → **`/dashboard/<id>`** (z. B. `/dashboard/kiosk`) → Bearbeitungsmodus |
+| **Nicht verwechseln** | **`/kiosk`** = nur Anzeigen · **`/dashboard/kiosk`** = Bearbeiten mit Login |
+| **Plugins** | Nur Widgets vom gewählten Kiosk-Dashboard (funktioniert in jedem Browser) |
+| **HTTP / LAN** | Cookies standardmäßig auch per HTTP; `SELFDASHBOARD_SECURE_COOKIES=1` nur hinter HTTPS |
 
-Für Wand-Tablet oder Vollbild-Kiosk-Browser.
+Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 
 ---
 
 ## Einstellungen-Übersicht
 
-**Allgemein** — Sprache (DE/EN), Dashboard-Titel, **Kiosk-Modus (Wand-Tablet)**, Navbar-Websuche, Navbar E-Mail, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
+**Allgemein** — Sprache (DE/EN), Dashboard-Titel, Navbar-Websuche, Navbar E-Mail, Navbar-Darstellung, Dashboard-Tab-Sichtbarkeit
+
+**Benutzer** — Passwort ändern, **2FA (TOTP)**, **Kiosk / Wand-Tablet** (Admin). Admins verwalten hier zusätzlich Benutzer und Plugin-Freigaben.
 
 **Dashboards** — Dashboards erstellen, bearbeiten, löschen. Tab-Sichtbarkeit pro Dashboard. Emoji oder PNG-Icon setzen.
 
@@ -678,13 +774,16 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | `SELFDASHBOARD_CALENDAR_KEY` | Datei im Data-Ordner | **Fester Schlüssel** für Kalender- und **E-Mail**-Passwörter. In Docker setzen, damit Zugangsdaten Container-Neustarts überleben. |
 | `MAIL_DATA_DIR` | `<plugins/custom>/mail` | Verzeichnis für **`mail.json`** (optional) |
 | `SELFDASHBOARD_PLUGINS_CUSTOM` | `<app>/plugins/custom` | Installierte Plugins (Unraid: Host-Ordner hierher mappen) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` im `:beta`-Image | GitHub-Repo für Store (`owner/repo`) |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `beta` | Branch/Tag für `plugins-pack/` |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | `kabelsalatundklartext/selfdashboard` im `:latest`-Image | GitHub-Repo für Store (`owner/repo`) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | `main` | Branch/Tag für `plugins-pack/` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_PATH` | `plugins-pack` | Pfad im Repo zu den Plugin-Dateien |
 | `CROWDSEC_DATA_DIR` | `/crowdsec-data` | Erlaubtes Wurzelverzeichnis für DB-Pfade (nur CrowdSec-Widget; optional) |
 | `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
 | `CROWDSEC_DB_PATH` | — | Standard-DB-Datei, wenn im Widget kein Pfad gesetzt ist (optional) |
 | `CROWDSEC_CONTAINER` | `crowdsec` | Docker-Container-Name für optionales Entsperren per `cscli` (optional) |
+| `SELFDASHBOARD_SECURE_COOKIES` | aus | `1` = Session/Kiosk-Cookies nur per **HTTPS**. Standard: **aus** (HTTP im LAN). |
+| `SELFDASHBOARD_INSECURE_COOKIES` | — | `1` = explizit unsichere Cookies (wie Standard bei HTTP). |
+| `SELFDASHBOARD_AUTH_RESET_PASSWORD` | — | Einmal-Passwort-Reset beim Container-Start (siehe **Login & Mehrbenutzer**) |
 
 ---
 
@@ -697,7 +796,7 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
 | Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
-| Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:beta`-Image mit Defaults nutzen |
+| Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:latest`-Image mit Defaults nutzen |
 | Widget hängt bei „Plugin wird geladen…“ | Kurz warten; **Plugin-Store → Plugins neu laden**; prüfen: `/app/plugins/custom/<id>/widget.js` |
 | Update installiert, UI unverändert | **Strg+F5** — Browser cached `widget.js` |
 | Plugin nicht gefunden nach Install | **Plugins Storage** gemountet? Ordner braucht `plugin.json` + `widget.js` (nicht `index.tsx`) |
@@ -715,6 +814,9 @@ Für Wand-Tablet oder Vollbild-Kiosk-Browser.
 | Unraid: **`Failed to fetch`** | Browser ruft Unraid **direkt** auf (`https://NAS/graphql`). Kein „nur 7.3“-Problem — **API-Key**, URL, HTTPS-Zertifikat und **CORS / erlaubte Origins** für die Dashboard-URL (z. B. `http://192.168.x.x:3010`) **pro NAS** prüfen |
 | Unraid auf einem NAS ok, auf anderem nicht | API aktiv?, Key-Rechte?, CORS auf dem betroffenen Server vergleichen (**7.2.3** und **7.3** möglich, wenn GraphQL-API läuft) |
 | Hintergrundbild fehlt | **Design** → Modus nicht **Aus**; Bild hochgeladen; **Strg+F5**; sehr große Bilder sind begrenzt (~4–5 MB in der Config) |
+| Kiosk zeigt Login statt Widgets | **`/kiosk`** nutzen, nicht **`/dashboard/…`**. Kiosk unter **Einstellungen → Benutzer → Kiosk** aktivieren |
+| Kiosk: „Plugin nicht gefunden“ | Einmal **`/kiosk`** als Admin öffnen (Plugin-Liste aktualisieren), dann Gast-Browser; **Strg+F5** |
+| Home-Dashboard kaputt nach `/kiosk` | Neuestes Image ziehen (Kiosk-Cookie überschreibt Admin nicht mehr); **Strg+F5** |
 
 ---
 

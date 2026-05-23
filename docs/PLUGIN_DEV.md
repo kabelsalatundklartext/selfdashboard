@@ -14,7 +14,7 @@ Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
 | **SelfDashboard (Image)** | Dashboard, Store, Gateway `/api/plugins/<id>/…`, Builtin-Handler aus `plugins/<id>/server.ts` |
 | **Plugin auf dem Volume** | `plugin.json` + `widget.js` unter `/app/plugins/custom/<id>/` (UI-Updates ohne Image-Rebuild) |
 | **Plugin-API im Image** | `plugins/<id>/server.ts` + `lib/` → vendored nach `src/builtin-plugins/` → `/api/plugins/<id>/…` |
-| **Du als Entwickler** | Bearbeitest **`selfdashboard/plugins/<id>/`**, `npm run build:plugin-pack` (Widget), `npm run vendor-plugins` (API im Image) |
+| **Du als Entwickler** | Bearbeitest **`plugins-pack/<id>/`** (`plugin.json` + `widget.js`); optional `index.tsx` dort + `npm run build:plugin-pack`. API: `src/builtin-plugins/` |
 
 Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume (Store oder ZIP), nicht aus dem Docker-Image.
 
@@ -23,19 +23,18 @@ Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume 
 ## 2. Ordner auf deinem PC
 
 ```text
-selfdashboard/              ← Git-Repo (hier entwickeln & committen)
-├── plugins/                ← Quelle: UI + API pro Plugin
-│   ├── _template/
-│   ├── mail/
-│   │   ├── index.tsx
-│   │   ├── server.ts
-│   │   └── lib/
-│   └── meinplugin/
-├── src/builtin-plugins/    ← Server-Kopie fürs Docker-Image (nach vendor-plugins)
-└── plugins-pack/           ← Store: plugin.json + widget.js (kein server.mjs)
+selfdashboard/
+├── plugins-pack/              ← Store (GitHub): plugin.json + widget.js — hier UI pflegen
+│   ├── calendar/
+│   │   ├── plugin.json
+│   │   ├── widget.js
+│   │   └── index.tsx          ← optional (nicht installiert)
+│   └── plugins-index.json
+├── src/builtin-plugins/       ← Server-API fürs Docker-Image (nach vendor-plugins)
+└── plugins/                   ← optional legacy ( .gitignore ), kann lokal fehlen
 ```
 
-**Quellordner:** immer `selfdashboard/plugins/<id>/` (nicht nur der Geschwisterordner `../plugins/`).
+**Quellordner UI:** `plugins-pack/<id>/` (direkt `widget.js` oder TS → Build). Legacy: `plugins/<id>/`.
 
 Sync von altem Setup: `node scripts/sync-plugins-for-build.mjs`  
 Optional extern: `SELFDASHBOARD_PLUGINS_SRC=C:\Pfad\zu\plugins`

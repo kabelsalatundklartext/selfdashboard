@@ -59,9 +59,11 @@ selfdashboard/
 
 **Workflow Plugin-UI:** `plugins-pack/<id>/plugin.json` (Version) + `widget.js` anpassen → `npm run generate:plugins-index` → `plugins-pack/` pushen.
 
+Optional: `index.tsx` im gleichen Ordner (`plugins-pack/<id>/`) für saubere TS-Entwicklung → `npm run build:plugin-pack -- <id>` erzeugt `widget.js`.
+
 **Workflow Plugin-API:** `src/builtin-plugins/<id>/server.ts` anpassen → neues Docker-Image bauen/pushen.
 
-Optional lokal (nicht auf GitHub): Ordner `plugins/` mit `index.tsx` für `npm run build:plugin-pack`, oder `plugin-pack/` als ZIP-Staging.
+Ordner `plugins/` und `plugin-pack/` sind **nicht auf GitHub** (`.gitignore`) und können lokal gelöscht werden.
 
 ---
 

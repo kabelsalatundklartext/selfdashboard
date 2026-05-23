@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
+import { loadAuthProfile } from '@/lib/authProfileClient'
+import { isPublicKioskPage } from '@/lib/kiosk/kioskClientFetch'
 import { bootstrapVolumePlugins } from '@/lib/pluginCustomClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { registerCorePluginSettingsPanels } from '@/lib/registerCorePluginSettings'
@@ -14,6 +16,9 @@ export function PluginBootstrap() {
       installPluginExternalBridge()
       registerCorePluginSettingsPanels()
       try {
+        if (!isPublicKioskPage()) {
+          await loadAuthProfile()
+        }
         await bootstrapVolumePlugins()
         if (gen === loadGeneration) {
           window.dispatchEvent(new CustomEvent('sd-plugin-catalog-changed'))

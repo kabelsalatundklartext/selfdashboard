@@ -11,6 +11,7 @@ import {
 } from '@/lib/pluginVolumeLoad'
 import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
+import { useCanUsePlugin } from '@/components/layout/AuthUserMenu'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
 import type { PluginInstance } from '@/types'
 
@@ -48,6 +49,7 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
   )
   useSyncExternalStore(subscribePluginVolumeLoad, getPluginVolumeLoadVersion, () => 0)
   const dash = activeDashboard()
+  const pluginAllowed = useCanUsePlugin(instance.pluginId)
   const registered = pluginRegistry.get(instance.pluginId)
   const volumeStillLoading = (volumePhase === 'pending' || volumePhase === 'loading') && !registered
 
@@ -95,6 +97,23 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
     const w = Math.max(minToolbarW, Math.min(maxToolbarW, toolbarW + delta))
     if (layoutMode === 'tablet') updatePluginLayoutTablet(instance.instanceId, { w })
     else updatePluginLayout(instance.instanceId, { ...instance.layout, w })
+  }
+
+  if (!pluginAllowed) {
+    return (
+      <div className="widget-panel h-full" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 12 }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
+          {locale === 'de'
+            ? `Plugin „${instance.pluginId}“ ist für dein Konto nicht freigegeben.`
+            : `Plugin “${instance.pluginId}” is not allowed for your account.`}
+        </p>
+        {editMode ? (
+          <button className="btn-ghost" style={{ marginTop: '8px', fontSize: '12px' }} onClick={() => removePlugin(instance.instanceId)}>
+            {t(locale, 'removeWidget')}
+          </button>
+        ) : null}
+      </div>
+    )
   }
 
   if (!registered) {

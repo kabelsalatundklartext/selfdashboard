@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDashboardStore, useDashboardStoreHydrated } from '@/lib/store'
 import { Navbar } from '@/components/layout/Navbar'
-import { KioskNavbarShell } from '@/components/layout/KioskNavbarShell'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
 import { DashboardMain } from '@/components/layout/DashboardMain'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
@@ -24,7 +23,7 @@ function DashboardLoadingShell() {
 
 export function DashboardPage({ id }: { id: string }) {
   const storeHydrated = useDashboardStoreHydrated()
-  const { dashboards, setActiveDashboard, activeDashboardId, locale } = useDashboardStore()
+  const { dashboards, setActiveDashboard } = useDashboardStore()
   const router = useRouter()
 
   useEffect(() => {
@@ -44,11 +43,9 @@ export function DashboardPage({ id }: { id: string }) {
   return (
     <>
       <PluginBootstrap />
-      <KioskNavbarShell locale={locale}>
-        <Navbar />
-        <PluginMissingBanner />
-        <PluginUpdateBanner />
-      </KioskNavbarShell>
+      <Navbar />
+      <PluginMissingBanner />
+      <PluginUpdateBanner />
       <DashboardMain>
         <DashboardGrid />
       </DashboardMain>

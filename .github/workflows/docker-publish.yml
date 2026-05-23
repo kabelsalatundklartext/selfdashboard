@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [main, beta]
 
+# Job-level permissions below; explicit token on checkout avoids "could not read Username" on private/fork runs.
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -19,12 +24,15 @@ jobs:
       contents: read
       packages: write
       id-token: write
+      actions: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Prepare plugin sources for image build
         run: sh scripts/ci-prepare-plugins.sh

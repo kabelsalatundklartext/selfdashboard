@@ -17,8 +17,8 @@ build/
 # local server-persisted dashboard (dev: SELFDASHBOARD_DATA_DIR unset → ./data)
 /data/
 
-# Plugin-Store nur plugins-pack/ auf GitHub (siehe docs/PLUGINS.md).
-# Lokale Quellen/ZIP-Build — nicht committen; Änderungen am Store nur unter plugins-pack/.
+# Plugin-Store nur plugins-pack/ auf GitHub (siehe docs/PLUGINS.md, plugins-pack/README.md).
+# plugins/ und plugin-pack/ sind optional — lokal löschbar, werden nicht committet.
 plugins/
 plugin-pack/
 

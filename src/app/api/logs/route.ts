@@ -6,6 +6,7 @@ import {
   purgeExpiredLogs,
 } from '@/lib/errorLog'
 import { isLogLevel, isLogSource, type LogLevel, type LogSource } from '@/lib/errorLogTypes'
+import { requireAdmin, requireAuth } from '@/lib/auth/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,8 @@ function clampStr(v: unknown, max: number): string {
 
 /** GET: recent log entries. POST: append client/plugin log. DELETE: clear all logs. */
 export async function GET(req: Request) {
+  const auth = requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
   const url = new URL(req.url)
   const limit = Number(url.searchParams.get('limit') || 300)
   const levelParam = url.searchParams.get('level')
@@ -37,6 +40,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const auth = requireAuth(req)
+  if (auth instanceof NextResponse) return auth
   const len = Number(req.headers.get('content-length') || 0)
   if (len > MAX_BODY) {
     return NextResponse.json({ ok: false, error: 'body_too_large' }, { status: 413 })
@@ -74,7 +79,9 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  const auth = requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
   try {
     await clearErrorLogs()
     await purgeExpiredLogs()

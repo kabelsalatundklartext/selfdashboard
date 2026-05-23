@@ -1,27 +1,33 @@
 import { mkdir, readFile, rename, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { dirname } from 'path'
 import { NextResponse } from 'next/server'
-import { dataDir } from '@/lib/dataDir'
-import { validateDashboardStatePersisted } from '@/lib/dashboardStatePayload'
+import { requireAuth } from '@/lib/auth/guard'
+import { userDashboardPath } from '@/lib/auth/paths'
+import { filterDashboardStatePlugins } from '@/lib/auth/pluginPolicy'
+import {
+  validateDashboardStatePersisted,
+  type DashboardStatePersisted,
+} from '@/lib/dashboardStatePayload'
 
 export const dynamic = 'force-dynamic'
 
 const MAX_BYTES = 4_000_000
 
-const configPath = () => join(dataDir(), 'dashboard.json')
-
 /**
- * GET: read persisted dashboard state (written by PUT from the browser).
- * PUT: save state to disk under `SELFDASHBOARD_DATA_DIR` or `<cwd>/data` (Docker: map `/app/data` → same as Unraid template).
+ * GET/PUT persisted dashboard state for the signed-in user only.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req)
+  if (auth instanceof NextResponse) return auth
+  const file = userDashboardPath(auth.userId)
   try {
-    const raw = await readFile(configPath(), 'utf8')
+    const raw = await readFile(file, 'utf8')
     const parsed: unknown = JSON.parse(raw)
     if (!validateDashboardStatePersisted(parsed)) {
       return NextResponse.json({ error: 'invalid file contents' }, { status: 500 })
     }
-    return NextResponse.json(parsed)
+    const filtered = filterDashboardStatePlugins(parsed, auth.userId, auth.role)
+    return NextResponse.json(filtered)
   } catch (e: unknown) {
     const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: unknown }).code) : ''
     if (code === 'ENOENT') return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -30,6 +36,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const auth = requireAuth(req)
+  if (auth instanceof NextResponse) return auth
   let text: string
   try {
     text = await req.text()
@@ -46,16 +54,21 @@ export async function PUT(req: Request) {
   if (!validateDashboardStatePersisted(parsed)) {
     return NextResponse.json({ error: 'invalid payload' }, { status: 400 })
   }
-  const dir = dataDir()
-  const file = configPath()
+  const safe = filterDashboardStatePlugins(
+    parsed as DashboardStatePersisted,
+    auth.userId,
+    auth.role,
+  )
+  const file = userDashboardPath(auth.userId)
   const tmp = `${file}.tmp`
   try {
-    await mkdir(dir, { recursive: true })
-    await writeFile(tmp, JSON.stringify(parsed), 'utf8')
+    await mkdir(dirname(file), { recursive: true })
+    await writeFile(tmp, JSON.stringify(safe), 'utf8')
     await rename(tmp, file)
   } catch {
     try {
-      await writeFile(file, JSON.stringify(parsed), 'utf8')
+      await mkdir(dirname(file), { recursive: true })
+      await writeFile(file, JSON.stringify(safe), 'utf8')
     } catch {
       return NextResponse.json({ error: 'write failed' }, { status: 500 })
     }

@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
+import { requirePluginAccess } from '@/lib/auth/guard'
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
 
 export const dynamic = 'force-dynamic'
@@ -22,10 +23,12 @@ function safeFile(name: string): boolean {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ pluginId: string; file: string }> },
 ) {
   const { pluginId, file } = await ctx.params
+  const denied = requirePluginAccess(req, pluginId)
+  if (denied instanceof NextResponse) return denied
   if (!/^[a-z0-9][a-z0-9-]*$/.test(pluginId) || !safeFile(file)) {
     return NextResponse.json({ error: 'invalid_path' }, { status: 400 })
   }
