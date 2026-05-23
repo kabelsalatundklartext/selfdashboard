@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.6.5",
+    version: "1.6.6",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1332,7 +1332,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       marginTop: splitView ? 0 : "clamp(2px, 0.8cqmin, 6px)"
                     },
                     children: [
-                      placeLabel && showPlaceLabel && !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      placeLabel && showPlaceLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
                           style: {
