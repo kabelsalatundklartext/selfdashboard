@@ -93,7 +93,8 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ allowedPlugins: draftPlugins }),
       })
-      if (!res.ok) throw new Error('save_failed')
+      const j = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(j.error ?? 'save_failed')
       setMsg(de ? 'Plugin-Freigaben gespeichert.' : 'Plugin permissions saved.')
       await refresh()
     } catch (e) {
