@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { DashboardGrid } from '@/components/layout/DashboardGrid'
 import { DashboardMain } from '@/components/layout/DashboardMain'
+import { KioskAuthShell } from '@/components/kiosk/KioskAuthShell'
 import { PluginBootstrap } from '@/components/plugins/PluginBootstrap'
 import { useDashboardStore, useDashboardStoreHydrated } from '@/lib/store'
 import type { DashboardStatePersisted } from '@/lib/dashboardStatePayload'
@@ -102,27 +103,35 @@ export function KioskView() {
 
   if (phase === 'password') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--background)' }}>
-        <form onSubmit={unlock} className="w-full max-w-sm flex flex-col gap-3 rounded-xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <h1 className="text-lg font-bold">{de ? 'Kiosk-Zugang' : 'Kiosk access'}</h1>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {de ? 'Passwort eingeben — nur Ansicht, kein Bearbeiten.' : 'Enter password — view only, no editing.'}
+      <KioskAuthShell>
+        <form onSubmit={unlock} className="w-full flex flex-col gap-4">
+          <p className="text-sm text-center sm:text-left" style={{ color: 'var(--text-muted)' }}>
+            {de
+              ? 'Passwort eingeben — nur Ansicht, kein Bearbeiten.'
+              : 'Enter password — view only, no editing.'}
           </p>
-          <input
-            type="password"
-            className="rounded-lg px-3 py-2"
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          {error ? <p className="text-sm" style={{ color: '#f87171' }}>{error}</p> : null}
-          <button type="submit" className="btn-accent py-2 rounded-lg font-semibold" disabled={busy}>
-            {de ? 'Anzeigen' : 'View'}
+          <label className="flex flex-col gap-1 text-sm">
+            <span style={{ color: 'var(--text-muted)' }}>{de ? 'Passwort' : 'Password'}</span>
+            <input
+              type="password"
+              className="rounded-lg px-3 py-2"
+              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error ? (
+            <p className="text-sm" role="alert" style={{ color: '#f87171' }}>
+              {error}
+            </p>
+          ) : null}
+          <button type="submit" className="btn-accent py-2.5 rounded-lg font-semibold" disabled={busy}>
+            {busy ? (de ? 'Wird geladen…' : 'Loading…') : de ? 'Anzeigen' : 'View'}
           </button>
         </form>
-      </div>
+      </KioskAuthShell>
     )
   }
 

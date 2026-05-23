@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
   const res = NextResponse.json(state)
   if (!config.passwordHash) {
-    applyKioskCookie(res, issueKioskToken(access, false))
+    applyKioskCookie(res, issueKioskToken(access, false, config), config)
   }
   return res
 }

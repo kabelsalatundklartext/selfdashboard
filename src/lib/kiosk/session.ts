@@ -3,6 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { getAuthDb } from '@/lib/auth/db'
 import { resolveSessionCookieSecure } from '@/lib/auth/cookies'
 import { KIOSK_COOKIE, type KioskConfig, getKioskConfig } from '@/lib/kiosk/config'
+import { kioskSessionMaxAgeSec, kioskSessionTtlMs } from '@/lib/kiosk/sessionDuration'
 
 export type KioskAccess = {
   ownerUserId: string
@@ -11,7 +12,6 @@ export type KioskAccess = {
 }
 
 const SECRET_KEY = 'kiosk_signing_secret'
-const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 function getSigningSecret(): string {
   const row = getAuthDb().prepare('SELECT value FROM settings WHERE key = ?').get(SECRET_KEY) as
@@ -91,8 +91,13 @@ export function readKioskTokenFromCookieHeader(cookieHeader: string | null): Kio
   return null
 }
 
-export function issueKioskToken(access: KioskAccess, passwordUnlocked = false): string {
-  const exp = Date.now() + TOKEN_TTL_MS
+export function issueKioskToken(
+  access: KioskAccess,
+  passwordUnlocked = false,
+  cfg: KioskConfig = getKioskConfig(),
+): string {
+  const ttlMs = kioskSessionTtlMs(cfg.sessionHours)
+  const exp = Date.now() + ttlMs
   return signPayload({
     v: 1,
     exp,
@@ -103,14 +108,18 @@ export function issueKioskToken(access: KioskAccess, passwordUnlocked = false): 
   })
 }
 
-export function applyKioskCookie(res: import('next/server').NextResponse, token: string): void {
+export function applyKioskCookie(
+  res: import('next/server').NextResponse,
+  token: string,
+  cfg: KioskConfig = getKioskConfig(),
+): void {
   const secure = resolveSessionCookieSecure()
   res.cookies.set(KIOSK_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure,
     path: '/',
-    maxAge: Math.floor(TOKEN_TTL_MS / 1000),
+    maxAge: kioskSessionMaxAgeSec(cfg.sessionHours),
   })
 }
 

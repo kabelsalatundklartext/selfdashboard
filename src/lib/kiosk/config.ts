@@ -10,6 +10,12 @@ import {
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
 
+import {
+  clampKioskSessionHours,
+  kioskSessionMaxAgeSec,
+  kioskSessionTtlMs,
+} from '@/lib/kiosk/sessionDuration'
+
 export const KIOSK_COOKIE = 'sd_kiosk'
 const SETTINGS_KEY = 'kiosk_config'
 
@@ -17,6 +23,7 @@ export type KioskConfig = {
   enabled: boolean
   dashboardId: string
   idleSeconds: number
+  sessionHours: number
   passwordHash: string | null
   ownerUserId: string
 }
@@ -25,6 +32,7 @@ type StoredKioskConfig = {
   enabled?: boolean
   dashboardId?: string
   idleSeconds?: number
+  sessionHours?: number
   passwordHash?: string | null
   ownerUserId?: string
 }
@@ -39,6 +47,7 @@ function defaultConfig(): KioskConfig {
     enabled: false,
     dashboardId: 'kiosk',
     idleSeconds: 5,
+    sessionHours: 24,
     passwordHash: null,
     ownerUserId: '',
   }
@@ -58,6 +67,7 @@ export function getKioskConfig(): KioskConfig {
           ? parsed.dashboardId.trim()
           : 'kiosk',
       idleSeconds: clampIdleSeconds(parsed.idleSeconds),
+      sessionHours: clampKioskSessionHours(parsed.sessionHours),
       passwordHash:
         typeof parsed.passwordHash === 'string' && parsed.passwordHash ? parsed.passwordHash : null,
       ownerUserId: typeof parsed.ownerUserId === 'string' ? parsed.ownerUserId : '',
@@ -73,6 +83,7 @@ export function saveKioskConfig(input: Partial<KioskConfig> & { ownerUserId: str
     enabled: input.enabled ?? current.enabled,
     dashboardId: (input.dashboardId ?? current.dashboardId).trim() || 'kiosk',
     idleSeconds: clampIdleSeconds(input.idleSeconds ?? current.idleSeconds),
+    sessionHours: clampKioskSessionHours(input.sessionHours ?? current.sessionHours),
     passwordHash:
       input.passwordHash === null
         ? null

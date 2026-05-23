@@ -32,8 +32,8 @@ export async function POST(req: Request) {
   const access = buildKioskAccess(config, pluginIds)
   if (!access) return NextResponse.json({ error: 'kiosk_unavailable' }, { status: 503 })
 
-  const token = issueKioskToken(access, true)
+  const token = issueKioskToken(access, true, config)
   const res = NextResponse.json({ ok: true })
-  applyKioskCookie(res, token)
+  applyKioskCookie(res, token, config)
   return res
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { KIOSK_SESSION_PRESETS } from '@/lib/kiosk/sessionDuration'
 import { Monitor, Plus } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { useDashboardStore } from '@/lib/store'
@@ -12,6 +13,7 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
   const [enabled, setEnabled] = useState(false)
   const [dashboardId, setDashboardId] = useState('kiosk')
   const [idleSeconds, setIdleSeconds] = useState(5)
+  const [sessionHours, setSessionHours] = useState(24)
   const [hasPassword, setHasPassword] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [clearPassword, setClearPassword] = useState(false)
@@ -26,12 +28,14 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
       enabled?: boolean
       dashboardId?: string
       idleSeconds?: number
+      sessionHours?: number
       hasPassword?: boolean
       publicUrl?: string
     }
     setEnabled(Boolean(j.enabled))
     setDashboardId(j.dashboardId ?? 'kiosk')
     setIdleSeconds(typeof j.idleSeconds === 'number' ? j.idleSeconds : 5)
+    setSessionHours(typeof j.sessionHours === 'number' ? j.sessionHours : 24)
     setHasPassword(Boolean(j.hasPassword))
     if (j.publicUrl) setPublicUrl(j.publicUrl)
   }, [])
@@ -66,6 +70,7 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
           enabled,
           dashboardId,
           idleSeconds,
+          sessionHours,
           password: newPassword.trim() || undefined,
           clearPassword: clearPassword || undefined,
         }),
@@ -115,8 +120,8 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
       >
         <p className="text-xs" style={{ color: 'var(--text-muted)', lineHeight: 1.45, margin: 0 }}>
           {de
-            ? 'Öffentliche URL ohne Admin-Login — nur Ansicht. Leiste ausgeblendet, kleiner Pfeil nach unten blendet sie kurz ein. Nur Admins können das hier konfigurieren.'
-            : 'Public URL without admin login — view only. Bar hidden; small down arrow reveals it briefly. Only admins can configure this.'}
+            ? 'Öffentliche URL ohne Admin-Login — nur Ansicht im Vollbild. Nur Admins können das hier konfigurieren.'
+            : 'Public URL without admin login — full-screen view only. Only admins can configure this.'}
         </p>
 
         <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--text)' }}>
@@ -164,6 +169,29 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
             style={inp}
             disabled={busy}
           />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span style={{ color: 'var(--text-muted)' }}>
+            {de ? 'Eingeloggt bleiben (nach Passwort)' : 'Stay signed in (after password)'}
+          </span>
+          <select
+            value={sessionHours}
+            onChange={(e) => setSessionHours(Number(e.target.value))}
+            style={inp}
+            disabled={busy}
+          >
+            {KIOSK_SESSION_PRESETS.map((p) => (
+              <option key={p.hours} value={p.hours}>
+                {de ? p.de : p.en}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+            {de
+              ? 'Gilt für Wand-Tablet/Gäste nach Kiosk-Passwort. „Unbegrenzt“ ≈ sehr lange Sitzung (bis Passwort geändert oder Browser-Daten gelöscht).'
+              : 'Applies to wall tablet/guests after kiosk password. “Unlimited” is a very long session until password changes or browser data is cleared.'}
+          </p>
         </label>
 
         <div className="flex flex-col gap-2">

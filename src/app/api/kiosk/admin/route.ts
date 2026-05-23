@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     enabled: cfg.enabled,
     dashboardId: cfg.dashboardId,
     idleSeconds: cfg.idleSeconds,
+    sessionHours: cfg.sessionHours,
     hasPassword: Boolean(cfg.passwordHash),
     publicUrl: '/kiosk',
   })
@@ -26,6 +27,7 @@ export async function PUT(req: Request) {
     enabled?: boolean
     dashboardId?: string
     idleSeconds?: number
+    sessionHours?: number
     password?: string | null
     clearPassword?: boolean
   }
@@ -36,11 +38,13 @@ export async function PUT(req: Request) {
   }
 
   try {
+    const prev = getKioskConfig()
     let cfg = saveKioskConfig({
       ownerUserId: auth.userId,
       enabled: body.enabled,
       dashboardId: body.dashboardId,
       idleSeconds: body.idleSeconds,
+      sessionHours: body.sessionHours,
     })
     if (body.clearPassword) {
       cfg = saveKioskConfig({ ownerUserId: auth.userId, passwordHash: null })
@@ -52,10 +56,15 @@ export async function PUT(req: Request) {
       enabled: cfg.enabled,
       dashboardId: cfg.dashboardId,
       idleSeconds: cfg.idleSeconds,
+      sessionHours: cfg.sessionHours,
       hasPassword: Boolean(cfg.passwordHash),
       publicUrl: '/kiosk',
     })
-    if (body.clearPassword || (typeof body.password === 'string' && body.password.trim())) {
+    if (
+      body.clearPassword ||
+      (typeof body.password === 'string' && body.password.trim()) ||
+      (typeof body.sessionHours === 'number' && body.sessionHours !== prev.sessionHours)
+    ) {
       applyClearKioskCookie(res)
     }
     return res
