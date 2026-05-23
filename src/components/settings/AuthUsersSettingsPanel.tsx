@@ -230,7 +230,9 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
                 />
                 <span className="font-mono">{p.id}</span>
                 {p.highRisk ? (
-                  <AlertTriangle size={12} style={{ color: '#f59e0b', flexShrink: 0 }} title={de ? 'Kritisch (Host/API)' : 'High risk'} />
+                  <span title={de ? 'Kritisch (Host/API)' : 'High risk'} style={{ display: 'flex', flexShrink: 0 }}>
+                    <AlertTriangle size={12} style={{ color: '#f59e0b' }} aria-hidden />
+                  </span>
                 ) : null}
               </label>
             ))}
