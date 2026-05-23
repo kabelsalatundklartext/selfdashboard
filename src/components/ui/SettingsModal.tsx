@@ -280,7 +280,7 @@ export function SettingsModal({ open, onClose }: Props) {
       id: `plugin-${p.id}` as TabId,
       label: p.label[locale] ?? p.label.en ?? p.id,
     })),
-    ...(isAdmin
+    ...(authRole
       ? [{ id: 'users' as TabId, label: locale === 'de' ? 'Benutzer' : 'Users' }]
       : []),
     ...(isAdmin ? [{ id: 'logs' as TabId, label: locale === 'de' ? 'Protokoll' : 'Logs' }] : []),
@@ -549,9 +549,6 @@ export function SettingsModal({ open, onClose }: Props) {
                 </p>
               </div>
 
-
-              {authRole ? <AuthChangePasswordPanel locale={locale} /> : null}
-              {authRole ? <AuthTotpSettingsPanel locale={locale} /> : null}
 
               <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v0.1.0</p>
             </>)}
@@ -1264,7 +1261,23 @@ export function SettingsModal({ open, onClose }: Props) {
               )
             })}
 
-            {tab === 'users' && isAdmin ? <AuthUsersSettingsPanel locale={locale} /> : null}
+            {tab === 'users' && authRole ? (
+              <div className="flex flex-col gap-5">
+                <AuthChangePasswordPanel locale={locale} />
+                <AuthTotpSettingsPanel locale={locale} />
+                {isAdmin ? (
+                  <>
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--border)',
+                        paddingTop: '4px',
+                      }}
+                    />
+                    <AuthUsersSettingsPanel locale={locale} />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
 
             {tab === 'logs' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '20px' }}>
