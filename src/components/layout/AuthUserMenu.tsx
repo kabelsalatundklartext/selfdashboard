@@ -69,3 +69,17 @@ export function useCanUsePlugin(pluginId: string): boolean {
   if (p.user.role === 'admin' || p.allowedPlugins === null) return true
   return p.allowedPlugins.includes(pluginId)
 }
+
+/** True when user may open the plugin picker (+) in edit mode. */
+export function useCanOpenPluginStore(): boolean {
+  useSyncExternalStore(subscribeAuthProfile, () => {
+    const p = getAuthProfileSnapshot()
+    if (!p) return 'loading'
+    if (p.user.role === 'admin' || p.allowedPlugins === null) return 'yes'
+    return (p.allowedPlugins?.length ?? 0) > 0 ? 'yes' : 'no'
+  }, () => 'yes')
+  const p = getAuthProfileSnapshot()
+  if (!p) return true
+  if (p.user.role === 'admin' || p.allowedPlugins === null) return true
+  return (p.allowedPlugins?.length ?? 0) > 0
+}

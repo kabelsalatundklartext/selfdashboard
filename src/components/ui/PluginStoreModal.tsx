@@ -14,6 +14,8 @@ import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 import { fetchPluginVolumeInfo, loadVolumeWidgetScripts, unloadPluginWidgetAssets } from '@/lib/pluginCustomClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
+import { useAuthRole } from '@/components/layout/AuthUserMenu'
+import { canUsePlugin, loadAuthProfile } from '@/lib/authProfileClient'
 
 interface Props { open: boolean; onClose: () => void }
 
@@ -46,6 +48,7 @@ function PluginStoreCard({
   onInstall,
   onUninstall,
   onAdd,
+  allowManage,
 }: {
   row: CatalogRow
   locale: 'de' | 'en'
@@ -59,6 +62,8 @@ function PluginStoreCard({
   onInstall: (id: string) => void
   onUninstall: (id: string, name: string, onDashboard: boolean) => void
   onAdd: (id: string) => void
+  /** Install/uninstall from GitHub — admin only. */
+  allowManage: boolean
 }) {
   const { meta, inRegistry, onDashboard } = row
   const { name, description } = displayPluginMeta(meta, locale)
@@ -155,7 +160,7 @@ function PluginStoreCard({
           <ExternalLink size={12} />
           {t(locale, 'pluginReadme')}
         </a>
-        {(meta.updateAvailable || !meta.installed) && row.fromRemote && (
+        {allowManage && (meta.updateAvailable || !meta.installed) && row.fromRemote && (
           <button
             type="button"
             className="btn-accent text-xs px-2.5 py-1"
@@ -205,7 +210,7 @@ function PluginStoreCard({
             {t(locale, 'pluginHardReloadAfterDownload')}
           </span>
         )}
-        {meta.installed && (
+        {allowManage && meta.installed && (
           <button
             type="button"
             className="btn-ghost text-xs px-2.5 py-1"
@@ -233,6 +238,9 @@ function PluginStoreCard({
 }
 
 export function PluginStoreModal({ open, onClose }: Props) {
+  const authRole = useAuthRole()
+  const isAdmin = authRole === 'admin'
+
   const [search, setSearch] = useState('')
   const [filterTab, setFilterTab] = useState<FilterTab>('all')
   const [added, setAdded] = useState<Set<string>>(new Set())
@@ -261,6 +269,12 @@ export function PluginStoreModal({ open, onClose }: Props) {
       setVolumeOnly(false)
       setVolumeInstalledIds([])
     }
+    if (!isAdmin) {
+      setGithubConfigured(false)
+      setRemotePlugins([])
+      setUpdatesCount(0)
+      return
+    }
     try {
       const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
       const j = (await res.json()) as {
@@ -279,10 +293,11 @@ export function PluginStoreModal({ open, onClose }: Props) {
       setGithubConfigured(false)
       setRemotePlugins([])
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     if (!open) return
+    void loadAuthProfile()
     void refreshStoreData()
   }, [open, refreshStoreData])
 
@@ -509,6 +524,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const catalogDocUrl = locale === 'de' ? PLUGIN_CATALOG_DOC_URL_DE : PLUGIN_CATALOG_DOC_URL
 
   const catalogRows = useMemo(() => {
+    const pluginAllowed = (id: string) => isAdmin || canUsePlugin(id)
     const q = search.toLowerCase().trim()
     const matches = (meta: PluginMeta) => {
       const d = displayPluginMeta(meta, locale)
@@ -524,7 +540,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
     const rows: CatalogRow[] = []
 
     for (const meta of remotePlugins) {
-      if (!matches(meta)) continue
+      if (!pluginAllowed(meta.id) || !matches(meta)) continue
       seen.add(meta.id)
       rows.push({
         meta,
@@ -535,7 +551,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
     }
 
     for (const { meta } of allPlugins) {
-      if (seen.has(meta.id) || !matches(meta)) continue
+      if (!pluginAllowed(meta.id) || seen.has(meta.id) || !matches(meta)) continue
       rows.push({
         meta: {
           ...meta,
@@ -550,7 +566,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
     }
 
     return rows
-  }, [remotePlugins, allPlugins, search, locale, existingPlugins, volumeInstalledIds])
+  }, [remotePlugins, allPlugins, search, locale, existingPlugins, volumeInstalledIds, isAdmin])
 
   const filteredRows = useMemo(() => {
     if (filterTab === 'updates') {
@@ -629,46 +645,50 @@ export function PluginStoreModal({ open, onClose }: Props) {
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <input
-                ref={zipInputRef}
-                type="file"
-                accept=".zip,application/zip"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0]
-                  if (f) void handleUploadZip(f)
-                  e.target.value = ''
-                }}
-              />
-              <button
-                type="button"
-                className="btn-ghost p-2"
-                title={t(locale, 'uploadPluginZipHint')}
-                disabled={reloadBusy}
-                onClick={() => zipInputRef.current?.click()}
-              >
-                <Upload size={16} />
-              </button>
-              {!volumeOnly && (
-                <button
-                  type="button"
-                  className="btn-ghost p-2"
-                  title={t(locale, 'seedPluginsHint')}
-                  disabled={reloadBusy}
-                  onClick={() => void handleSeedPlugins()}
-                >
-                  <Package size={16} />
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn-ghost p-2"
-                title={t(locale, 'reloadPluginsHint')}
-                disabled={reloadBusy}
-                onClick={() => void handleReloadPlugins()}
-              >
-                <RefreshCw size={16} className={reloadBusy ? 'animate-spin' : undefined} />
-              </button>
+              {isAdmin ? (
+                <>
+                  <input
+                    ref={zipInputRef}
+                    type="file"
+                    accept=".zip,application/zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) void handleUploadZip(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-ghost p-2"
+                    title={t(locale, 'uploadPluginZipHint')}
+                    disabled={reloadBusy}
+                    onClick={() => zipInputRef.current?.click()}
+                  >
+                    <Upload size={16} />
+                  </button>
+                  {!volumeOnly && (
+                    <button
+                      type="button"
+                      className="btn-ghost p-2"
+                      title={t(locale, 'seedPluginsHint')}
+                      disabled={reloadBusy}
+                      onClick={() => void handleSeedPlugins()}
+                    >
+                      <Package size={16} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-ghost p-2"
+                    title={t(locale, 'reloadPluginsHint')}
+                    disabled={reloadBusy}
+                    onClick={() => void handleReloadPlugins()}
+                  >
+                    <RefreshCw size={16} className={reloadBusy ? 'animate-spin' : undefined} />
+                  </button>
+                </>
+              ) : null}
               <button type="button" className="btn-ghost p-2" onClick={onClose} aria-label={locale === 'de' ? 'Schließen' : 'Close'}>
                 <X size={16} />
               </button>
@@ -761,6 +781,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
                     installingId={installingId}
                     uninstallingId={uninstallingId}
                     added={added}
+                    allowManage={isAdmin}
                     onInstall={(id) => void handleInstallRemote(id)}
                     onUninstall={(id, name, onDash) => void handleUninstall(id, name, onDash)}
                     onAdd={(id) => void handleAdd(id)}
