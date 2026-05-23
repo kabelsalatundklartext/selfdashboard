@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth/guard'
 import { isPluginAllowed } from '@/lib/auth/pluginPolicy'
 import { resolveKioskAccess } from '@/lib/kiosk/kioskViewRequest'
-import { readKioskAccessFromRequest } from '@/lib/kiosk/session'
 import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 import {
   getCustomServerPluginIds,
@@ -50,6 +49,19 @@ export async function GET(req: Request) {
   const installedIds = listInstalledVolumePluginIds()
   const missingWidgetJs = installedIds.filter((id) => !hasVolumeFile(id, 'widget.js'))
 
+  const auth = requireAuth(req)
+  if (!(auth instanceof NextResponse)) {
+    return NextResponse.json(
+      buildVolumePayload(
+        filterIdsForUser(installedIds, auth.userId, auth.role),
+        filterIdsForUser(customWidgetIds, auth.userId, auth.role),
+        filterIdsForUser(widgetOverrideIds, auth.userId, auth.role),
+        filterIdsForUser(customServerIds, auth.userId, auth.role),
+        missingWidgetJs,
+      ),
+    )
+  }
+
   const kioskView = resolveKioskAccess(req)
   if (kioskView) {
     return NextResponse.json(
@@ -63,31 +75,5 @@ export async function GET(req: Request) {
     )
   }
 
-  const kiosk = readKioskAccessFromRequest(req)
-  const auth = requireAuth(req)
-
-  if (auth instanceof NextResponse) {
-    if (kiosk) {
-      return NextResponse.json(
-        buildVolumePayload(
-          filterIdsForKiosk(installedIds, kiosk.pluginIds),
-          filterIdsForKiosk(customWidgetIds, kiosk.pluginIds),
-          filterIdsForKiosk(widgetOverrideIds, kiosk.pluginIds),
-          filterIdsForKiosk(customServerIds, kiosk.pluginIds),
-          missingWidgetJs,
-        ),
-      )
-    }
-    return auth
-  }
-
-  return NextResponse.json(
-    buildVolumePayload(
-      filterIdsForUser(installedIds, auth.userId, auth.role),
-      filterIdsForUser(customWidgetIds, auth.userId, auth.role),
-      filterIdsForUser(widgetOverrideIds, auth.userId, auth.role),
-      filterIdsForUser(customServerIds, auth.userId, auth.role),
-      missingWidgetJs,
-    ),
-  )
+  return auth
 }

@@ -33,22 +33,19 @@ export function getPublicKioskAccessFromConfig(): KioskAccess | null {
 
 /**
  * Resolve kiosk access for plugin APIs and widget assets.
- * Cookie first; passwordless kiosk falls back to config (needed for widget.js without custom headers).
+ * Ignored when a login session is active unless the request is explicitly from kiosk view.
  */
 export function resolveKioskAccess(req: Request): KioskAccess | null {
+  const hasKioskHeader = req.headers.get('x-sd-kiosk-view') === '1'
+  const fromKioskPage = hasKioskHeader || isKioskPluginAssetRequest(req)
+  const loggedIn = hasLoginSession(req)
+
+  if (loggedIn && !fromKioskPage) return null
+
   const fromCookie = readKioskAccessFromRequest(req)
   if (fromCookie) return fromCookie
 
-  const pub = getPublicKioskAccessFromConfig()
-  if (!pub) return null
-
-  const hasKioskHeader = req.headers.get('x-sd-kiosk-view') === '1'
-  if (hasLoginSession(req)) {
-    if (hasKioskHeader || isKioskPluginAssetRequest(req)) return pub
-    return null
-  }
-
-  return pub
+  return getPublicKioskAccessFromConfig()
 }
 
 export function isKioskViewRequest(req: Request): boolean {
