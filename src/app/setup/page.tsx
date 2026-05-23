@@ -2,9 +2,13 @@
 
 import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
+import { authT } from '@/lib/authScreenI18n'
+import { useDashboardStore } from '@/lib/store'
 
 export default function SetupPage() {
   const router = useRouter()
+  const locale = useDashboardStore((s) => s.locale)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
@@ -22,18 +26,18 @@ export default function SetupPage() {
           return
         }
       } catch {
-        setError('Setup-Status konnte nicht geladen werden.')
+        setError(authT(locale, 'setupStatusError'))
       } finally {
         setChecking(false)
       }
     })()
-  }, [router])
+  }, [router, locale])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     if (password !== password2) {
-      setError('Passwörter stimmen nicht überein.')
+      setError(authT(locale, 'passwordsMismatch'))
       return
     }
     setBusy(true)
@@ -43,20 +47,18 @@ export default function SetupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       })
-      const j = (await res.json()) as { error?: string; migration?: string }
+      const j = (await res.json()) as { error?: string }
       if (!res.ok) {
-        const map: Record<string, string> = {
-          username_invalid: 'Benutzername: 2–32 Zeichen, Buchstaben/Zahlen/._-',
-          password_too_short: 'Passwort mindestens 8 Zeichen.',
-          password_too_long: 'Passwort zu lang.',
-        }
-        setError(map[j.error ?? ''] ?? 'Setup fehlgeschlagen.')
+        if (j.error === 'username_invalid') setError(authT(locale, 'usernameInvalid'))
+        else if (j.error === 'password_too_short') setError(authT(locale, 'passwordTooShort'))
+        else if (j.error === 'password_too_long') setError(authT(locale, 'passwordTooLong'))
+        else setError(authT(locale, 'setupFailed'))
         return
       }
       router.replace('/dashboard/home')
       router.refresh()
     } catch {
-      setError('Netzwerkfehler.')
+      setError(authT(locale, 'networkError'))
     } finally {
       setBusy(false)
     }
@@ -69,23 +71,20 @@ export default function SetupPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-6"
-      style={{ background: 'var(--background)', color: 'var(--text)' }}
-    >
+    <AuthScreenShell>
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-md rounded-2xl p-8 flex flex-col gap-4"
+        className="w-full rounded-2xl p-8 flex flex-col gap-4"
         style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
       >
         <div>
-          <h1 className="text-xl font-bold">Erst-Setup</h1>
+          <h1 className="text-xl font-bold">{authT(locale, 'setupTitle')}</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Admin-Konto anlegen. Bestehendes <code>dashboard.json</code> wird diesem Benutzer zugeordnet.
+            {authT(locale, 'setupDesc')}
           </p>
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          <span style={{ color: 'var(--text-muted)' }}>Admin-Benutzername</span>
+          <span style={{ color: 'var(--text-muted)' }}>{authT(locale, 'adminUsername')}</span>
           <input
             className="rounded-lg px-3 py-2"
             style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
@@ -96,7 +95,7 @@ export default function SetupPage() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span style={{ color: 'var(--text-muted)' }}>Passwort</span>
+          <span style={{ color: 'var(--text-muted)' }}>{authT(locale, 'password')}</span>
           <input
             type="password"
             className="rounded-lg px-3 py-2"
@@ -108,7 +107,7 @@ export default function SetupPage() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span style={{ color: 'var(--text-muted)' }}>Passwort wiederholen</span>
+          <span style={{ color: 'var(--text-muted)' }}>{authT(locale, 'passwordRepeat')}</span>
           <input
             type="password"
             className="rounded-lg px-3 py-2"
@@ -125,9 +124,9 @@ export default function SetupPage() {
           </p>
         ) : null}
         <button type="submit" className="btn-accent py-2.5 rounded-lg font-semibold" disabled={busy}>
-          {busy ? '…' : 'Setup abschließen'}
+          {busy ? authT(locale, 'setupBusy') : authT(locale, 'setupSubmit')}
         </button>
       </form>
-    </div>
+    </AuthScreenShell>
   )
 }
