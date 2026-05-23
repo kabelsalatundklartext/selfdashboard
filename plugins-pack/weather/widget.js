@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.6.4",
+    version: "1.6.5",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1328,10 +1328,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: splitView ? "flex-start" : void 0,
+                      alignItems: splitView ? "stretch" : void 0,
                       marginTop: splitView ? 0 : "clamp(2px, 0.8cqmin, 6px)"
                     },
                     children: [
-                      placeLabel && showPlaceLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      placeLabel && showPlaceLabel && !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
                           style: {
@@ -1355,13 +1356,14 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                         "p",
                         {
                           style: {
-                            margin: "0 0 6px",
+                            margin: splitView ? "0 0 clamp(4px, 1cqmin, 8px)" : "0 0 6px",
                             textAlign: "center",
                             fontSize: splitView ? dailyTypeClamp(dayScale, 10, 2.4, 13) : "clamp(9px, 2cqmin, 11px)",
                             fontWeight: 600,
                             color: muted,
                             letterSpacing: "0.04em",
-                            textTransform: "uppercase"
+                            textTransform: "uppercase",
+                            flexShrink: 0
                           },
                           children: t.nextDays
                         }
@@ -1374,10 +1376,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             minHeight: splitView ? 0 : void 0,
                             display: "grid",
                             gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                            gridTemplateRows: splitView ? "minmax(0, 1fr)" : void 0,
                             gap: splitView ? `${Math.max(4, Math.round(7 * dayScale))}px` : dayGapStackTight,
                             width: "100%",
                             minWidth: 0,
-                            alignContent: splitView ? "end" : "center"
+                            alignContent: splitView ? "stretch" : "center",
+                            alignItems: splitView ? "stretch" : void 0
                           },
                           children: daily.map((day) => {
                             const d = /* @__PURE__ */ new Date(day.date + "T12:00:00");
@@ -1387,8 +1391,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             const dayColor = wmoIconColor(day.code, true);
                             const tip = `${weekday} ${dayNum} \xB7 ${wmoSummary(day.code, de)} \xB7 ${Math.round(day.max)}\xB0 / ${Math.round(day.min)}\xB0`;
                             const narrowDaily = !splitView;
-                            const pad = splitView ? `${Math.max(4, Math.round(7 * dayScale))}px ${Math.max(2, Math.round(3 * dayScale))}px ${Math.max(3, Math.round(5 * dayScale))}px` : padDayCell(narrowDaily);
-                            const br = `${Math.max(6, Math.round((splitView ? 10 : 8) * dayScale))}px`;
+                            const pad = splitView ? `${Math.max(6, Math.round(8 * dayScale))}px ${Math.max(3, Math.round(4 * dayScale))}px ${Math.max(5, Math.round(7 * dayScale))}px` : padDayCell(narrowDaily);
+                            const br = `${Math.max(8, Math.round((splitView ? 14 : 8) * dayScale))}px`;
                             return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                               "div",
                               {
@@ -1396,10 +1400,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                 style: {
                                   minWidth: 0,
                                   width: "100%",
+                                  height: splitView ? "100%" : "auto",
                                   display: "flex",
                                   flexDirection: "column",
                                   alignItems: "center",
-                                  gap: `${Math.max(1, Math.round(2 * dayScale))}px`,
+                                  justifyContent: splitView ? "space-evenly" : void 0,
+                                  gap: splitView ? `${Math.max(2, Math.round(3 * dayScale))}px` : `${Math.max(1, Math.round(2 * dayScale))}px`,
                                   padding: pad,
                                   borderRadius: br,
                                   background: "color-mix(in srgb, var(--surface) 92%, var(--background))",
