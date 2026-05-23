@@ -1,5 +1,5 @@
 # Build from this directory (selfdashboard repo root):
-#   docker build -t selfdashboard:beta .
+#   docker build -t selfdashboard:latest .
 # Requires src/builtin-plugins/ in the build context (committed to git).
 # Refresh from dev ../plugins: node scripts/vendor-builtin-plugins.mjs --force
 # See docs/DOCKER_BUILD.md
@@ -49,7 +49,7 @@ ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
 ENV CROWDSEC_DATA_DIR=/crowdsec-data
 ENV SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard
-ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=beta
+ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=main
 ENV SELFDASHBOARD_PLUGINS_GITHUB_PATH=plugins-pack
 
 RUN mkdir -p /app/data /crowdsec-data
