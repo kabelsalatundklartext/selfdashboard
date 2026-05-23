@@ -1,25 +1,36 @@
-# plugins-pack (GitHub store artifacts)
+# Plugin-Store (`plugins-pack/`)
 
-This folder is the **remote plugin store** on GitHub — not user documentation.
+**Einziger Ordner für Plugin-UI auf GitHub.** Der Container installiert daraus nur `plugin.json` + `widget.js` (siehe `plugins-index.json`).
 
-| File / folder | Purpose |
-|---------------|---------|
-| `plugins-index.json` | Catalog for **Plugin Store → From GitHub** |
-| `<plugin-id>/plugin.json` | Metadata |
-| `<plugin-id>/widget.js` | Bundled widget (required) |
-| `<plugin-id>/README.md` | Optional copy of user docs (see `docs/plugins/<id>/`) |
+## Workflow (UI-Updates)
 
-**User-facing plugin list and setup guides:** main [README — Plugins](../README.md#plugins) and per-plugin [docs/plugins/](../docs/plugins/README.md).
+1. **`plugins-pack/<id>/plugin.json`** — Version erhöhen  
+2. **`plugins-pack/<id>/widget.js`** — Widget anpassen (oder aus TS bauen, siehe unten)  
+3. **`npm run generate:plugins-index`** — Index neu erzeugen  
+4. **`plugins-pack/` pushen** — Store zeigt Update  
+5. Auf dem Server: **Aktualisieren** im Plugin-Store, dann **Strg+F5**
 
-## Maintainer: update the pack
+## Optional: TypeScript-Quellen im gleichen Ordner
 
-```bash
-npm run publish:plugin-pack
-git add plugins-pack/
-git commit -m "Update plugins-pack for GitHub install"
-git push origin beta
+Du kannst `index.tsx` (+ Hilfsdateien) **neben** `widget.js` ablegen — der Store installiert sie **nicht** (nur Einträge in `plugins-index.json` → `files`).
+
+```text
+plugins-pack/calendar/
+├── plugin.json    ← Store
+├── widget.js      ← Store (gebündelt)
+├── index.tsx      ← optional, nur Repo / Build
+└── i18n.ts
 ```
 
-After push: **Plugin Store** ↻ or hard-reload (Ctrl+F5).
+Build: `npm run build:plugin-pack -- calendar` (liest `plugins-pack/<id>/index.tsx` zuerst, sonst legacy `plugins/<id>/`).
 
-`plugin-pack/` (singular) with `default-plugins.zip` is a local build artifact only — **not** used by the GitHub store.
+## Nicht committen / lokal löschbar
+
+| Ordner | Zweck |
+|--------|--------|
+| `plugins/` | Legacy-Dev-Ordner (`.gitignore`) — kann weg |
+| `plugin-pack/` | Build-Zwischenspeicher + ZIP (`.gitignore`) — kann weg |
+
+## API-Änderungen
+
+Server-Code: `src/builtin-plugins/<id>/` → neues **Docker-Image**, nicht nur Store-Update.
