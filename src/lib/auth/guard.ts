@@ -41,7 +41,11 @@ export function isAdminOnlyApiPath(pathname: string, method: string): boolean {
   if (pathname.startsWith('/api/logs') && (method === 'GET' || method === 'DELETE')) {
     return true
   }
-  if (pathname.startsWith('/api/auth/users') || pathname === '/api/auth/plugin-catalog') {
+  if (
+    pathname.startsWith('/api/auth/users') ||
+    pathname === '/api/auth/plugin-catalog' ||
+    pathname === '/api/auth/user-plugins'
+  ) {
     return true
   }
   if (isPluginManagementApiPath(pathname)) return true

@@ -13,6 +13,25 @@ type UserRow = {
 
 type CatalogPlugin = { id: string; highRisk?: boolean; warning?: 'host' | 'shared' | null }
 
+async function readApiError(res: Response, de: boolean): Promise<string> {
+  const ct = res.headers.get('content-type') ?? ''
+  if (ct.includes('application/json')) {
+    try {
+      const j = (await res.json()) as { error?: string }
+      return j.error ?? `http_${res.status}`
+    } catch {
+      return `http_${res.status}`
+    }
+  }
+  const text = await res.text()
+  if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+    return de
+      ? `Server antwortete mit HTML (${res.status}) — bitte neues Image deployen`
+      : `Server returned HTML (${res.status}) — deploy a fresh image`
+  }
+  return text.slice(0, 160) || `http_${res.status}`
+}
+
 export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
   const de = locale === 'de'
   const [users, setUsers] = useState<UserRow[]>([])
@@ -88,13 +107,15 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
     setBusy(true)
     setMsg(null)
     try {
-      const res = await fetch(`/api/auth/users/${selected.id}/plugins`, {
-        method: 'PUT',
+      const res = await fetch('/api/auth/user-plugins', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowedPlugins: draftPlugins }),
+        body: JSON.stringify({
+          userId: selected.id,
+          allowedPlugins: draftPlugins,
+        }),
       })
-      const j = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(j.error ?? 'save_failed')
+      if (!res.ok) throw new Error(await readApiError(res, de))
       setMsg(de ? 'Plugin-Freigaben gespeichert.' : 'Plugin permissions saved.')
       await refresh()
     } catch (e) {
@@ -110,8 +131,7 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
     setMsg(null)
     try {
       const res = await fetch(`/api/auth/users/${id}`, { method: 'DELETE' })
-      const j = (await res.json()) as { error?: string }
-      if (!res.ok) throw new Error(j.error ?? 'delete_failed')
+      if (!res.ok) throw new Error(await readApiError(res, de))
       if (selectedId === id) setSelectedId(null)
       setMsg(de ? 'Benutzer gelöscht.' : 'User deleted.')
       await refresh()
@@ -139,14 +159,14 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
             <AlertTriangle size={11} className="inline mr-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
             Host/System (Docker, FRITZ!, …) ·{' '}
             <AlertTriangle size={11} className="inline mx-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
-            Gemeinsame Daten (Kalender, Mail — alle freigegebenen User teilen sich dieselbe Instanz)
+            Gemeinsame Daten (Mail — alle freigegebenen User teilen sich dieselbe Instanz; Kalender ist pro User + optional teilen)
           </>
         ) : (
           <>
             <AlertTriangle size={11} className="inline mr-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
             Host/system (Docker, FRITZ!, …) ·{' '}
             <AlertTriangle size={11} className="inline mx-1" style={{ color: '#f59e0b', verticalAlign: '-2px' }} />
-            Shared data (calendar, mail — granted users share one instance)
+            Shared data (mail — granted users share one instance; calendar is per user with optional sharing)
           </>
         )}
       </p>
@@ -263,8 +283,8 @@ export function AuthUsersSettingsPanel({ locale }: { locale: Locale }) {
                   <span
                     title={
                       de
-                        ? 'Gemeinsame Instanz: Kalender/Mail-Daten liegen global unter /app/data — alle mit Freigabe sehen dieselben Konten/Termine'
-                        : 'Shared instance: calendar/mail data is global under /app/data — all granted users see the same accounts/events'
+                        ? 'Gemeinsame Instanz: Mail-Daten liegen global unter /app/data'
+                        : 'Shared instance: mail data is global under /app/data'
                     }
                     style={{ display: 'flex', flexShrink: 0 }}
                   >
