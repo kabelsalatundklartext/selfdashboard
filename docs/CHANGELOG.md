@@ -10,6 +10,9 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 | Topic | Change |
 |--------|--------|
+| **Public kiosk `/kiosk`** | View-only wall-tablet URL without admin login; optional password & session duration. Admin: **Settings → Users → Kiosk**. Edit widgets on `/dashboard/<id>`. |
+| **TOTP 2FA** | Authenticator apps — **Settings → Users**; enforced at login when enabled. |
+| **Multi-user UI** | Password change, 2FA, and kiosk moved to **Settings → Users**. |
 | **Design backgrounds** | **Settings → Design**: navbar wallpaper; dashboard background **off / single / dual** (JPG/PNG/WebP, overlay %). Persisted in `dashboard.json`. |
 | **`/api/weather`** | Server proxy for Open-Meteo geocode + forecast (hourly + daily). Required for current Weather plugin. |
 | **Settings modal** | Fixed width `720px`; log list scrolls internally. |
@@ -38,6 +41,9 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 | Thema | Änderung |
 |--------|----------|
+| **Öffentlicher Kiosk `/kiosk`** | Nur-Ansicht fürs Wand-Tablet ohne Admin-Login; optional Passwort & Sitzungsdauer. Admin: **Einstellungen → Benutzer → Kiosk**. Bearbeiten unter `/dashboard/<id>`. |
+| **TOTP 2FA** | Authenticator-Apps — **Einstellungen → Benutzer**; beim Login wenn aktiv. |
+| **Mehrbenutzer-UI** | Passwort, 2FA, Kiosk unter **Einstellungen → Benutzer**. |
 | **Hintergrundbilder** | **Einstellungen → Design**: Navbar + Dashboard (**Aus / 1 / 2 Bilder**, Overlay). In `dashboard.json`. |
 | **`/api/weather`** | Server-Proxy für Open-Meteo (Geocoding + Forecast). |
 | **Einstellungs-Dialog** | Feste Breite; Protokoll-Liste scrollt intern. |
