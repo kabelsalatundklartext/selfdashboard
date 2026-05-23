@@ -194,6 +194,12 @@ export function KioskSettingsPanel({ locale }: { locale: Locale }) {
           {publicUrl}
         </div>
 
+        <p className="text-[11px]" style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+          {de
+            ? `Wand-Tablet/Gäste: obige URL (/kiosk). Nicht /dashboard/${dashboardId} — das ist Bearbeiten mit Admin-Login.`
+            : `Wall tablet/guests: URL above (/kiosk). Not /dashboard/${dashboardId} — that is edit mode with admin login.`}
+        </p>
+
         <button type="button" className="btn-accent self-start px-3 py-1.5" disabled={busy} onClick={() => void save()}>
           {de ? 'Speichern' : 'Save'}
         </button>
