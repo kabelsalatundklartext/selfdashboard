@@ -185,7 +185,7 @@ function PluginStoreCard({
             )}
           </button>
         )}
-        {inRegistry && (
+        {(inRegistry || !allowManage) && (
           <button
             type="button"
             className="btn-accent text-xs px-2.5 py-1"
@@ -259,6 +259,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
   const [updatesCount, setUpdatesCount] = useState(0)
+  const [userAllowedPlugins, setUserAllowedPlugins] = useState<PluginMeta[]>([])
 
   const refreshStoreData = useCallback(async () => {
     try {
@@ -273,8 +274,28 @@ export function PluginStoreModal({ open, onClose }: Props) {
       setGithubConfigured(false)
       setRemotePlugins([])
       setUpdatesCount(0)
+      try {
+        const res = await fetch('/api/auth/my-plugins', { cache: 'no-store' })
+        if (res.ok) {
+          const j = (await res.json()) as { plugins?: PluginMeta[] }
+          const list = j.plugins ?? []
+          setUserAllowedPlugins(list)
+          if (list.length > 0) {
+            try {
+              await loadVolumeWidgetScripts(list.map((p) => p.id))
+            } catch (e) {
+              console.warn('[SelfDashboard] allowed plugin widgets preload', e)
+            }
+          }
+        } else {
+          setUserAllowedPlugins([])
+        }
+      } catch {
+        setUserAllowedPlugins([])
+      }
       return
     }
+    setUserAllowedPlugins([])
     try {
       const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
       const j = (await res.json()) as {
@@ -451,6 +472,14 @@ export function PluginStoreModal({ open, onClose }: Props) {
       try {
         let plugin = pluginRegistry.get(pluginId)
         if (!plugin) {
+          try {
+            await loadVolumeWidgetScripts([pluginId])
+            plugin = pluginRegistry.get(pluginId)
+          } catch (loadErr) {
+            console.warn('[SelfDashboard] widget load before add', pluginId, loadErr)
+          }
+        }
+        if (!plugin) {
           const row = remotePlugins.find((p) => p.id === pluginId)
           if (githubConfigured && row && !row.installed) {
             setReloadMsgKind('info')
@@ -539,6 +568,26 @@ export function PluginStoreModal({ open, onClose }: Props) {
     const seen = new Set<string>()
     const rows: CatalogRow[] = []
 
+    if (!isAdmin) {
+      for (const meta of userAllowedPlugins) {
+        if (!matches(meta)) continue
+        seen.add(meta.id)
+        const inRegistry = !!pluginRegistry.get(meta.id)
+        rows.push({
+          meta: {
+            ...meta,
+            installed: true,
+            installedVersion: meta.version,
+            updateAvailable: false,
+          },
+          inRegistry,
+          onDashboard: existingPlugins.some((p) => p.pluginId === meta.id),
+          fromRemote: false,
+        })
+      }
+      return rows
+    }
+
     for (const meta of remotePlugins) {
       if (!pluginAllowed(meta.id) || !matches(meta)) continue
       seen.add(meta.id)
@@ -566,21 +615,21 @@ export function PluginStoreModal({ open, onClose }: Props) {
     }
 
     return rows
-  }, [remotePlugins, allPlugins, search, locale, existingPlugins, volumeInstalledIds, isAdmin])
+  }, [remotePlugins, allPlugins, search, locale, existingPlugins, volumeInstalledIds, isAdmin, userAllowedPlugins])
 
   const filteredRows = useMemo(() => {
     if (filterTab === 'updates') {
       return catalogRows.filter((r) => r.meta.updateAvailable)
     }
     if (filterTab === 'ready') {
-      return catalogRows.filter((r) => r.inRegistry && !r.onDashboard)
+      return catalogRows.filter((r) => (isAdmin ? r.inRegistry : true) && !r.onDashboard)
     }
     return catalogRows
   }, [catalogRows, filterTab])
 
   const readyCount = useMemo(
-    () => catalogRows.filter((r) => r.inRegistry && !r.onDashboard).length,
-    [catalogRows],
+    () => catalogRows.filter((r) => (isAdmin ? r.inRegistry : true) && !r.onDashboard).length,
+    [catalogRows, isAdmin],
   )
 
   if (!open) return null
@@ -626,12 +675,20 @@ export function PluginStoreModal({ open, onClose }: Props) {
                 {t(locale, 'pluginStore')}
               </h2>
               <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {remotePlugins.length} {t(locale, 'pluginsCatalogAvailable')}
-                </span>
-                <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                  {allPlugins.length} {t(locale, 'pluginsStoreBadgeLoaded')}
-                </span>
+                {isAdmin ? (
+                  <>
+                    <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                      {remotePlugins.length} {t(locale, 'pluginsCatalogAvailable')}
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                      {allPlugins.length} {t(locale, 'pluginsStoreBadgeLoaded')}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                    {userAllowedPlugins.length} {locale === 'de' ? 'freigegeben' : 'allowed'}
+                  </span>
+                )}
                 {volumeOnly && (
                   <span className="text-[11px] px-2 py-0.5 rounded-md" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
                     {volumeInstalledIds.length} {t(locale, 'pluginsStoreBadgeDownloaded')}
@@ -744,12 +801,19 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
           {/* Grid */}
           <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
-            {!githubConfigured && (
+            {isAdmin && !githubConfigured && (
               <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: '#f8717114', color: '#f87171', border: '1px solid #f8717133' }}>
                 {t(locale, 'githubNotConfigured')}
                 {locale === 'de'
                   ? ' Setze SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard (Unraid: „GitHub Plugins Repo“) und starte den Container neu.'
                   : ' Set SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard (Unraid: “GitHub Plugins Repo”) and restart the container.'}
+              </p>
+            )}
+            {!isAdmin && userAllowedPlugins.length === 0 && (
+              <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: '#f8717114', color: '#f87171', border: '1px solid #f8717133' }}>
+                {locale === 'de'
+                  ? 'Keine Plugins freigegeben. Bitte den Administrator unter Einstellungen → Benutzer Häkchen setzen.'
+                  : 'No plugins granted. Ask an admin to enable plugins under Settings → Users.'}
               </p>
             )}
             {volumeOnly && volumeInstalledIds.length > 0 && allPlugins.length === 0 && (
