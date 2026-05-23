@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePluginManagement } from '@/lib/auth/pluginManagement'
 import { loadAllPluginServers } from '@/lib/pluginServerLoader'
 import { reloadCustomPluginServers } from '@/lib/pluginCustomServer'
 import { reloadPluginCatalog } from '@/lib/pluginScan'
@@ -7,7 +8,9 @@ import { clearGitHubPluginIndexCache } from '@/lib/pluginGitHub'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(req: Request) {
+  const auth = requirePluginManagement(req)
+  if (auth instanceof NextResponse) return auth
   clearGitHubPluginIndexCache()
   await loadAllPluginServers()
   const customServers = await reloadCustomPluginServers()

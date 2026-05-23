@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ThemeProvider } from '@/components/layout/ThemeProvider'
-import { DashboardStateSync } from '@/components/layout/DashboardStateSync'
 import { LogCapture } from '@/components/layout/LogCapture'
 import { CorePluginSettingsInit } from '@/components/settings/CorePluginSettingsInit'
 
@@ -24,7 +23,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <DashboardStateSync />
         <CorePluginSettingsInit />
         <LogCapture />
         <ThemeProvider>{children}</ThemeProvider>

@@ -67,6 +67,11 @@ export function DashboardStateSync() {
       try {
         const r = await fetch('/api/dashboard-state', { cache: 'no-store' })
         if (disposed) return
+        if (r.status === 401) {
+          const next = encodeURIComponent(window.location.pathname + window.location.search)
+          window.location.href = `/login?next=${next}`
+          return
+        }
         if (r.ok) {
           const raw: unknown = await r.json()
           if (validateDashboardStatePersisted(raw)) {

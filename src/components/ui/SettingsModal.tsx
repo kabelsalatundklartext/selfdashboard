@@ -13,6 +13,8 @@ import type { Locale } from '@/lib/i18n'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
 import { MailNavbarToggle } from '@/components/settings/MailNavbarToggle'
+import { AuthUsersSettingsPanel } from '@/components/settings/AuthUsersSettingsPanel'
+import { useAuthRole } from '@/components/layout/AuthUserMenu'
 import {
   getAppSettingsPanels,
   getAppSettingsPanelsVersion,
@@ -194,6 +196,8 @@ export function SettingsModal({ open, onClose }: Props) {
 
   useSyncExternalStore(subscribeAppSettingsPanels, getAppSettingsPanelsVersion, () => 0)
   const appSettingsPanels = getAppSettingsPanels()
+  const authRole = useAuthRole()
+  const isAdmin = authRole === 'admin'
 
   if (!open) return null
 
@@ -274,7 +278,10 @@ export function SettingsModal({ open, onClose }: Props) {
       id: `plugin-${p.id}` as TabId,
       label: p.label[locale] ?? p.label.en ?? p.id,
     })),
-    { id: 'logs', label: locale === 'de' ? 'Protokoll' : 'Logs' },
+    ...(isAdmin
+      ? [{ id: 'users' as TabId, label: locale === 'de' ? 'Benutzer' : 'Users' }]
+      : []),
+    ...(isAdmin ? [{ id: 'logs' as TabId, label: locale === 'de' ? 'Protokoll' : 'Logs' }] : []),
   ]
 
   return (
@@ -1251,6 +1258,8 @@ export function SettingsModal({ open, onClose }: Props) {
                 </WidgetErrorBoundary>
               )
             })}
+
+            {tab === 'users' && isAdmin ? <AuthUsersSettingsPanel locale={locale} /> : null}
 
             {tab === 'logs' && (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, gap: '20px' }}>

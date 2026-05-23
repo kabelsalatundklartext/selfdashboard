@@ -2,9 +2,9 @@
 
 Planungsdokument für **ein SelfDashboard, mehrere Benutzer**, jeweils **eigenes Dashboard**.  
 **Phase 2:** TOTP (Authenticator) optional/pflicht für Admin.  
-Stand: Konzept — noch nicht implementiert.
+**Stand:** Phase **1a/1b** umgesetzt (Auth, pro-User-Dashboard, Plugin-Whitelist, Plugin-Verwaltung nur Admin).
 
-Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell bleibt: Widgets global, **Konfiguration pro User**).
+Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell: Widgets global installiert, **Konfiguration pro User**, **Nutzung pro User** über Whitelist).
 
 ---
 
@@ -14,8 +14,9 @@ Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell bleibt: Widgets global, **
 |------|----------------|
 | **Zugriffskontrolle** | Wer die URL erreicht, muss sich anmelden (nicht nur „geheimes LAN“). |
 | **Isolation** | User A sieht **nicht** Dashboard/Widgets/Secrets von User B. |
-| **Komfort** | Admin (und optional alle) mit **„Angemeldet bleiben“** (lange Session), nicht täglich Passwort + TOTP. |
-| **Betrieb** | Weiter **ein Container**, ein Plugin-Store, ein Update-Weg. |
+| **Least privilege** | Normale User: nur freigegebene Plugins; **kein** Store, **kein** ZIP, **kein** Docker-Socket ohne Freigabe. |
+| **Komfort** | Admin mit **„Angemeldet bleiben“** (lange Session). |
+| **Betrieb** | Weiter **ein Container**, ein Plugin-Store, ein Update-Weg (nur Admin bedient). |
 
 **Nicht Ziel in v1:** Passkeys, SSO, E-Mail-„Passwort vergessen“, Mandanten mit eigenem Container.
 
@@ -24,189 +25,171 @@ Siehe auch: [PLUGINS.md](./PLUGINS.md) (Plugin-Modell bleibt: Widgets global, **
 ## Architektur (Kurz)
 
 ```text
-Browser ──► Session-Cookie (HttpOnly)
+Browser ──► Session-Cookie sd_session (HttpOnly)
               │
               ▼
-         Middleware (geschützte Routen)
+         Middleware (Node, SQLite-Session)
               │
     ┌─────────┴─────────┐
     ▼                   ▼
  /dashboard/*      /api/*
     │                   │
-    ▼                   ▼
- User-Kontext      gleiche Session
-    │
+    │                   ├─► Admin-only: Plugin Store, ZIP, Install, …
+    │                   └─► Pro Plugin-ID: Whitelist (Rolle user)
     ▼
  /app/data/users/<userId>/dashboard.json
- /app/data/auth/users.json (oder SQLite)
- /app/data/auth/sessions.json
+ /app/data/auth/auth.db
+     ├─ users, sessions, settings
+     └─ user_allowed_plugins (user_id, plugin_id)
 ```
 
 | Bereich | v1-Entscheidung |
 |---------|------------------|
-| **Plugins** (`/app/plugins/custom`) | **Global** — alle User nutzen dieselben installierten Widgets. |
-| **Plugin-Config** (FRITZ-Passwort, URLs, …) | **Pro User** — liegt im jeweiligen Dashboard-State. |
-| **Kalender / Mail DB** | **v1: Admin-only** oder ein gemeinsamer Kalender pro Instanz (siehe Offene Punkte). |
-| **Logs** (`Settings → Logs`) | **v1: Admin-only**. |
-| **Plugin Store** | **v1: Admin-only** (Install/Update betrifft alle). |
+| **Plugins** (`/app/plugins/custom`) | **Global installiert** — nur **Admin** darf installieren/aktualisieren/deinstallieren/hochladen. |
+| **Plugin nutzen** | **Pro User (Whitelist)** — API + Widgets + `dashboard.json`; Admin hat immer alle. |
+| **Plugin-Config** (Passwörter, URLs, …) | **Pro User** — im jeweiligen Dashboard-State. |
+| **Kalender / Mail DB** | **v1:** global unter `/app/data`; API nur wenn Plugin freigegeben (Kalender oft Admin-only in der Praxis). |
+| **Logs** (`Settings → Logs`) | **Admin-only** (Anzeigen/Löschen). |
+| **Plugin Store / ZIP** | **Admin-only** — UI und API (`403` für `user`). |
+
+---
+
+## Plugin-Freigabe (Whitelist)
+
+### Regeln
+
+| Rolle | Plugins nutzen | Plugins installieren / ZIP / Store |
+|--------|----------------|-------------------------------------|
+| **admin** | alle | ja |
+| **user** | nur Einträge in `user_allowed_plugins` | **nein** |
+
+- Neuer User (`role=user`): Start mit **0** freigegebenen Plugins — Admin setzt Häkchen unter **Einstellungen → Benutzer**.
+- **Kritische Plugins** (Docker-Socket, CrowdSec, Unraid, FRITZ!, …) in der Admin-UI markiert; ohne Häkchen: kein Widget, kein `/api/plugins/<id>/…`, keine Legacy-URL (z. B. `/api/docker-containers`).
+- `GET/PUT /api/dashboard-state` filtert nicht erlaubte Widgets aus dem JSON.
+
+### Datenbank
+
+```sql
+user_allowed_plugins (user_id, plugin_id)  -- PK (user_id, plugin_id)
+```
+
+### API (Auszug)
+
+| Route | Wer |
+|--------|-----|
+| `GET /api/auth/me` | eingeloggt; liefert `allowedPlugins` (`null` = alle) |
+| `GET/POST /api/auth/users` | Admin |
+| `PUT /api/auth/users/<id>/plugins` | Admin — Whitelist setzen |
+| `GET /api/auth/plugin-catalog` | Admin — Liste für Checkboxen |
+
+### Durchsetzung (zweifach)
+
+1. **Middleware** — Session + Admin-Pfade + `plugin_forbidden` pro Plugin-ID  
+2. **Route-Handler** — `requirePluginManagement()` / `requirePluginAccess()` in den jeweiligen `route.ts`
+
+---
+
+## Plugin-Verwaltung (nur Admin)
+
+Normale Benutzer dürfen **keine** Plugins auf den Server bringen oder entfernen. Gesperrt in Middleware **und** in den Route-Handlern (`src/lib/auth/pluginManagement.ts`):
+
+| API | Aktion |
+|-----|--------|
+| `POST /api/plugins/upload-zip` | ZIP hochladen |
+| `POST /api/plugins/install-remote` | Install von GitHub |
+| `POST /api/plugins/uninstall` | Deinstallieren |
+| `POST /api/plugins/reload` | Manifeste neu scannen |
+| `POST /api/plugins/seed-custom` | Seed (falls aktiv) |
+| `GET /api/plugins/remote-catalog` | Store-Katalog |
+
+**UI:** Plugin-Store-Button (**+** im Bearbeitungsmodus) nur für Admin; Navbar lädt Update-Badge nur als Admin.
 
 ---
 
 ## Phase 1 — Must-have (v1)
 
-Ohne diese Punkte ist Option A im Homelab **nicht sinnvoll abnahmefähig**.
-
 ### Auth-Kern
 
-- [ ] **Erst-Setup:** Beim ersten Start (kein User) → Wizard „Admin anlegen“ (Benutzername + Passwort).
-- [ ] **Login-Seite** `/login`, Logout (Cookie löschen).
-- [ ] Passwörter nur **gehasht** speichern (bcrypt oder argon2), niemals Klartext.
-- [ ] **Session** serverseitig (zufällige ID + Ablaufzeit), Cookie: `HttpOnly`, `SameSite=Lax`, `Secure` wenn HTTPS.
-- [ ] **„Angemeldet bleiben“** (Checkbox): lange Session (z. B. 30–90 Tage, Admin-konfigurierbar).
-- [ ] Ohne Haken: kurze Session (z. B. 24 h oder Browser-Session).
-- [ ] **Middleware:** Alle `/dashboard/*` und **alle** `/api/*` (außer `/api/auth/*` und Setup) → 401 ohne gültige Session.
+- [x] Erst-Setup `/setup`, Login `/login`, Logout
+- [x] Passwörter gehasht (scrypt), Sessions in SQLite, Cookie `sd_session`
+- [x] „Angemeldet bleiben“ (Standard 90 Tage) / sonst 24 h (`settings` in DB)
+- [x] Middleware: `/dashboard/*`, `/api/*` (öffentlich nur Login/Setup/Logout)
 
 ### Benutzer & Rollen
 
-- [ ] Rollen: **`admin`** | **`user`** (keine feineren Rechte in v1).
-- [ ] **Admin:** User anlegen, löschen, Rolle setzen, Passwort zurücksetzen (durch Admin).
-- [ ] **User:** nur eigenes Dashboard, keine User-Verwaltung, kein Plugin-Store.
+- [x] Rollen **`admin`** \| **`user`**
+- [x] Admin: User anlegen/löschen (**Einstellungen → Benutzer**)
+- [x] Admin: Plugin-Whitelist pro User
+- [x] User: kein Plugin-Store, **kein ZIP-Upload**, keine Install-APIs
+- [ ] Admin: Passwort zurücksetzen (UI)
 
 ### Daten pro User
 
-- [ ] Persistenz: `GET/PUT /api/dashboard-state` schreibt/liest **nur** die Datei des eingeloggten Users.
-- [ ] Pfad z. B. `/app/data/users/<userId>/dashboard.json`.
-- [ ] **Migration:** Bestehende `/app/data/dashboard.json` → Dashboard des ersten Admin-Users (einmalig beim Setup).
-
-### Admin-Einstellungen (minimal)
-
-- [ ] Session-Dauer: Standard für „Remember me“ (Tage).
-- [ ] Session-Dauer: ohne „Remember me“ (Stunden).
+- [x] `GET/PUT /api/dashboard-state` → `/app/data/users/<userId>/dashboard.json`
+- [x] Migration altes `dashboard.json` → erster Admin
 
 ### UI
 
-- [ ] Einstellungen → neuer Bereich **„Benutzer“** (nur Admin): Liste, Anlegen, Löschen.
-- [ ] Navbar/Profil: angemeldet als … + **Abmelden**.
-- [ ] Ungültige/abgelaufene Session → Redirect `/login?next=…`.
+- [x] Einstellungen → **Benutzer** (Admin): Anlegen, Löschen, Plugin-Freigaben
+- [x] Navbar: Benutzername + Abmelden
+- [x] Abgelaufene Session → Redirect `/login?next=…`
 
-### API-Absicherung (Checkliste)
+### API-Absicherung
 
-Jede Route muss Session prüfen; sonst Umgehung per `curl`.
-
-- [ ] `/api/dashboard-state`
-- [ ] `/api/plugins/*` (Gateway + alle Plugin-Handler)
-- [ ] Legacy/Core: `/api/weather`, `/api/adguard`, `/api/fritz-energy`, Kalender, Mail, Docker, CrowdSec, Logs, …
-- [ ] **Ausnahmen:** `POST /api/auth/login`, `GET /api/auth/setup-status`, Setup-Endpunkte
+- [x] `/api/dashboard-state` (Session + Plugin-Filter)
+- [x] `/api/plugins/<id>/…` (Session + Whitelist)
+- [x] Legacy-Routen (`/api/docker-containers`, …) über gleiche Plugin-ID-Prüfung
+- [x] Plugin-Verwaltung (Store, ZIP, …) → **403** für `user`
+- [x] `/api/auth/users`, `/api/auth/plugin-catalog` → Admin
+- [ ] Vollständiger Audit aller übrigen `/api/*` (Logs-Download, …)
 
 ### Dokumentation
 
-- [ ] README + Unraid-Template: Auth aktiv, Erst-Setup, Backup von `/app/data/users/` und `/app/data/auth/`.
-
-**Geschätzter Aufwand Must-have:** ca. **12–18 Personentage** (1 Entwickler, Projekt bekannt).
-
----
-
-## Phase 1 — Nice-to-have (kann warten)
-
-Erhöht Qualität und Komfort, v1 funktioniert aber auch ohne.
-
-| Feature | Nutzen | Aufwand |
-|---------|--------|---------|
-| User **Passwort selbst ändern** (eingeloggt) | Weniger Admin-Arbeit | ~0,5–1 d |
-| **Letzter Admin** darf nicht gelöscht werden | Kein Lockout | ~0,25 d |
-| Session-Liste / „alle Geräte abmelden“ | Security nach Diebstahl | ~1–2 d |
-| **Rate-Limit** Login (z. B. 5/min/IP) | Brute-Force erschweren | ~0,5–1 d |
-| Audit-Log (Login, User angelegt) | Nachvollziehbarkeit | ~1–2 d |
-| **Kiosk-Link** (read-only Token-URL, kein Login) | Wand-Tablet ohne Secrets | ~2–4 d |
-| Kalender/Mail **pro User** | Echte Mandanten-Trennung | ~3–5 d |
-| i18n EN für Auth-UI | Konsistenz | ~0,5–1 d |
-
-**Empfehlung:** Nach Must-have v1 aus Nutzerfeedback die Top-2 Nice-to-haves wählen (oft: Passwort ändern + Rate-Limit).
+- [x] Dieses Dokument (`AUTH-ROADMAP.md`)
+- [ ] README + Unraid-Template (Backup `/app/data/users/` + `/app/data/auth/`)
 
 ---
 
-## Phase 2 — TOTP / 2FA (nach v1)
+## Phase 1 — Nice-to-have
 
-| Feature | Priorität |
-|---------|-----------|
-| TOTP aktivieren (QR + Authenticator-App) | Hoch |
-| **Backup-Codes** (10 Stück, einmal anzeigen) | Hoch |
-| Beim Login: Passwort **dann** TOTP (nur wenn aktiviert) | Hoch |
-| **Admin-Pflicht** für Rolle `admin` (Policy) | Mittel |
-| User: TOTP optional | Mittel |
-| TOTP **nicht** bei jedem Seitenaufruf, nur bei neuem Login | Pflicht |
-
-**Nicht in Phase 2:** E-Mail-OTP (SMTP-Pflege), SMS, Passkeys.
-
-**Geschätzter Aufwand:** ca. **+3–5 Personentage** auf stabiler v1.
+| Feature | Nutzen |
+|---------|--------|
+| Presets „Nur Anzeige“ / „Vollzugriff“ für Plugin-Whitelist | Schnellere User-Pflege |
+| Plugin-Anzeigenamen in Benutzer-UI (aus `plugin.json`) | Lesbarer als IDs |
+| User Passwort selbst ändern | Weniger Admin-Arbeit |
+| Rate-Limit Login | Brute-Force |
+| Session-Liste / alle Geräte abmelden | Security |
+| i18n EN für Auth-UI | Konsistenz |
 
 ---
 
-## Phase 3 — Später (bewusst ausklammern)
+## Phase 2 — TOTP / 2FA
 
-| Feature | Warum später |
-|---------|----------------|
-| **OIDC/SSO** (Google, Microsoft) | Extra Provider, Redirect-URLs, Token-Refresh |
-| **WebAuthn / Passkeys** | Guter UX, aber eigene Implementierung |
-| 2FA bei **kritischen Aktionen** (FRITZ aus, User löschen) | Braucht Action-Tokens |
-| Feingranulare Rechte (pro Dashboard teilen) | Komplexität |
-| Öffentliches Registrieren | Homelab meist unerwünscht |
+Siehe vorherige Fassung (TOTP, Backup-Codes, Admin-Pflicht optional).
 
 ---
 
-## Offene Punkte (vor Start klären)
+## Abnahme-Kriterien (Auth v1)
 
-1. **Kalender:** Ein Kalender für alle, pro User, oder nur Admin?  
-   → **v1-Vorschlag:** unverändert global unter `/app/data`, nur Admin konfiguriert; User ohne Kalender-Admin-API.
-
-2. **Mail-Plugin (IMAP):** Credentials pro User im eigenen Dashboard-State — reicht das?  
-   → **Ja**, wenn Mail-Widget nur User-State nutzt.
-
-3. **Kiosk / Wand-Tablet:** Login jedes Mal OK, oder read-only Token (Nice-to-have)?
-
-4. **Bestehende Installationen:** Automatische Migration beim ersten Start nach Update?  
-   → **Ja**, Must-have.
-
-5. **Reverse Proxy:** Auth nur in App oder **zusätzlich** NPM/Authelia?  
-   → Beides möglich; App-Auth ist für Multi-User-Daten **nötig**, Proxy optional extra Schicht.
-
----
-
-## MVP-Abkürzung (wenn Zeit knapp)
-
-Wenn nur **~1 Woche** Zeit ist, verkleinerte v1:
-
-- Must-have Auth + pro-User `dashboard.json`
-- User **nur** per Datei/CLI anlegen (keine Admin-UI)
-- Kein „Passwort zurücksetzen“-UI
-- Kalender/Store/Logs: alles nur Admin
-
-→ Schnell sicherer als heute, aber unbequem für User-Verwaltung. **Nicht** empfohlen, wenn Option A ernst gemeint ist.
-
----
-
-## Abnahme-Kriterien (v1 fertig)
-
-- [ ] Ohne Login: kein Dashboard, keine API-Daten (401/Redirect).
-- [ ] Zwei Test-User: unterschiedliche Widgets/Layouts, keine gegenseitige Sichtbarkeit.
-- [ ] „Angemeldet bleiben“: nach Browser-Neustart noch eingeloggt (innerhalb Frist).
-- [ ] Logout: Cookie weg, Zugriff blockiert.
-- [ ] Admin kann User anlegen/löschen; letzter Admin geschützt (wenn Nice-to-have drin).
-- [ ] Alte `dashboard.json` nach Update als Admin-Dashboard vorhanden.
-- [ ] Plugin-Store nur als Admin; normaler User erhält 403.
+- [ ] Ohne Login: kein Dashboard, keine API-Daten
+- [ ] Zwei User: getrennte Dashboards, keine gegenseitige Sichtbarkeit
+- [ ] User **ohne** `docker` in Whitelist: `curl /api/plugins/docker/…` → **403**
+- [ ] User: `POST /api/plugins/upload-zip` → **403** (auch per curl)
+- [ ] User: kein **+** / Plugin-Store in der UI
+- [ ] Admin: Whitelist setzen → User sieht nur freigegebene Widgets
+- [ ] „Angemeldet bleiben“ + Logout wie spezifiziert
+- [ ] Migration `dashboard.json` nach Update
 
 ---
 
 ## Zeitleiste (Orientierung)
 
-| Phase | Inhalt | Kalender (Vollzeit) |
-|-------|--------|---------------------|
-| **1a** | Auth-Kern, Middleware, Login | Woche 1 |
-| **1b** | Pro-User-State, Migration, API-Audit | Woche 2 |
-| **1c** | Admin-UI, Tests, Doku | Woche 2–3 |
-| **2** | TOTP + Backup-Codes | +1 Woche |
-
-Nebenbei (2–3 Abende/Woche): eher **6–10 Wochen** bis v1.
+| Phase | Inhalt | Status |
+|-------|--------|--------|
+| **1a** | Auth-Kern, Login, Middleware | erledigt |
+| **1b** | Pro-User-State, Plugin-Whitelist, API Plugin-Gates | erledigt |
+| **1c** | README/Unraid, Passwort-Reset, API-Audit Rest | offen |
+| **2** | TOTP | geplant |
 
 ---
 
@@ -214,10 +197,11 @@ Nebenbei (2–3 Abende/Woche): eher **6–10 Wochen** bis v1.
 
 | | |
 |--|--|
-| **Kernidee** | Option A: ein System, getrennte Dashboard-Daten pro User |
-| **Must-have** | Login, Sessions, Remember Me, Admin/User, API überall geschützt |
-| **Später** | TOTP für Admin (Phase 2) |
-| **Aufwand v1** | ~12–18 Personentage (solide) |
-| **Sparen** | Kein 2FA in v1, kein Kiosk-Token, Kalender global |
+| **Kernidee** | Ein System, getrennte Dashboard-Daten, **feine Plugin-Rechte** pro User |
+| **Sicherheit Homelab** | Docker & Co. nur mit Admin-Freigabe; **niemand** außer Admin installiert Plugins |
+| **Admin-Aufgaben** | User pflegen, Plugins freigeben, Store/Updates |
+| **Später** | TOTP (Phase 2) |
 
-Bei Implementierung: eigenes Issue/PR-Label `auth-v1`, Änderungen nicht mit Plugin-Layout-Releases vermischen.
+**Dev-Notaus:** `SELFDASHBOARD_AUTH_DISABLED=1` — nur lokal, nicht in Production.
+
+Bei Implementierung: Label `auth-v1`; Auth-Änderungen nicht mit reinen Plugin-UI-Releases mischen.

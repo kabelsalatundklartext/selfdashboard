@@ -10,6 +10,7 @@ import { NavbarSearch } from '@/components/layout/NavbarSearch'
 import { getNavbarSlots, getNavbarSlotsVersion, subscribeNavbarSlots } from '@/lib/pluginNavbarRegistry'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 import { t } from '@/lib/i18n'
+import { AuthUserMenu, useAuthRole } from '@/components/layout/AuthUserMenu'
 import { anySearchProviderEnabled } from '@/lib/searchProviders'
 
 /** Wie NavbarSearch: unter Desktop volle Suchzeile, damit nichts in der Ecke gequetscht wird. */
@@ -49,8 +50,11 @@ export function Navbar() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [storeOpen, setStoreOpen] = useState(false)
   const [pluginUpdatesPending, setPluginUpdatesPending] = useState(0)
+  const authRole = useAuthRole()
+  const isAdmin = authRole === 'admin'
 
   useEffect(() => {
+    if (authRole !== 'admin') return
     const refreshUpdates = async () => {
       try {
         const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
@@ -69,7 +73,7 @@ export function Navbar() {
       window.removeEventListener('sd-plugin-catalog-changed', onCatalog)
       window.removeEventListener('sd-open-plugin-store', onOpenStore)
     }
-  }, [])
+  }, [authRole])
 
   const showIcon = navbarStyle !== 'text-only'
   const showText = navbarStyle !== 'icon-only'
@@ -200,7 +204,7 @@ export function Navbar() {
               onClick={() => setEditMode(!editMode)}>
               {editMode ? <><Check size={14} />{!navbarPhone && (locale === 'de' ? 'Fertig' : 'Done')}</> : <Pencil size={navbarPhone ? 16 : 15} />}
             </button>
-            {editMode && (
+            {editMode && isAdmin && (
               <button
                 className="btn-accent"
                 style={{ padding: '7px 10px', position: 'relative' }}
@@ -231,6 +235,7 @@ export function Navbar() {
             <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => setSettingsOpen(true)}>
               <Settings size={navbarPhone ? 16 : 15} />
             </button>
+            <AuthUserMenu locale={locale} />
           </div>
         </div>
         </div>
