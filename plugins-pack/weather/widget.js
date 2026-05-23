@@ -381,7 +381,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "weather",
     name: "Weather",
     description: "Stadt oder PLZ \u2014 aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 \u2026 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-    version: "1.6.2",
+    version: "1.6.3",
     author: "SelfDashboard",
     category: "utility",
     icon: "\u{1F324}\uFE0F",
@@ -1017,8 +1017,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
           containerType: "size",
           display: "flex",
           flexDirection: "column",
-          gap: "clamp(4px, 1.1cqmin, 8px)",
-          padding: "clamp(6px, 2cqmin, 12px)",
+          gap: splitView ? "clamp(2px, 0.8cqmin, 6px)" : "clamp(4px, 1.1cqmin, 8px)",
+          padding: splitView ? "clamp(5px, 1.5cqmin, 10px) clamp(6px, 2cqmin, 12px) clamp(4px, 1cqmin, 6px)" : "clamp(6px, 2cqmin, 12px)",
           boxSizing: "border-box",
           overflow: "auto",
           opacity: refreshing ? 0.72 : 1,
@@ -1082,11 +1082,12 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                       flexDirection: "column",
                       justifyContent: splitView ? "flex-start" : "center",
                       alignItems: "center",
-                      gap: "clamp(4px, 1.2cqmin, 8px)",
+                      gap: splitView ? "clamp(2px, 0.6cqmin, 5px)" : "clamp(4px, 1.2cqmin, 8px)",
                       alignSelf: splitView ? "stretch" : void 0,
                       ...splitView ? {
                         paddingRight: "clamp(6px, 1.5cqmin, 12px)",
-                        borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)"
+                        borderRight: "1px solid color-mix(in srgb, var(--border) 55%, transparent)",
+                        marginTop: "-2px"
                       } : {}
                     },
                     children: [
@@ -1122,11 +1123,21 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                             ] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
                               t.wind,
                               " \u2014"
-                            ] })
+                            ] }),
+                            splitView && showSunTimesRow && sunTimes ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+                              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "3px" }, children: [
+                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunrise, { "aria-hidden": true, style: { width: 12, height: 12, color: "#fbbf24", flexShrink: 0 } }),
+                                formatSunTime(sunTimes.sunrise, de)
+                              ] }),
+                              /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: "3px" }, children: [
+                                /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sunset, { "aria-hidden": true, style: { width: 12, height: 12, color: "#fb923c", flexShrink: 0 } }),
+                                formatSunTime(sunTimes.sunset, de)
+                              ] })
+                            ] }) : null
                           ]
                         }
                       ),
-                      showSunTimesRow && sunTimes && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+                      showSunTimesRow && sunTimes && !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
                         "div",
                         {
                           style: {
@@ -1219,7 +1230,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           ]
                         }
                       ),
-                      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+                      !splitView && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
                         "p",
                         {
                           style: {
@@ -1239,10 +1250,11 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                           style: {
                             display: "grid",
                             gridTemplateColumns: `repeat(${dayPeriods.length}, minmax(0, 1fr))`,
-                            gap: "clamp(2px, 0.8cqmin, 6px)",
+                            gap: splitView ? "clamp(1px, 0.5cqmin, 4px)" : "clamp(2px, 0.8cqmin, 6px)",
                             width: "100%",
                             maxWidth: "100%",
-                            margin: "2px 0 0"
+                            margin: splitView ? 0 : "2px 0 0",
+                            flexShrink: 0
                           },
                           children: dayPeriods.map((slot) => {
                             const SlotIcon = wmoIconComponent(slot.code, slot.isDay);
@@ -1256,8 +1268,8 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                                   display: "flex",
                                   flexDirection: "column",
                                   alignItems: "center",
-                                  gap: "2px",
-                                  padding: "4px 1px 3px",
+                                  gap: splitView ? "1px" : "2px",
+                                  padding: splitView ? "2px 0 1px" : "4px 1px 3px",
                                   borderRadius: "7px",
                                   background: "color-mix(in srgb, var(--surface) 88%, var(--background))",
                                   border: "1px solid color-mix(in srgb, var(--border) 65%, transparent)",
