@@ -1,9 +1,9 @@
 {
   "version": 1,
   "repository": "kabelsalatundklartext/selfdashboard",
-  "ref": "main",
+  "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-23T21:24:56.561Z",
+  "generatedAt": "2026-05-24T13:38:40.546Z",
   "plugins": [
     {
       "id": "adguard",
@@ -69,6 +69,29 @@
       "category": "security",
       "icon": "🛡️",
       "iconUrl": "/plugin-logos/crowdsec.png",
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "widget.css"
+      ],
+      "hasServer": true
+    },
+    {
+      "id": "crowdsec-v2",
+      "name": "CrowdSec V2",
+      "description": "CrowdSec-Dashboard mit Sidebar, Weltkarte, Alert/Bann-Liste inkl. Angriffsart, Länderübersicht und IP-Lookup. API: /api/plugins/crowdsec-v2.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "security",
+      "icon": "🛡️",
+      "iconUrl": "/plugin-logos/crowdsec.png",
+      "defaultLayout": {
+        "w": 6,
+        "h": 7,
+        "minW": 5,
+        "minH": 5
+      },
+      "stackedExtraH": 2,
       "files": [
         "plugin.json",
         "widget.js",

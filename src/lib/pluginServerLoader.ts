@@ -14,6 +14,8 @@ import { calendarServerHandler } from '@/lib/pluginServers/calendar'
 
 import { crowdsecServerHandler } from '@/lib/pluginServers/crowdsec'
 
+import { crowdsecV2ServerHandler } from '@/lib/pluginServers/crowdsec-v2'
+
 import { dockerServerHandler } from '@/lib/pluginServers/docker'
 
 import { fritzEnergyServerHandler } from '@/lib/pluginServers/fritz-energy'
@@ -51,6 +53,8 @@ export function loadBuiltinPluginServers(): void {
   registerPluginServerHandler('calendar', calendarServerHandler)
 
   registerPluginServerHandler('crowdsec', crowdsecServerHandler)
+
+  registerPluginServerHandler('crowdsec-v2', crowdsecV2ServerHandler)
 
   registerPluginServerHandler('docker', dockerServerHandler)
 
