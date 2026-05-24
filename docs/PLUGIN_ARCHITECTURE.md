@@ -2,7 +2,8 @@
 
 SelfDashboard trennt **App-Kern** (Next.js, Auth, Dashboard), **Builtin-Server** (im Docker-Image) und **Volume-Plugins** (Store unter `/app/plugins/custom/`).
 
-Ausführlich zum Entwickeln von Widgets: **[PLUGIN_DEV.md](./PLUGIN_DEV.md)**.
+Ausführlich zum Entwickeln von Widgets: **[PLUGIN_DEV.md](./PLUGIN_DEV.md)**.  
+Performance & Ladeoptimierung: **[PLUGIN_PERFORMANCE.md](./PLUGIN_PERFORMANCE.md)**.
 
 ---
 

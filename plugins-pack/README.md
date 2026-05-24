@@ -34,3 +34,5 @@ Build: `npm run build:plugin-pack -- calendar` (liest `plugins-pack/<id>/index.t
 ## API-Änderungen
 
 Server-Code: `src/builtin-plugins/<id>/` → neues **Docker-Image**, nicht nur Store-Update.
+
+**Performance-Tipps für Autoren:** [docs/PLUGIN_PERFORMANCE.md](../docs/PLUGIN_PERFORMANCE.md)

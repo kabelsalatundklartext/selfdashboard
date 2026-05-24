@@ -3,7 +3,8 @@
 Diese Anleitung erklärt, **wie Plugins für SelfDashboard aufgebaut sind**, was du selbst schreiben musst und wie du sie **im Store** oder per **ZIP** verteilst.
 
 Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.  
-**Plugin-Architektur:** **[PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)**.
+**Plugin-Architektur:** **[PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)**.  
+**Lade-Performance:** **[PLUGIN_PERFORMANCE.md](./PLUGIN_PERFORMANCE.md)**.
 
 ---
 
