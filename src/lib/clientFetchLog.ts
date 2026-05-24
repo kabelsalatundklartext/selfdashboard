@@ -27,8 +27,7 @@ export function pluginIdFromApiUrl(url: string): string | undefined {
     if (u.pathname.startsWith('/api/dashboard-state')) return undefined
     const seg = u.pathname.slice('/api/'.length).split('/').filter(Boolean)
     if (!seg.length) return undefined
-    if (seg[0] === 'calendar') return 'calendar'
-    if (seg[0] === 'docker-container-stats' || seg[0] === 'docker-containers') return 'docker'
+    if (seg[0] === 'plugins' && seg[1]) return seg[1]
     return seg[0]
   } catch {
     return undefined

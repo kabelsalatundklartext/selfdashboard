@@ -101,7 +101,7 @@ flowchart TB
 - **Two-factor auth (TOTP)** — **Settings → Users** — Authenticator apps supported at login.
 - **Multi-user settings** — password change, 2FA, and kiosk config moved to **Settings → Users** (admin: user management + plugin whitelist).
 - **Design backgrounds** — **Settings → Design**: **navbar** wallpaper (JPG/PNG/WebP + overlay) and **dashboard** background (**off / 1 image / 2 images** left+right), saved globally in `dashboard.json`.
-- **Weather API proxy** — **`GET /api/plugins/weather/resolve`** (legacy: `/api/weather`); Open-Meteo via container HTTPS.
+- **Weather API proxy** — **`GET /api/plugins/weather/resolve`**; Open-Meteo via container HTTPS.
 - **Settings modal** — fixed width, taller viewport; **Logs** tab scrolls inside the list.
 
 ### Plugins (volume / store — no image rebuild)
@@ -121,7 +121,7 @@ Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 |--------|----------|
 | Install & update plugins | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Write & publish plugins | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
-| Plugin architecture (beta) | [docs/PLUGIN_ARCH_BETA.md](docs/PLUGIN_ARCH_BETA.md) |
+| Plugin architecture | [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) |
 | Builtin servers in git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
 | Docker image build | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
@@ -397,8 +397,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | Mail test OK, navbar empty | Enable **Navbar email** (General or Email tab); save account; badge needs unread &gt; 0 |
 | Mail badge shows mail that is gone in MailPlus | IMAP may still list deleted/read messages until the server cleans up. Use **Show unread** in email settings to see subjects. After update, SelfDashboard ignores `\Deleted` and `\Seen` ghosts. In MailPlus: empty trash / expunge if needed, then **Refresh all accounts**. |
 | MailPlus shows 1 unread, preview listed 2 (old FRITZ mail) | Synology IMAP can keep ancient `UNSEEN` UIDs. Use **Settings → Email → Unread age filter** (default 30 days; `0` = off). Preview shows how many were ignored as too old or duplicate `Message-ID`. |
-| Weather: **HTTP 404** on `/api/weather` | **New app image** required — route is in the core app, not a volume plugin |
-| Weather: no data / API error | Container must reach `api.open-meteo.com` and `geocoding-api.open-meteo.com` (HTTPS outbound). Test: `http://HOST:PORT/api/weather?action=geocode&name=Berlin&language=de` → JSON |
+| Weather: **HTTP 404** on plugin API | **New app image** required — route is in the core app (`/api/plugins/weather/…`), not a volume-only plugin |
+| Weather: no data / API error | Container must reach `api.open-meteo.com` and `geocoding-api.open-meteo.com` (HTTPS outbound). Test: `http://HOST:PORT/api/plugins/weather/resolve?name=Berlin&language=de` → JSON |
 | Weather plugin old UI (hourly strip only) | Plugin Store → **Weather** → **Update** → **Ctrl+F5** (target **1.3.x**) |
 | Unraid: **`Failed to fetch`** | Browser calls Unraid **directly** (`https://NAS/graphql`). Not a 7.3-only issue — check **API key**, URL, HTTPS cert, and **CORS / allowed origins** for your dashboard URL (e.g. `http://192.168.x.x:3010`) on **each** NAS |
 | Unraid works on one NAS, not another | Compare API enabled, key permissions, and CORS on the failing box (**7.2.3** and **7.3** both supported if GraphQL API is active) |
@@ -510,7 +510,7 @@ flowchart TB
 - **Zwei-Faktor-Auth (TOTP)** — **Einstellungen → Benutzer** — Authenticator-Apps beim Login.
 - **Einstellungen Benutzer-Tab** — Passwort, 2FA, Kiosk; Admin: Benutzerverwaltung & Plugin-Freigaben.
 - **Hintergrundbilder im Design** — **Einstellungen → Design**: **Navbar**-Wallpaper (JPG/PNG/WebP + Overlay) und **Dashboard**-Hintergrund (**Aus / 1 Bild / 2 Bilder** links+rechts), global in `dashboard.json`.
-- **Wetter-API-Proxy** — **`GET /api/plugins/weather/resolve`** (Legacy: `/api/weather`); Open-Meteo über HTTPS im Container.
+- **Wetter-API-Proxy** — **`GET /api/plugins/weather/resolve`**; Open-Meteo über HTTPS im Container.
 - **Einstellungs-Dialog** — feste Breite, höheres Fenster; Tab **Protokoll** scrollt in der Liste.
 
 ### Plugins (Volume / Store — kein Image-Rebuild)
@@ -530,7 +530,7 @@ API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 |--------|--------|
 | Installation & Plugin-Updates | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Plugins entwickeln & veröffentlichen | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
-| Plugin-Architektur (Beta) | [docs/PLUGIN_ARCH_BETA.md](docs/PLUGIN_ARCH_BETA.md) |
+| Plugin-Architektur | [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) |
 | Builtin-Server im Git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
 | Docker-Image bauen | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
@@ -808,8 +808,8 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | Test OK, Navbar leer | **Navbar E-Mail** einschalten; Konto speichern; Badge nur bei Ungelesen &gt; 0 |
 | Badge zeigt Mail, die in MailPlus weg ist | IMAP kann gelöschte/gelesene Mails noch listen. **Ungelesen anzeigen** in den E-Mail-Einstellungen prüfen. Neuere Version ignoriert `\Deleted`/`\Seen`-Geister. In MailPlus Papierkorb leeren/leeren, dann **Alle Konten aktualisieren**. |
 | MailPlus 1 ungelesen, Vorschau zeigte 2 (alte FRITZ-Mail) | Synology-IMAP behält oft alte `UNSEEN`-UIDs. **Einstellungen → E-Mail → Altersfilter ungelesen** (Standard 30 Tage, **0** = aus). Vorschau zeigt ignorierte Alt-/Duplikat-Mails. |
-| Wetter: **HTTP 404** auf `/api/weather` | **Neues App-Image** nötig — Route steckt in der Kern-App, nicht im Volume-Plugin |
-| Wetter: keine Daten / API-Fehler | Container muss `api.open-meteo.com` und `geocoding-api.open-meteo.com` erreichen (HTTPS raus). Test: `http://HOST:PORT/api/weather?action=geocode&name=Berlin&language=de` → JSON |
+| Wetter: **HTTP 404** auf Plugin-API | **Neues App-Image** nötig — Route in der Kern-App (`/api/plugins/weather/…`), nicht nur Volume-Plugin |
+| Wetter: keine Daten / API-Fehler | Container muss `api.open-meteo.com` und `geocoding-api.open-meteo.com` erreichen (HTTPS raus). Test: `http://HOST:PORT/api/plugins/weather/resolve?name=Berlin&language=de` → JSON |
 | Wetter-Plugin alte UI (nur Stunden-Leiste) | Plugin-Store → **Wetter** → **Aktualisieren** → **Strg+F5** (Ziel **1.3.x**) |
 | Unraid: **`Failed to fetch`** | Browser ruft Unraid **direkt** auf (`https://NAS/graphql`). Kein „nur 7.3“-Problem — **API-Key**, URL, HTTPS-Zertifikat und **CORS / erlaubte Origins** für die Dashboard-URL (z. B. `http://192.168.x.x:3010`) **pro NAS** prüfen |
 | Unraid auf einem NAS ok, auf anderem nicht | API aktiv?, Key-Rechte?, CORS auf dem betroffenen Server vergleichen (**7.2.3** und **7.3** möglich, wenn GraphQL-API läuft) |

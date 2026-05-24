@@ -45,19 +45,6 @@ const CLIENT_ONLY_PLUGIN_IDS = [
   'scratchpad',
 ] as const
 
-const LEGACY_API_PLUGIN: Array<{ prefix: string; pluginId: string }> = [
-  { prefix: '/api/adguard', pluginId: 'adguard' },
-  { prefix: '/api/docker-containers', pluginId: 'docker' },
-  { prefix: '/api/crowdsec', pluginId: 'crowdsec' },
-  { prefix: '/api/fritzbox', pluginId: 'fritzbox' },
-  { prefix: '/api/fritz-energy', pluginId: 'fritz-energy' },
-  { prefix: '/api/pihole', pluginId: 'pihole' },
-  { prefix: '/api/selfstream', pluginId: 'selfstream' },
-  { prefix: '/api/weather', pluginId: 'weather' },
-  { prefix: '/api/calendar', pluginId: 'calendar' },
-  { prefix: '/api/mail', pluginId: 'mail' },
-]
-
 function migratePluginGrantsTable() {
   getAuthDb().exec(`
     CREATE TABLE IF NOT EXISTS user_allowed_plugins (
@@ -155,9 +142,6 @@ export function resolvePluginIdFromApiPath(pathname: string): string | null {
     return segment
   }
 
-  for (const { prefix, pluginId } of LEGACY_API_PLUGIN) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return pluginId
-  }
   return null
 }
 

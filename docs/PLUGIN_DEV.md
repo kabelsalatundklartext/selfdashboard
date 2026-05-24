@@ -3,7 +3,7 @@
 Diese Anleitung erklärt, **wie Plugins für SelfDashboard aufgebaut sind**, was du selbst schreiben musst und wie du sie **im Store** oder per **ZIP** verteilst.
 
 Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.  
-**Beta-Architektur** (alles Plugin-relevante im Plugin-Ordner): **[PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md)**.
+**Plugin-Architektur:** **[PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)**.
 
 ---
 
@@ -58,7 +58,7 @@ Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):
 
 | Datei | Beschreibung |
 |--------|----------------|
-| `server.ts` | Server-Handler für `/api/plugins/<id>/…` — landet im **Image** (`src/builtin-plugins/`), siehe [PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md) |
+| `server.ts` | Server-Handler für `/api/plugins/<id>/…` — landet im **Image** (`src/builtin-plugins/`), siehe [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md) |
 | `lib/` | Nur Plugin-Server-Logik (kein `import` aus `next/server` / `server-only` / `@/lib/pluginLogServer`) |
 
 **Kein `server.mjs` im Plugin-Pack:** Volume-Plugins sind nur UI. API-Updates brauchen ein **neues Docker-Image** (`npm run vendor-plugins` + Commit `src/builtin-plugins/`).
@@ -193,15 +193,15 @@ async function load() {
 | `pluginApiJson('adguard', '/')` | `POST/GET /api/plugins/adguard/…` |
 | `pluginApiJson('mail', '/settings')` | `/api/plugins/mail/settings` |
 
-Legacy-Routen (`/api/pihole`, `/api/calendar/…`, …) sind **Shims** zum gleichen Handler — neu nur `/api/plugins/<id>/…`.
+Legacy-Routen (`/api/pihole`, `/api/calendar/…`, …) wurden entfernt — nur noch `/api/plugins/<id>/…`.
 
-### Eigene Server-API (Beta)
+### Eigene Server-API
 
-1. Logik in **`plugins/<id>/server.ts`** (+ optional `plugins/<id>/lib/`).
-2. Re-Export in **`src/lib/pluginServers/<id>.ts`** und Registrierung in **`pluginServerLoader.ts`** (Builtin-Plugins im Image).
+1. Logik in **`src/builtin-plugins/<id>/server.ts`** (+ optional `lib/`).
+2. Re-Export in **`src/lib/pluginServers/<id>.ts`** und Registrierung in **`pluginServerLoader.ts`**.
 3. Widget: **`pluginApiJson('<id>', '/pfad')`**.
 
-Details, Legacy-Tabelle und Deploy: **[PLUGIN_ARCH_BETA.md](./PLUGIN_ARCH_BETA.md)**.
+Details und Deploy: **[PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md)**.
 
 ---
 

@@ -6,6 +6,12 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ## 🇬🇧 English
 
+### Core app (2026-05) — post-beta
+
+| Topic | Change |
+|--------|--------|
+| **Legacy API removed** | Old paths (`/api/weather`, `/api/calendar/*`, `/api/mail/*`, …) removed. Use **`/api/plugins/<id>/…`** only. Requires **new app image**. |
+
 ### Core app (2026-05)
 
 | Topic | Change |
@@ -14,7 +20,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **TOTP 2FA** | Authenticator apps — **Settings → Users**; enforced at login when enabled. |
 | **Multi-user UI** | Password change, 2FA, and kiosk moved to **Settings → Users**. |
 | **Design backgrounds** | **Settings → Design**: navbar wallpaper; dashboard background **off / single / dual** (JPG/PNG/WebP, overlay %). Persisted in `dashboard.json`. |
-| **`/api/weather`** | Server proxy for Open-Meteo geocode + forecast (hourly + daily). Required for current Weather plugin. |
+| **`/api/plugins/weather/*`** | Server proxy for Open-Meteo geocode + forecast (hourly + daily). Required for current Weather plugin. |
 | **Settings modal** | Fixed width `720px`; log list scrolls internally. |
 
 ### Weather plugin **1.3.x**
@@ -37,6 +43,12 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 
 ## 🇩🇪 Deutsch
 
+### Kern-App (2026-05) — nach Beta
+
+| Thema | Änderung |
+|--------|----------|
+| **Legacy-API entfernt** | Alte Pfade (`/api/weather`, `/api/calendar/*`, `/api/mail/*`, …) entfernt. Nur noch **`/api/plugins/<id>/…`**. **Neues App-Image** nötig. |
+
 ### Kern-App (2026-05)
 
 | Thema | Änderung |
@@ -45,7 +57,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **TOTP 2FA** | Authenticator-Apps — **Einstellungen → Benutzer**; beim Login wenn aktiv. |
 | **Mehrbenutzer-UI** | Passwort, 2FA, Kiosk unter **Einstellungen → Benutzer**. |
 | **Hintergrundbilder** | **Einstellungen → Design**: Navbar + Dashboard (**Aus / 1 / 2 Bilder**, Overlay). In `dashboard.json`. |
-| **`/api/weather`** | Server-Proxy für Open-Meteo (Geocoding + Forecast). |
+| **`/api/plugins/weather/*`** | Server-Proxy für Open-Meteo (Geocoding + Forecast). |
 | **Einstellungs-Dialog** | Feste Breite; Protokoll-Liste scrollt intern. |
 
 ### Wetter-Plugin **1.3.x**
