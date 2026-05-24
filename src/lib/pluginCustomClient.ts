@@ -20,6 +20,9 @@ type BootstrapVolumePluginsOptions = {
   pluginIds?: string[]
 }
 
+/** Loaded even when not on the dashboard (navbar slots, global UI). */
+const ALWAYS_BOOTSTRAP_PLUGIN_IDS = ['mail'] as const
+
 export async function fetchPluginVolumeInfo(): Promise<PluginVolumeClientInfo> {
   const res = await kioskAwareFetch('/api/plugins/volume', { cache: 'no-store' })
   if (!res.ok) throw new Error('volume_info_failed')
@@ -105,7 +108,11 @@ export async function bootstrapVolumePlugins(options?: BootstrapVolumePluginsOpt
   installPluginExternalBridge()
   try {
     const info = await fetchPluginVolumeInfo()
-    const requested = new Set((options?.pluginIds ?? []).map((id) => String(id).trim()).filter(Boolean))
+    const requested = new Set(
+      [...ALWAYS_BOOTSTRAP_PLUGIN_IDS, ...(options?.pluginIds ?? [])]
+        .map((id) => String(id).trim())
+        .filter(Boolean),
+    )
     const customWidgets =
       requested.size > 0
         ? info.customWidgetIds.filter((id) => requested.has(id))
