@@ -305,7 +305,14 @@ async function main() {
   fs.rmSync(outDir, { recursive: true, force: true })
   fs.mkdirSync(path.join(root, 'plugin-pack'), { recursive: true })
 
-  const ids = listPluginIds()
+  const only = process.argv.slice(2).map((a) => a.trim()).filter(Boolean)
+  const ids = only.length
+    ? only.filter((id) => readMeta(id))
+    : listPluginIds()
+  if (only.length && ids.length === 0) {
+    console.error(`No plugins matched: ${only.join(', ')}`)
+    process.exit(1)
+  }
   const built = []
   const failed = []
 
