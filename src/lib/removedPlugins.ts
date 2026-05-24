@@ -1,7 +1,7 @@
 import type { Dashboard } from '@/types'
 
-/** Built-in plugins that were removed — strip from persisted dashboards. */
-export const REMOVED_PLUGIN_IDS = new Set(['crowdsec-threat-map'])
+/** Built-in / retired plugins — strip from persisted dashboards on load and save. */
+export const REMOVED_PLUGIN_IDS = new Set(['crowdsec-threat-map', 'crowdsec-v2'])
 
 export function stripRemovedPlugins(dashboards: Dashboard[]): Dashboard[] {
   return dashboards.map((d) => ({

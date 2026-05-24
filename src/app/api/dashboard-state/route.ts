@@ -8,6 +8,7 @@ import {
   validateDashboardStatePersisted,
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
+import { stripRemovedPlugins } from '@/lib/removedPlugins'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'invalid file contents' }, { status: 500 })
     }
     const filtered = filterDashboardStatePlugins(parsed, auth.userId, auth.role)
-    return NextResponse.json(filtered)
+    return NextResponse.json({
+      ...filtered,
+      dashboards: stripRemovedPlugins(filtered.dashboards),
+    })
   } catch (e: unknown) {
     const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: unknown }).code) : ''
     if (code === 'ENOENT') return NextResponse.json({ error: 'not found' }, { status: 404 })
@@ -59,16 +63,20 @@ export async function PUT(req: Request) {
     auth.userId,
     auth.role,
   )
+  const cleaned: DashboardStatePersisted = {
+    ...safe,
+    dashboards: stripRemovedPlugins(safe.dashboards),
+  }
   const file = userDashboardPath(auth.userId)
   const tmp = `${file}.tmp`
   try {
     await mkdir(dirname(file), { recursive: true })
-    await writeFile(tmp, JSON.stringify(safe), 'utf8')
+    await writeFile(tmp, JSON.stringify(cleaned), 'utf8')
     await rename(tmp, file)
   } catch {
     try {
       await mkdir(dirname(file), { recursive: true })
-      await writeFile(file, JSON.stringify(safe), 'utf8')
+      await writeFile(file, JSON.stringify(cleaned), 'utf8')
     } catch {
       return NextResponse.json({ error: 'write failed' }, { status: 500 })
     }
