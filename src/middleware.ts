@@ -24,11 +24,11 @@ export const runtime = 'nodejs'
 function nextWithKioskHeaders(request: NextRequest, kioskAccess: { ownerUserId: string }) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-sd-user-id', kioskAccess.ownerUserId)
-  requestHeaders.set('x-sd-role', 'admin')
+  requestHeaders.set('x-sd-role', 'user')
   requestHeaders.set('x-sd-kiosk', '1')
   const res = NextResponse.next({ request: { headers: requestHeaders } })
   res.headers.set('x-sd-user-id', kioskAccess.ownerUserId)
-  res.headers.set('x-sd-role', 'admin')
+  res.headers.set('x-sd-role', 'user')
   res.headers.set('x-sd-kiosk', '1')
   return res
 }

@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useSyncExternalStore, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { Settings, Plus, Sun, Moon, Pencil, Check, ZoomIn, ZoomOut } from 'lucide-react'
 import { useDashboardStore } from '@/lib/store'
-import { SettingsModal } from '@/components/ui/SettingsModal'
-import { PluginStoreModal } from '@/components/ui/PluginStoreModal'
 import { NavbarSearch } from '@/components/layout/NavbarSearch'
 import { getNavbarSlots, getNavbarSlotsVersion, subscribeNavbarSlots } from '@/lib/pluginNavbarRegistry'
 import { useNavbarCompact } from '@/components/layout/useNavbarCompact'
 import { t } from '@/lib/i18n'
+import { fetchRemoteCatalog, invalidateRemoteCatalogCache } from '@/lib/pluginRemoteCatalogClient'
 import { AuthUserMenu, useAuthRole, useCanOpenPluginStore } from '@/components/layout/AuthUserMenu'
 import { anySearchProviderEnabled } from '@/lib/searchProviders'
 
@@ -36,6 +36,15 @@ function DashboardIcon({ icon, size = 18 }: { icon: string; size?: number }) {
   return <span style={{ fontSize: size * 0.8, flexShrink: 0 }}>{icon || '📋'}</span>
 }
 
+const SettingsModal = dynamic(
+  () => import('@/components/ui/SettingsModal').then((m) => m.SettingsModal),
+  { ssr: false },
+)
+const PluginStoreModal = dynamic(
+  () => import('@/components/ui/PluginStoreModal').then((m) => m.PluginStoreModal),
+  { ssr: false },
+)
+
 export function Navbar() {
   const router = useRouter()
   const {
@@ -56,18 +65,20 @@ export function Navbar() {
 
   useEffect(() => {
     if (authRole !== 'admin') return
-    const refreshUpdates = async () => {
+    const refreshUpdates = async (force = false) => {
       try {
-        const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-        const j = (await res.json()) as { updatesCount?: number }
-        setPluginUpdatesPending(typeof j.updatesCount === 'number' ? j.updatesCount : 0)
+        const j = await fetchRemoteCatalog(force ? { force: true } : undefined)
+        setPluginUpdatesPending(j.updatesCount)
       } catch {
         setPluginUpdatesPending(0)
       }
     }
     const onOpenStore = () => setStoreOpen(true)
     void refreshUpdates()
-    const onCatalog = () => void refreshUpdates()
+    const onCatalog = () => {
+      invalidateRemoteCatalogCache()
+      void refreshUpdates(true)
+    }
     window.addEventListener('sd-plugin-catalog-changed', onCatalog)
     window.addEventListener('sd-open-plugin-store', onOpenStore)
     return () => {

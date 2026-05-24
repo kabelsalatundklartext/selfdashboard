@@ -627,6 +627,9 @@ async function handleConflictResolvePost(
 
 export async function calendarServerHandler(ctx: PluginServerContext): Promise<Response> {
   const viewer = resolveCalendarViewer(ctx.request)
+  if (!viewer) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
   const method = ctx.request.method.toUpperCase()
   const path = ctx.path
   const [a, b, c] = path

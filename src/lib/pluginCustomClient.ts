@@ -15,6 +15,11 @@ export type PluginVolumeClientInfo = {
   hint?: string
 }
 
+type BootstrapVolumePluginsOptions = {
+  /** Only load widget assets for these plugin IDs (faster first paint). */
+  pluginIds?: string[]
+}
+
 export async function fetchPluginVolumeInfo(): Promise<PluginVolumeClientInfo> {
   const res = await kioskAwareFetch('/api/plugins/volume', { cache: 'no-store' })
   if (!res.ok) throw new Error('volume_info_failed')
@@ -95,12 +100,16 @@ export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void
 }
 
 /** Fetch volume info and load all custom widget.js (sets global load phase for UI). */
-export async function bootstrapVolumePlugins(): Promise<void> {
+export async function bootstrapVolumePlugins(options?: BootstrapVolumePluginsOptions): Promise<void> {
   setPluginVolumeLoadPhase('loading')
   installPluginExternalBridge()
   try {
     const info = await fetchPluginVolumeInfo()
-    const customWidgets = info.customWidgetIds
+    const requested = new Set((options?.pluginIds ?? []).map((id) => String(id).trim()).filter(Boolean))
+    const customWidgets =
+      requested.size > 0
+        ? info.customWidgetIds.filter((id) => requested.has(id))
+        : info.customWidgetIds
     if (info.missingWidgetJs?.length) {
       console.warn(
         '[SelfDashboard] plugin.json ohne widget.js — nur Metadaten auf dem Volume:',

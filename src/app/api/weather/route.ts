@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { weatherServerHandler } from '@/lib/pluginServers/weather'
+import { dispatchLegacyPlugin } from '@/lib/auth/legacyPluginRoute'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,5 +11,5 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   const action = req.nextUrl.searchParams.get('action')?.trim()
   const path = action ? [action] : []
-  return weatherServerHandler({ pluginId: 'weather', path, request: req })
+  return dispatchLegacyPlugin(req, 'weather', path, weatherServerHandler)
 }

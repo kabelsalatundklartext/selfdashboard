@@ -21,6 +21,7 @@ import type {
 } from './types'
 import { decrypt } from './crypto'
 import type { DiscoveredCalendar } from './caldav'
+import { assertSafeOutboundUrl, fetchWithSsrfGuard, UnsafeOutboundUrlError } from '@/lib/security/ssrf'
 
 function normaliseUrl(url: string): string {
   if (url.startsWith('webcal://')) return 'https://' + url.slice('webcal://'.length)
@@ -28,9 +29,15 @@ function normaliseUrl(url: string): string {
   return url
 }
 
+function guardIcsUrl(url: string): string {
+  const normalized = normaliseUrl(url)
+  assertSafeOutboundUrl(normalized)
+  return normalized
+}
+
 export async function discoverIcsCalendars(account: Account): Promise<DiscoveredCalendar[]> {
   const cfg = account.config as ICSConfig
-  const url = normaliseUrl(cfg.url)
+  const url = guardIcsUrl(cfg.url)
   return [{
     remoteId: url,
     name: account.name,
@@ -44,7 +51,7 @@ export async function syncIcsCalendar(
   store: CalendarStore,
 ): Promise<{ added: number; updated: number; deleted: number; conflicts: number; errors: string[] }> {
   const cfg = account.config as ICSConfig
-  const url = normaliseUrl(cfg.url)
+  const url = guardIcsUrl(cfg.url)
 
   const headers: Record<string, string> = { 'User-Agent': 'SelfDashboard-Calendar/1.0' }
   if (calendar.etagGlobal) headers['If-None-Match'] = calendar.etagGlobal
@@ -55,8 +62,11 @@ export async function syncIcsCalendar(
 
   let resp: Response
   try {
-    resp = await fetch(url, { headers, redirect: 'follow' })
+    resp = await fetchWithSsrfGuard(url, { headers })
   } catch (e: any) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`blocked_url: ${e.message}`] }
+    }
     return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`fetch: ${e?.message ?? e}`] }
   }
 
@@ -179,15 +189,15 @@ function buildSingleVeventBlob(feed: string, uid: string): string {
 export async function testIcs(account: Account): Promise<{ ok: boolean; calendars?: DiscoveredCalendar[]; error?: string }> {
   try {
     const cfg = account.config as ICSConfig
-    const url = normaliseUrl(cfg.url)
-    const resp = await fetch(url, { method: 'HEAD', redirect: 'follow' })
+    const url = guardIcsUrl(cfg.url)
+    const resp = await fetchWithSsrfGuard(url, { method: 'HEAD' })
     if (!resp.ok && resp.status !== 405) {
-      // some servers don't support HEAD — try a real GET
-      const get = await fetch(url, { redirect: 'follow' })
+      const get = await fetchWithSsrfGuard(url)
       if (!get.ok) return { ok: false, error: `HTTP ${get.status}` }
     }
     return { ok: true, calendars: await discoverIcsCalendars(account) }
   } catch (e: any) {
+    if (e instanceof UnsafeOutboundUrlError) return { ok: false, error: e.message }
     return { ok: false, error: e?.message ?? String(e) }
   }
 }

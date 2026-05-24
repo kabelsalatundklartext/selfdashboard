@@ -13,6 +13,10 @@ const TOTP_VERIFY_LIMIT = 20
 const TOTP_VERIFY_WINDOW_MS = 15 * 60 * 1000
 const TOTP_ENABLE_LIMIT = 10
 const TOTP_ENABLE_WINDOW_MS = 15 * 60 * 1000
+const KIOSK_UNLOCK_LIMIT = 10
+const KIOSK_UNLOCK_WINDOW_MS = 15 * 60 * 1000
+const SETUP_LIMIT = 5
+const SETUP_WINDOW_MS = 60 * 60 * 1000
 
 function cleanup(now: number): void {
   if (now - lastCleanup < 60_000) return
@@ -73,6 +77,14 @@ export function rateLimitTotpEnable(req: Request, userId: string): RateLimitResu
     TOTP_ENABLE_LIMIT,
     TOTP_ENABLE_WINDOW_MS,
   )
+}
+
+export function rateLimitKioskUnlock(req: Request): RateLimitResult {
+  return checkRateLimit(`kiosk-unlock:${getClientIp(req)}`, KIOSK_UNLOCK_LIMIT, KIOSK_UNLOCK_WINDOW_MS)
+}
+
+export function rateLimitSetup(req: Request): RateLimitResult {
+  return checkRateLimit(`auth-setup:${getClientIp(req)}`, SETUP_LIMIT, SETUP_WINDOW_MS)
 }
 
 export function rateLimitResponse(retryAfterSec: number): NextResponse {

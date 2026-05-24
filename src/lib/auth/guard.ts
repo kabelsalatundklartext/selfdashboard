@@ -86,7 +86,7 @@ export function kioskSessionFromAccess(access: KioskAccess): SessionInfo {
     id: 'kiosk-viewer',
     userId: access.ownerUserId,
     username: 'kiosk',
-    role: 'admin',
+    role: 'user',
     expiresAt: new Date(Date.now() + 86400000).toISOString(),
     mfaVerified: true,
   }

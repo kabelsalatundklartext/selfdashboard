@@ -5,10 +5,14 @@ import {
   verifyKioskPassword,
 } from '@/lib/kiosk/config'
 import { issueKioskToken, applyKioskCookie } from '@/lib/kiosk/session'
+import { rateLimitKioskUnlock, rateLimitResponse } from '@/lib/auth/rateLimit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
+  const rl = rateLimitKioskUnlock(req)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
+
   const { config, pluginIds } = await loadKioskDashboardBundle()
   if (!config.enabled) {
     return NextResponse.json({ error: 'kiosk_disabled' }, { status: 503 })

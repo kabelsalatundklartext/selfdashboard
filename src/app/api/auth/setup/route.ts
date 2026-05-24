@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { applySessionCookie } from '@/lib/auth/sessionResponse'
+import { rateLimitResponse, rateLimitSetup } from '@/lib/auth/rateLimit'
 import { setupAdmin } from '@/lib/auth/service'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -9,6 +10,10 @@ export async function POST(req: Request) {
   if (!needsSetup()) {
     return NextResponse.json({ error: 'already_setup' }, { status: 409 })
   }
+
+  const rl = rateLimitSetup(req)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
+
   let body: { username?: string; password?: string }
   try {
     body = (await req.json()) as { username?: string; password?: string }

@@ -6,6 +6,7 @@ import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { loadVolumeWidgetScripts } from '@/lib/pluginCustomClient'
+import { fetchRemoteCatalog, invalidateRemoteCatalogCache } from '@/lib/pluginRemoteCatalogClient'
 
 type UpdateRow = {
   id: string
@@ -24,21 +25,11 @@ export function PluginUpdateBanner() {
   const [dismissed, setDismissed] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     try {
-      const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-      const j = (await res.json()) as {
-        configured?: boolean
-        available?: Array<{
-          id: string
-          name?: string
-          version?: string
-          updateAvailable?: boolean
-          installedVersion?: string | null
-        }>
-      }
-      setConfigured(!!j.configured)
-      const list = (j.available ?? [])
+      const j = await fetchRemoteCatalog(force ? { force: true } : undefined)
+      setConfigured(j.configured)
+      const list = j.available
         .filter((p) => p.updateAvailable)
         .map((p) => ({
           id: p.id,
@@ -61,7 +52,10 @@ export function PluginUpdateBanner() {
     } catch { /* ignore */ }
     void refresh()
     const id = window.setInterval(() => void refresh(), 10 * 60 * 1000)
-    const onCatalog = () => void refresh()
+    const onCatalog = () => {
+      invalidateRemoteCatalogCache()
+      void refresh(true)
+    }
     window.addEventListener('sd-plugin-catalog-changed', onCatalog)
     return () => {
       window.clearInterval(id)

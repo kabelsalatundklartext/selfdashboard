@@ -3,6 +3,8 @@
  * collection URL; tsdav needs a stable server root for discovery.
  */
 
+import { assertSafeOutboundUrl } from '@/lib/security/ssrf'
+
 export function caldavObjectFilename(uid: string): string {
   // UIDs contain '@' (e.g. uuid@selfdashboard). Using that as a relative URL
   // segment breaks `new URL(filename, calendarUrl)` (parsed as userinfo).
@@ -26,6 +28,7 @@ export function normalizeCaldavServerUrl(input: string): string {
       parts.pop()
     }
     u.pathname = `${parts.length ? `/${parts.join('/')}` : ''}/`
+    assertSafeOutboundUrl(u.href)
     return u.href
   } catch {
     return trimmed.endsWith('/') ? trimmed : `${trimmed}/`

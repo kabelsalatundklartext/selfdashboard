@@ -7,7 +7,7 @@ export type CalendarViewer = {
 }
 
 /** Resolve the authenticated user for calendar API handlers. */
-export function resolveCalendarViewer(req: Request): CalendarViewer {
+export function resolveCalendarViewer(req: Request): CalendarViewer | null {
   const session = getSessionFromRequest(req)
   if (session) {
     return { userId: session.userId, role: session.role }
@@ -15,7 +15,7 @@ export function resolveCalendarViewer(req: Request): CalendarViewer {
   const hdr = req.headers.get('x-sd-user-id')?.trim()
   if (hdr) {
     const role = (req.headers.get('x-sd-role')?.trim() ?? 'user') as UserRole
-    return { userId: hdr, role }
+    return { userId: hdr, role: role === 'admin' ? 'admin' : 'user' }
   }
-  return { userId: '__local__', role: 'admin' }
+  return null
 }

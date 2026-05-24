@@ -1,8 +1,9 @@
 import { calendarServerHandler } from '@/lib/pluginServers/calendar'
+import { dispatchLegacyPlugin } from '@/lib/auth/legacyPluginRoute'
 
 export const dynamic = 'force-dynamic'
 
 /** @deprecated Use `/api/plugins/calendar/status` */
 export async function GET(req: Request) {
-  return calendarServerHandler({ pluginId: 'calendar', path: ['status'], request: req })
+  return dispatchLegacyPlugin(req, 'calendar', ['status'], calendarServerHandler)
 }

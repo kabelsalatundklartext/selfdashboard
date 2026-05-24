@@ -18,6 +18,7 @@ import { createUser, getUserByUsername, needsSetup } from '@/lib/auth/users'
 export { needsSetup } from '@/lib/auth/users'
 
 export function isAuthDisabled(): boolean {
+  if (process.env.NODE_ENV === 'production') return false
   const v = process.env.SELFDASHBOARD_AUTH_DISABLED?.trim().toLowerCase()
   return v === '1' || v === 'true' || v === 'yes'
 }

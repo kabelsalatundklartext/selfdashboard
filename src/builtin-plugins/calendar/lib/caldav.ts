@@ -31,6 +31,7 @@
 
 import { createDAVClient } from 'tsdav'
 
+import { assertSafeOutboundUrl } from '@/lib/security/ssrf'
 import {
   formatCalDavPushError,
   resolveCalendarReadOnly,
@@ -91,6 +92,12 @@ async function buildClient(account: Account) {
   const cfg = account.config as CalDAVConfig
   const password = decryptAccountPassword(cfg.passwordEncrypted)
   const serverUrl = normalizeCaldavServerUrl(cfg.url)
+  try {
+    assertSafeOutboundUrl(serverUrl)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`CalDAV URL blocked: ${msg}`)
+  }
   return createDAVClient({
     serverUrl,
     credentials: { username: cfg.username, password },

@@ -2,6 +2,8 @@
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { warnInsecureProductionEnv } = await import('@/lib/auth/productionGuard')
+    warnInsecureProductionEnv()
     const { warmPluginScan } = await import('@/lib/pluginScan')
     const { loadAllPluginServers } = await import('@/lib/pluginServerLoader')
     warmPluginScan()

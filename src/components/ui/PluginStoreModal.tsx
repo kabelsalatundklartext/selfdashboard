@@ -13,6 +13,7 @@ import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
 import { fetchPluginVolumeInfo, loadVolumeWidgetScripts, unloadPluginWidgetAssets } from '@/lib/pluginCustomClient'
+import { fetchRemoteCatalog, invalidateRemoteCatalogCache } from '@/lib/pluginRemoteCatalogClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { useAuthRole } from '@/components/layout/AuthUserMenu'
 import { canUsePlugin, loadAuthProfile } from '@/lib/authProfileClient'
@@ -261,7 +262,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [updatesCount, setUpdatesCount] = useState(0)
   const [userAllowedPlugins, setUserAllowedPlugins] = useState<PluginMeta[]>([])
 
-  const refreshStoreData = useCallback(async () => {
+  const refreshStoreData = useCallback(async (force = false) => {
     try {
       const vol = await fetchPluginVolumeInfo()
       setVolumeOnly(vol.volumeOnly)
@@ -298,17 +299,10 @@ export function PluginStoreModal({ open, onClose }: Props) {
     }
     setUserAllowedPlugins([])
     try {
-      const res = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-      const j = (await res.json()) as {
-        configured?: boolean
-        available?: RemotePluginRow[]
-        repository?: string | null
-        ref?: string | null
-        updatesCount?: number
-      }
-      setGithubConfigured(!!j.configured)
-      setRemotePlugins(j.available ?? [])
-      setUpdatesCount(typeof j.updatesCount === 'number' ? j.updatesCount : 0)
+      const j = await fetchRemoteCatalog(force ? { force: true } : undefined)
+      setGithubConfigured(j.configured)
+      setRemotePlugins(j.available as unknown as RemotePluginRow[])
+      setUpdatesCount(j.updatesCount)
       if (j.repository) setGithubRepo(j.repository)
       if (j.ref) setGithubRef(j.ref)
     } catch {
@@ -375,9 +369,9 @@ export function PluginStoreModal({ open, onClose }: Props) {
           ? `${j.count ?? 0} Manifest(e). Strg+F5. ${j.hint ?? ''}`
           : `${j.count ?? 0} manifest(s). Ctrl+F5. ${j.hint ?? ''}`,
       )
-      const rc = await fetch('/api/plugins/remote-catalog', { cache: 'no-store' })
-      const rj = (await rc.json()) as { available?: RemotePluginRow[] }
-      setRemotePlugins(rj.available ?? [])
+      invalidateRemoteCatalogCache()
+      const rj = await fetchRemoteCatalog({ force: true })
+      setRemotePlugins(rj.available as unknown as RemotePluginRow[])
     } catch {
       setReloadMsg(locale === 'de' ? 'Neuladen fehlgeschlagen.' : 'Reload failed.')
     } finally {

@@ -1,6 +1,7 @@
 import 'server-only'
 import { validatePasswordStrength } from '@/lib/auth/password'
 import { deleteSessionsForUser } from '@/lib/auth/sessions'
+import { allowEnvPasswordReset } from '@/lib/auth/productionGuard'
 import {
   getUserByUsername,
   listUsers,
@@ -40,6 +41,7 @@ export function applyEnvPasswordReset(): void {
   if (applied) return
   applied = true
 
+  if (!allowEnvPasswordReset()) return
   if (needsSetup()) return
 
   const combined = parseCombinedResetEnv()

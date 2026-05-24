@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePluginAccess } from '@/lib/auth/guard'
 import { CONTAINER_ID_RE, fetchContainerStats, poolMap, type SdContainerStats } from '@/lib/dockerEngine'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,9 @@ const STATS_CONCURRENCY = 12
  * Returns { stats: { [id]: SdContainerStats | null } } for one-shot CPU/RAM per running container.
  */
 export async function POST(req: Request) {
+  const denied = requirePluginAccess(req, 'docker')
+  if (denied instanceof NextResponse) return denied
+
   let body: unknown
   try {
     const raw = await req.text()
