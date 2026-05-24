@@ -77,33 +77,19 @@
   flex-shrink: 0;
 }
 
-.cs-nav-item-btn {
+.cs-nav-item {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   width: 100%;
   padding: 10px 12px;
-  border: none;
   border-bottom: 1px solid var(--border);
-  border-radius: 0;
   background: transparent;
   color: var(--text-muted);
-  cursor: pointer;
   text-align: left;
-  transition: background 0.15s, color 0.15s;
 }
 
-.cs-nav-item-btn:hover {
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
-  color: var(--text);
-}
-
-.cs-nav-item-active {
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface-2));
-  color: var(--accent);
-}
-
-.cs-nav-item-active .cs-nav-stat {
+.cs-nav-item .cs-nav-stat {
   color: var(--accent);
 }
 
@@ -667,7 +653,7 @@
   display: none;
 }
 
-.cs-layout-phone .cs-nav-item-btn {
+.cs-layout-phone .cs-nav-item {
   flex: 0 0 auto;
   min-width: 108px;
   border-bottom: none;
@@ -732,7 +718,7 @@
     flex-direction: row;
     overflow-x: auto;
   }
-  .cs-nav-item-btn {
+  .cs-nav-item {
     flex: 0 0 auto;
     min-width: 100px;
     border-right: 1px solid var(--border);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
-import { pluginApiJsonWithStale, reportPluginError } from '@/lib/pluginDev'
+import { pluginApiJson, pluginApiJsonWithStale, reportPluginError } from '@/lib/pluginDev'
 import type { ThemeId } from '@/types'
 import { parseCrowdsecConfig } from './config'
 import { COUNTRY_NAME } from './constants'
@@ -10,7 +10,7 @@ import { normalizeCountryCode } from './flags'
 import { IpLookupMenu } from './IpLookupMenu'
 import { LOOKUP_SERVICES } from './ipLookup'
 import { alertRangeLabel } from './presets'
-import type { CrowdsecDashboardData, CrowdsecFeedItem, CrowdsecTab } from './types'
+import type { CrowdsecDashboardData, CrowdsecFeedItem } from './types'
 
 function formatInt(n: number, locale: 'de' | 'en'): string {
   return Math.round(n).toLocaleString(locale === 'en' ? 'en-GB' : 'de-DE')
@@ -93,7 +93,6 @@ export function CrowdsecWidget({
   const [data, setData] = useState<CrowdsecDashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<CrowdsecTab>('overview')
   const [search, setSearch] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [lookupItem, setLookupItem] = useState<CrowdsecFeedItem | null>(null)
@@ -138,11 +137,7 @@ export function CrowdsecWidget({
   }, [fetchData, cfg.refreshSeconds, cfg.daysBack, cfg.maxAlerts])
 
   const q = search.trim().toLowerCase()
-  const baseFeed = useMemo(() => {
-    if (!data) return []
-    if (tab === 'bans') return data.banFeed?.length ? data.banFeed : data.feed.filter((f) => f.active_ban)
-    return data.feed
-  }, [data, tab])
+  const baseFeed = useMemo(() => data?.feed ?? [], [data])
   const filteredFeed = useMemo(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q])
 
   const errLabel = (code: string) => {
@@ -195,12 +190,8 @@ export function CrowdsecWidget({
             <CrowdsecLogo variant="brand" />
           </header>
 
-          <nav className="cs-nav" aria-label={de ? 'Navigation' : 'Navigation'}>
-            <button
-              type="button"
-              className={`cs-nav-item cs-nav-item-btn${tab === 'overview' ? ' cs-nav-item-active' : ''}`}
-              onClick={() => setTab('overview')}
-            >
+          <section className="cs-nav" aria-label={de ? 'Statistik' : 'Statistics'}>
+            <article className="cs-nav-item">
               <span className="cs-nav-row">
                 <Shield size={14} strokeWidth={2.2} aria-hidden />
                 {de ? 'Übersicht' : 'Overview'}
@@ -221,13 +212,9 @@ export function CrowdsecWidget({
                   </div>
                 </div>
               ) : null}
-            </button>
+            </article>
 
-            <button
-              type="button"
-              className={`cs-nav-item cs-nav-item-btn${tab === 'bans' ? ' cs-nav-item-active' : ''}`}
-              onClick={() => setTab('bans')}
-            >
+            <article className="cs-nav-item">
               <span className="cs-nav-row">
                 <Gavel size={14} strokeWidth={2.2} aria-hidden />
                 {de ? 'Banns' : 'Bans'}
@@ -238,13 +225,9 @@ export function CrowdsecWidget({
                   <span className="cs-nav-sub">{de ? 'Aktive Banns' : 'Active bans'}</span>
                 </>
               ) : null}
-            </button>
+            </article>
 
-            <button
-              type="button"
-              className={`cs-nav-item cs-nav-item-btn${tab === 'countries' ? ' cs-nav-item-active' : ''}`}
-              onClick={() => setTab('countries')}
-            >
+            <article className="cs-nav-item">
               <span className="cs-nav-row">
                 <Globe size={14} strokeWidth={2.2} aria-hidden />
                 {de ? 'Länder' : 'Countries'}
@@ -255,10 +238,10 @@ export function CrowdsecWidget({
                   <span className="cs-nav-sub">{de ? 'alle in DB' : 'all in DB'}</span>
                 </>
               ) : null}
-            </button>
-          </nav>
+            </article>
+          </section>
 
-          {data && (cfg.showCountriesList || tab === 'countries') ? (
+          {data && cfg.showCountriesList ? (
             <section className={`cs-sidebar-extra${cfg.showCountriesList ? ' cs-sidebar-extra-pinned' : ''}`}>
               <section className="cs-country-list">
                 {data.countries.slice(0, 40).map((c) => {
