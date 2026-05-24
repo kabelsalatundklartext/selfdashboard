@@ -11,7 +11,6 @@ export const HOST_SYSTEM_PLUGIN_IDS = new Set([
   'docker',
   'unraid-docker',
   'crowdsec',
-  'crowdsec-v2',
   'unraid',
   'fritzbox',
   'fritz-energy',
