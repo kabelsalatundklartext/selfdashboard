@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-24T13:38:40.546Z",
+  "generatedAt": "2026-05-24T13:55:38.263Z",
   "plugins": [
     {
       "id": "adguard",
@@ -80,7 +80,7 @@
       "id": "crowdsec-v2",
       "name": "CrowdSec V2",
       "description": "CrowdSec-Dashboard mit Sidebar, Weltkarte, Alert/Bann-Liste inkl. Angriffsart, Länderübersicht und IP-Lookup. API: /api/plugins/crowdsec-v2.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "SelfDashboard",
       "category": "security",
       "icon": "🛡️",

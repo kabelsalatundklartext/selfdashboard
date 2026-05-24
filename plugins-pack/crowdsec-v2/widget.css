@@ -58,23 +58,6 @@
   color: var(--accent);
 }
 
-.csv2-status-pill {
-  margin: 0 8px 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 9px;
-  font-weight: 600;
-  text-align: center;
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.csv2-status-online {
-  background: color-mix(in srgb, var(--csv2-online) 18%, transparent);
-  color: var(--csv2-online);
-}
-
 .csv2-nav {
   display: flex;
   flex-direction: column;
@@ -233,8 +216,35 @@
 .csv2-map-wrap {
   flex-shrink: 0;
   padding: 0 8px 6px;
-  height: 88px;
-  min-height: 72px;
+  height: 110px;
+  min-height: 88px;
+}
+
+.csv2-map-panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.csv2-map-reset {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.csv2-map-reset:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 .csv2-map {
@@ -269,6 +279,10 @@
   stroke-width: 1;
   stroke-dasharray: 3 2;
   opacity: 0.7;
+}
+
+.csv2-map-pin {
+  fill: var(--csv2-ban);
 }
 
 @keyframes csv2-pulse {
@@ -426,10 +440,23 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  max-width: 100px;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.csv2-cell-origin-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv2-cell-origin-city {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 9px;
 }
 
 .csv2-cell-scenario {

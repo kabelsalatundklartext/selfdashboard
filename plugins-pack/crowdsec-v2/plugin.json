@@ -2,7 +2,7 @@
   "id": "crowdsec-v2",
   "name": "CrowdSec V2",
   "description": "CrowdSec-Dashboard mit Sidebar, Weltkarte, Alert/Bann-Liste inkl. Angriffsart, Länderübersicht und IP-Lookup. API: /api/plugins/crowdsec-v2.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "SelfDashboard",
   "category": "security",
   "icon": "🛡️",
