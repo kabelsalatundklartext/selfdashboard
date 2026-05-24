@@ -423,7 +423,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
   };
   var MAP_W = 360;
   var MAP_H = 180;
-  var WORLD_MAP_IMAGE = "/plugin-assets/world-map-equirect.svg";
+  var WORLD_MAP_IMAGE = "/api/plugins/custom-assets/crowdsec-v2/world-map-equirect.svg";
   function coordsForCountry(code) {
     const cc = normalizeCountryCode(code);
     if (!cc) return null;

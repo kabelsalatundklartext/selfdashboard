@@ -167,31 +167,25 @@ export function clearGitHubPluginIndexCache(): void {
 
 
 
+/** Files copied from GitHub / listed in plugins-index.json. */
 const INSTALL_FILES = new Set([
-
   'plugin.json',
-
   'widget.js',
-
   'widget.css',
-
   'widget.mjs',
-
   'server.js',
-
   'server.mjs',
-
   'icon.png',
-
   'icon.svg',
-
   'icon.jpg',
-
   'icon.jpeg',
-
   'icon.webp',
-
 ])
+
+function isInstallablePluginFile(file: string): boolean {
+  if (INSTALL_FILES.has(file)) return true
+  return /^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(file)
+}
 
 /** Required for a successful install; others are copied only when present on GitHub. */
 const REQUIRED_INSTALL_FILES = new Set(['plugin.json', 'widget.js'])
@@ -230,7 +224,7 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
 
 
-  const files = (entry.files ?? ['plugin.json', 'widget.js']).filter((f) => INSTALL_FILES.has(f))
+  const files = (entry.files ?? ['plugin.json', 'widget.js']).filter((f) => isInstallablePluginFile(f))
 
   const destDir = customPluginDir(pluginId)
 

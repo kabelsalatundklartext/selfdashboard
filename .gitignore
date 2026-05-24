@@ -35,6 +35,7 @@ _publish_out*.txt
 gen-out.txt
 _install_out.txt
 npm-install.log
+scripts/data/
 .vercel
 *.tsbuildinfo
 next-env.d.ts

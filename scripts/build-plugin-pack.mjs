@@ -152,6 +152,16 @@ module.exports = { createPortal: rd.createPortal, default: rd };
   },
 }
 
+/** Copy plugin-local static assets (svg/png/…) beside widget.js in the pack. */
+function copyPluginStaticAssets(pluginId, destDir) {
+  const dir = resolvePluginSourceDir(root, pluginId)
+  if (!dir) return
+  for (const name of fs.readdirSync(dir)) {
+    if (!/^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(name)) continue
+    copyFileIfExists(path.join(dir, name), path.join(destDir, name))
+  }
+}
+
 /** Copy plugin-local *.css to plugins-pack as widget.css (esbuild does not bundle CSS imports). */
 function copyPluginWidgetCss(pluginId, destDir) {
   const dir = resolvePluginSourceDir(root, pluginId)
@@ -311,6 +321,7 @@ async function main() {
     try {
       await bundleWidget(id, dest)
       copyPluginWidgetCss(id, dest)
+      copyPluginStaticAssets(id, dest)
       built.push(id)
     } catch (e) {
       console.warn(`widget bundle failed for ${id}:`, e.message || e)

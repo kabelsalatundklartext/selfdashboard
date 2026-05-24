@@ -36,6 +36,10 @@ for (const name of fs.readdirSync(packRoot, { withFileTypes: true })) {
   if (!m?.id) continue
   const files = ['plugin.json', 'widget.js']
   if (fs.existsSync(path.join(packDir, 'widget.css'))) files.push('widget.css')
+  for (const f of fs.readdirSync(packDir)) {
+    if (files.includes(f)) continue
+    if (/^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(f)) files.push(f)
+  }
   const serverPack = ['server.mjs', 'server.js'].find((f) => fs.existsSync(path.join(packDir, f)))
   if (serverPack) files.push(serverPack)
   const hasServer =

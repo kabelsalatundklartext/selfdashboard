@@ -8,6 +8,7 @@ const ALLOWED_FILES = new Set([
   'plugin.json',
   'widget.js',
   'widget.mjs',
+  'widget.css',
   'server.js',
   'server.mjs',
   'icon.png',
@@ -18,6 +19,11 @@ const ALLOWED_FILES = new Set([
   'readme.md',
   'README.md',
 ])
+
+function isAllowedZipPluginFile(name: string): boolean {
+  if (ALLOWED_FILES.has(name.toLowerCase())) return true
+  return /^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(name)
+}
 
 function isValidPluginId(id: string): boolean {
   return /^[a-z0-9][a-z0-9-]*$/.test(id)
@@ -78,7 +84,7 @@ export function installPluginZipBuffer(buffer: Buffer): { installed: string[]; e
     if (!pluginRoots.has(pluginId)) continue
     const fileName = safeBasename(relParts.join('/') || '')
     if (!fileName || relParts.length !== 1) continue
-    if (!ALLOWED_FILES.has(fileName) && !ALLOWED_FILES.has(fileName.toLowerCase())) {
+    if (!isAllowedZipPluginFile(fileName)) {
       errors.push(`skipped:${entry}`)
       continue
     }
