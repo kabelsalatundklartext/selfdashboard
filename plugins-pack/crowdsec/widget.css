@@ -131,6 +131,29 @@
   padding-left: 22px;
 }
 
+.cs-nav-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cs-nav-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cs-nav-stat-compact {
+  margin-top: 0;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.cs-nav-metrics .cs-nav-sub {
+  padding-left: 22px;
+}
+
 .cs-nav-sub {
   font-size: 9px;
   color: var(--text-muted);
@@ -651,6 +674,14 @@
   border-right: 1px solid var(--border);
   border-radius: 0;
   padding: 8px 12px;
+}
+
+.cs-layout-phone .cs-nav-stat-compact {
+  font-size: 0.92rem;
+}
+
+.cs-layout-phone .cs-nav-metrics {
+  gap: 4px;
 }
 
 .cs-layout-phone .cs-nav-stat,

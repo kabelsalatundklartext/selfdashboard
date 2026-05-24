@@ -23,6 +23,8 @@ export interface CrowdsecGeoipInfo {
 
 export interface CrowdsecDashboardData {
   feed: CrowdsecFeedItem[]
+  /** Active banned IPs (decisions.until in the future), deduplicated by IP. */
+  banFeed: CrowdsecFeedItem[]
   alertsInRange: number
   alertsLast24h: number
   activeBans: number

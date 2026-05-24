@@ -236,14 +236,52 @@ function loadAlertIdsWithActiveBan(db: Database.Database): Set<number> {
   return out
 }
 
-function countActiveDecisions(db: Database.Database): number {
+function loadActiveBanFeed(db: Database.Database, geoip: GeoipLookup): CrowdsecFeedItem[] {
   const meta = decisionSchemaMeta(db)
-  if (!meta.hasTable) return 0
-  const where = meta.hasUntil ? activeDecisionWhere(meta) : 'WHERE 1=0'
-  const row = db.prepare(`SELECT COUNT(*) AS c FROM decisions d ${where}`).get() as
-    | { c: number }
-    | undefined
-  return Number(row?.c ?? 0)
+  if (!meta.hasTable || !meta.hasValue) return []
+
+  const cols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
+  const names = new Set(cols.map((c) => c.name))
+  const scenarioExpr = names.has('scenario') ? 'd.scenario' : "''"
+  const createdExpr = names.has('created_at')
+    ? 'd.created_at'
+    : names.has('updated_at')
+      ? 'd.updated_at'
+      : 'NULL'
+
+  const rows = db
+    .prepare(
+      `SELECT TRIM(CAST(d.value AS TEXT)) AS ip,
+              ${scenarioExpr} AS scenario,
+              ${createdExpr} AS created_at
+       FROM decisions d
+       ${activeDecisionWhere(meta)}
+       ORDER BY ${createdExpr} DESC`,
+    )
+    .all() as { ip: string; scenario: string | null; created_at: string | null }[]
+
+  const seen = new Set<string>()
+  const feed: CrowdsecFeedItem[] = []
+  for (const row of rows) {
+    const ip = row.ip?.trim() ?? ''
+    if (!isUsableIp(ip) || seen.has(ip)) continue
+    seen.add(ip)
+    const dt = parseTimestampValue(row.created_at) ?? new Date()
+    const geo = applyGeoipToCountry(ip, '', '', geoip)
+    feed.push({
+      alertId: 0,
+      ip,
+      country: geo.country,
+      city: geo.city,
+      scenario: cleanScenario(row.scenario ? String(row.scenario) : 'ban'),
+      time_iso: dt.toISOString(),
+      asname: '',
+      asnumber: '',
+      iprange: formatIpRange(ip, null),
+      active_ban: true,
+    })
+  }
+  return feed
 }
 
 /** Normalize CrowdSec `created_at` (unix sec/ms or ISO text) to unix seconds for SQL filters. */
@@ -476,9 +514,10 @@ async function loadCrowdsecDashboardInner(
   try {
     const alertsInRange = countAlertsSince(db, cutoffUnix)
     const alertsLast24h = alertsInRange
-    const activeBans = countActiveDecisions(db)
     const bannedIps = loadActiveBannedIpSet(db)
+    const activeBans = bannedIps.size
     const bannedAlertIds = loadAlertIdsWithActiveBan(db)
+    const banFeed = loadActiveBanFeed(db, geoip)
 
     const { sql, params } = buildAlertsSql(db, cutoffUnix)
     const rows = (
@@ -533,6 +572,7 @@ async function loadCrowdsecDashboardInner(
 
     return {
       feed,
+      banFeed,
       alertsInRange,
       alertsLast24h,
       activeBans,

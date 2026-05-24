@@ -464,7 +464,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     }, [anchorEl, onClose]);
     const cc = normalizeCountryCode(item.country);
     const menu = /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-      "div",
+      "nav",
       {
         ref: menuRef,
         className: "cs-wl-menu",
@@ -719,7 +719,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     const q = search.trim().toLowerCase();
     const baseFeed = (0, import_react6.useMemo)(() => {
       if (!data) return [];
-      if (tab === "bans") return data.feed.filter((f) => f.active_ban);
+      if (tab === "bans") return data.banFeed?.length ? data.banFeed : data.feed.filter((f) => f.active_ban);
       return data.feed;
     }, [data, tab]);
     const filteredFeed = (0, import_react6.useMemo)(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q]);
@@ -739,9 +739,26 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
       };
       return map[code] || code;
     };
-    const copyIp = async (ip) => {
+    const copyIp = async (ip, e) => {
+      e?.stopPropagation?.();
+      e?.preventDefault?.();
       try {
-        await navigator.clipboard.writeText(ip);
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(ip);
+          return;
+        }
+      } catch {
+      }
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = ip;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
       } catch {
       }
     };
@@ -784,9 +801,15 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                         /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Shield, { size: 14, strokeWidth: 2.2, "aria-hidden": true }),
                         de ? "\xDCbersicht" : "Overview"
                       ] }),
-                      data && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_jsx_runtime4.Fragment, { children: [
-                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-stat", children: formatInt(data.alertsInRange, locale) }),
-                        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-sub", children: de ? `Alerts (${alertRangeLabel(cfg.daysBack, true)})` : `Alerts (${alertRangeLabel(cfg.daysBack, false)})` })
+                      data && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "cs-nav-metrics", children: [
+                        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "cs-nav-metric", children: [
+                          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-stat cs-nav-stat-compact", children: formatInt(data.alertsInRange, locale) }),
+                          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-sub", children: de ? `Alerts (${alertRangeLabel(cfg.daysBack, true)})` : `Alerts (${alertRangeLabel(cfg.daysBack, false)})` })
+                        ] }),
+                        /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className: "cs-nav-metric", children: [
+                          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-stat cs-nav-stat-compact", children: formatInt(data.activeBans, locale) }),
+                          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { className: "cs-nav-sub", children: de ? "Banns aktiv" : "Active bans" })
+                        ] })
                       ] })
                     ]
                   }
@@ -937,7 +960,10 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
                               className: "cs-icon-btn",
                               title: de ? "IP kopieren" : "Copy IP",
                               "aria-label": de ? "IP kopieren" : "Copy IP",
-                              onClick: () => void copyIp(item.ip),
+                              onClick: (e) => {
+                                e.stopPropagation();
+                                void copyIp(item.ip, e);
+                              },
                               children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(Copy, { size: 14, strokeWidth: 2, "aria-hidden": true })
                             }
                           )
@@ -1000,7 +1026,7 @@ if(!globalThis.SelfDashboard?.React)throw new Error('SelfDashboard bridge missin
     id: "crowdsec",
     name: "CrowdSec",
     description: "Kompaktes CrowdSec-Dashboard aus crowdsec.db: \xDCbersicht, Banns, L\xE4nder und durchsuchbarer IP-Feed mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.",
-    version: "1.4.4",
+    version: "1.4.5",
     author: "SelfDashboard",
     category: "security",
     icon: "\u{1F6E1}\uFE0F",
