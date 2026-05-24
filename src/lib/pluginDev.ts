@@ -81,3 +81,55 @@ export async function pluginApiJson<T>(
     cleanup()
   }
 }
+
+function staleApiCacheKey(url: string): string {
+  return `sd:stale-api:${url}`
+}
+
+function readStaleApiCache<T>(url: string, maxAgeMs: number): T | null {
+  if (typeof sessionStorage === 'undefined' || maxAgeMs <= 0) return null
+  try {
+    const raw = sessionStorage.getItem(staleApiCacheKey(url))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { savedAt: number; body: T }
+    if (!parsed || typeof parsed.savedAt !== 'number') return null
+    if (Date.now() - parsed.savedAt > maxAgeMs) return null
+    return parsed.body
+  } catch {
+    return null
+  }
+}
+
+function writeStaleApiCache(url: string, body: unknown): void {
+  if (typeof sessionStorage === 'undefined') return
+  try {
+    sessionStorage.setItem(staleApiCacheKey(url), JSON.stringify({ savedAt: Date.now(), body }))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/**
+ * Return cached JSON immediately when fresh enough, then refresh in the background.
+ * Helps widgets show last data on reload while the server warms up.
+ */
+export async function pluginApiJsonWithStale<T>(
+  pluginId: string,
+  path: string,
+  init?: RequestInit & { timeoutMs?: number; staleMaxAgeMs?: number },
+): Promise<T> {
+  const url = path.startsWith('/api/')
+    ? path
+    : `/api/plugins/${pluginId}${path.startsWith('/') ? path : `/${path}`}`
+  const staleMaxAgeMs = init?.staleMaxAgeMs ?? 60_000
+  const cached = readStaleApiCache<T>(url, staleMaxAgeMs)
+  if (cached !== null) {
+    void pluginApiJson<T>(pluginId, path, init)
+      .then((fresh) => writeStaleApiCache(url, fresh))
+      .catch(() => {})
+    return cached
+  }
+  const fresh = await pluginApiJson<T>(pluginId, path, init)
+  writeStaleApiCache(url, fresh)
+  return fresh
+}

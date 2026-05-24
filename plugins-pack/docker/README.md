@@ -20,7 +20,7 @@ Master **Buttons**, **Stats**, **CPU/RAM**, optional Balken.
 
 ### API
 
-`GET /api/plugins/docker/containers?stats=1`, `POST /api/plugins/docker/containers` (actions)
+`GET /api/docker-containers?stats=1`, `POST /api/docker-container-stats`
 
 RAM ab Kern/Plugin 1.7.9: Working Set minus Page-Cache (wie CLI).
 
@@ -48,7 +48,7 @@ Master **buttons**, **stats**, **CPU/RAM**, optional bars.
 
 ### API
 
-`GET /api/plugins/docker/containers?stats=1`, `POST /api/plugins/docker/containers` (actions)
+`GET /api/docker-containers?stats=1`, `POST /api/docker-container-stats`
 
 RAM (core/plugin 1.7.9+): working set minus page cache (CLI-aligned).
 

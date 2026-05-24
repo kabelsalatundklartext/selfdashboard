@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { NextResponse } from 'next/server'
 import { requirePluginAccess } from '@/lib/auth/guard'
-import { customPluginDir } from '@/lib/pluginVolumeInfo'
+import { customPluginDir, readInstalledPluginVersion } from '@/lib/pluginVolumeInfo'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,10 +41,19 @@ export async function GET(
 
   const ext = path.extname(file).toLowerCase()
   const body = fs.readFileSync(abs)
+  const isWidgetAsset = file === 'widget.js' || file === 'widget.css'
+  const versionParam = new URL(req.url).searchParams.get('v')?.trim() ?? ''
+  const installedVersion = readInstalledPluginVersion(pluginId) ?? ''
+  const versionMatches = Boolean(versionParam && installedVersion && versionParam === installedVersion)
+  const cacheControl =
+    isWidgetAsset && versionMatches
+      ? 'private, max-age=31536000, immutable'
+      : 'no-store'
+
   return new NextResponse(body, {
     headers: {
       'Content-Type': MIME[ext] ?? 'application/octet-stream',
-      'Cache-Control': 'no-store',
+      'Cache-Control': cacheControl,
     },
   })
 }

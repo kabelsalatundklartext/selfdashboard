@@ -13,6 +13,16 @@ import { useDashboardStore } from '@/lib/store'
 let loadGeneration = 0
 let authProfileLoaded = false
 
+function collectActiveDashboardPluginIds(state: ReturnType<typeof useDashboardStore.getState>): string[] {
+  const dash = state.dashboards.find((d) => d.id === state.activeDashboardId)
+  if (!dash) return []
+  const ids = new Set<string>()
+  for (const p of dash.plugins) {
+    if (p.pluginId) ids.add(p.pluginId)
+  }
+  return Array.from(ids)
+}
+
 function collectAllDashboardPluginIds(dashboards: { plugins: { pluginId: string }[] }[]): string[] {
   const ids = new Set<string>()
   for (const d of dashboards) {
@@ -24,7 +34,9 @@ function collectAllDashboardPluginIds(dashboards: { plugins: { pluginId: string 
 }
 
 function selectDashboardPluginIdsFingerprint(state: ReturnType<typeof useDashboardStore.getState>): string {
-  return collectAllDashboardPluginIds(state.dashboards).sort().join('\0')
+  const all = collectAllDashboardPluginIds(state.dashboards).sort().join('\0')
+  const active = state.activeDashboardId
+  return `${active}\0${all}`
 }
 
 export function PluginBootstrap() {
@@ -38,7 +50,9 @@ export function PluginBootstrap() {
   useEffect(() => {
     const gen = ++loadGeneration
     void (async () => {
-      const allIds = collectAllDashboardPluginIds(useDashboardStore.getState().dashboards)
+      const state = useDashboardStore.getState()
+      const allIds = collectAllDashboardPluginIds(state.dashboards)
+      const priorityPluginIds = collectActiveDashboardPluginIds(state)
       const missingIds = allIds.filter((id) => !pluginRegistry.get(id))
       const volumeNotReady = getPluginVolumeLoadPhase() !== 'ready'
       const needsVolumeBootstrap = missingIds.length > 0 || volumeNotReady
@@ -52,7 +66,12 @@ export function PluginBootstrap() {
         const jobs: Promise<unknown>[] = []
         if (needsVolumeBootstrap) {
           const pluginIdsToRequest = volumeNotReady ? allIds : missingIds
-          jobs.push(bootstrapVolumePlugins({ pluginIds: pluginIdsToRequest }))
+          jobs.push(
+            bootstrapVolumePlugins({
+              pluginIds: pluginIdsToRequest,
+              priorityPluginIds,
+            }),
+          )
         }
         if (shouldLoadAuth) {
           jobs.push(

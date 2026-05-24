@@ -8,6 +8,7 @@ import {
   getCustomWidgetOverrideIds,
   hasVolumeFile,
   listInstalledVolumePluginIds,
+  readInstalledPluginVersion,
 } from '@/lib/pluginVolumeInfo'
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,15 @@ function filterIdsForUser(ids: string[], userId: string, role: 'admin' | 'user')
 function filterIdsForKiosk(ids: string[], kioskPluginIds: string[]) {
   const allowed = new Set(kioskPluginIds)
   return ids.filter((id) => allowed.has(id))
+}
+
+function buildPluginVersions(ids: string[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const id of ids) {
+    const version = readInstalledPluginVersion(id)
+    if (version) out[id] = version
+  }
+  return out
 }
 
 function buildVolumePayload(
@@ -35,6 +45,7 @@ function buildVolumePayload(
     widgetOverrideIds: overridesFiltered,
     customWidgetIds: widgetsFiltered,
     customServerIds: serversFiltered,
+    pluginVersions: buildPluginVersions(widgetsFiltered),
     hint:
       missingWidgetJs.length > 0
         ? 'plugin.json without widget.js — install from Store or upload a ZIP with widget.js.'

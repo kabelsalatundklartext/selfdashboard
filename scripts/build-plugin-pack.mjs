@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
-import { resolvePluginPackRoot, resolvePluginSourceDir, listPluginSourceIds } from './resolve-plugins-root.mjs'
+import { resolvePluginPackRoot, resolvePluginsPackRoot, resolvePluginSourceDir, listPluginSourceIds } from './resolve-plugins-root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -45,6 +45,10 @@ function field(src, key) {
 }
 
 function readMeta(pluginId) {
+  const packManifest = path.join(resolvePluginsPackRoot(root), pluginId, 'plugin.json')
+  if (fs.existsSync(packManifest)) {
+    return JSON.parse(fs.readFileSync(packManifest, 'utf8'))
+  }
   const dir = resolvePluginSourceDir(root, pluginId)
   if (!dir) return null
   const manifestPath = path.join(dir, 'plugin.json')
@@ -68,8 +72,21 @@ function readMeta(pluginId) {
   }
 }
 
+function listPackPluginIds() {
+  const packRoot = resolvePluginsPackRoot(root)
+  if (!fs.existsSync(packRoot)) return []
+  return fs
+    .readdirSync(packRoot, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !skip.has(d.name))
+    .filter((d) => fs.existsSync(path.join(packRoot, d.name, 'plugin.json')))
+    .map((d) => d.name)
+    .sort()
+}
+
 function listPluginIds() {
-  return listPluginSourceIds(root).filter((id) => readMeta(id))
+  const fromSource = listPluginSourceIds(root)
+  const fromPack = listPackPluginIds()
+  return [...new Set([...fromSource, ...fromPack])].sort()
 }
 
 function writeEntry(pluginId, entryPath) {
@@ -92,12 +109,13 @@ const hostShimMap = {
   '@/lib/store': path.join(hostShimDir, 'dashboard-store-shim.ts'),
   '@/lib/pluginLocale': path.join(hostShimDir, 'plugin-locale-shim.ts'),
   '@/lib/i18n': path.join(hostShimDir, 'i18n-shim.ts'),
+  '@/lib/pluginDev': path.join(hostShimDir, 'plugin-dev-shim.ts'),
 }
 
 const hostSharedShim = {
   name: 'sd-host-shared-shim',
   setup(build) {
-    build.onResolve({ filter: /^@\/lib\/(store|pluginLocale|i18n)$/ }, (args) => {
+    build.onResolve({ filter: /^@\/lib\/(store|pluginLocale|i18n|pluginDev)$/ }, (args) => {
       const shim = hostShimMap[args.path]
       if (shim) return { path: shim }
     })
@@ -152,33 +170,58 @@ module.exports = { createPortal: rd.createPortal, default: rd };
   },
 }
 
+const lucideShim = {
+  name: 'sd-lucide-shim',
+  setup(build) {
+    const ns = 'sd-lucide'
+    build.onResolve({ filter: /^lucide-react$/ }, () => ({ path: 'lucide-react', namespace: ns }))
+    build.onLoad({ filter: /.*/, namespace: ns }, () => ({
+      contents: `
+const L = globalThis.SelfDashboard?.LucideReact;
+if (!L) throw new Error('SelfDashboard.LucideReact missing — reload page (Ctrl+F5)');
+module.exports = { ...L };
+`.trim(),
+      loader: 'js',
+    }))
+  },
+}
+
 /** Copy plugin-local static assets (svg/png/…) beside widget.js in the pack. */
 function copyPluginStaticAssets(pluginId, destDir) {
-  const dir = resolvePluginSourceDir(root, pluginId)
-  if (!dir) return
-  for (const name of fs.readdirSync(dir)) {
-    if (!/^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(name)) continue
-    copyFileIfExists(path.join(dir, name), path.join(destDir, name))
+  const dirs = [
+    resolvePluginSourceDir(root, pluginId),
+    path.join(resolvePluginsPackRoot(root), pluginId),
+  ].filter(Boolean)
+  for (const dir of dirs) {
+    for (const name of fs.readdirSync(dir)) {
+      if (!/^[a-z0-9][a-z0-9.-]*\.(svg|png|webp|jpe?g)$/i.test(name)) continue
+      copyFileIfExists(path.join(dir, name), path.join(destDir, name))
+    }
   }
 }
 
 /** Copy plugin-local *.css to plugins-pack as widget.css (esbuild does not bundle CSS imports). */
 function copyPluginWidgetCss(pluginId, destDir) {
-  const dir = resolvePluginSourceDir(root, pluginId)
-  if (!dir) return
-  const cssFiles = fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.css') && fs.statSync(path.join(dir, f)).isFile())
-  if (cssFiles.length === 0) return
-  const out = path.join(destDir, 'widget.css')
-  if (cssFiles.length === 1) {
-    fs.copyFileSync(path.join(dir, cssFiles[0]), out)
+  const dirs = [
+    resolvePluginSourceDir(root, pluginId),
+    path.join(resolvePluginsPackRoot(root), pluginId),
+  ].filter(Boolean)
+  for (const dir of dirs) {
+    const cssFiles = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.css') && fs.statSync(path.join(dir, f)).isFile())
+    if (cssFiles.length === 0) continue
+    const out = path.join(destDir, 'widget.css')
+    if (cssFiles.length === 1) {
+      fs.copyFileSync(path.join(dir, cssFiles[0]), out)
+      return
+    }
+    const merged = cssFiles
+      .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
+      .join('\n')
+    fs.writeFileSync(out, merged)
     return
   }
-  const merged = cssFiles
-    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
-    .join('\n')
-  fs.writeFileSync(out, merged)
 }
 
 const SERVER_SHIM_NS = 'sd-server-shim'
@@ -249,6 +292,18 @@ async function bundleServer(pluginId, destDir) {
   return true
 }
 
+async function minifyWidgetJs(inPath, outPath) {
+  await esbuild.build({
+    entryPoints: [inPath],
+    outfile: outPath,
+    minify: true,
+    bundle: false,
+    platform: 'browser',
+    target: 'es2020',
+    logLevel: 'silent',
+  })
+}
+
 async function bundleWidget(pluginId, destDir) {
   const entriesDir = path.join(outDir, '.entries')
   fs.mkdirSync(entriesDir, { recursive: true })
@@ -262,6 +317,7 @@ async function bundleWidget(pluginId, destDir) {
     format: 'iife',
     platform: 'browser',
     target: 'es2020',
+    minify: true,
     absWorkingDir: root,
     nodePaths: [path.join(root, 'node_modules')],
     jsx: 'automatic',
@@ -270,7 +326,7 @@ async function bundleWidget(pluginId, destDir) {
     },
     alias: { '@': path.join(root, 'src') },
     loader: { '.tsx': 'tsx', '.ts': 'ts', '.svg': 'file' },
-    plugins: [hostSharedShim, reactShim],
+    plugins: [hostSharedShim, reactShim, lucideShim],
     logLevel: 'warning',
   })
 }
@@ -286,7 +342,6 @@ function copyDirToPublish(pluginId) {
   const src = path.join(outDir, pluginId)
   const dest = path.join(packPublishDir, pluginId)
   if (!fs.existsSync(path.join(src, 'widget.js'))) return false
-  fs.rmSync(dest, { recursive: true, force: true })
   fs.mkdirSync(dest, { recursive: true })
   const skipServer = new Set(['server.mjs', 'server.js', 'README-server.txt', 'server.ts.txt'])
   for (const name of fs.readdirSync(src)) {
@@ -325,14 +380,36 @@ async function main() {
       continue
     }
     fs.writeFileSync(path.join(dest, 'plugin.json'), JSON.stringify(meta, null, 2) + '\n')
+    const packWidget = path.join(resolvePluginsPackRoot(root), id, 'widget.js')
+    const hasSource = Boolean(resolvePluginSourceDir(root, id))
     try {
-      await bundleWidget(id, dest)
+      if (hasSource) {
+        await bundleWidget(id, dest)
+      } else if (fs.existsSync(packWidget)) {
+        await minifyWidgetJs(packWidget, path.join(dest, 'widget.js'))
+        console.info(`[SelfDashboard] minified existing widget: ${id}`)
+      } else {
+        throw new Error('no index.tsx and no widget.js in plugins-pack')
+      }
       copyPluginWidgetCss(id, dest)
       copyPluginStaticAssets(id, dest)
       built.push(id)
     } catch (e) {
-      console.warn(`widget bundle failed for ${id}:`, e.message || e)
-      failed.push(id)
+      if (hasSource && fs.existsSync(packWidget)) {
+        try {
+          await minifyWidgetJs(packWidget, path.join(dest, 'widget.js'))
+          copyPluginWidgetCss(id, dest)
+          copyPluginStaticAssets(id, dest)
+          built.push(id)
+          console.info(`[SelfDashboard] bundle failed — minified existing widget: ${id}`)
+        } catch (minErr) {
+          console.warn(`widget minify failed for ${id}:`, minErr.message || minErr)
+          failed.push(id)
+        }
+      } else {
+        console.warn(`widget build failed for ${id}:`, e.message || e)
+        failed.push(id)
+      }
     }
     const srcDir = resolvePluginSourceDir(root, id)
     const serverTs = srcDir ? path.join(srcDir, 'server.ts') : path.join(pluginsRoot, id, 'server.ts')

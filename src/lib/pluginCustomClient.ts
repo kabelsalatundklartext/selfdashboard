@@ -11,6 +11,8 @@ export type PluginVolumeClientInfo = {
   widgetOverrideIds: string[]
   customWidgetIds: string[]
   customServerIds: string[]
+  /** plugin.json version per id — used as cache key for widget.js / widget.css */
+  pluginVersions?: Record<string, string>
   missingWidgetJs?: string[]
   hint?: string
 }
@@ -18,6 +20,8 @@ export type PluginVolumeClientInfo = {
 type BootstrapVolumePluginsOptions = {
   /** Only load widget assets for these plugin IDs (faster first paint). */
   pluginIds?: string[]
+  /** Loaded first; volume phase flips to ready before the rest finishes. */
+  priorityPluginIds?: string[]
 }
 
 /** Loaded even when not on the dashboard (navbar slots, global UI). */
@@ -60,13 +64,17 @@ function loadStylesheet(href: string): Promise<void> {
   })
 }
 
-async function loadPluginWidgetAssets(pluginId: string, cacheBust: number): Promise<void> {
+async function loadPluginWidgetAssets(pluginId: string, version: string): Promise<void> {
+  const v = encodeURIComponent(version || '0')
   const base = `/api/plugins/custom-assets/${encodeURIComponent(pluginId)}`
-  const cssUrl = `${base}/widget.css?t=${cacheBust}`
-  await loadStylesheet(cssUrl).catch(() => {
-    /* widget.css is optional for plugins without separate styles */
-  })
-  await loadScript(`${base}/widget.js?t=${cacheBust}`)
+  const cssUrl = `${base}/widget.css?v=${v}`
+  const jsUrl = `${base}/widget.js?v=${v}`
+  await Promise.all([
+    loadStylesheet(cssUrl).catch(() => {
+      /* widget.css is optional for plugins without separate styles */
+    }),
+    loadScript(jsUrl),
+  ])
 }
 
 /** Remove loaded widget.js / widget.css for one plugin (after uninstall). */
@@ -82,14 +90,16 @@ export function unloadPluginWidgetAssets(pluginId: string): void {
   }
 }
 
-export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void> {
+export async function loadVolumeWidgetScripts(
+  pluginIds: string[],
+  versions: Record<string, string> = {},
+): Promise<void> {
   installPluginExternalBridge()
   if (pluginIds.length === 0) return
 
-  const t = Date.now()
   const results = await Promise.allSettled(
     pluginIds.map(async (id) => {
-      await loadPluginWidgetAssets(id, t)
+      await loadPluginWidgetAssets(id, versions[id] ?? '0')
       console.info(`[SelfDashboard] Volume widget loaded: ${id}`)
     }),
   )
@@ -102,12 +112,19 @@ export async function loadVolumeWidgetScripts(pluginIds: string[]): Promise<void
   }
 }
 
-/** Fetch volume info and load all custom widget.js (sets global load phase for UI). */
+export async function loadVolumeWidgetScriptsResolved(pluginIds: string[]): Promise<void> {
+  if (pluginIds.length === 0) return
+  const info = await fetchPluginVolumeInfo()
+  await loadVolumeWidgetScripts(pluginIds, info.pluginVersions ?? {})
+}
+
+/** Fetch volume info and load custom widget.js (sets global load phase for UI). */
 export async function bootstrapVolumePlugins(options?: BootstrapVolumePluginsOptions): Promise<void> {
   setPluginVolumeLoadPhase('loading')
   installPluginExternalBridge()
   try {
     const info = await fetchPluginVolumeInfo()
+    const versions = info.pluginVersions ?? {}
     const requested = new Set(
       [...ALWAYS_BOOTSTRAP_PLUGIN_IDS, ...(options?.pluginIds ?? [])]
         .map((id) => String(id).trim())
@@ -123,10 +140,24 @@ export async function bootstrapVolumePlugins(options?: BootstrapVolumePluginsOpt
         info.missingWidgetJs.join(', '),
       )
     }
-    if (customWidgets.length > 0) {
-      await loadVolumeWidgetScripts(customWidgets)
+
+    const prioritySet = new Set([
+      ...ALWAYS_BOOTSTRAP_PLUGIN_IDS,
+      ...(options?.priorityPluginIds ?? []).map((id) => String(id).trim()).filter(Boolean),
+    ])
+    const priority = customWidgets.filter((id) => prioritySet.has(id))
+    const deferred = customWidgets.filter((id) => !prioritySet.has(id))
+
+    if (priority.length > 0) {
+      await loadVolumeWidgetScripts(priority, versions)
     }
     setPluginVolumeLoadPhase('ready')
+
+    if (deferred.length > 0) {
+      void loadVolumeWidgetScripts(deferred, versions).catch((e) => {
+        console.warn('[SelfDashboard] Deferred plugin volume load failed', e)
+      })
+    }
   } catch (e) {
     console.warn('[SelfDashboard] Plugin volume load failed', e)
     setPluginVolumeLoadPhase('error')

@@ -12,7 +12,11 @@ import { Portal } from '@/components/ui/Portal'
 import type { PluginCategory } from '@/types'
 import { nanoid } from './nanoid'
 import { PluginMetaIcon } from '@/components/plugins/PluginMetaIcon'
-import { fetchPluginVolumeInfo, loadVolumeWidgetScripts, unloadPluginWidgetAssets } from '@/lib/pluginCustomClient'
+import {
+  fetchPluginVolumeInfo,
+  loadVolumeWidgetScriptsResolved,
+  unloadPluginWidgetAssets,
+} from '@/lib/pluginCustomClient'
 import { fetchRemoteCatalog, invalidateRemoteCatalogCache } from '@/lib/pluginRemoteCatalogClient'
 import { installPluginExternalBridge } from '@/lib/pluginExternalBridge'
 import { useAuthRole } from '@/components/layout/AuthUserMenu'
@@ -284,7 +288,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
           const readyIds = list.filter((p) => p.widgetReady !== false).map((p) => p.id)
           if (readyIds.length > 0) {
             try {
-              await loadVolumeWidgetScripts(readyIds)
+              await loadVolumeWidgetScriptsResolved(readyIds)
             } catch (e) {
               console.warn('[SelfDashboard] allowed plugin widgets preload', e)
             }
@@ -437,7 +441,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
 
         installPluginExternalBridge()
         try {
-          await loadVolumeWidgetScripts([pluginId])
+          await loadVolumeWidgetScriptsResolved([pluginId])
         } catch (loadErr) {
           console.warn('[SelfDashboard] widget.js load after install', loadErr)
         }
@@ -492,7 +496,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
         }
         if (!plugin) {
           try {
-            await loadVolumeWidgetScripts([pluginId])
+            await loadVolumeWidgetScriptsResolved([pluginId])
             plugin = pluginRegistry.get(pluginId)
           } catch (loadErr) {
             console.warn('[SelfDashboard] widget load before add', pluginId, loadErr)

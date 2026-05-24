@@ -1,4 +1,5 @@
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { createPluginServerCache } from '@/lib/pluginServerCache'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
 import {
   CONTAINER_ID_RE,
@@ -7,6 +8,11 @@ import {
   fetchContainerStats,
   poolMap,
 } from './lib/dockerEngine'
+
+const listCache = createPluginServerCache({
+  ttlMs: Math.max(0, Number(process.env.DOCKER_LIST_CACHE_MS) || 8_000),
+  maxEntries: 8,
+})
 
 function parseContainerAction(body: unknown): { id: string; action: 'start' | 'stop' | 'restart' } | null {
   if (!body || typeof body !== 'object') return null
@@ -22,6 +28,11 @@ async function handleListGet(req: Request): Promise<Response> {
   const { searchParams } = new URL(req.url)
   const all = searchParams.get('all') === '1' ? 'true' : 'false'
   const includeStats = searchParams.get('stats') === '1'
+  const cacheKey = `list:${all}:${includeStats ? '1' : '0'}`
+  const cached = listCache.get(cacheKey)
+  if (cached) {
+    return Response.json(cached, { headers: { 'X-SD-Cache': 'hit' } })
+  }
   try {
     const r = await dockerGet(`/containers/json?all=${all}`)
     if (!r.ok) {
@@ -59,7 +70,8 @@ async function handleListGet(req: Request): Promise<Response> {
       }
     }
 
-    return Response.json(data)
+    listCache.set(cacheKey, data)
+    return Response.json(data, { headers: { 'X-SD-Cache': 'miss' } })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/EACCES|permission denied/i.test(msg)) {
@@ -121,6 +133,7 @@ async function handleActionPost(req: Request): Promise<Response> {
       void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id, status: r.status })
       return Response.json({ error: msg }, { status })
     }
+    listCache.clear()
     return Response.json({ ok: true, action: parsed.action, id: parsed.id })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
