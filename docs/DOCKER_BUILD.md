@@ -37,3 +37,5 @@ git add src/builtin-plugins
 ## `.dockerignore`
 
 `scripts/vendor-builtin-plugins.mjs`, `scripts/ci-prepare-plugins.sh` und `src/builtin-plugins/` müssen im Build-Kontext sein.
+
+**Nicht** ins Image (bleiben trotzdem auf GitHub): `plugins-pack/`, `android/`, `*.apk` — spart Build-Zeit und Image-Größe; die APK ist nur für Android-Nutzer zum Download im Repo.

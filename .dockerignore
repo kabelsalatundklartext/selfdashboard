@@ -13,3 +13,7 @@ scripts/*
 # plugins-pack wird auf GitHub verteilt, nicht ins Image kopiert (zu groß)
 plugins-pack/
 plugin-pack/
+
+# Android-APK — nur Download/Release, nicht ins Docker-Image (~6 MB)
+android/
+*.apk
