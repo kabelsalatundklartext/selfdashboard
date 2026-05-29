@@ -110,7 +110,7 @@ function Widget({ config }: PluginWidgetProps) {
   const baseUrl = normalizeBaseUrl(str(config.url))
   const slug = str(config.statusPageSlug).replace(/^\/+|\/+$/g, '')
   const refreshMs = Math.max(10, num(config.refreshSeconds) || 30) * 1000
-  const showGroups = config.showGroups !== false
+  const showGroups = config.showGroups === true
   const configured = Boolean(baseUrl && slug)
 
   const refresh = useCallback(async () => {
@@ -164,13 +164,13 @@ function Widget({ config }: PluginWidgetProps) {
     minWidth: 0,
     minHeight: 0,
     boxSizing: 'border-box',
-    padding: '8px 10px 10px',
+    padding: '5px 8px 6px',
     containerType: 'size',
     overflowY: 'auto',
     overflowX: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 4,
   }
 
   const hint = useMemo(() => {
@@ -213,64 +213,73 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div style={shell}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 'clamp(9px, 2.4cqmin, 10px)',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: 'var(--text-muted)',
-          }}
-        >
-          Uptime Kuma
-        </p>
-        <p style={{ margin: 0, fontSize: 'clamp(9px, 2.2cqmin, 10px)', color: 'var(--text-muted)' }}>{summary}</p>
-      </div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 'clamp(8px, 2.2cqmin, 9px)',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.07em',
+          color: 'var(--text-muted)',
+          lineHeight: 1.2,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+        title={summary}
+      >
+        Uptime Kuma · {summary}
+      </p>
 
       {rows.length === 0 && !error ? (
-        <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>
+        <p style={{ fontSize: 'clamp(10px, 2.6cqmin, 11px)', color: 'var(--text-muted)', margin: 0, lineHeight: 1.25 }}>
           {de ? 'Keine Monitore auf der Status-Page.' : 'No monitors on the status page.'}
         </p>
       ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, width: '100%', minWidth: 0 }}>
-          {rows.map((row, idx) => {
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            width: '100%',
+            minWidth: 0,
+            display: 'grid',
+            gridTemplateColumns: rows.length >= 6 ? 'repeat(2, minmax(0, 1fr))' : '1fr',
+            columnGap: 10,
+            rowGap: 1,
+          }}
+        >
+          {rows.map((row) => {
             const color = STATUS_COLOR[row.status]
             const label = statusLabel(row.status, de)
-            const title = showGroups && row.group ? `${row.group} · ${row.name}` : row.name
+            const title =
+              showGroups && row.group ? `${row.group} · ${row.name} · ${label}` : `${row.name} · ${label}`
             return (
               <li
                 key={`${row.id}-${row.name}`}
                 title={title}
-                style={{
-                  listStyle: 'none',
-                  padding: idx < rows.length - 1 ? '0 0 10px 0' : 0,
-                  margin: 0,
-                  borderBottom: idx < rows.length - 1 ? '1px solid var(--border)' : 'none',
-                  minWidth: 0,
-                }}
+                style={{ listStyle: 'none', margin: 0, padding: 0, minWidth: 0 }}
               >
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
+                    gap: 4,
                     width: '100%',
                     minWidth: 0,
-                    fontSize: 'clamp(10px, 2.8cqmin, 12px)',
-                    lineHeight: 1.35,
+                    fontSize: 'clamp(9px, 2.4cqmin, 11px)',
+                    lineHeight: 1.15,
+                    minHeight: 14,
                   }}
                 >
                   <span
                     aria-hidden
                     style={{
-                      width: 8,
-                      height: 8,
+                      width: 6,
+                      height: 6,
                       borderRadius: '50%',
                       background: color,
                       flexShrink: 0,
-                      boxShadow: `0 0 0 1px color-mix(in srgb, ${color} 35%, transparent)`,
                     }}
                   />
                   <span
@@ -287,13 +296,22 @@ function Widget({ config }: PluginWidgetProps) {
                     {row.name}
                   </span>
                   {showGroups && row.group ? (
-                    <>
-                      <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.75, fontSize: '0.92em' }}>
-                        {row.group}
-                      </span>
-                    </>
+                    <span
+                      style={{
+                        color: 'var(--text-muted)',
+                        flexShrink: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        opacity: 0.7,
+                        fontSize: '0.88em',
+                        maxWidth: '28%',
+                      }}
+                    >
+                      {row.group}
+                    </span>
                   ) : null}
-                  <span style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.85 }}>:</span>
                   <span
                     style={{
                       fontVariantNumeric: 'tabular-nums',
@@ -301,7 +319,9 @@ function Widget({ config }: PluginWidgetProps) {
                       whiteSpace: 'nowrap',
                       flexShrink: 0,
                       fontWeight: 700,
-                      fontSize: '0.92em',
+                      fontSize: '0.86em',
+                      minWidth: '2.2em',
+                      textAlign: 'right',
                     }}
                   >
                     {label}
@@ -376,7 +396,7 @@ function Toggle({
 
 function Settings({ config, onChange }: PluginSettingsProps) {
   const { de } = usePluginLocale()
-  const showGroups = config.showGroups !== false
+  const showGroups = config.showGroups === true
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
@@ -436,7 +456,7 @@ export const meta: PluginMeta = {
   name: 'Uptime Kuma',
   description:
     'Öffentliche Status-Page als kompakte Monitor-Liste — passt neben Selfstream-Emby. Probleme (Down) zuerst.',
-  version: '1.0.2',
+  version: '1.0.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',
@@ -445,7 +465,7 @@ export const meta: PluginMeta = {
     { key: 'url', label: 'Uptime Kuma URL', type: 'text', defaultValue: '' },
     { key: 'statusPageSlug', label: 'Status-Page-Slug', type: 'text', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
-    { key: 'showGroups', label: 'Gruppen anzeigen', type: 'boolean', defaultValue: true },
+    { key: 'showGroups', label: 'Gruppen anzeigen', type: 'boolean', defaultValue: false },
   ],
 }
 
