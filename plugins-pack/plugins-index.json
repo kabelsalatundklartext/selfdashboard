@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-29T16:11:48.360Z",
+  "generatedAt": "2026-05-29T16:19:43.051Z",
   "plugins": [
     {
       "id": "adguard",
@@ -269,7 +269,7 @@
       "id": "uptime-kuma",
       "name": "Uptime Kuma",
       "description": "Status-Page-Übersicht aus Uptime Kuma: Monitore mit Up/Down/Pending/Wartung. Daten via /api/plugins/uptime-kuma (Summary-API).",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "💚",

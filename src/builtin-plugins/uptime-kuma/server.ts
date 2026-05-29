@@ -17,20 +17,20 @@ type ReqBody = {
   slug?: string
 }
 
-type SummaryMonitor = {
+type PageMonitor = {
   id?: number
   name?: string
   type?: string
   status?: string
 }
 
-type SummaryGroup = {
+type PageGroup = {
   name?: string
-  monitorList?: SummaryMonitor[]
+  monitorList?: PageMonitor[]
 }
 
-type SummaryPayload = {
-  publicGroupList?: SummaryGroup[]
+type HeartbeatEntry = {
+  status?: number
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -62,40 +62,23 @@ function normalizeSlug(raw: string): string {
   return slug
 }
 
-function normalizeStatus(raw: string): UptimeKumaMonitorStatus {
+function normalizeStatusText(raw: string): UptimeKumaMonitorStatus {
   const s = raw.trim().toLowerCase()
   if (s === 'down' || s === 'pending' || s === 'maintenance') return s
   return 'up'
 }
 
-function normalizeSummary(slug: string, json: unknown): UptimeKumaDashboardPayload {
-  const groups = isObject(json) && Array.isArray(json.publicGroupList) ? json.publicGroupList : []
-  const monitors: UptimeKumaMonitorRow[] = []
-  const counts = { up: 0, down: 0, pending: 0, maintenance: 0, total: 0 }
-
-  for (const group of groups) {
-    if (!isObject(group) || !Array.isArray(group.monitorList)) continue
-    const groupName = str(group.name) || '—'
-    for (const m of group.monitorList) {
-      if (!isObject(m)) continue
-      const name = str(m.name)
-      if (!name) continue
-      const status = normalizeStatus(str(m.status))
-      counts[status] += 1
-      counts.total += 1
-      monitors.push({
-        id: typeof m.id === 'number' && Number.isFinite(m.id) ? m.id : monitors.length + 1,
-        name,
-        group: groupName,
-        type: str(m.type) || 'http',
-        status,
-      })
-    }
+function heartbeatStatus(code: number): UptimeKumaMonitorStatus {
+  switch (code) {
+    case 0:
+      return 'down'
+    case 2:
+      return 'pending'
+    case 3:
+      return 'maintenance'
+    default:
+      return 'up'
   }
-
-  monitors.sort((a, b) => statusRank(a.status) - statusRank(b.status) || a.name.localeCompare(b.name))
-
-  return { slug, monitors, counts }
 }
 
 function statusRank(status: UptimeKumaMonitorStatus): number {
@@ -109,6 +92,85 @@ function statusRank(status: UptimeKumaMonitorStatus): number {
     default:
       return 3
   }
+}
+
+function looksLikeHtml(text: string): boolean {
+  const t = text.trimStart().toLowerCase()
+  return t.startsWith('<!doctype') || t.startsWith('<html')
+}
+
+function parseJson(text: string): unknown | null {
+  if (!text || looksLikeHtml(text)) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+function latestHeartbeatStatus(list: unknown): UptimeKumaMonitorStatus | null {
+  if (!Array.isArray(list) || list.length === 0) return null
+  const last = list[list.length - 1] as HeartbeatEntry
+  if (!isObject(last)) return null
+  const code = typeof last.status === 'number' && Number.isFinite(last.status) ? last.status : 1
+  return heartbeatStatus(code)
+}
+
+function buildPayload(
+  slug: string,
+  pageJson: unknown,
+  heartbeatJson: unknown | null,
+): UptimeKumaDashboardPayload | null {
+  if (!isObject(pageJson) || !Array.isArray(pageJson.publicGroupList)) return null
+
+  const heartbeatList =
+    heartbeatJson && isObject(heartbeatJson) && isObject(heartbeatJson.heartbeatList)
+      ? (heartbeatJson.heartbeatList as Record<string, unknown>)
+      : null
+
+  const monitors: UptimeKumaMonitorRow[] = []
+  const counts = { up: 0, down: 0, pending: 0, maintenance: 0, total: 0 }
+
+  for (const group of pageJson.publicGroupList) {
+    if (!isObject(group) || !Array.isArray(group.monitorList)) continue
+    const groupName = str(group.name) || '—'
+    for (const m of group.monitorList) {
+      if (!isObject(m)) continue
+      const name = str(m.name)
+      if (!name) continue
+      const id = typeof m.id === 'number' && Number.isFinite(m.id) ? m.id : monitors.length + 1
+      const fromSummary = str(m.status)
+      const fromHeartbeat =
+        heartbeatList && m.id != null ? latestHeartbeatStatus(heartbeatList[String(m.id)]) : null
+      const status = fromSummary ? normalizeStatusText(fromSummary) : fromHeartbeat ?? 'pending'
+      counts[status] += 1
+      counts.total += 1
+      monitors.push({
+        id,
+        name,
+        group: groupName,
+        type: str(m.type) || 'http',
+        status,
+      })
+    }
+  }
+
+  monitors.sort((a, b) => statusRank(a.status) - statusRank(b.status) || a.name.localeCompare(b.name))
+  return { slug, monitors, counts }
+}
+
+async function fetchUpstream(
+  url: string,
+  signal: AbortSignal,
+): Promise<{ ok: boolean; status: number; json: unknown | null; text: string }> {
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    signal,
+  })
+  const text = await res.text()
+  return { ok: res.ok, status: res.status, json: parseJson(text), text }
 }
 
 export async function handleUptimeKumaPluginRequest(req: Request, _path: string[]): Promise<Response> {
@@ -138,31 +200,47 @@ async function handleUptimeKumaPost(req: Request): Promise<Response> {
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
 
   try {
-    const url = `${base}/api/status-page/${encodeURIComponent(slug)}/summary`
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-      signal: ac.signal,
-    })
-    const text = await res.text()
-    let json: unknown = null
-    try {
-      json = text ? JSON.parse(text) : null
-    } catch {
-      json = null
+    const summaryUrl = `${base}/api/status-page/${encodeURIComponent(slug)}/summary`
+    const pageUrl = `${base}/api/status-page/${encodeURIComponent(slug)}`
+    const heartbeatUrl = `${base}/api/status-page/heartbeat/${encodeURIComponent(slug)}`
+
+    const summary = await fetchUpstream(summaryUrl, ac.signal)
+    if (summary.ok && summary.json && isObject(summary.json) && Array.isArray(summary.json.publicGroupList)) {
+      const hasStatus = summary.json.publicGroupList.some(
+        (g) =>
+          isObject(g) &&
+          Array.isArray(g.monitorList) &&
+          g.monitorList.some((m) => isObject(m) && str(m.status)),
+      )
+      const payload = buildPayload(slug, summary.json, null)
+      if (payload && (hasStatus || payload.monitors.length > 0)) {
+        if (!hasStatus) {
+          const hb = await fetchUpstream(heartbeatUrl, ac.signal)
+          const merged = buildPayload(slug, summary.json, hb.json)
+          if (merged) return Response.json(merged)
+        }
+        return Response.json(payload)
+      }
     }
-    if (!res.ok) {
-      const detail = isObject(json) && typeof json.msg === 'string' ? json.msg : text.slice(0, 200)
-      const error = res.status === 404 ? 'status_page_not_found' : 'uptime_kuma_error'
-      void logPluginApiFailure('uptime-kuma', 'upstream', error, { upstreamStatus: res.status, detail })
-      return Response.json({ error, detail }, { status: res.status === 404 ? 404 : 502 })
+
+    const page = await fetchUpstream(pageUrl, ac.signal)
+    if (!page.ok) {
+      const detail =
+        page.json && isObject(page.json) && typeof page.json.msg === 'string'
+          ? page.json.msg
+          : page.text.slice(0, 200)
+      const error = page.status === 404 ? 'status_page_not_found' : 'uptime_kuma_error'
+      void logPluginApiFailure('uptime-kuma', 'upstream', error, { upstreamStatus: page.status, detail })
+      return Response.json({ error, detail }, { status: page.status === 404 ? 404 : 502 })
     }
-    if (!isObject(json) || !Array.isArray(json.publicGroupList)) {
+
+    const heartbeat = await fetchUpstream(heartbeatUrl, ac.signal)
+    const payload = buildPayload(slug, page.json, heartbeat.ok ? heartbeat.json : null)
+    if (!payload) {
       void logPluginApiFailure('uptime-kuma', 'upstream', 'invalid_response')
       return Response.json({ error: 'invalid_response' }, { status: 502 })
     }
-    return Response.json(normalizeSummary(slug, json as SummaryPayload))
+    return Response.json(payload)
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
       void logPluginApiFailure('uptime-kuma', 'request', 'timeout')
