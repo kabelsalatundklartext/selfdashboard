@@ -43,6 +43,7 @@ const CLIENT_ONLY_PLUGIN_IDS = [
   'emby',
   'iframe',
   'scratchpad',
+  'selfstream-emby',
 ] as const
 
 function migratePluginGrantsTable() {

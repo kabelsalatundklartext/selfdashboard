@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-29T15:39:29.235Z",
+  "generatedAt": "2026-05-29T15:51:03.825Z",
   "plugins": [
     {
       "id": "adguard",
@@ -216,6 +216,26 @@
         "widget.js"
       ],
       "hasServer": true
+    },
+    {
+      "id": "selfstream-emby",
+      "name": "Selfstream-Emby",
+      "description": "Aktive Streams von Selfstream und Emby/Jellyfin in einer gemischten Liste — mit Quellen-Icon pro Zeile. Nutzt /api/plugins/selfstream und die Emby-Sessions-API.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "media",
+      "icon": "📺",
+      "iconUrl": "/plugin-logos/selfstream.png",
+      "defaultLayout": {
+        "w": 4,
+        "h": 3,
+        "minW": 2,
+        "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js"
+      ]
     },
     {
       "id": "unraid",
