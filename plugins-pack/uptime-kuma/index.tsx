@@ -73,7 +73,10 @@ function errorText(code: string, de: boolean): string {
     status_page_not_found: ['Status-Page nicht gefunden — Slug prüfen.', 'Status page not found — check slug.'],
     timeout: ['Zeitüberschreitung.', 'Timeout.'],
     network_error: ['Uptime Kuma nicht erreichbar.', 'Uptime Kuma unreachable.'],
-    invalid_response: ['Ungültige API-Antwort.', 'Invalid API response.'],
+    invalid_response: [
+      'Ungültige API-Antwort — Docker-Image aktualisieren (v1.0.2+).',
+      'Invalid API response — update Docker image (v1.0.2+).',
+    ],
   }
   const pair = map[code]
   return pair ? pair[de ? 0 : 1] : code
@@ -88,7 +91,11 @@ async function fetchMonitors(url: string, slug: string): Promise<DashboardPayloa
   })
   const json = (await res.json().catch(() => ({}))) as DashboardPayload
   if (!res.ok) {
-    return { monitors: [], error: json.error || `HTTP ${res.status}`, detail: json.detail }
+    return {
+      monitors: [],
+      error: json.error || `HTTP ${res.status}`,
+      detail: json.detail,
+    }
   }
   return json
 }
@@ -118,7 +125,8 @@ function Widget({ config }: PluginWidgetProps) {
     try {
       const data = await fetchMonitors(baseUrl, slug)
       if (data.error) {
-        setError(errorText(data.error, de))
+        const text = errorText(data.error, de)
+        setError(data.detail ? `${text} ${data.detail}` : text)
         setRows([])
         setCounts({ up: 0, down: 0, pending: 0, maintenance: 0, total: 0 })
       } else {
@@ -428,7 +436,7 @@ export const meta: PluginMeta = {
   name: 'Uptime Kuma',
   description:
     'Öffentliche Status-Page als kompakte Monitor-Liste — passt neben Selfstream-Emby. Probleme (Down) zuerst.',
-  version: '1.0.1',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',

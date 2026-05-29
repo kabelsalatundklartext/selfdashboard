@@ -17,22 +17,6 @@ type ReqBody = {
   slug?: string
 }
 
-type PageMonitor = {
-  id?: number
-  name?: string
-  type?: string
-  status?: string
-}
-
-type PageGroup = {
-  name?: string
-  monitorList?: PageMonitor[]
-}
-
-type HeartbeatEntry = {
-  status?: number
-}
-
 function isObject(v: unknown): v is Record<string, unknown> {
   return v != null && typeof v === 'object' && !Array.isArray(v)
 }
@@ -110,7 +94,7 @@ function parseJson(text: string): unknown | null {
 
 function latestHeartbeatStatus(list: unknown): UptimeKumaMonitorStatus | null {
   if (!Array.isArray(list) || list.length === 0) return null
-  const last = list[list.length - 1] as HeartbeatEntry
+  const last = list[list.length - 1]
   if (!isObject(last)) return null
   const code = typeof last.status === 'number' && Number.isFinite(last.status) ? last.status : 1
   return heartbeatStatus(code)
@@ -173,6 +157,19 @@ async function fetchUpstream(
   return { ok: res.ok, status: res.status, json: parseJson(text), text }
 }
 
+function invalidResponseDetail(page: { status: number; json: unknown | null; text: string }, slug: string): string {
+  if (page.json && isObject(page.json) && !Array.isArray(page.json.publicGroupList)) {
+    return 'Antwort ohne publicGroupList — Slug oder Status-Page prüfen.'
+  }
+  if (looksLikeHtml(page.text)) {
+    return `Kein JSON von /api/status-page/${slug} — URL/Port prüfen oder Docker-Image aktualisieren.`
+  }
+  if (!page.json) {
+    return `Ungültiges JSON (HTTP ${page.status}) von /api/status-page/${slug}.`
+  }
+  return 'Status-Page ohne Monitore oder unbekanntes Format.'
+}
+
 export async function handleUptimeKumaPluginRequest(req: Request, _path: string[]): Promise<Response> {
   if (req.method !== 'POST') return Response.json({ error: 'method_not_allowed' }, { status: 405 })
   return handleUptimeKumaPost(req)
@@ -200,28 +197,8 @@ async function handleUptimeKumaPost(req: Request): Promise<Response> {
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
 
   try {
-    const summaryUrl = `${base}/api/status-page/${encodeURIComponent(slug)}/summary`
     const pageUrl = `${base}/api/status-page/${encodeURIComponent(slug)}`
     const heartbeatUrl = `${base}/api/status-page/heartbeat/${encodeURIComponent(slug)}`
-
-    const summary = await fetchUpstream(summaryUrl, ac.signal)
-    if (summary.ok && summary.json && isObject(summary.json) && Array.isArray(summary.json.publicGroupList)) {
-      const hasStatus = summary.json.publicGroupList.some(
-        (g) =>
-          isObject(g) &&
-          Array.isArray(g.monitorList) &&
-          g.monitorList.some((m) => isObject(m) && str(m.status)),
-      )
-      const payload = buildPayload(slug, summary.json, null)
-      if (payload && (hasStatus || payload.monitors.length > 0)) {
-        if (!hasStatus) {
-          const hb = await fetchUpstream(heartbeatUrl, ac.signal)
-          const merged = buildPayload(slug, summary.json, hb.json)
-          if (merged) return Response.json(merged)
-        }
-        return Response.json(payload)
-      }
-    }
 
     const page = await fetchUpstream(pageUrl, ac.signal)
     if (!page.ok) {
@@ -237,8 +214,9 @@ async function handleUptimeKumaPost(req: Request): Promise<Response> {
     const heartbeat = await fetchUpstream(heartbeatUrl, ac.signal)
     const payload = buildPayload(slug, page.json, heartbeat.ok ? heartbeat.json : null)
     if (!payload) {
-      void logPluginApiFailure('uptime-kuma', 'upstream', 'invalid_response')
-      return Response.json({ error: 'invalid_response' }, { status: 502 })
+      const detail = invalidResponseDetail(page, slug)
+      void logPluginApiFailure('uptime-kuma', 'upstream', 'invalid_response', { detail })
+      return Response.json({ error: 'invalid_response', detail }, { status: 502 })
     }
     return Response.json(payload)
   } catch (e) {
