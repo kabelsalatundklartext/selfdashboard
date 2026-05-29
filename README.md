@@ -39,7 +39,8 @@
 | ⚡ **FRITZ! energy** | Smart-outlet power: now, today, 7 days, month (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, array/pool, and disks per server (**Unraid 7.2+** GraphQL) |
 | 📺 **Kiosk / wall tablet** | Public **view-only** URL `/kiosk` — full-screen widgets for guests/tablets (optional password) |
-| 📺 **Emby / SelfStream** | Is anything streaming right now? |
+| 📺 **Emby / SelfStream** | Active streams — separate widgets or **Selfstream-Emby** combined list |
+| 💚 **Uptime Kuma** | Status-page monitors (up / down / pending) in a compact list |
 | ✉️ **Navbar mail** | Unread IMAP badge (install **E-Mail** plugin from the store) — click opens webmail |
 
 Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/home`, `/dashboard/server`), **6 themes**, **EN/DE** — widgets come from the **volume-only plugin system** (install via **Plugin Store** or ZIP, update without rebuilding the image). See **[How SelfDashboard is built](#how-selfdashboard-is-built)**.
@@ -66,11 +67,11 @@ flowchart TB
     GW["Gateway /api/plugins/{id}/…"]
   end
   subgraph vol["Volume /app/plugins/custom"]
-    W["per plugin: plugin.json + widget.js (UI only)"]
+    W["per plugin: plugin.json + widget.js (+ server.mjs for some)"]
   end
   subgraph gh["GitHub branch e.g. main"]
     IDX["plugins-pack/plugins-index.json"]
-    PACK["plugins-pack/{id}/widget.js"]
+    PACK["plugins-pack/{id}/widget.js (+ server.mjs)"]
   end
   gh -->|"Store: Install / Update"| vol
   vol -->|"browser loads widget.js"| UI
@@ -83,14 +84,14 @@ flowchart TB
 | **Core app** | Docker image `ghcr.io/…/selfdashboard` (`:latest`) | Dashboard UI, settings, logging, plugin store, most `/api/*` routes |
 | **Installed plugins** | Host → `/app/plugins/custom/<id>/` | Widgets the browser runs (`widget.js`); survives image updates |
 | **Plugin catalog** | GitHub `plugins-pack/` on branch `main` (configurable) | `plugins-index.json` + files the store downloads on install/update |
-| **Plugin source (dev)** | `selfdashboard/plugins/<id>/` (`index.tsx`, `server.ts`, `lib/`) | UI → `plugins-pack/`; API → `src/builtin-plugins/` in the image |
+| **Plugin source (dev)** | `plugins-pack/<id>/` (`index.tsx`, `widget.js`, optional `server.ts`) | Store ships UI + bundled `server.mjs`; image builtins remain fallback |
 | **App data** | Host → `/app/data` | `dashboard.json`, calendar DB, central log |
 
 ### App update vs plugin update
 
 | You change… | New Docker image? | What to do |
 |-------------|-------------------|------------|
-| A **plugin** (new `widget.js` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
+| A **plugin** (`widget.js` and/or `server.mjs` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
 | **SelfDashboard core** (UI, APIs, store, loader) | **Yes** | `docker pull` + restart container; keep `/app/data` and `/app/plugins/custom` mounts |
 
 ## What's new (recent)
@@ -106,6 +107,9 @@ flowchart TB
 
 ### Plugins (volume / store — no image rebuild)
 
+- **Uptime Kuma** — status-page overview (compact list, 2 columns from 6 monitors). Store ships `server.mjs` — API updates via plugin update.
+- **Selfstream-Emby** — Selfstream + Emby/Jellyfin sessions in one mixed list with source icons per row.
+- **Store-shipped APIs** — **Pi-hole**, **Selfstream**, and **Uptime Kuma** include `server.mjs` in `plugins-pack/` (no image rebuild for API fixes).
 - **Weather 1.5.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24); **7-day** from **tomorrow**. Uses `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
 - **CrowdSec** — alert count respects time range (`daysBack`).
@@ -180,8 +184,10 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 | [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
 | [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
+| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in one list | EN/DE |
 | [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
 | [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
+| [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors | EN/DE |
 | [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
 
 ## Quick Start
@@ -228,7 +234,7 @@ docker-compose up -d
 | Mount / setting | Content |
 |-----------------|--------|
 | **`/app/data`** | Per-user dashboards (`users/`), auth DB (`auth/`), calendar, central log — **back up** regularly |
-| **`/app/plugins/custom`** | Installed plugins (`<id>/plugin.json`, `widget.js`) — **back up** with appdata |
+| **`/app/plugins/custom`** | Installed plugins (`<id>/plugin.json`, `widget.js`, optional `server.mjs`) — **back up** with appdata |
 | **GitHub env vars** | Pre-set in `:latest` image: repo `kabelsalatundklartext/selfdashboard`, ref `main`, path `plugins-pack` |
 | **Docker Socket** (optional) | Local host only — **[Docker plugin](docs/plugins/docker/README.md)** |
 | **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec plugin](docs/plugins/crowdsec/README.md)** |
@@ -454,7 +460,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | ⚡ **FRITZ! Energie** | Steckdose: aktuell, heute, 7 Tage, Monat (TR-064) |
 | 🖥️ **Unraid (2×)** | CPU, RAM, Array/Pool und Festplatten pro Server (**Unraid 7.2+** GraphQL) |
 | 📺 **Kiosk / Wand-Tablet** | Öffentliche **Nur-Ansicht** unter `/kiosk` — Vollbild für Gäste/Tablet (optional Passwort) |
-| 📺 **Emby / SelfStream** | Läuft gerade ein Stream? |
+| 📺 **Emby / SelfStream** | Aktive Streams — einzeln oder kombiniert als **Selfstream-Emby** |
+| 💚 **Uptime Kuma** | Status-Page-Monitore (OK / Down / Pending) in kompakter Liste |
 | ✉️ **Navbar E-Mail** | IMAP-Badge (Plugin **E-Mail** aus dem Store installieren) — Klick öffnet Webmail |
 
 Alles ist **Drag & Drop**, **mehrere Dashboards** (z. B. `/dashboard/home`, `/dashboard/server`), **6 Themes**, **DE/EN** — Widgets kommen aus dem **Volume-only Plugin-System** (Store oder ZIP, Updates ohne Image-Rebuild). Siehe **[Aufbau von SelfDashboard](#aufbau-von-selfdashboard)**.
@@ -479,7 +486,7 @@ flowchart TB
   end
   subgraph gh["GitHub z. B. Branch main"]
     IDX["plugins-pack/plugins-index.json"]
-    PACK["plugins-pack/{id}/widget.js"]
+    PACK["plugins-pack/{id}/widget.js (+ server.mjs)"]
   end
   gh -->|"Store: Installieren / Aktualisieren"| vol
   vol -->|"Browser lädt widget.js"| UI
@@ -492,14 +499,14 @@ flowchart TB
 | **Kern-App** | Image `ghcr.io/…/selfdashboard` (`:latest`) | UI, Einstellungen, Protokoll, Plugin-Store, die meisten `/api/*`-Routen |
 | **Installierte Plugins** | Host → `/app/plugins/custom/<id>/` | Widgets im Browser (`widget.js`); überlebt Image-Updates |
 | **Plugin-Katalog** | GitHub `plugins-pack/` auf Branch `main` (konfigurierbar) | `plugins-index.json` + Dateien für Install/Update |
-| **Plugin-Quellcode (Dev)** | Ordner `plugins/<id>/` (TypeScript) | UI → `plugins-pack/`; Server-Code nach `src/builtin-plugins/` fürs Image |
+| **Plugin-Quellcode (Dev)** | `plugins-pack/<id>/` (`index.tsx`, `widget.js`, optional `server.ts`) | Store liefert UI + gebündeltes `server.mjs`; Image-Builtins als Fallback |
 | **App-Daten** | Host → `/app/data` | `dashboard.json`, Kalender-DB, zentrales Protokoll |
 
 ### App-Update vs Plugin-Update
 
 | Du änderst… | Neues Docker-Image? | Vorgehen |
 |-------------|---------------------|----------|
-| Ein **Plugin** (neues `widget.js` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
+| Ein **Plugin** (`widget.js` und/oder `server.mjs` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
 | **SelfDashboard-Kern** (UI, APIs, Store, Loader) | **Ja** | `docker pull` + Container neu starten; Mounts `/app/data` und `/app/plugins/custom` behalten |
 
 ## Neu (aktuelle Erweiterungen)
@@ -515,6 +522,9 @@ flowchart TB
 
 ### Plugins (Volume / Store — kein Image-Rebuild)
 
+- **Uptime Kuma** — Status-Page-Übersicht (kompakte Liste, 2 Spalten ab 6 Monitoren). Store liefert `server.mjs` — API-Updates per Plugin-Update.
+- **Selfstream-Emby** — Selfstream- und Emby/Jellyfin-Sessions in einer gemischten Liste mit Quellen-Icon pro Zeile.
+- **APIs im Store** — **Pi-hole**, **Selfstream** und **Uptime Kuma** liefern `server.mjs` in `plugins-pack/` (kein Image-Rebuild für API-Fixes).
 - **Wetter 1.5.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24); **7-Tage** ab **morgen**. Nutzt `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
 - **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).
@@ -589,8 +599,10 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 | [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
 | [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
+| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in einer Liste | DE/EN |
 | [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
 | [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
+| [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore | DE/EN |
 | [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
 
 ---
@@ -639,7 +651,7 @@ docker-compose up -d
 | Mount / Einstellung | Inhalt |
 |---------------------|--------|
 | **`/app/data`** | Pro-User-Dashboards (`users/`), Auth-DB (`auth/`), Kalender, Protokoll — **Backup** |
-| **`/app/plugins/custom`** | Installierte Plugins (`<id>/plugin.json`, `widget.js`) — **mit Appdata sichern** |
+| **`/app/plugins/custom`** | Installierte Plugins (`<id>/plugin.json`, `widget.js`, optional `server.mjs`) — **mit Appdata sichern** |
 | **GitHub-Env** | Im `:latest`-Image voreingestellt: Repo `kabelsalatundklartext/selfdashboard`, Ref `main`, Pfad `plugins-pack` |
 | **Docker Socket** (optional) | Nur lokaler Host — **[Docker-Plugin](docs/plugins/docker/README.md)** |
 | **CrowdSec Data** (optional) | `crowdsec.db` read-only — **[CrowdSec-Plugin](docs/plugins/crowdsec/README.md)** |

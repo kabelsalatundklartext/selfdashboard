@@ -20,8 +20,10 @@ Each plugin has a **README with German and English** sections:
 | [Pi-hole](pihole/README.md) | `pihole` |
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
 | [Selfstream](selfstream/README.md) | `selfstream` |
+| [Selfstream-Emby](../../plugins-pack/selfstream-emby/README.md) | `selfstream-emby` |
 | [Unraid](unraid/README.md) | `unraid` |
 | [Unraid Docker](unraid-docker/README.md) | `unraid-docker` |
+| [Uptime Kuma](../../plugins-pack/uptime-kuma/README.md) | `uptime-kuma` |
 | [Weather](weather/README.md) | `weather` |
 
 **Installation:** [../PLUGINS.md](../PLUGINS.md) · **Develop:** [../PLUGIN_DEV.md](../PLUGIN_DEV.md)

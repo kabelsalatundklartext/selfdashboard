@@ -1,8 +1,8 @@
 # Plugin-Store (`plugins-pack/`)
 
-**Einziger Ordner für Plugin-UI auf GitHub.** Der Container installiert daraus nur `plugin.json` + `widget.js` (siehe `plugins-index.json`).
+**Einziger Ordner für Plugin-UI und ausgewählte APIs auf GitHub.** Der Store installiert `plugin.json`, `widget.js` und — wo vorhanden — **`server.mjs`** (siehe `plugins-index.json` → `files` / `hasServer`).
 
-## Workflow (UI-Updates)
+## Workflow (Widget-Updates)
 
 1. **`plugins-pack/<id>/plugin.json`** — Version erhöhen  
 2. **`plugins-pack/<id>/widget.js`** — Widget anpassen (oder aus TS bauen, siehe unten)  
@@ -10,19 +10,32 @@
 4. **`plugins-pack/` pushen** — Store zeigt Update  
 5. Auf dem Server: **Aktualisieren** im Plugin-Store, dann **Strg+F5**
 
+## Workflow (API mit `server.mjs`)
+
+Für Plugins mit **`hasServer: true`** und **`server.mjs`** im Index (aktuell **Pi-hole**, **Selfstream**, **Uptime Kuma**):
+
+1. **`plugins-pack/<id>/server.ts`** bearbeiten (bundle-sicher, kein `@/lib/*`, kein Next.js)  
+2. **`npm run build:plugin-pack -- <id>`** — erzeugt `server.mjs` neben `widget.js`  
+3. Version in **`plugin.json`** erhöhen, Index neu generieren, pushen  
+4. Auf dem Server: Plugin-Store → **Aktualisieren** (lädt `server.mjs` aufs Volume) — **kein Docker-Rebuild** für die API
+
+Shared Logging: `plugins-pack/_shared/log.ts` (wird in `server.mjs` eingebündelt).
+
 ## Optional: TypeScript-Quellen im gleichen Ordner
 
-Du kannst `index.tsx` (+ Hilfsdateien) **neben** `widget.js` ablegen — der Store installiert sie **nicht** (nur Einträge in `plugins-index.json` → `files`).
+Du kannst `index.tsx`, `server.ts` (+ Hilfsdateien) **neben** den Store-Dateien ablegen — der Store installiert nur Einträge aus `plugins-index.json` → `files` (typisch `plugin.json`, `widget.js`, optional `server.mjs`).
 
 ```text
-plugins-pack/calendar/
+plugins-pack/uptime-kuma/
 ├── plugin.json    ← Store
-├── widget.js      ← Store (gebündelt)
+├── widget.js      ← Store
+├── server.mjs     ← Store (aus server.ts gebaut)
 ├── index.tsx      ← optional, nur Repo / Build
-└── i18n.ts
+├── server.ts      ← optional, nur Repo / Build
+└── lib/types.ts
 ```
 
-Build: `npm run build:plugin-pack -- calendar` (liest `plugins-pack/<id>/index.tsx` zuerst, sonst legacy `plugins/<id>/`).
+Build: `npm run build:plugin-pack -- uptime-kuma` (liest `plugins-pack/<id>/index.tsx` und `server.ts` zuerst).
 
 ## Nicht committen / lokal löschbar
 
@@ -31,8 +44,8 @@ Build: `npm run build:plugin-pack -- calendar` (liest `plugins-pack/<id>/index.t
 | `plugins/` | Legacy-Dev-Ordner (`.gitignore`) — kann weg |
 | `plugin-pack/` | Build-Zwischenspeicher + ZIP (`.gitignore`) — kann weg |
 
-## API-Änderungen
+## API-Änderungen (andere Plugins)
 
-Server-Code: `src/builtin-plugins/<id>/` → neues **Docker-Image**, nicht nur Store-Update.
+Plugins **ohne** `server.mjs` im Store (z. B. Kalender, Docker, Wetter): Server-Code weiter in **`src/builtin-plugins/<id>/`** → neues **Docker-Image**.
 
 **Performance-Tipps für Autoren:** [docs/PLUGIN_PERFORMANCE.md](../docs/PLUGIN_PERFORMANCE.md)
