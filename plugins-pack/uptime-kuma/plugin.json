@@ -1,0 +1,16 @@
+{
+  "id": "uptime-kuma",
+  "name": "Uptime Kuma",
+  "description": "Status-Page-Übersicht aus Uptime Kuma: Monitore mit Up/Down/Pending/Wartung. Daten via /api/plugins/uptime-kuma (Summary-API).",
+  "version": "1.0.0",
+  "author": "SelfDashboard",
+  "category": "network",
+  "icon": "💚",
+  "defaultLayout": {
+    "w": 4,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  },
+  "hasServer": true
+}

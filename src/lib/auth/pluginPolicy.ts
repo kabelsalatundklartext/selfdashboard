@@ -17,6 +17,7 @@ export const HOST_SYSTEM_PLUGIN_IDS = new Set([
   'pihole',
   'adguard',
   'selfstream',
+  'uptime-kuma',
 ])
 
 /** Shared backend for the whole instance (mail). Calendar is per-user with optional sharing. */

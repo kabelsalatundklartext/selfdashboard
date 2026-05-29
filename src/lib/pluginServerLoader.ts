@@ -26,6 +26,8 @@ import { piholeServerHandler } from '@/lib/pluginServers/pihole'
 
 import { selfstreamServerHandler } from '@/lib/pluginServers/selfstream'
 
+import { uptimeKumaServerHandler } from '@/lib/pluginServers/uptime-kuma'
+
 import { weatherServerHandler } from '@/lib/pluginServers/weather'
 
 import { startMailScheduler } from '@/lib/mail/sync'
@@ -63,6 +65,8 @@ export function loadBuiltinPluginServers(): void {
   registerPluginServerHandler('pihole', piholeServerHandler)
 
   registerPluginServerHandler('selfstream', selfstreamServerHandler)
+
+  registerPluginServerHandler('uptime-kuma', uptimeKumaServerHandler)
 
   registerPluginServerHandler('weather', weatherServerHandler)
 
