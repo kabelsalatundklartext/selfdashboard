@@ -51,6 +51,20 @@ export function resolvePluginSourceDir(repoRoot, pluginId) {
   return null
 }
 
+/** Server entry for plugin-pack bundling. plugins-pack/<id>/server.ts wins over image builtins. */
+export function resolvePluginServerEntry(repoRoot, pluginId) {
+  const candidates = [
+    path.join(resolvePluginsPackRoot(repoRoot), pluginId, 'server.ts'),
+    path.join(repoRoot, 'src', 'builtin-plugins', pluginId, 'server.ts'),
+    path.join(repoRoot, 'plugins', pluginId, 'server.ts'),
+    path.join(repoRoot, '..', 'plugins', pluginId, 'server.ts'),
+  ]
+  for (const entry of candidates) {
+    if (fs.existsSync(entry)) return entry
+  }
+  return null
+}
+
 /** All plugin IDs that have index.tsx under plugins-pack/ or plugins/. */
 export function listPluginSourceIds(repoRoot) {
   const ids = new Set()

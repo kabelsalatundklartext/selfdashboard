@@ -9,7 +9,13 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { execFileSync } from 'child_process'
-import { resolvePluginPackRoot, resolvePluginsPackRoot, resolvePluginSourceDir, listPluginSourceIds } from './resolve-plugins-root.mjs'
+import {
+  resolvePluginPackRoot,
+  resolvePluginsPackRoot,
+  resolvePluginSourceDir,
+  resolvePluginServerEntry,
+  listPluginSourceIds,
+} from './resolve-plugins-root.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
@@ -265,9 +271,8 @@ export async function logPluginApiFailure(pluginId, operation, message, detail) 
 }
 
 async function bundleServer(pluginId, destDir) {
-  const srcDir = resolvePluginSourceDir(root, pluginId)
-  const entry = srcDir ? path.join(srcDir, 'server.ts') : path.join(pluginsRoot, pluginId, 'server.ts')
-  if (!fs.existsSync(entry)) return false
+  const entry = resolvePluginServerEntry(root, pluginId)
+  if (!entry) return false
   const outfile = path.join(destDir, 'server.mjs')
   await esbuild.build({
     entryPoints: [entry],
@@ -343,10 +348,9 @@ function copyDirToPublish(pluginId) {
   const dest = path.join(packPublishDir, pluginId)
   if (!fs.existsSync(path.join(src, 'widget.js'))) return false
   fs.mkdirSync(dest, { recursive: true })
-  const skipServer = new Set(['server.mjs', 'server.js', 'README-server.txt', 'server.ts.txt'])
+  const skipPublish = new Set(['server.ts', 'README-server.txt', 'server.ts.txt', 'lib'])
   for (const name of fs.readdirSync(src)) {
-    if (skipServer.has(name)) continue
-    /* API handlers ship in the Docker image (builtin); volume pack = widget UI only */
+    if (skipPublish.has(name)) continue
     copyFileIfExists(path.join(src, name), path.join(dest, name))
   }
   const userReadme = path.join(root, 'docs', 'plugins', pluginId, 'README.md')
@@ -411,9 +415,8 @@ async function main() {
         failed.push(id)
       }
     }
-    const srcDir = resolvePluginSourceDir(root, id)
-    const serverTs = srcDir ? path.join(srcDir, 'server.ts') : path.join(pluginsRoot, id, 'server.ts')
-    if (fs.existsSync(serverTs)) {
+    const serverTs = resolvePluginServerEntry(root, id)
+    if (serverTs) {
       try {
         if (await bundleServer(id, dest)) {
           console.info(`[SelfDashboard] server.mjs bundled: ${id}`)

@@ -38,13 +38,6 @@ export function warnInsecureProductionEnv(): void {
       '[security] Session cookies are not Secure. Set SELFDASHBOARD_SECURE_COOKIES=1 when serving over HTTPS.',
     )
   }
-
-  const volumeServer = process.env.SELFDASHBOARD_VOLUME_PLUGIN_SERVER?.trim().toLowerCase()
-  if (volumeServer === '1' || volumeServer === 'true' || volumeServer === 'yes') {
-    console.warn(
-      '[security] SELFDASHBOARD_VOLUME_PLUGIN_SERVER is enabled — only use with a trusted plugin-pack volume.',
-    )
-  }
 }
 
 /** Ignore one-time env password reset when running in production. */

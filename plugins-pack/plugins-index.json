@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-29T16:59:37.866Z",
+  "generatedAt": "2026-05-29T17:08:38.369Z",
   "plugins": [
     {
       "id": "adguard",
@@ -178,14 +178,15 @@
       "id": "pihole",
       "name": "Pi-hole",
       "description": "Pi-hole-v6-Statistik wie im Web-Dashboard (Anfragen, blockiert, Anteil, Domains auf Listen). Blocking per Klick. Daten via /api/plugins/pihole.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🕳️",
       "iconUrl": "/plugin-logos/pihole.png",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -206,14 +207,15 @@
       "id": "selfstream",
       "name": "Selfstream",
       "description": "Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt. API: /api/plugins/selfstream.",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
       "iconUrl": "/plugin-logos/selfstream.png",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -269,7 +271,7 @@
       "id": "uptime-kuma",
       "name": "Uptime Kuma",
       "description": "Status-Page-Übersicht aus Uptime Kuma: kompakte Monitor-Liste (2 Spalten ab 6 Einträgen). API: /api/plugins/uptime-kuma.",
-      "version": "1.0.4",
+      "version": "1.0.5",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "💚",
@@ -281,7 +283,8 @@
       },
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },

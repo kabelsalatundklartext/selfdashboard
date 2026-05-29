@@ -5,49 +5,14 @@ import path from 'path'
 import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import {
-  getPluginServerHandler,
-  getPluginServerHandlerSource,
   registerPluginServerHandler,
   unregisterPluginServerHandler,
   type PluginServerContext,
   type PluginServerHandler,
 } from '@/lib/pluginServerRegistry'
-import {
-  customPluginDir,
-  getCustomServerPluginIds,
-  listInstalledVolumePluginIds,
-} from '@/lib/pluginVolumeInfo'
+import { customPluginDir, getCustomServerPluginIds } from '@/lib/pluginVolumeInfo'
 
 const loadedCustomServerIds = new Set<string>()
-const quarantinedLegacyServers = new Set<string>()
-
-function volumeServerOverrideEnabled(): boolean {
-  const v = process.env.SELFDASHBOARD_VOLUME_PLUGIN_SERVER?.trim().toLowerCase()
-  return v === '1' || v === 'true' || v === 'yes'
-}
-
-/** Legacy plugin packs shipped broken server.mjs (Next.js bundled). Disable by default. */
-function quarantineLegacyVolumeServers(): number {
-  if (volumeServerOverrideEnabled()) return 0
-  let n = 0
-  for (const id of listInstalledVolumePluginIds()) {
-    for (const file of ['server.mjs', 'server.js'] as const) {
-      const p = path.join(customPluginDir(id), file)
-      if (!fs.existsSync(p)) continue
-      const bak = `${p}.bak`
-      if (quarantinedLegacyServers.has(p)) continue
-      try {
-        if (fs.existsSync(bak)) fs.unlinkSync(bak)
-        fs.renameSync(p, bak)
-        quarantinedLegacyServers.add(p)
-        n++
-      } catch {
-        /* read-only volume */
-      }
-    }
-  }
-  return n
-}
 
 function resolveServerModulePath(id: string): string | null {
   const dir = customPluginDir(id)
@@ -88,8 +53,7 @@ async function importVolumeServer(id: string): Promise<PluginServerHandler | nul
     const msg = e instanceof Error ? e.message : String(e)
     console.warn(
       `[SelfDashboard] custom/${id}/server.* skipped (${msg}). ` +
-        'Using builtin API from the image. To remove: delete server.mjs under plugins/custom/' +
-        `${id}/ or set SELFDASHBOARD_VOLUME_PLUGIN_SERVER=1 after rebuilding plugin-pack.`,
+        'Using builtin API from the image if available. Reinstall plugin from store or fix server.mjs.',
     )
     return null
   }
@@ -112,26 +76,13 @@ export async function reloadCustomPluginServers(): Promise<string[]> {
   }
   loadedCustomServerIds.clear()
 
-  if (!volumeServerOverrideEnabled()) {
-    const moved = quarantineLegacyVolumeServers()
-    if (moved > 0) {
-      console.info(
-        `[SelfDashboard] ${moved} legacy plugins/custom/*/server.mjs → *.bak (API uses builtin in image). ` +
-          'Delete *.bak or set SELFDASHBOARD_VOLUME_PLUGIN_SERVER=1 only with a rebuilt plugin-pack.',
-      )
-    }
-    return []
-  }
-
-  const ids = getCustomServerPluginIds()
-  for (const id of ids) {
-    if (getPluginServerHandler(id) && getPluginServerHandlerSource(id) === 'builtin') {
-      continue
-    }
+  const loaded: string[] = []
+  for (const id of getCustomServerPluginIds()) {
     const handler = await importVolumeServer(id)
     if (!handler) continue
     registerPluginServerHandler(id, handler, { source: 'custom', replace: true })
     loadedCustomServerIds.add(id)
+    loaded.push(id)
   }
-  return ids
+  return loaded
 }

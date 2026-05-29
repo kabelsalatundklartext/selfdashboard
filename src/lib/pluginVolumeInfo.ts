@@ -37,7 +37,7 @@ export function getCustomWidgetOverrideIds(): string[] {
   return listCustomPluginDirs().filter((id) => hasVolumeFile(id, 'widget.js'))
 }
 
-/** Custom `server.js` / `server.mjs` — only loaded when `SELFDASHBOARD_VOLUME_PLUGIN_SERVER=1`. */
+/** Custom `server.js` / `server.mjs` from plugin store — loaded on install/reload (overrides image builtins). */
 export function getCustomServerPluginIds(): string[] {
   return listCustomPluginDirs().filter(
     (id) => hasVolumeFile(id, 'server.js') || hasVolumeFile(id, 'server.mjs'),
