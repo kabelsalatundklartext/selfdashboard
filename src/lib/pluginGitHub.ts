@@ -79,7 +79,7 @@ export function getGitHubPluginConfig(): {
   const [owner, repo] = repoEnv.split('/').filter(Boolean)
   if (!owner || !repo) return null
 
-  const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF?.trim() || 'beta'
+  const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF?.trim() || 'main'
 
   const basePath = (process.env.SELFDASHBOARD_PLUGINS_GITHUB_PATH?.trim() || 'plugins-pack').replace(
 

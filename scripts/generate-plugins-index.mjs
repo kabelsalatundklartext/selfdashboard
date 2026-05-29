@@ -14,7 +14,7 @@ const outFile = path.join(packRoot, 'plugins-index.json')
 const skip = new Set(['_template', 'custom'])
 
 const repo = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REPO || 'kabelsalatundklartext/selfdashboard'
-const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF || 'beta'
+const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF || 'main'
 const basePath = 'plugins-pack'
 
 function readPackMeta(pluginId) {

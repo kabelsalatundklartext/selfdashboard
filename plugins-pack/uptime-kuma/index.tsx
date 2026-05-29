@@ -456,7 +456,7 @@ export const meta: PluginMeta = {
   name: 'Uptime Kuma',
   description:
     'Öffentliche Status-Page als kompakte Monitor-Liste — passt neben Selfstream-Emby. Probleme (Down) zuerst.',
-  version: '1.0.3',
+  version: '1.0.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',
