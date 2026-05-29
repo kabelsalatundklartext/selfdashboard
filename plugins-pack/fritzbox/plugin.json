@@ -2,9 +2,15 @@
   "id": "fritzbox",
   "name": "Fritzbox Internet Verlauf",
   "description": "WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten. API: /api/plugins/fritzbox.",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "author": "SelfDashboard",
   "category": "network",
   "icon": "📈",
-  "iconUrl": "/plugin-logos/fritzbox.svg"
+  "iconUrl": "/plugin-logos/fritzbox.svg",
+  "defaultLayout": {
+    "w": 4,
+    "h": 6,
+    "minW": 1,
+    "minH": 3
+  }
 }
