@@ -1,9 +1,9 @@
 {
   "version": 1,
   "repository": "kabelsalatundklartext/selfdashboard",
-  "ref": "main",
+  "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-24T15:40:50.636Z",
+  "generatedAt": "2026-05-29T15:39:29.235Z",
   "plugins": [
     {
       "id": "adguard",
@@ -124,11 +124,17 @@
       "id": "fritzbox",
       "name": "Fritzbox Internet Verlauf",
       "description": "WAN-Durchsatz-Verlauf per TR-064. Sprache und Y-Achsen-Maximum in den Einstellungen, sonst wie Dashboard bzw. automatisch aus den Messwerten. API: /api/plugins/fritzbox.",
-      "version": "2.5.5",
+      "version": "2.5.6",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "📈",
       "iconUrl": "/plugin-logos/fritzbox.svg",
+      "defaultLayout": {
+        "w": 4,
+        "h": 6,
+        "minW": 1,
+        "minH": 2
+      },
       "files": [
         "plugin.json",
         "widget.js"
