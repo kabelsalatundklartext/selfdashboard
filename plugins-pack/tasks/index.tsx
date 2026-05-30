@@ -60,18 +60,44 @@ const row: CSSProperties = {
   borderBottom: '1px solid var(--border, rgba(255,255,255,0.08))',
 }
 
+function isApiMissingError(msg: string): boolean {
+  return msg.includes('plugin_not_found') || msg.includes('plugin_server') || msg.includes('server.mjs')
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     return await pluginApiJson<T>('tasks', path, init)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes('plugin_not_found') || msg.includes('plugin_server')) {
-      throw new Error(
-        msg.includes('hint') ? msg : 'API fehlt — Aufgaben im Store aktualisieren (server.mjs).',
-      )
+    if (isApiMissingError(msg)) {
+      throw new Error('api_missing')
     }
     throw e
   }
+}
+
+async function installTasksApiFromStore(locale: 'de' | 'en'): Promise<string | undefined> {
+  const res = await fetch('/api/plugins/install-remote', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pluginId: 'tasks' }),
+  })
+  const j = (await res.json().catch(() => ({}))) as { error?: string; hint?: string; written?: string[] }
+  if (!res.ok) {
+    if (j.error === 'forbidden' || res.status === 403) {
+      return locale === 'de'
+        ? 'Nur Admin — im Plugin-Store „Aufgaben“ aktualisieren.'
+        : 'Admin only — update “Tasks” in the plugin store.'
+    }
+    return j.hint || j.error || `HTTP ${res.status}`
+  }
+  if (!j.written?.includes('server.mjs') && !j.written?.includes('server.js')) {
+    return locale === 'de'
+      ? 'server.mjs fehlt im Store — plugins-pack pushen.'
+      : 'server.mjs missing on store — push plugins-pack.'
+  }
+  window.location.reload()
+  return undefined
 }
 
 function TasksWidget({ instanceId, config }: PluginWidgetProps) {
@@ -93,6 +119,8 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
   const [accounts, setAccounts] = useState<AccountView[]>([])
   const [lists, setLists] = useState<TaskListRow[]>([])
   const [syncing, setSyncing] = useState(false)
+  const [apiMissing, setApiMissing] = useState(false)
+  const [installingApi, setInstallingApi] = useState(false)
 
   const listId = String(config.listId ?? '').trim()
   const refreshSec = Math.max(15, Number(config.refreshSec) || 60)
@@ -103,8 +131,15 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
       const rows = await api<TaskRow[]>(`/tasks${q}`)
       setTasks(Array.isArray(rows) ? rows : [])
       setError('')
+      setApiMissing(false)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg === 'api_missing') {
+        setApiMissing(true)
+        setError('')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -115,8 +150,9 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
       const st = await api<{ accounts: AccountView[]; lists: TaskListRow[] }>('/status')
       setAccounts(st.accounts ?? [])
       setLists(st.lists ?? [])
-    } catch {
-      /* ignore */
+      setApiMissing(false)
+    } catch (e) {
+      if (e instanceof Error && e.message === 'api_missing') setApiMissing(true)
     }
   }, [])
 
@@ -200,6 +236,19 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
 
   const noAccount = accounts.length === 0
 
+  const installApi = async () => {
+    setInstallingApi(true)
+    setError('')
+    try {
+      const err = await installTasksApiFromStore(de ? 'de' : 'en')
+      if (err) setError(err)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setInstallingApi(false)
+    }
+  }
+
   return (
     <div style={box}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -232,6 +281,23 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
       </div>
 
       {error && <div style={{ color: '#ef4444', fontSize: 11 }}>{error}</div>}
+      {apiMissing && (
+        <div style={{ fontSize: 11, color: '#f59e0b', lineHeight: 1.45 }}>
+          {de
+            ? 'Die Plugin-API (server.mjs) fehlt auf dem Server. Als Admin: unten klicken — sonst Plugin-Store → Aufgaben aktualisieren.'
+            : 'Plugin API (server.mjs) missing on server. As admin: click below — otherwise update Tasks in the plugin store.'}
+          <div style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              disabled={installingApi}
+              onClick={() => void installApi()}
+              style={{ fontSize: 11, padding: '4px 10px', cursor: 'pointer' }}
+            >
+              {installingApi ? '…' : de ? 'API vom Store laden' : 'Load API from store'}
+            </button>
+          </div>
+        </div>
+      )}
       {accounts[0]?.lastSyncError && (
         <div style={{ color: '#f59e0b', fontSize: 10 }}>{accounts[0].lastSyncError.slice(0, 120)}</div>
       )}
@@ -717,7 +783,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.2',
+  version: '1.2.3',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',
