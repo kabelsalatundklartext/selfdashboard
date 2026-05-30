@@ -24,7 +24,7 @@ const API_PLUGIN_IDS = [
 ]
 
 /** API lives in plugins-pack/ only — never copy from src/builtin-plugins. */
-const PACK_ONLY_API_IDS = new Set(['pihole', 'selfstream', 'uptime-kuma', 'tasks'])
+const PACK_ONLY_API_IDS = new Set(['pihole', 'selfstream', 'uptime-kuma'])
 
 const SKIP_IF_PACK_SERVER = new Set([...PACK_ONLY_API_IDS])
 

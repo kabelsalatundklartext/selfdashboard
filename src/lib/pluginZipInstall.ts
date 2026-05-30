@@ -11,7 +11,6 @@ const ALLOWED_FILES = new Set([
   'widget.css',
   'server.js',
   'server.mjs',
-  'server.cjs',
   'icon.png',
   'icon.svg',
   'icon.jpg',

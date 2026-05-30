@@ -1,6 +1,6 @@
 /**
  * Registers core plugin server handlers compiled into the image (mail, adguard, weather, …).
- * Store-only API plugins (tasks, pihole, selfstream, uptime-kuma) ship server.mjs on the volume only.
+ * Store-only API plugins (pihole, selfstream, uptime-kuma) ship server.mjs on the volume only.
  */
 
 import {

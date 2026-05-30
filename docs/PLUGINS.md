@@ -20,7 +20,7 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 | `server.mjs` | Bei API-Plugins | Backend unter `/api/plugins/<id>/…` (vom Store mitinstalliert) |
 
 **API (`/api/plugins/<id>/…`):** **`server.mjs` auf dem Volume** (Store liefert es mit).  
-**Nur Store (kein Image-Fallback):** `tasks`, `pihole`, `selfstream`, `uptime-kuma` — komplette API in `plugins-pack/<id>/`.  
+**Nur Store (kein Image-Fallback):** `pihole`, `selfstream`, `uptime-kuma` — komplette API in `plugins-pack/<id>/`.  
 Andere Plugins können optional zusätzlich `src/builtin-plugins/` im Image haben.
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
@@ -65,7 +65,7 @@ selfdashboard/
 Optional: `index.tsx` im gleichen Ordner (`plugins-pack/<id>/`) für saubere TS-Entwicklung → `npm run build:plugin-pack -- <id>` erzeugt `widget.js`.
 
 **Workflow Plugin-API:** `plugins-pack/<id>/server.ts` (+ `lib/`) → `npm run build:plugin-pack -- <id>` → `server.mjs` committen → Store pushen.  
-Kein Sync nach `src/builtin-plugins/` für Store-only-Plugins (`tasks`, `pihole`, `selfstream`, `uptime-kuma`).
+Kein Sync nach `src/builtin-plugins/` für Store-only-Plugins (`pihole`, `selfstream`, `uptime-kuma`).
 
 Ordner `plugins/` und `plugin-pack/` sind **nicht auf GitHub** (`.gitignore`) und können lokal gelöscht werden.
 

@@ -244,9 +244,6 @@ const SERVER_LIB_ALIASES = {
   '@/lib/auth/pluginPolicy': 'auth-lite.ts',
   '@/lib/auth/service': 'auth-lite.ts',
   '@/lib/auth/users': 'auth-lite.ts',
-  '@/lib/auth/guard': 'auth-guard-lite.ts',
-  '@/lib/auth/types': 'auth-types.ts',
-  '@/lib/security/ssrf': 'ssrf-lite.ts',
   '@/lib/errorLog': 'error-log-lite.ts',
 }
 
@@ -271,9 +268,6 @@ export class NextResponse extends Response {
         build.onResolve({ filter: /^next\/server$/ }, () => ({
           path: 'next-server-stub',
           namespace: SERVER_SHIM_NS,
-        }))
-        build.onResolve({ filter: /^debug$/ }, () => ({
-          path: path.join(packSharedDir, 'debug-stub.ts'),
         }))
         build.onResolve({ filter: /^@\// }, (args) => {
           if (args.kind === 'import-type' || args.kind === 'export-type') return null
@@ -300,12 +294,12 @@ export class NextResponse extends Response {
 async function bundleServer(pluginId, destDir) {
   const entry = resolvePluginServerEntry(root, pluginId)
   if (!entry) return false
-  const outfile = path.join(destDir, 'server.cjs')
+  const outfile = path.join(destDir, 'server.mjs')
   await esbuild.build({
     entryPoints: [entry],
     outfile,
     bundle: true,
-    format: 'cjs',
+    format: 'esm',
     platform: 'node',
     target: 'node18',
     absWorkingDir: root,
@@ -314,8 +308,10 @@ async function bundleServer(pluginId, destDir) {
       'next',
       'next/*',
       'server-only',
-      // Native / heavy server deps — must exist in the Docker runner (see Dockerfile).
       'better-sqlite3',
+      'ical.js',
+      'rrule',
+      'tsdav',
       'maxmind',
       'digest-fetch',
       'imapflow',
@@ -330,12 +326,8 @@ async function bundleServer(pluginId, destDir) {
   const out = fs.readFileSync(outfile, 'utf8')
   if (/next\/dist|from\s+["']next/.test(out) || /server-only/.test(out)) {
     throw new Error(
-      `${pluginId} server.cjs bundles Next.js or server-only — fix plugins/${pluginId}/ imports`,
+      `${pluginId} server.mjs bundles Next.js or server-only — fix plugins/${pluginId}/ imports`,
     )
-  }
-  for (const legacy of ['server.mjs', 'server.js']) {
-    const legacyPath = path.join(destDir, legacy)
-    if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath)
   }
   return true
 }
@@ -462,7 +454,7 @@ async function main() {
     if (serverTs) {
       try {
         if (await bundleServer(id, dest)) {
-          console.info(`[SelfDashboard] server.cjs bundled: ${id}`)
+          console.info(`[SelfDashboard] server.mjs bundled: ${id}`)
         }
       } catch (e) {
         console.warn(`server bundle failed for ${id}:`, e.message || e)

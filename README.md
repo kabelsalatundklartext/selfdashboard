@@ -185,7 +185,6 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 | [Email](docs/plugins/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
 | [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
 | [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
-| [Tasks](plugins-pack/tasks/README.md) | Productivity | CalDAV + Google Tasks + Microsoft To Do | EN/DE |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
 | [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in one list | EN/DE |
 | [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
@@ -603,7 +602,6 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 | [E-Mail](docs/plugins/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
 | [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
 | [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
-| [Aufgaben](plugins-pack/tasks/README.md) | Productivity | CalDAV + Google Tasks + Microsoft To Do | DE/EN |
 | [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
 | [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in einer Liste | DE/EN |
 | [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |

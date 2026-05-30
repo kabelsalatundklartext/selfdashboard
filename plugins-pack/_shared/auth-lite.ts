@@ -1,11 +1,16 @@
 import { mkdirSync } from 'fs'
 import { join } from 'path'
+import Database from 'better-sqlite3'
 import { dataDir } from './data-dir'
-import { openSqliteDatabase } from './sqlite-lite'
 
-import type { AuthUser, UserRole } from './auth-types'
+export type UserRole = 'admin' | 'user'
 
-export type { AuthUser, SessionInfo, UserRole } from './auth-types'
+export type AuthUser = {
+  id: string
+  username: string
+  role: UserRole
+  createdAt: string
+}
 
 type UserRow = {
   id: string
@@ -15,34 +20,20 @@ type UserRow = {
   created_at: string
 }
 
-let db: import('better-sqlite3').Database | null = null
+let db: Database.Database | null = null
 
 function authDbPath(): string {
   return join(dataDir(), 'auth', 'auth.db')
 }
 
-export function getAuthDb(): import('better-sqlite3').Database {
+function getAuthDb(): Database.Database {
   if (db) return db
   const dir = join(dataDir(), 'auth')
   mkdirSync(dir, { recursive: true })
-  db = openSqliteDatabase(authDbPath())
+  db = new Database(authDbPath())
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   return db
-}
-
-export function countUsers(): number {
-  const row = getAuthDb().prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }
-  return row.c
-}
-
-export function needsSetup(): boolean {
-  return countUsers() === 0
-}
-
-export function getUserById(id: string): AuthUser | null {
-  const row = getAuthDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
-  return row ? rowToUser(row) : null
 }
 
 function rowToUser(row: UserRow): AuthUser {

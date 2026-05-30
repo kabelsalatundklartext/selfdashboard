@@ -39,15 +39,6 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-# Volume plugin server.mjs (tasks, calendar, …) dynamic imports — not in Next standalone trace.
-COPY --from=builder /app/node_modules/ical.js ./node_modules/ical.js
-COPY --from=builder /app/node_modules/tsdav ./node_modules/tsdav
-COPY --from=builder /app/node_modules/rrule ./node_modules/rrule
-COPY --from=builder /app/node_modules/xml-js ./node_modules/xml-js
-COPY --from=builder /app/node_modules/base-64 ./node_modules/base-64
-COPY --from=builder /app/node_modules/debug ./node_modules/debug
-COPY --from=builder /app/node_modules/ms ./node_modules/ms
-COPY --from=builder /app/node_modules/sax ./node_modules/sax
 COPY --from=builder /app/scripts/auth-reset-password.mjs ./scripts/auth-reset-password.mjs
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks

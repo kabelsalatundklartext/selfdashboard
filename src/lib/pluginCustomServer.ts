@@ -12,15 +12,10 @@ import {
 import { customPluginDir, getCustomServerPluginIds } from '@/lib/pluginVolumeInfo'
 
 const loadedCustomServerIds = new Set<string>()
-const customServerLoadErrors = new Map<string, string>()
-
-export function getCustomServerLoadErrors(): Record<string, string> {
-  return Object.fromEntries(customServerLoadErrors)
-}
 
 function resolveServerModulePath(id: string): string | null {
   const dir = customPluginDir(id)
-  const candidates = ['server.cjs', 'server.mjs', 'server.js']
+  const candidates = ['server.mjs', 'server.js']
   for (const file of candidates) {
     const p = path.join(dir, file)
     if (path.resolve(p).startsWith(path.resolve(dir)) && path.basename(p) === file && fs.existsSync(p)) {
@@ -35,27 +30,8 @@ function wrapVolumeHandler(id: string, fn: (ctx: PluginServerContext) => Promise
 }
 
 type ServerModule = Record<string, unknown> & {
-  default?: PluginServerHandler | ServerModule
+  default?: PluginServerHandler
   handler?: PluginServerHandler
-  tasksServerHandler?: PluginServerHandler
-}
-
-function resolveServerHandlerExport(mod: ServerModule | null): PluginServerHandler | null {
-  if (!mod) return null
-  const nested =
-    mod.default && typeof mod.default === 'object' ? (mod.default as ServerModule) : null
-  const candidates: unknown[] = [
-    mod.handler,
-    mod.tasksServerHandler,
-    mod.default,
-    nested?.default,
-    nested?.handler,
-    nested?.tasksServerHandler,
-  ]
-  for (const c of candidates) {
-    if (typeof c === 'function') return c as PluginServerHandler
-  }
-  return null
 }
 
 async function loadVolumeServerModule(id: string): Promise<ServerModule | null> {
@@ -67,13 +43,12 @@ async function loadVolumeServerModule(id: string): Promise<ServerModule | null> 
     return (await import(/* webpackIgnore: true */ url)) as ServerModule
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    customServerLoadErrors.set(id, msg)
     console.warn(`[SelfDashboard] custom/${id}/server.* failed to load (${msg}). Reinstall plugin from store.`)
     return null
   }
 }
 
-/** Load exports from an installed plugin server.mjs (handler, startScheduler, …). */
+/** Load exports from an installed plugin server module (handler, startScheduler, …). */
 export async function importVolumeServerModule(pluginId: string): Promise<ServerModule | null> {
   return loadVolumeServerModule(pluginId)
 }
@@ -82,12 +57,12 @@ async function importVolumeServer(id: string): Promise<PluginServerHandler | nul
   const mod = await loadVolumeServerModule(id)
   if (!mod) return null
 
-  const raw = resolveServerHandlerExport(mod)
-  if (!raw) {
+  const raw = mod.default ?? mod.handler
+  if (typeof raw !== 'function') {
     console.warn(`[SelfDashboard] custom/${id}/server.*: no default export handler`)
     return null
   }
-  return wrapVolumeHandler(id, raw)
+  return wrapVolumeHandler(id, raw as PluginServerHandler)
 }
 
 export async function loadCustomPluginServers(): Promise<string[]> {
@@ -99,20 +74,11 @@ export async function reloadCustomPluginServers(): Promise<string[]> {
     unregisterPluginServerHandler(id)
   }
   loadedCustomServerIds.clear()
-  customServerLoadErrors.clear()
 
   const loaded: string[] = []
   for (const id of getCustomServerPluginIds()) {
     const handler = await importVolumeServer(id)
-    if (!handler) {
-      if (!customServerLoadErrors.has(id) && !resolveServerModulePath(id)) {
-        customServerLoadErrors.set(id, 'server API missing on volume')
-      } else if (!customServerLoadErrors.has(id)) {
-        customServerLoadErrors.set(id, 'no default export handler')
-      }
-      continue
-    }
-    customServerLoadErrors.delete(id)
+    if (!handler) continue
     registerPluginServerHandler(id, handler, { source: 'custom', replace: true })
     loadedCustomServerIds.add(id)
     loaded.push(id)
