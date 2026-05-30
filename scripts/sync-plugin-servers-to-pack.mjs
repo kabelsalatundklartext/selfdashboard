@@ -20,13 +20,13 @@ const API_PLUGIN_IDS = [
   'fritz-energy',
   'fritzbox',
   'mail',
-  'pihole',
-  'selfstream',
-  'uptime-kuma',
   'weather',
 ]
 
-const SKIP_IF_PACK_SERVER = new Set(['pihole', 'selfstream', 'uptime-kuma'])
+/** API lives in plugins-pack/ only — never copy from src/builtin-plugins. */
+const PACK_ONLY_API_IDS = new Set(['pihole', 'selfstream', 'uptime-kuma', 'tasks'])
+
+const SKIP_IF_PACK_SERVER = new Set([...PACK_ONLY_API_IDS])
 
 const SKIP_DIRS = new Set(['node_modules', '.git'])
 

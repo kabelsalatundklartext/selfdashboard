@@ -19,8 +19,6 @@ const BUILTIN_IDS = [
   'fritz-energy',
   'fritzbox',
   'mail',
-  'pihole',
-  'selfstream',
   'weather',
 ]
 

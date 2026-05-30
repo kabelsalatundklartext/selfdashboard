@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth, requirePluginAccess } from '@/lib/auth/guard'
 import { getGitHubPluginConfig, installPluginFromGitHub } from '@/lib/pluginGitHub'
-import { ensurePluginServerHandler } from '@/lib/pluginServerEnsure'
-import { parseManifestFromPath } from '@/lib/pluginScan'
-import { customPluginDir, hasVolumeFile } from '@/lib/pluginVolumeInfo'
+import { hasVolumeFile } from '@/lib/pluginVolumeInfo'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,23 +26,6 @@ export async function POST(req: Request) {
   if (denied instanceof NextResponse) return denied
 
   if (hasVolumeFile(pluginId, 'widget.js')) {
-    const manifest = parseManifestFromPath(`${customPluginDir(pluginId)}/plugin.json`, 'custom')
-    if (manifest?.hasServer) {
-      const server = await ensurePluginServerHandler(pluginId)
-      if (!server.ok) {
-        return NextResponse.json(
-          {
-            ok: false,
-            pluginId,
-            ready: true,
-            widgetReady: true,
-            serverError: server.error,
-            hint: server.hint,
-          },
-          { status: 503 },
-        )
-      }
-    }
     return NextResponse.json({ ok: true, pluginId, ready: true, source: 'volume' })
   }
 
@@ -70,11 +51,6 @@ export async function POST(req: Request) {
       },
       { status: 502 },
     )
-  }
-
-  const manifest = parseManifestFromPath(`${customPluginDir(pluginId)}/plugin.json`, 'custom')
-  if (manifest?.hasServer) {
-    await ensurePluginServerHandler(pluginId)
   }
 
   return NextResponse.json({

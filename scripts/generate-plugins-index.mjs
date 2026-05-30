@@ -42,8 +42,7 @@ for (const name of fs.readdirSync(packRoot, { withFileTypes: true })) {
   }
   const serverPack = ['server.mjs', 'server.js'].find((f) => fs.existsSync(path.join(packDir, f)))
   if (serverPack) files.push(serverPack)
-  const hasServer =
-    Boolean(serverPack) || fs.existsSync(path.join(root, 'src/builtin-plugins', name.name, 'server.ts'))
+  const hasServer = Boolean(serverPack)
   const { hasServer: _manifestHasServer, ...meta } = m
   plugins.push({ ...meta, id: meta.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }
