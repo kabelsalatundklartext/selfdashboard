@@ -61,7 +61,17 @@ const row: CSSProperties = {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  return pluginApiJson<T>('tasks', path, init)
+  try {
+    return await pluginApiJson<T>('tasks', path, init)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('plugin_not_found') || msg.includes('plugin_server')) {
+      throw new Error(
+        msg.includes('hint') ? msg : 'API fehlt — Aufgaben im Store aktualisieren (server.mjs).',
+      )
+    }
+    throw e
+  }
 }
 
 function TasksWidget({ instanceId, config }: PluginWidgetProps) {
@@ -707,7 +717,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.1',
+  version: '1.2.2',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requirePluginAccess } from '@/lib/auth/guard'
 import { isReservedPluginApiSegment } from '@/lib/auth/pluginPolicy'
 import { loadAllPluginServers } from '@/lib/pluginServerLoader'
+import { ensurePluginServerHandler } from '@/lib/pluginServerEnsure'
 import { getPluginServerHandler } from '@/lib/pluginServerRegistry'
 
 export const dynamic = 'force-dynamic'
@@ -23,11 +24,31 @@ async function dispatch(req: Request, params: RouteParams): Promise<Response> {
   const denied = requirePluginAccess(req, pluginId)
   if (denied instanceof NextResponse) return denied
   await ensureServers()
-  const path = params.path ?? []
-  const handler = getPluginServerHandler(pluginId)
+
+  let handler = getPluginServerHandler(pluginId)
   if (!handler) {
-    return NextResponse.json({ error: 'plugin_not_found', pluginId }, { status: 404 })
+    const ensured = await ensurePluginServerHandler(pluginId)
+    if (!ensured.ok) {
+      return NextResponse.json(
+        { error: ensured.error ?? 'plugin_not_found', pluginId, hint: ensured.hint },
+        { status: ensured.error === 'plugin_not_installed' ? 404 : 503 },
+      )
+    }
+    handler = getPluginServerHandler(pluginId)
   }
+
+  if (!handler) {
+    return NextResponse.json(
+      {
+        error: 'plugin_not_found',
+        pluginId,
+        hint: 'Server-API nicht geladen — Plugin im Store aktualisieren (server.mjs).',
+      },
+      { status: 503 },
+    )
+  }
+
+  const path = params.path ?? []
   return handler({ pluginId, path, request: req })
 }
 
