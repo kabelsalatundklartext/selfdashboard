@@ -48,11 +48,6 @@ async function loadVolumeServerModule(id: string): Promise<ServerModule | null> 
   }
 }
 
-/** Load exports from an installed plugin server module (handler, startScheduler, …). */
-export async function importVolumeServerModule(pluginId: string): Promise<ServerModule | null> {
-  return loadVolumeServerModule(pluginId)
-}
-
 async function importVolumeServer(id: string): Promise<PluginServerHandler | null> {
   const mod = await loadVolumeServerModule(id)
   if (!mod) return null
