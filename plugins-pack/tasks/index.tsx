@@ -60,6 +60,15 @@ const row: CSSProperties = {
   borderBottom: '1px solid var(--border, rgba(255,255,255,0.08))',
 }
 
+function formatApiError(msg: string, de: boolean): string {
+  if (msg === 'api_missing') {
+    return de
+      ? 'Plugin-API fehlt — zuerst „API vom Store laden“ (Widget) oder Store → Aufgaben aktualisieren.'
+      : 'Plugin API missing — load from store first (widget button) or update Tasks in store.'
+  }
+  return msg
+}
+
 function isApiMissingError(msg: string): boolean {
   return msg.includes('plugin_not_found') || msg.includes('plugin_server') || msg.includes('server.mjs')
 }
@@ -468,7 +477,7 @@ function SetupModal({
       setMsg(de ? 'Gespeichert & synchronisiert' : 'Saved & synced')
       setTimeout(onClose, 600)
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
+      setMsg(formatApiError(e instanceof Error ? e.message : String(e), de))
     } finally {
       setBusy(false)
     }
@@ -516,7 +525,7 @@ function SetupModal({
       window.open(authUrl, 'tasks-google-oauth', 'width=520,height=680')
       setMsg(de ? 'Google-Fenster öffnen und Zugriff erlauben…' : 'Complete sign-in in the Google window…')
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
+      setMsg(formatApiError(e instanceof Error ? e.message : String(e), de))
     } finally {
       setBusy(false)
     }
@@ -570,7 +579,7 @@ function SetupModal({
       window.open(authUrl, 'tasks-microsoft-oauth', 'width=520,height=680')
       setMsg(de ? 'Microsoft-Fenster öffnen und Zugriff erlauben…' : 'Complete sign-in in the Microsoft window…')
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e))
+      setMsg(formatApiError(e instanceof Error ? e.message : String(e), de))
     } finally {
       setBusy(false)
     }
@@ -783,7 +792,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.3',
+  version: '1.2.4',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',

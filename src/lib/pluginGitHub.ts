@@ -248,9 +248,13 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
     const res = await fetch(url, { cache: 'no-store' })
 
+    const required =
+      REQUIRED_INSTALL_FILES.has(file) ||
+      (entry.hasServer === true && (file === 'server.mjs' || file === 'server.js'))
+
     if (!res.ok) {
 
-      if (!REQUIRED_INSTALL_FILES.has(file)) {
+      if (!required) {
 
         console.warn(`[SelfDashboard] Optional plugin file missing on GitHub (skipped): ${rel}`)
 
@@ -296,7 +300,22 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
   }
 
-
+  if (entry.hasServer) {
+    const hasServerOnDisk =
+      written.includes('server.mjs') ||
+      written.includes('server.js') ||
+      fs.existsSync(path.join(destDir, 'server.mjs')) ||
+      fs.existsSync(path.join(destDir, 'server.js'))
+    if (!hasServerOnDisk) {
+      return {
+        ok: false,
+        pluginId,
+        written,
+        error: 'missing_server_mjs',
+        hint: `server.mjs fehlt auf GitHub (${cfg.ref}/${cfg.basePath}/${pluginId}/) — plugins-pack mit server.mjs pushen.`,
+      }
+    }
+  }
 
   return { ok: true, pluginId, written, source: 'github' }
 
