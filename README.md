@@ -47,6 +47,8 @@ Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/h
 
 ---
 
+<a id="english"></a>
+
 # 🇬🇧 English
 
 ## What is SelfDashboard?
@@ -433,6 +435,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 ---
 
 ---
+
+<a id="deutsch"></a>
 
 # 🇩🇪 Deutsch
 
