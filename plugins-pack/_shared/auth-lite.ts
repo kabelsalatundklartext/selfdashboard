@@ -1,7 +1,7 @@
 import { mkdirSync } from 'fs'
 import { join } from 'path'
-import Database from 'better-sqlite3'
 import { dataDir } from './data-dir'
+import { openSqliteDatabase } from './sqlite-lite'
 
 import type { AuthUser, UserRole } from './auth-types'
 
@@ -15,17 +15,17 @@ type UserRow = {
   created_at: string
 }
 
-let db: Database.Database | null = null
+let db: import('better-sqlite3').Database | null = null
 
 function authDbPath(): string {
   return join(dataDir(), 'auth', 'auth.db')
 }
 
-export function getAuthDb(): Database.Database {
+export function getAuthDb(): import('better-sqlite3').Database {
   if (db) return db
   const dir = join(dataDir(), 'auth')
   mkdirSync(dir, { recursive: true })
-  db = new Database(authDbPath())
+  db = openSqliteDatabase(authDbPath())
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   return db

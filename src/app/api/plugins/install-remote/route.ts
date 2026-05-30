@@ -29,6 +29,8 @@ export async function POST(req: Request) {
 
   await reloadCustomPluginServers()
   const catalog = reloadPluginCatalog(getWidgetLoadedIdsForCatalog())
+  const { getCustomServerLoadErrors } = await import('@/lib/pluginCustomServer')
+  const { getPluginServerHandler } = await import('@/lib/pluginServerRegistry')
 
   const hint =
     'Plugin-Dateien von GitHub geladen. Hard-Reload (Strg+F5), damit widget.js neu startet.'
@@ -39,5 +41,7 @@ export async function POST(req: Request) {
     hint,
     catalog,
     reloadPage: true,
+    serverLoaded: Boolean(getPluginServerHandler(pluginId)),
+    serverLoadError: getCustomServerLoadErrors()[pluginId] ?? null,
   })
 }

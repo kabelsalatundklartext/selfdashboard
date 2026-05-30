@@ -3169,10 +3169,10 @@ function withLock(fn) {
   chain = next.catch(() => void 0);
   return next;
 }
-function readSyncFromPath(path) {
-  if (!existsSync2(path)) return structuredClone(EMPTY_STORE);
+function readSyncFromPath(path2) {
+  if (!existsSync2(path2)) return structuredClone(EMPTY_STORE);
   try {
-    const raw = readFileSync2(path, "utf8");
+    const raw = readFileSync2(path2, "utf8");
     const parsed = JSON.parse(raw);
     return {
       version: parsed.version ?? STORE_VERSION,
@@ -3183,17 +3183,17 @@ function readSyncFromPath(path) {
     };
   } catch {
     try {
-      renameSync(path, path + ".corrupt-" + Date.now());
+      renameSync(path2, path2 + ".corrupt-" + Date.now());
     } catch {
     }
     return structuredClone(EMPTY_STORE);
   }
 }
-function writeSyncToPath(path, store) {
-  ensureDir(join2(path, ".."));
-  const tmp = path + ".tmp";
+function writeSyncToPath(path2, store) {
+  ensureDir(join2(path2, ".."));
+  const tmp = path2 + ".tmp";
   writeFileSync2(tmp, JSON.stringify(store, null, 2), "utf8");
-  renameSync(tmp, path);
+  renameSync(tmp, path2);
 }
 function listTasksOwnerUserIds() {
   const root = usersDataDir();
@@ -3210,10 +3210,10 @@ async function readUserStore(userId) {
 }
 async function mutateUserStore(userId, fn) {
   return withLock(async () => {
-    const path = userStorePath(userId);
-    const store = readSyncFromPath(path);
+    const path2 = userStorePath(userId);
+    const store = readSyncFromPath(path2);
     const result = await fn(store);
-    writeSyncToPath(path, store);
+    writeSyncToPath(path2, store);
     return result;
   });
 }
@@ -3518,9 +3518,9 @@ function applyGoogleTokens(account2, tokens) {
   c.accessTokenEncrypted = encrypt(tokens.accessToken);
   c.accessTokenExpiresAt = tokens.expiresAt;
 }
-async function googleFetch(account2, path, init) {
+async function googleFetch(account2, path2, init) {
   const token = await ensureGoogleAccessToken(account2);
-  const url = path.startsWith("http") ? path : `${TASKS_API}${path}`;
+  const url = path2.startsWith("http") ? path2 : `${TASKS_API}${path2}`;
   return fetch(url, {
     ...init,
     headers: {
@@ -3801,9 +3801,9 @@ function applyMicrosoftTokens(account2, tokens) {
   c.accessTokenEncrypted = encrypt(tokens.accessToken);
   c.accessTokenExpiresAt = tokens.expiresAt;
 }
-async function graphFetch(account2, path, init) {
+async function graphFetch(account2, path2, init) {
   const token = await ensureMicrosoftAccessToken(account2);
-  const url = path.startsWith("http") ? path : `${GRAPH}${path}`;
+  const url = path2.startsWith("http") ? path2 : `${GRAPH}${path2}`;
   return fetch(url, {
     ...init,
     headers: {
@@ -3813,15 +3813,15 @@ async function graphFetch(account2, path, init) {
     }
   });
 }
-async function graphJson(account2, path, init) {
-  const res = await graphFetch(account2, path, init);
+async function graphJson(account2, path2, init) {
+  const res = await graphFetch(account2, path2, init);
   const json = await res.json();
   if (!res.ok) throw new Error(json.error?.message || `HTTP ${res.status}`);
   return json;
 }
-async function fetchAllPages(account2, path) {
+async function fetchAllPages(account2, path2) {
   const out = [];
-  let next = path.startsWith("http") ? path : `${GRAPH}${path}`;
+  let next = path2.startsWith("http") ? path2 : `${GRAPH}${path2}`;
   while (next) {
     const json = await graphJson(account2, next);
     out.push(...json.value ?? []);
@@ -14056,7 +14056,6 @@ function stopScheduler() {
 // plugins-pack/_shared/auth-lite.ts
 import { mkdirSync as mkdirSync2 } from "fs";
 import { join as join4 } from "path";
-import Database from "better-sqlite3";
 
 // plugins-pack/_shared/data-dir.ts
 import { join as join3 } from "path";
@@ -14064,6 +14063,19 @@ function dataDir() {
   const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
   if (raw) return raw;
   return join3(process.cwd(), "data");
+}
+
+// plugins-pack/_shared/sqlite-lite.ts
+import { createRequire } from "node:module";
+import path from "node:path";
+var DatabaseCtor = null;
+function openSqliteDatabase(filename) {
+  if (!DatabaseCtor) {
+    const req = createRequire(path.join(process.cwd(), "package.json"));
+    const mod = req("better-sqlite3");
+    DatabaseCtor = mod.default ?? mod;
+  }
+  return new DatabaseCtor(filename);
 }
 
 // plugins-pack/_shared/auth-lite.ts
@@ -14075,7 +14087,7 @@ function getAuthDb() {
   if (db) return db;
   const dir = join4(dataDir(), "auth");
   mkdirSync2(dir, { recursive: true });
-  db = new Database(authDbPath());
+  db = openSqliteDatabase(authDbPath());
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   return db;
@@ -14164,14 +14176,14 @@ function getSessionFromRequest(req) {
 
 // plugins-pack/tasks/lib/viewer.ts
 function resolveTasksViewer(req) {
-  const session = getSessionFromRequest(req);
-  if (session) {
-    return { userId: session.userId, role: session.role };
-  }
   const hdr = req.headers.get("x-sd-user-id")?.trim();
   if (hdr) {
     const role = req.headers.get("x-sd-role")?.trim() ?? "user";
     return { userId: hdr, role: role === "admin" ? "admin" : "user" };
+  }
+  const session = getSessionFromRequest(req);
+  if (session) {
+    return { userId: session.userId, role: session.role };
   }
   return null;
 }
@@ -14505,49 +14517,49 @@ async function handleMicrosoftCallbackGet(req) {
 }
 async function tasksServerHandler(ctx) {
   const method = ctx.request.method.toUpperCase();
-  const path = ctx.path;
-  const [a, b, c] = path;
-  if (a === "google" && b === "callback" && path.length === 2 && method === "GET") {
+  const path2 = ctx.path;
+  const [a, b, c] = path2;
+  if (a === "google" && b === "callback" && path2.length === 2 && method === "GET") {
     return handleGoogleCallbackGet(ctx.request);
   }
-  if (a === "microsoft" && b === "callback" && path.length === 2 && method === "GET") {
+  if (a === "microsoft" && b === "callback" && path2.length === 2 && method === "GET") {
     return handleMicrosoftCallbackGet(ctx.request);
   }
   const viewer = resolveTasksViewer(ctx.request);
   if (!viewer) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (a === "summary" && method === "GET" && path.length === 1) return handleSummaryGet(viewer);
-  if (a === "status" && method === "GET" && path.length === 1) return handleStatusGet(viewer);
-  if (a === "accounts" && path.length === 1) {
+  if (a === "summary" && method === "GET" && path2.length === 1) return handleSummaryGet(viewer);
+  if (a === "status" && method === "GET" && path2.length === 1) return handleStatusGet(viewer);
+  if (a === "accounts" && path2.length === 1) {
     if (method === "GET") return handleAccountsGet(viewer);
     if (method === "POST") return handleAccountsPost(ctx.request, viewer);
   }
-  if (a === "accounts" && b && path.length === 2) {
+  if (a === "accounts" && b && path2.length === 2) {
     if (method === "PUT") return handleAccountPut(ctx.request, b, viewer);
     if (method === "DELETE") return handleAccountDelete(b, viewer);
   }
-  if (a === "accounts" && b && c === "sync" && path.length === 3 && method === "POST") {
+  if (a === "accounts" && b && c === "sync" && path2.length === 3 && method === "POST") {
     return handleAccountSyncPost(b, viewer);
   }
-  if (a === "accounts" && b && c === "test" && path.length === 3 && method === "POST") {
+  if (a === "accounts" && b && c === "test" && path2.length === 3 && method === "POST") {
     return handleAccountTestPost(b, viewer);
   }
-  if (a === "accounts" && b && c === "google" && path[3] === "auth-url" && path.length === 4 && method === "POST") {
+  if (a === "accounts" && b && c === "google" && path2[3] === "auth-url" && path2.length === 4 && method === "POST") {
     return handleGoogleAuthUrlPost(ctx.request, b, viewer);
   }
-  if (a === "accounts" && b && c === "microsoft" && path[3] === "auth-url" && path.length === 4 && method === "POST") {
+  if (a === "accounts" && b && c === "microsoft" && path2[3] === "auth-url" && path2.length === 4 && method === "POST") {
     return handleMicrosoftAuthUrlPost(ctx.request, b, viewer);
   }
-  if (a === "lists" && path.length === 1 && method === "GET") return handleListsGet(viewer);
-  if (a === "lists" && b && path.length === 2 && method === "PUT") return handleListPut(ctx.request, b, viewer);
-  if (a === "tasks" && path.length === 1) {
+  if (a === "lists" && path2.length === 1 && method === "GET") return handleListsGet(viewer);
+  if (a === "lists" && b && path2.length === 2 && method === "PUT") return handleListPut(ctx.request, b, viewer);
+  if (a === "tasks" && path2.length === 1) {
     if (method === "GET") return handleTasksGet(ctx.request, viewer);
     if (method === "POST") return handleTasksPost(ctx.request, viewer);
   }
-  if (a === "tasks" && b && path.length === 2) {
+  if (a === "tasks" && b && path2.length === 2) {
     if (method === "PUT") return handleTaskPut(ctx.request, b, viewer);
     if (method === "DELETE") return handleTaskDelete(b, viewer);
   }
-  return Response.json({ error: "not_found", pluginId: ctx.pluginId, path: path.join("/") }, { status: 404 });
+  return Response.json({ error: "not_found", pluginId: ctx.pluginId, path: path2.join("/") }, { status: 404 });
 }
 var server_default = tasksServerHandler;
 export {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requirePluginAccess } from '@/lib/auth/guard'
+import { requirePluginAccess, type AuthContext } from '@/lib/auth/guard'
 import { isReservedPluginApiSegment } from '@/lib/auth/pluginPolicy'
 import { loadAllPluginServers } from '@/lib/pluginServerLoader'
 import { getPluginServerHandler } from '@/lib/pluginServerRegistry'
@@ -15,13 +15,20 @@ void ensureServers()
 
 type RouteParams = { pluginId: string; path?: string[] }
 
+function enrichPluginRequest(req: Request, auth: AuthContext): Request {
+  const headers = new Headers(req.headers)
+  headers.set('x-sd-user-id', auth.userId)
+  headers.set('x-sd-role', auth.role)
+  return new Request(req, { headers })
+}
+
 async function dispatch(req: Request, params: RouteParams): Promise<Response> {
   const pluginId = params.pluginId
   if (isReservedPluginApiSegment(pluginId)) {
     return NextResponse.json({ error: 'invalid_plugin_route', pluginId }, { status: 404 })
   }
-  const denied = requirePluginAccess(req, pluginId)
-  if (denied instanceof NextResponse) return denied
+  const auth = requirePluginAccess(req, pluginId)
+  if (auth instanceof NextResponse) return auth
   await ensureServers()
   const path = params.path ?? []
   const handler = getPluginServerHandler(pluginId)
@@ -33,7 +40,7 @@ async function dispatch(req: Request, params: RouteParams): Promise<Response> {
       { status: 404 },
     )
   }
-  return handler({ pluginId, path, request: req })
+  return handler({ pluginId, path, request: enrichPluginRequest(req, auth) })
 }
 
 export async function GET(req: Request, ctx: { params: Promise<RouteParams> }) {

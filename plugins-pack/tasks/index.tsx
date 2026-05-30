@@ -66,6 +66,12 @@ function formatApiError(msg: string, de: boolean): string {
       ? 'Plugin-API fehlt — zuerst „API vom Store laden“ (Widget) oder Store → Aufgaben aktualisieren.'
       : 'Plugin API missing — load from store first (widget button) or update Tasks in store.'
   }
+  if (msg.startsWith('plugin_not_found:')) {
+    const detail = msg.slice('plugin_not_found:'.length).trim()
+    return de
+      ? `Plugin-API konnte nicht starten: ${detail}`
+      : `Plugin API failed to start: ${detail}`
+  }
   return msg
 }
 
@@ -79,10 +85,14 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (isApiMissingError(msg)) {
-      throw new Error('api_missing')
+      throw new Error(msg.includes(':') ? msg : 'api_missing')
     }
     throw e
   }
+}
+
+async function reloadTasksServer(): Promise<void> {
+  await fetch('/api/plugins/reload', { method: 'POST' })
 }
 
 async function installTasksApiFromStore(locale: 'de' | 'en'): Promise<string | undefined> {
@@ -91,7 +101,13 @@ async function installTasksApiFromStore(locale: 'de' | 'en'): Promise<string | u
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pluginId: 'tasks' }),
   })
-  const j = (await res.json().catch(() => ({}))) as { error?: string; hint?: string; written?: string[] }
+  const j = (await res.json().catch(() => ({}))) as {
+    error?: string
+    hint?: string
+    written?: string[]
+    serverLoaded?: boolean
+    serverLoadError?: string | null
+  }
   if (!res.ok) {
     if (j.error === 'forbidden' || res.status === 403) {
       return locale === 'de'
@@ -104,6 +120,11 @@ async function installTasksApiFromStore(locale: 'de' | 'en'): Promise<string | u
     return locale === 'de'
       ? 'server.mjs fehlt im Store — plugins-pack pushen.'
       : 'server.mjs missing on store — push plugins-pack.'
+  }
+  if (j.serverLoaded === false) {
+    return locale === 'de'
+      ? `server.mjs installiert, startet aber nicht${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Container-Log prüfen / Image aktualisieren.`
+      : `server.mjs installed but failed to load${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Check container log / update image.`
   }
   window.location.reload()
   return undefined
@@ -161,7 +182,20 @@ function TasksWidget({ instanceId, config }: PluginWidgetProps) {
       setLists(st.lists ?? [])
       setApiMissing(false)
     } catch (e) {
-      if (e instanceof Error && e.message === 'api_missing') setApiMissing(true)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg === 'api_missing' || msg.startsWith('plugin_not_found')) {
+        try {
+          await reloadTasksServer()
+          const st = await pluginApiJson<{ accounts: AccountView[]; lists: TaskListRow[] }>('tasks', '/status')
+          setAccounts(st.accounts ?? [])
+          setLists(st.lists ?? [])
+          setApiMissing(false)
+          return
+        } catch {
+          /* still missing */
+        }
+        setApiMissing(true)
+      }
     }
   }, [])
 
@@ -792,7 +826,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.6',
+  version: '1.2.7',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',
