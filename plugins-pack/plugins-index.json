@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-30T15:33:31.917Z",
+  "generatedAt": "2026-05-30T16:53:51.604Z",
   "plugins": [
     {
       "id": "adguard",
@@ -250,7 +250,7 @@
       "id": "tasks",
       "name": "Aufgaben",
       "description": "CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "SelfDashboard",
       "category": "productivity",
       "icon": "✅",

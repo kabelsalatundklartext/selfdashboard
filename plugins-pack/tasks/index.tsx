@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type For
 import { createPortal } from 'react-dom'
 import { pluginApiJson } from '@/lib/pluginDev'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type TaskRow = {
@@ -63,8 +64,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return pluginApiJson<T>('tasks', path, init)
 }
 
-function TasksWidget({ instanceId, config, onChange }: PluginWidgetProps) {
+function TasksWidget({ instanceId, config }: PluginWidgetProps) {
   const { locale } = usePluginLocale()
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
+  const patchWidgetConfig = useCallback(
+    (patch: Record<string, unknown>) => {
+      updatePluginConfig(instanceId, { ...config, ...patch })
+    },
+    [instanceId, config, updatePluginConfig],
+  )
   const de = locale === 'de'
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -290,7 +298,7 @@ function TasksWidget({ instanceId, config, onChange }: PluginWidgetProps) {
             accounts={accounts}
             lists={lists}
             config={config}
-            onChange={onChange}
+            patchWidgetConfig={patchWidgetConfig}
             onClose={() => {
               setSetupOpen(false)
               void loadStatus()
@@ -308,14 +316,14 @@ function SetupModal({
   accounts,
   lists,
   config,
-  onChange,
+  patchWidgetConfig,
   onClose,
 }: {
   de: boolean
   accounts: AccountView[]
   lists: TaskListRow[]
   config: Record<string, unknown>
-  onChange: PluginSettingsProps['onChange']
+  patchWidgetConfig: (patch: Record<string, unknown>) => void
   onClose: () => void
 }) {
   const caldavAcc = accounts.find((a) => a.provider === 'caldav' || (!a.provider && a.url))
@@ -348,10 +356,12 @@ function SetupModal({
     setBusy(true)
     setMsg('')
     try {
-      onChange('caldavUrl', url.trim())
-      onChange('caldavUser', username.trim())
-      onChange('listId', listId.trim())
-      onChange('refreshSec', Math.max(15, Number(refreshSec) || 60))
+      patchWidgetConfig({
+        caldavUrl: url.trim(),
+        caldavUser: username.trim(),
+        listId: listId.trim(),
+        refreshSec: Math.max(15, Number(refreshSec) || 60),
+      })
 
       if (caldavAcc) {
         await api(`/accounts/${caldavAcc.id}`, {
@@ -389,8 +399,10 @@ function SetupModal({
   }
 
   const saveGoogleCreds = async (): Promise<string> => {
-    onChange('googleClientId', clientId.trim())
-    onChange('refreshSec', Math.max(15, Number(refreshSec) || 60))
+    patchWidgetConfig({
+      googleClientId: clientId.trim(),
+      refreshSec: Math.max(15, Number(refreshSec) || 60),
+    })
     if (googleAcc) {
       await api(`/accounts/${googleAcc.id}`, {
         method: 'PUT',
@@ -435,9 +447,11 @@ function SetupModal({
   }
 
   const saveMicrosoftCreds = async (): Promise<string> => {
-    onChange('microsoftClientId', msClientId.trim())
-    onChange('microsoftTenantId', msTenantId.trim() || 'common')
-    onChange('refreshSec', Math.max(15, Number(refreshSec) || 60))
+    patchWidgetConfig({
+      microsoftClientId: msClientId.trim(),
+      microsoftTenantId: msTenantId.trim() || 'common',
+      refreshSec: Math.max(15, Number(refreshSec) || 60),
+    })
     if (microsoftAcc) {
       await api(`/accounts/${microsoftAcc.id}`, {
         method: 'PUT',
@@ -693,7 +707,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.0',
+  version: '1.2.1',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',
