@@ -26,7 +26,12 @@ async function dispatch(req: Request, params: RouteParams): Promise<Response> {
   const path = params.path ?? []
   const handler = getPluginServerHandler(pluginId)
   if (!handler) {
-    return NextResponse.json({ error: 'plugin_not_found', pluginId }, { status: 404 })
+    const { getCustomServerLoadErrors } = await import('@/lib/pluginCustomServer')
+    const loadErr = getCustomServerLoadErrors()[pluginId]
+    return NextResponse.json(
+      { error: 'plugin_not_found', pluginId, ...(loadErr ? { loadError: loadErr } : {}) },
+      { status: 404 },
+    )
   }
   return handler({ pluginId, path, request: req })
 }

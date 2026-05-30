@@ -65,8 +65,9 @@ export async function pluginApiJson<T>(
     if (!res.ok) {
       let msg = `HTTP ${res.status}`
       try {
-        const j = (await res.json()) as { error?: string; message?: string }
+        const j = (await res.json()) as { error?: string; message?: string; loadError?: string }
         msg = j.error ?? j.message ?? msg
+        if (j.loadError) msg = `${msg}: ${j.loadError}`
       } catch {
         /* body not json */
       }

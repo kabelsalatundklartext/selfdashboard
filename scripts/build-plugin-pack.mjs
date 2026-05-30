@@ -311,10 +311,8 @@ async function bundleServer(pluginId, destDir) {
       'next',
       'next/*',
       'server-only',
+      // Native / heavy server deps — must exist in the Docker runner (see Dockerfile).
       'better-sqlite3',
-      'ical.js',
-      'rrule',
-      'tsdav',
       'maxmind',
       'digest-fetch',
       'imapflow',

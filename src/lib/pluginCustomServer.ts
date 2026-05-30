@@ -13,6 +13,11 @@ import {
 import { customPluginDir, getCustomServerPluginIds } from '@/lib/pluginVolumeInfo'
 
 const loadedCustomServerIds = new Set<string>()
+const customServerLoadErrors = new Map<string, string>()
+
+export function getCustomServerLoadErrors(): Record<string, string> {
+  return Object.fromEntries(customServerLoadErrors)
+}
 
 function resolveServerModulePath(id: string): string | null {
   const dir = customPluginDir(id)
@@ -49,6 +54,7 @@ async function loadVolumeServerModule(id: string): Promise<ServerModule | null> 
     return req(modulePath) as ServerModule
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    customServerLoadErrors.set(id, msg)
     console.warn(`[SelfDashboard] custom/${id}/server.* failed to load (${msg}). Reinstall plugin from store.`)
     return null
   }
@@ -80,11 +86,20 @@ export async function reloadCustomPluginServers(): Promise<string[]> {
     unregisterPluginServerHandler(id)
   }
   loadedCustomServerIds.clear()
+  customServerLoadErrors.clear()
 
   const loaded: string[] = []
   for (const id of getCustomServerPluginIds()) {
     const handler = await importVolumeServer(id)
-    if (!handler) continue
+    if (!handler) {
+      if (!customServerLoadErrors.has(id) && !resolveServerModulePath(id)) {
+        customServerLoadErrors.set(id, 'server.mjs missing on volume')
+      } else if (!customServerLoadErrors.has(id)) {
+        customServerLoadErrors.set(id, 'no default export handler')
+      }
+      continue
+    }
+    customServerLoadErrors.delete(id)
     registerPluginServerHandler(id, handler, { source: 'custom', replace: true })
     loadedCustomServerIds.add(id)
     loaded.push(id)
