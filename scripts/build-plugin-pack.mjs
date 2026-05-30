@@ -244,6 +244,9 @@ const SERVER_LIB_ALIASES = {
   '@/lib/auth/pluginPolicy': 'auth-lite.ts',
   '@/lib/auth/service': 'auth-lite.ts',
   '@/lib/auth/users': 'auth-lite.ts',
+  '@/lib/auth/guard': 'auth-guard-lite.ts',
+  '@/lib/auth/types': 'auth-types.ts',
+  '@/lib/security/ssrf': 'ssrf-lite.ts',
   '@/lib/errorLog': 'error-log-lite.ts',
 }
 

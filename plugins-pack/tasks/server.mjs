@@ -1049,7 +1049,75 @@ async function logPluginApiFailure(pluginId, operation, message, detail) {
 
 // plugins-pack/tasks/lib/caldav.ts
 import { createDAVClient } from "tsdav";
-import { assertSafeOutboundUrl as assertSafeOutboundUrl2 } from "@/lib/security/ssrf";
+
+// plugins-pack/_shared/ssrf-lite.ts
+import net from "net";
+var BLOCKED_HOSTNAMES = /* @__PURE__ */ new Set([
+  "localhost",
+  "metadata.google.internal",
+  "metadata.google",
+  "instance-data"
+]);
+function isAlwaysBlockedIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const normalized = ip.toLowerCase();
+    if (normalized === "::1") return true;
+    if (normalized.startsWith("fe80:")) return true;
+    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  }
+  return false;
+}
+function isPrivateLanIp(ip) {
+  if (!net.isIPv4(ip)) return false;
+  const [a, b] = ip.split(".").map(Number);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+function blockPrivateLanUrls() {
+  const v = process.env.SELFDASHBOARD_BLOCK_PRIVATE_CALENDAR_URLS?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+var UnsafeOutboundUrlError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UnsafeOutboundUrlError";
+  }
+};
+function assertSafeOutboundUrl(urlStr) {
+  let u;
+  try {
+    u = new URL(urlStr);
+  } catch {
+    throw new UnsafeOutboundUrlError("invalid_url");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new UnsafeOutboundUrlError("unsupported_protocol");
+  }
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (!host) throw new UnsafeOutboundUrlError("missing_host");
+  if (BLOCKED_HOSTNAMES.has(host)) throw new UnsafeOutboundUrlError("blocked_host");
+  if (host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new UnsafeOutboundUrlError("blocked_host");
+  }
+  const ipVersion = net.isIP(host);
+  if (ipVersion) {
+    if (isAlwaysBlockedIp(host)) throw new UnsafeOutboundUrlError("blocked_ip");
+    if (blockPrivateLanUrls() && isPrivateLanIp(host)) {
+      throw new UnsafeOutboundUrlError("private_ip_blocked");
+    }
+    return;
+  }
+  if (host.endsWith(".localhost")) throw new UnsafeOutboundUrlError("blocked_host");
+}
 
 // plugins-pack/tasks/lib/caldav-privileges.ts
 function heuristicCalendarReadOnly(name, url) {
@@ -1089,7 +1157,6 @@ function formatCalDavPushError(listName, uid, msg) {
 }
 
 // plugins-pack/tasks/lib/caldav-url.ts
-import { assertSafeOutboundUrl } from "@/lib/security/ssrf";
 function caldavObjectFilename(uid) {
   const stem = uid.includes("@") ? uid.split("@")[0] : uid;
   return `${stem.replace(/[^a-zA-Z0-9-]/g, "_")}.ics`;
@@ -1142,7 +1209,7 @@ async function buildClient(account) {
   const password = decryptPassword(cfg3.passwordEncrypted);
   const serverUrl = normalizeCaldavServerUrl(cfg3.url);
   try {
-    assertSafeOutboundUrl2(serverUrl);
+    assertSafeOutboundUrl(serverUrl);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(`CalDAV URL blocked: ${msg}`);
@@ -1514,8 +1581,116 @@ function stopScheduler() {
   schedulerTimer = null;
 }
 
+// plugins-pack/_shared/auth-lite.ts
+import { mkdirSync as mkdirSync2 } from "fs";
+import { join as join4 } from "path";
+import Database from "better-sqlite3";
+
+// plugins-pack/_shared/data-dir.ts
+import { join as join3 } from "path";
+function dataDir() {
+  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
+  if (raw) return raw;
+  return join3(process.cwd(), "data");
+}
+
+// plugins-pack/_shared/auth-lite.ts
+var db = null;
+function authDbPath() {
+  return join4(dataDir(), "auth", "auth.db");
+}
+function getAuthDb() {
+  if (db) return db;
+  const dir = join4(dataDir(), "auth");
+  mkdirSync2(dir, { recursive: true });
+  db = new Database(authDbPath());
+  db.pragma("journal_mode = WAL");
+  db.pragma("foreign_keys = ON");
+  return db;
+}
+function countUsers() {
+  const row = getAuthDb().prepare("SELECT COUNT(*) AS c FROM users").get();
+  return row.c;
+}
+function needsSetup() {
+  return countUsers() === 0;
+}
+function getUserById(id) {
+  const row = getAuthDb().prepare("SELECT * FROM users WHERE id = ?").get(id);
+  return row ? rowToUser(row) : null;
+}
+function rowToUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    role: row.role,
+    createdAt: row.created_at
+  };
+}
+function isAuthDisabled() {
+  if (process.env.NODE_ENV === "production") return false;
+  const v = process.env.SELFDASHBOARD_AUTH_DISABLED?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+// plugins-pack/_shared/auth-guard-lite.ts
+var AUTH_COOKIE = "sd_session";
+function readSessionIdFromCookieHeader(cookieHeader) {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rest] = part.trim().split("=");
+    if (rawKey?.trim() === AUTH_COOKIE) {
+      const val = rest.join("=").trim();
+      if (/^[a-f0-9]{64}$/.test(val)) return val;
+      return null;
+    }
+  }
+  return null;
+}
+function purgeExpiredSessions() {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  getAuthDb().prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
+}
+function getSession(sessionId) {
+  purgeExpiredSessions();
+  const row = getAuthDb().prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId);
+  if (!row) return null;
+  if (row.expires_at <= (/* @__PURE__ */ new Date()).toISOString()) {
+    getAuthDb().prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+    return null;
+  }
+  const user = getUserById(row.user_id);
+  if (!user) {
+    getAuthDb().prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+    return null;
+  }
+  return {
+    id: row.id,
+    userId: user.id,
+    username: user.username,
+    role: user.role,
+    expiresAt: row.expires_at,
+    mfaVerified: row.mfa_verified !== 0
+  };
+}
+function getSessionFromRequest(req) {
+  if (isAuthDisabled()) {
+    return {
+      id: "dev",
+      userId: "dev",
+      username: "dev",
+      role: "admin",
+      expiresAt: new Date(Date.now() + 864e5).toISOString(),
+      mfaVerified: true
+    };
+  }
+  if (needsSetup()) return null;
+  const sessionId = readSessionIdFromCookieHeader(req.headers.get("cookie"));
+  if (!sessionId) return null;
+  return getSession(sessionId);
+}
+
 // plugins-pack/tasks/lib/viewer.ts
-import { getSessionFromRequest } from "@/lib/auth/guard";
 function resolveTasksViewer(req) {
   const session = getSessionFromRequest(req);
   if (session) {

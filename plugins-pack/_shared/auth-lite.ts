@@ -3,14 +3,9 @@ import { join } from 'path'
 import Database from 'better-sqlite3'
 import { dataDir } from './data-dir'
 
-export type UserRole = 'admin' | 'user'
+import type { AuthUser, UserRole } from './auth-types'
 
-export type AuthUser = {
-  id: string
-  username: string
-  role: UserRole
-  createdAt: string
-}
+export type { AuthUser, SessionInfo, UserRole } from './auth-types'
 
 type UserRow = {
   id: string
@@ -26,7 +21,7 @@ function authDbPath(): string {
   return join(dataDir(), 'auth', 'auth.db')
 }
 
-function getAuthDb(): Database.Database {
+export function getAuthDb(): Database.Database {
   if (db) return db
   const dir = join(dataDir(), 'auth')
   mkdirSync(dir, { recursive: true })
@@ -34,6 +29,20 @@ function getAuthDb(): Database.Database {
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
   return db
+}
+
+export function countUsers(): number {
+  const row = getAuthDb().prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }
+  return row.c
+}
+
+export function needsSetup(): boolean {
+  return countUsers() === 0
+}
+
+export function getUserById(id: string): AuthUser | null {
+  const row = getAuthDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined
+  return row ? rowToUser(row) : null
 }
 
 function rowToUser(row: UserRow): AuthUser {
