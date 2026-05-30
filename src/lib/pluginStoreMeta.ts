@@ -17,6 +17,16 @@ const BUILTIN_STORE_META: Record<string, PluginMeta> = {
     icon: '📅',
     defaultLayout: { w: 6, h: 8, minW: 3, minH: 6 },
   },
+  tasks: {
+    id: 'tasks',
+    name: 'Aufgaben',
+    description: 'CalDAV + Google + Microsoft To Do',
+    version: '1.2.0',
+    author: 'SelfDashboard',
+    category: 'productivity',
+    icon: '✅',
+    defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
+  },
   weather: {
     id: 'weather',
     name: 'Wetter',

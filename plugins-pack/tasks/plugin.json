@@ -1,0 +1,16 @@
+{
+  "id": "tasks",
+  "name": "Aufgaben",
+  "description": "CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.",
+  "version": "1.2.0",
+  "author": "SelfDashboard",
+  "category": "productivity",
+  "icon": "✅",
+  "defaultLayout": {
+    "w": 3,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  },
+  "hasServer": true
+}

@@ -26,6 +26,7 @@
         "./src/*"
       ],
       "@plugins/*": [
+        "./plugins-pack/*",
         "./src/builtin-plugins/*",
         "./plugins/*"
       ],
@@ -42,6 +43,8 @@
     "plugins/**/*.ts",
     "plugins/**/*.tsx",
     "plugins/**/*.json",
+    "plugins-pack/**/*.ts",
+    "plugins-pack/**/*.tsx",
     ".next/types/**/*.ts"
   ],
   "exclude": [

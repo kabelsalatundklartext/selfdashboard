@@ -1,8 +1,12 @@
 const fs = require('fs')
 const path = require('path')
 
-/** Builtin server handlers vendored into src/builtin-plugins (committed for CI/Docker). */
+/** Plugin server sources for @plugins alias — plugins-pack wins when present. */
 function resolvePluginsRootForBuild() {
+  const pack = path.join(__dirname, 'plugins-pack')
+  const packWeather = path.join(pack, 'weather', 'server.ts')
+  const packTasks = path.join(pack, 'tasks', 'server.ts')
+  if (fs.existsSync(packWeather) || fs.existsSync(packTasks)) return pack
   const builtin = path.join(__dirname, 'src', 'builtin-plugins')
   if (fs.existsSync(path.join(builtin, 'weather', 'server.ts'))) return builtin
   const inRepo = path.join(__dirname, 'plugins')

@@ -19,6 +19,7 @@ Each plugin has a **README with German and English** sections:
 | [Email](mail/README.md) | `mail` |
 | [Pi-hole](pihole/README.md) | `pihole` |
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
+| [Tasks / Aufgaben](../../plugins-pack/tasks/README.md) | `tasks` (CalDAV sync) |
 | [Selfstream](selfstream/README.md) | `selfstream` |
 | [Selfstream-Emby](../../plugins-pack/selfstream-emby/README.md) | `selfstream-emby` |
 | [Unraid](unraid/README.md) | `unraid` |

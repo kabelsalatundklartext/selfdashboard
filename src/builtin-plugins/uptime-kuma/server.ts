@@ -1,14 +1,15 @@
-import type { PluginServerContext } from '@/lib/pluginServerRegistry'
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { logPluginApiFailure } from '../_shared/log'
 import type {
   UptimeKumaDashboardPayload,
   UptimeKumaMonitorRow,
   UptimeKumaMonitorStatus,
 } from './lib/types'
 
-export type { UptimeKumaDashboardPayload, UptimeKumaMonitorRow, UptimeKumaMonitorStatus } from './lib/types'
-
-export const dynamic = 'force-dynamic'
+type PluginServerContext = {
+  pluginId: string
+  path: string[]
+  request: Request
+}
 
 const FETCH_TIMEOUT_MS = 12_000
 
@@ -162,7 +163,7 @@ function invalidResponseDetail(page: { status: number; json: unknown | null; tex
     return 'Antwort ohne publicGroupList — Slug oder Status-Page prüfen.'
   }
   if (looksLikeHtml(page.text)) {
-    return `Kein JSON von /api/status-page/${slug} — URL/Port prüfen oder Docker-Image aktualisieren.`
+    return `Kein JSON von /api/status-page/${slug} — URL/Port prüfen.`
   }
   if (!page.json) {
     return `Ungültiges JSON (HTTP ${page.status}) von /api/status-page/${slug}.`
@@ -170,7 +171,7 @@ function invalidResponseDetail(page: { status: number; json: unknown | null; tex
   return 'Status-Page ohne Monitore oder unbekanntes Format.'
 }
 
-export async function handleUptimeKumaPluginRequest(req: Request, _path: string[]): Promise<Response> {
+async function handleUptimeKumaPluginRequest(req: Request, _path: string[]): Promise<Response> {
   if (req.method !== 'POST') return Response.json({ error: 'method_not_allowed' }, { status: 405 })
   return handleUptimeKumaPost(req)
 }
@@ -233,8 +234,6 @@ async function handleUptimeKumaPost(req: Request): Promise<Response> {
   }
 }
 
-export function uptimeKumaServerHandler(ctx: PluginServerContext): Promise<Response> {
+export default function uptimeKumaServerHandler(ctx: PluginServerContext): Promise<Response> {
   return handleUptimeKumaPluginRequest(ctx.request, ctx.path)
 }
-
-export default uptimeKumaServerHandler

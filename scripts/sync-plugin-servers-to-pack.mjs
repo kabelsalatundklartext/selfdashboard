@@ -26,7 +26,6 @@ const API_PLUGIN_IDS = [
   'weather',
 ]
 
-/** Pack already has volume-ready server sources — do not overwrite. */
 const SKIP_IF_PACK_SERVER = new Set(['pihole', 'selfstream', 'uptime-kuma'])
 
 const SKIP_DIRS = new Set(['node_modules', '.git'])

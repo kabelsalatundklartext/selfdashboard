@@ -20,7 +20,8 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 | `server.mjs` | Bei API-Plugins | Backend unter `/api/plugins/<id>/…` (vom Store mitinstalliert) |
 
 **API (`/api/plugins/<id>/…`):** Standard ist **`server.mjs` auf dem Volume** (Store liefert es mit; siehe `hasServer` in `plugins-index.json`).  
-Das Docker-Image enthält dieselben Handler in `src/builtin-plugins/` als **Fallback**, falls `server.mjs` fehlt oder nicht lädt.
+Plugins wie **Aufgaben (`tasks`)** haben **keine** API im Docker-Image — nur `plugins-pack/tasks/server.mjs` nach Installation.  
+Andere Plugins können optional einen Handler in `src/builtin-plugins/` als Fallback haben.
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 
@@ -63,8 +64,8 @@ selfdashboard/
 
 Optional: `index.tsx` im gleichen Ordner (`plugins-pack/<id>/`) für saubere TS-Entwicklung → `npm run build:plugin-pack -- <id>` erzeugt `widget.js`.
 
-**Workflow Plugin-API:** `plugins-pack/<id>/server.ts` (+ `lib/`) anpassen → `npm run build:plugin-pack -- <id>` → `server.mjs` committen → Store-Update (kein Image-Rebuild).  
-Aus `src/builtin-plugins/` nachziehen: `npm run sync:plugin-servers` (kopiert `server.ts` + `lib/` ins Pack).
+**Workflow Plugin-API:** `plugins-pack/<id>/server.ts` (+ `lib/` für alle Anbieter/Backends) anpassen → `npm run build:plugin-pack -- <id>` → `server.mjs` committen → Store-Update (kein Image-Rebuild).  
+**Aufgaben (`tasks`):** ausschließlich im Plugin-Ordner — kein `src/builtin-plugins/tasks/`.
 
 Ordner `plugins/` und `plugin-pack/` sind **nicht auf GitHub** (`.gitignore`) und können lokal gelöscht werden.
 

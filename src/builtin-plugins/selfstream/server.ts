@@ -1,5 +1,11 @@
-import type { PluginServerContext } from '@/lib/pluginServerRegistry'
-export const dynamic = 'force-dynamic'
+import { logPluginApiFailure } from '../_shared/log'
+import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from './lib/types'
+
+type PluginServerContext = {
+  pluginId: string
+  path: string[]
+  request: Request
+}
 
 const FETCH_TIMEOUT_MS = 12_000
 
@@ -26,11 +32,6 @@ type SelfstreamCatchupRow = {
   duration?: number
   ip?: string
 }
-
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
-import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from './lib/types'
-
-export type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from './lib/types'
 
 function parseBase(raw: string): URL {
   const s = raw.trim()
@@ -89,7 +90,6 @@ function elapsedFromStarted(started: number | string | undefined): number {
   const now = Math.floor(Date.now() / 1000)
   const s = num(started)
   if (s <= 0) return 0
-  // Unix seconds (selfstream active_sessions) or ms
   const sec = s > 1e12 ? Math.floor(s / 1000) : Math.floor(s)
   return Math.max(0, now - sec)
 }
@@ -140,7 +140,7 @@ type ReqBody = {
   password?: string
 }
 
-export async function handleSelfstreamPluginRequest(req: Request, _path: string[]): Promise<Response> {
+async function handleSelfstreamPluginRequest(req: Request, _path: string[]): Promise<Response> {
   if (req.method !== 'POST') return Response.json({ error: 'method_not_allowed' }, { status: 405 })
   return handleSelfstreamPost(req)
 }
@@ -218,9 +218,6 @@ async function handleSelfstreamPost(req: Request): Promise<Response> {
   }
 }
 
-
-export function selfstreamServerHandler(ctx: PluginServerContext): Promise<Response> {
+export default function selfstreamServerHandler(ctx: PluginServerContext): Promise<Response> {
   return handleSelfstreamPluginRequest(ctx.request, ctx.path)
 }
-
-export default selfstreamServerHandler

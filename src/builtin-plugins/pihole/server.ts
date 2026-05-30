@@ -1,7 +1,10 @@
-import { logPluginApiFailure } from '@/lib/pluginLogServer'
-import type { PluginServerContext } from '@/lib/pluginServerRegistry'
+import { logPluginApiFailure } from '../_shared/log'
 
-export const dynamic = 'force-dynamic'
+type PluginServerContext = {
+  pluginId: string
+  path: string[]
+  request: Request
+}
 
 const FETCH_TIMEOUT_MS = 12_000
 
@@ -68,7 +71,7 @@ async function fetchJson(
   const res = await fetch(url, {
     method,
     headers: h,
-    body: body != null ? JSON.stringify(body) : undefined,
+    body: body != null ? JSON.stringify(body) : null,
     cache: 'no-store',
     signal,
   })
@@ -171,7 +174,7 @@ type ReqBody = {
   blocking?: boolean
 }
 
-export async function handlePiholePluginRequest(req: Request, _path: string[]): Promise<Response> {
+async function handlePiholePluginRequest(req: Request, _path: string[]): Promise<Response> {
   if (req.method !== 'POST') return Response.json({ error: 'method_not_allowed' }, { status: 405 })
   return handlePiholePost(req)
 }
@@ -272,9 +275,6 @@ async function handlePiholePost(req: Request): Promise<Response> {
   }
 }
 
-
-export function piholeServerHandler(ctx: PluginServerContext): Promise<Response> {
+export default function piholeServerHandler(ctx: PluginServerContext): Promise<Response> {
   return handlePiholePluginRequest(ctx.request, ctx.path)
 }
-
-export default piholeServerHandler
