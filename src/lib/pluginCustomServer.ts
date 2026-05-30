@@ -2,7 +2,6 @@ import 'server-only'
 
 import fs from 'fs'
 import path from 'path'
-import { createRequire } from 'module'
 import { pathToFileURL } from 'url'
 import {
   registerPluginServerHandler,
@@ -36,8 +35,27 @@ function wrapVolumeHandler(id: string, fn: (ctx: PluginServerContext) => Promise
 }
 
 type ServerModule = Record<string, unknown> & {
-  default?: PluginServerHandler
+  default?: PluginServerHandler | ServerModule
   handler?: PluginServerHandler
+  tasksServerHandler?: PluginServerHandler
+}
+
+function resolveServerHandlerExport(mod: ServerModule | null): PluginServerHandler | null {
+  if (!mod) return null
+  const nested =
+    mod.default && typeof mod.default === 'object' ? (mod.default as ServerModule) : null
+  const candidates: unknown[] = [
+    mod.handler,
+    mod.tasksServerHandler,
+    mod.default,
+    nested?.default,
+    nested?.handler,
+    nested?.tasksServerHandler,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'function') return c as PluginServerHandler
+  }
+  return null
 }
 
 async function loadVolumeServerModule(id: string): Promise<ServerModule | null> {
@@ -45,13 +63,8 @@ async function loadVolumeServerModule(id: string): Promise<ServerModule | null> 
   if (!modulePath) return null
 
   try {
-    if (modulePath.endsWith('.mjs')) {
-      const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
-      return (await import(/* webpackIgnore: true */ url)) as ServerModule
-    }
-    const req = createRequire(pathToFileURL(modulePath))
-    delete req.cache[modulePath]
-    return req(modulePath) as ServerModule
+    const url = `${pathToFileURL(modulePath).href}?t=${Date.now()}`
+    return (await import(/* webpackIgnore: true */ url)) as ServerModule
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     customServerLoadErrors.set(id, msg)
@@ -69,12 +82,12 @@ async function importVolumeServer(id: string): Promise<PluginServerHandler | nul
   const mod = await loadVolumeServerModule(id)
   if (!mod) return null
 
-  const raw = mod.default ?? mod.handler
-  if (typeof raw !== 'function') {
+  const raw = resolveServerHandlerExport(mod)
+  if (!raw) {
     console.warn(`[SelfDashboard] custom/${id}/server.*: no default export handler`)
     return null
   }
-  return wrapVolumeHandler(id, raw as PluginServerHandler)
+  return wrapVolumeHandler(id, raw)
 }
 
 export async function loadCustomPluginServers(): Promise<string[]> {
@@ -93,7 +106,7 @@ export async function reloadCustomPluginServers(): Promise<string[]> {
     const handler = await importVolumeServer(id)
     if (!handler) {
       if (!customServerLoadErrors.has(id) && !resolveServerModulePath(id)) {
-        customServerLoadErrors.set(id, 'server.mjs missing on volume')
+        customServerLoadErrors.set(id, 'server API missing on volume')
       } else if (!customServerLoadErrors.has(id)) {
         customServerLoadErrors.set(id, 'no default export handler')
       }
