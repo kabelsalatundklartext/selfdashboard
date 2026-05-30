@@ -6,7 +6,10 @@
 
  */
 
-import { registerPluginServerHandler } from '@/lib/pluginServerRegistry'
+import {
+  getPluginServerHandler,
+  registerPluginServerHandler,
+} from '@/lib/pluginServerRegistry'
 
 import { adguardServerHandler } from '@/lib/pluginServers/adguard'
 
@@ -70,8 +73,6 @@ export function loadBuiltinPluginServers(): void {
 
   registerPluginServerHandler('weather', weatherServerHandler)
 
-  startMailScheduler()
-
 }
 
 
@@ -81,5 +82,9 @@ export async function loadAllPluginServers(): Promise<void> {
   loadBuiltinPluginServers()
 
   await reloadCustomPluginServers()
+
+  if (getPluginServerHandler('mail')) {
+    startMailScheduler()
+  }
 
 }

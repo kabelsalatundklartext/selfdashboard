@@ -12,10 +12,10 @@ Kurzüberblick Ordner: **[PLUGINS.md](./PLUGINS.md)**.
 
 | Rolle | Was passiert |
 |--------|----------------|
-| **SelfDashboard (Image)** | Dashboard, Store, Gateway `/api/plugins/<id>/…`, Builtin-Handler aus `plugins/<id>/server.ts` |
-| **Plugin auf dem Volume** | `plugin.json` + `widget.js` unter `/app/plugins/custom/<id>/` (UI-Updates ohne Image-Rebuild) |
-| **Plugin-API im Image** | `plugins/<id>/server.ts` + `lib/` → vendored nach `src/builtin-plugins/` → `/api/plugins/<id>/…` |
-| **Du als Entwickler** | Bearbeitest **`plugins-pack/<id>/`** (`plugin.json` + `widget.js`); optional `index.tsx` dort + `npm run build:plugin-pack`. API: `src/builtin-plugins/` |
+| **SelfDashboard (Image)** | Dashboard, Store, Gateway `/api/plugins/<id>/…`, Builtin-Handler als Fallback |
+| **Plugin auf dem Volume** | `plugin.json` + `widget.js` (+ `server.mjs` bei API) unter `/app/plugins/custom/<id>/` |
+| **Plugin-API im Store** | `plugins-pack/<id>/server.ts` → `npm run build:plugin-pack` → `server.mjs` aufs Volume (überschreibt Image-API) |
+| **Du als Entwickler** | Bearbeitest **`plugins-pack/<id>/`**; optional `index.tsx` + Build. Image-Kopie: `src/builtin-plugins/` (sync mit `npm run sync:plugin-servers`) |
 
 Es gibt **keinen Hybrid-Modus** mehr im Code: Widgets kommen **nur** vom Volume (Store oder ZIP), nicht aus dem Docker-Image.
 
@@ -59,10 +59,11 @@ Nach Änderungen an **`server.ts`** / **`lib/`** (Builtin im Image):
 
 | Datei | Beschreibung |
 |--------|----------------|
-| `server.ts` | Server-Handler für `/api/plugins/<id>/…` — landet im **Image** (`src/builtin-plugins/`), siehe [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md) |
-| `lib/` | Nur Plugin-Server-Logik (kein `import` aus `next/server` / `server-only` / `@/lib/pluginLogServer`) |
+| `server.ts` | Quelle für `server.mjs` (API auf dem Volume); siehe [PLUGIN_ARCHITECTURE.md](./PLUGIN_ARCHITECTURE.md) |
+| `server.mjs` | Gebündelter API-Handler — wird vom Store mitinstalliert (`hasServer: true`) |
+| `lib/` | Plugin-Server-Logik; `@/lib/*` wird beim Build auf `plugins-pack/_shared/` gemappt (kein Next.js im Bundle) |
 
-**Kein `server.mjs` im Plugin-Pack:** Volume-Plugins sind nur UI. API-Updates brauchen ein **neues Docker-Image** (`npm run vendor-plugins` + Commit `src/builtin-plugins/`).
+**API-Plugins mit `server.mjs` im Store:** u. a. AdGuard, Kalender, CrowdSec, Docker, Fritzbox, Fritz-Energy, Mail, Pi-hole, Selfstream, Uptime Kuma, Wetter — Updates per Plugin-Store, **ohne** Image-Rebuild.
 
 ### `plugin.json` — Beispiel
 

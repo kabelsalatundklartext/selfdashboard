@@ -111,7 +111,7 @@ flowchart TB
 
 - **Uptime Kuma** — status-page overview (compact list, 2 columns from 6 monitors). Store ships `server.mjs` — API updates via plugin update.
 - **Selfstream-Emby** — Selfstream + Emby/Jellyfin sessions in one mixed list with source icons per row.
-- **Store-shipped APIs** — **Pi-hole**, **Selfstream**, and **Uptime Kuma** include `server.mjs` in `plugins-pack/` (no image rebuild for API fixes).
+- **Store-shipped APIs** — All backend plugins (AdGuard, Calendar, CrowdSec, Docker, Fritzbox, Fritz-Energy, Mail, Pi-hole, Selfstream, Uptime Kuma, Weather) ship `server.mjs` in `plugins-pack/` (no image rebuild for API fixes).
 - **Weather 1.5.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24); **7-day** from **tomorrow**. Uses `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
 - **CrowdSec** — alert count respects time range (`daysBack`).
@@ -528,7 +528,7 @@ flowchart TB
 
 - **Uptime Kuma** — Status-Page-Übersicht (kompakte Liste, 2 Spalten ab 6 Monitoren). Store liefert `server.mjs` — API-Updates per Plugin-Update.
 - **Selfstream-Emby** — Selfstream- und Emby/Jellyfin-Sessions in einer gemischten Liste mit Quellen-Icon pro Zeile.
-- **APIs im Store** — **Pi-hole**, **Selfstream** und **Uptime Kuma** liefern `server.mjs` in `plugins-pack/` (kein Image-Rebuild für API-Fixes).
+- **APIs im Store** — Alle Backend-Plugins (AdGuard, Kalender, CrowdSec, Docker, Fritzbox, Fritz-Energy, Mail, Pi-hole, Selfstream, Uptime Kuma, Wetter) liefern `server.mjs` in `plugins-pack/` (kein Image-Rebuild für API-Fixes).
 - **Wetter 1.5.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24); **7-Tage** ab **morgen**. Nutzt `/api/plugins/weather/…`.
 - **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
 - **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).

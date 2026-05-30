@@ -231,12 +231,30 @@ function copyPluginWidgetCss(pluginId, destDir) {
 }
 
 const SERVER_SHIM_NS = 'sd-server-shim'
+const packSharedDir = path.join(resolvePluginsPackRoot(root), '_shared')
+
+/** Map @/lib/* imports to bundle-safe plugins-pack/_shared modules. */
+const SERVER_LIB_ALIASES = {
+  '@/lib/dataDir': 'data-dir.ts',
+  '@/lib/pluginPaths': 'plugin-paths.ts',
+  '@/lib/secretCrypto': 'secret-crypto.ts',
+  '@/lib/pluginLogServer': 'log.ts',
+  '@/lib/pluginServerCache': 'plugin-server-cache.ts',
+  '@/lib/pluginServerRegistry': 'plugin-server-types.ts',
+  '@/lib/auth/pluginPolicy': 'auth-lite.ts',
+  '@/lib/auth/service': 'auth-lite.ts',
+  '@/lib/auth/users': 'auth-lite.ts',
+  '@/lib/errorLog': 'error-log-lite.ts',
+}
 
 function serverBundlePlugins() {
-  const logShim = `
-export async function logPluginApiFailure(pluginId, operation, message, detail) {
-  const extra = detail ? ' ' + JSON.stringify(detail).slice(0, 500) : '';
-  console.error('[SelfDashboard][' + pluginId + '] ' + operation + ': ' + message + extra);
+  const nextServerShim = `
+export class NextResponse extends Response {
+  static json(data, init) {
+    const status = init && typeof init.status === 'number' ? init.status : 200;
+    const headers = init && init.headers ? init.headers : undefined;
+    return Response.json(data, { status, headers });
+  }
 }
 `.trim()
   return [
@@ -247,21 +265,24 @@ export async function logPluginApiFailure(pluginId, operation, message, detail) 
           path: 'server-only-stub',
           namespace: SERVER_SHIM_NS,
         }))
-        build.onResolve({ filter: /^@\/lib\/pluginLogServer$/ }, () => ({
-          path: 'plugin-log-stub',
+        build.onResolve({ filter: /^next\/server$/ }, () => ({
+          path: 'next-server-stub',
           namespace: SERVER_SHIM_NS,
         }))
         build.onResolve({ filter: /^@\// }, (args) => {
           if (args.kind === 'import-type' || args.kind === 'export-type') return null
+          const file = SERVER_LIB_ALIASES[args.path]
+          if (file) {
+            return { path: path.join(packSharedDir, file) }
+          }
           return { external: true }
         })
-        build.onResolve({ filter: /^next(\/|$)/ }, () => ({ external: true }))
         build.onLoad({ filter: /.*/, namespace: SERVER_SHIM_NS }, (args) => {
           if (args.path === 'server-only-stub') {
             return { contents: 'export {}', loader: 'js' }
           }
-          if (args.path === 'plugin-log-stub') {
-            return { contents: logShim, loader: 'js' }
+          if (args.path === 'next-server-stub') {
+            return { contents: nextServerShim, loader: 'js' }
           }
           return null
         })
@@ -283,7 +304,21 @@ async function bundleServer(pluginId, destDir) {
     target: 'node18',
     absWorkingDir: root,
     nodePaths: [path.join(root, 'node_modules')],
-    external: ['next', 'next/*', 'server-only'],
+    external: [
+      'next',
+      'next/*',
+      'server-only',
+      'better-sqlite3',
+      'ical.js',
+      'rrule',
+      'tsdav',
+      'maxmind',
+      'digest-fetch',
+      'imapflow',
+      'node-fetch',
+      'axios',
+      'graphql-ws',
+    ],
     loader: { '.ts': 'ts' },
     logLevel: 'warning',
     plugins: serverBundlePlugins(),

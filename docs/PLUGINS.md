@@ -17,9 +17,10 @@ Plugins kommen **nicht** mit dem Dashboard mit. Du installierst sie über:
 |--------|---------|--------|
 | `plugin.json` | Ja | Name, Version, Kategorie fürs UI |
 | `widget.js` | Ja | Dashboard-Widget (fertig gebündelt) |
+| `server.mjs` | Bei API-Plugins | Backend unter `/api/plugins/<id>/…` (vom Store mitinstalliert) |
 
-**API (`/api/plugins/<id>/…`):** läuft aus dem **Docker-Image** (`src/builtin-plugins/<id>/server.ts`).  
-`plugins-pack/` liefert nur **UI** (`plugin.json` + `widget.js`) — API-Änderungen brauchen ein neues Image.
+**API (`/api/plugins/<id>/…`):** Standard ist **`server.mjs` auf dem Volume** (Store liefert es mit; siehe `hasServer` in `plugins-index.json`).  
+Das Docker-Image enthält dieselben Handler in `src/builtin-plugins/` als **Fallback**, falls `server.mjs` fehlt oder nicht lädt.
 
 Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 
@@ -29,7 +30,7 @@ Nach Install: **Strg+F5** (Hard-Reload), damit `widget.js` geladen wird.
 2. SelfDashboard lädt `plugins-index.json` vom konfigurierten Branch (Cache ~5 Min.).
 3. Installierte Plugins: Vergleich **Version auf Platte** (`/app/plugins/custom/<id>/plugin.json`) mit **Version im Index**.
 4. Bei neuerer Version: **Hinweis-Leiste** unter der Navbar + orangener Punkt am **+** (Bearbeitungsmodus).
-5. **Aktualisieren** im Store oder **Alle aktualisieren** in der Leiste — lädt dieselben Dateien wie die Erstinstallation (überschreibt `plugin.json` + `widget.js`). Danach **Strg+F5**.
+5. **Aktualisieren** im Store oder **Alle aktualisieren** in der Leiste — lädt dieselben Dateien wie die Erstinstallation (überschreibt `plugin.json`, `widget.js`, ggf. `server.mjs`). Danach **Strg+F5**.
 
 ZIP-Plugins ohne GitHub-Eintrag werden nicht automatisch verglichen.
 
@@ -44,24 +45,26 @@ selfdashboard/
 ├── plugins-pack/              ← Plugin-Store (GitHub) — hier ändern & pushen
 │   ├── weather/
 │   │   ├── plugin.json
-│   │   └── widget.js
+│   │   ├── widget.js
+│   │   └── server.mjs         ← bei API-Plugins (optional server.ts im Repo)
 │   └── plugins-index.json
-└── src/builtin-plugins/       ← Server-API fürs Docker-Image (bei API-Änderungen)
+└── src/builtin-plugins/       ← API-Fallback im Docker-Image
 ```
 
 | Ordner | Auf GitHub? | Auf dem Tower (Volume)? |
 |--------|-------------|-------------------------|
 | `plugins-pack/` | **Ja** — einziger Plugin-Store im Repo | Nein — wird nach `/app/plugins/custom/` installiert |
-| `src/builtin-plugins/` | **Ja** — API im Docker-Image | Nein |
+| `src/builtin-plugins/` | **Ja** — API-Fallback im Image | Nein |
 | `plugins/` | **Nein** (lokal optional, `.gitignore`) | Nein |
 | `plugin-pack/` | **Nein** (lokal optional, `.gitignore`) | Nein |
-| `/app/plugins/custom/<id>/` | Nein | **Ja** — `plugin.json` + `widget.js` |
+| `/app/plugins/custom/<id>/` | Nein | **Ja** — `plugin.json` + `widget.js` (+ `server.mjs` bei API) |
 
 **Workflow Plugin-UI:** `plugins-pack/<id>/plugin.json` (Version) + `widget.js` anpassen → `npm run generate:plugins-index` → `plugins-pack/` pushen.
 
 Optional: `index.tsx` im gleichen Ordner (`plugins-pack/<id>/`) für saubere TS-Entwicklung → `npm run build:plugin-pack -- <id>` erzeugt `widget.js`.
 
-**Workflow Plugin-API:** `src/builtin-plugins/<id>/server.ts` anpassen → neues Docker-Image bauen/pushen.
+**Workflow Plugin-API:** `plugins-pack/<id>/server.ts` (+ `lib/`) anpassen → `npm run build:plugin-pack -- <id>` → `server.mjs` committen → Store-Update (kein Image-Rebuild).  
+Aus `src/builtin-plugins/` nachziehen: `npm run sync:plugin-servers` (kopiert `server.ts` + `lib/` ins Pack).
 
 Ordner `plugins/` und `plugin-pack/` sind **nicht auf GitHub** (`.gitignore`) und können lokal gelöscht werden.
 

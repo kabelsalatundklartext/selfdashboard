@@ -60,7 +60,7 @@
     Target="/app/plugins/custom"
     Default="/mnt/user/appdata/selfdashboard/plugins"
     Mode="rw"
-    Description="Pflicht für Plugin-Verteilung: Host → /app/plugins/custom. Pro Plugin ein Unterordner mit plugin.json und widget.js (Store „Von GitHub“ oder ZIP). Nur widget.js — keine index.tsx. API läuft aus dem Image; kein server.mjs auf dem Volume nötig. Nach Update: Strg+F5."
+    Description="Pflicht für Plugin-Verteilung: Host → /app/plugins/custom. Pro Plugin plugin.json und widget.js (Store „Von GitHub“ oder ZIP); API-Plugins zusätzlich server.mjs vom Store. Image-API nur Fallback. Nach Update: Strg+F5."
     Type="Path"
     Display="always"
     Required="true"

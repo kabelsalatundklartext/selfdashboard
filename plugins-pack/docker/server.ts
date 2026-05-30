@@ -1,0 +1,173 @@
+import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { createPluginServerCache } from '@/lib/pluginServerCache'
+import type { PluginServerContext } from '@/lib/pluginServerRegistry'
+import {
+  CONTAINER_ID_RE,
+  dockerGet,
+  dockerRequest,
+  fetchContainerStats,
+  poolMap,
+} from './lib/dockerEngine'
+
+const listCache = createPluginServerCache({
+  ttlMs: Math.max(0, Number(process.env.DOCKER_LIST_CACHE_MS) || 8_000),
+  maxEntries: 8,
+})
+
+function parseContainerAction(body: unknown): { id: string; action: 'start' | 'stop' | 'restart' } | null {
+  if (!body || typeof body !== 'object') return null
+  const o = body as Record<string, unknown>
+  const id = typeof o.id === 'string' ? o.id.trim() : ''
+  const action = o.action
+  if (!CONTAINER_ID_RE.test(id)) return null
+  if (action !== 'start' && action !== 'stop' && action !== 'restart') return null
+  return { id, action }
+}
+
+async function handleListGet(req: Request): Promise<Response> {
+  const { searchParams } = new URL(req.url)
+  const all = searchParams.get('all') === '1' ? 'true' : 'false'
+  const includeStats = searchParams.get('stats') === '1'
+  const cacheKey = `list:${all}:${includeStats ? '1' : '0'}`
+  const cached = listCache.get(cacheKey)
+  if (cached) {
+    return Response.json(cached, { headers: { 'X-SD-Cache': 'hit' } })
+  }
+  try {
+    const r = await dockerGet(`/containers/json?all=${all}`)
+    if (!r.ok) {
+      const err = r.body?.slice(0, 400) || `Docker HTTP ${r.status}`
+      void logPluginApiFailure('docker', 'list', err, { status: r.status })
+      return Response.json(
+        { error: err },
+        { status: r.status >= 400 && r.status < 600 ? r.status : 502 },
+      )
+    }
+    let data: unknown
+    try {
+      data = JSON.parse(r.body) as unknown
+    } catch {
+      return Response.json({ error: 'Ungültige JSON-Antwort von Docker' }, { status: 502 })
+    }
+
+    if (includeStats && Array.isArray(data)) {
+      const arr = data as Record<string, unknown>[]
+      const runningIds: string[] = []
+      for (const c of arr) {
+        const id = typeof c.Id === 'string' ? c.Id : ''
+        if (c.State === 'running' && CONTAINER_ID_RE.test(id)) runningIds.push(id)
+      }
+      const unique = [...new Set(runningIds)]
+      const statsArray = await poolMap(unique, 8, async (id) => ({ id, stats: await fetchContainerStats(id) }))
+      const byId = new Map(statsArray.map((x) => [x.id, x.stats]))
+      for (const c of arr) {
+        const id = typeof c.Id === 'string' ? c.Id : ''
+        if (c.State === 'running' && CONTAINER_ID_RE.test(id)) {
+          c.sdStats = byId.get(id) ?? null
+        } else {
+          c.sdStats = null
+        }
+      }
+    }
+
+    listCache.set(cacheKey, data)
+    return Response.json(data, { headers: { 'X-SD-Cache': 'miss' } })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/EACCES|permission denied/i.test(msg)) {
+      void logPluginApiFailure('docker', 'list', 'docker_socket_eacces')
+      return Response.json(
+        {
+          error:
+            'Kein Zugriff auf den Docker-Socket (EACCES). Unter Unraid: Extra Parameter --group-add=281 (oder GID von stat -c %g /var/run/docker.sock). Neuere Images laufen als root und umgehen das oft automatisch.',
+        },
+        { status: 503 },
+      )
+    }
+    const hint =
+      msg.includes('ENOENT') || msg.includes('ENOTDIR')
+        ? 'Docker-Socket nicht gefunden — z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container.'
+        : msg
+    void logPluginApiFailure('docker', 'list', hint)
+    return Response.json({ error: hint }, { status: 503 })
+  }
+}
+
+async function handleActionPost(req: Request): Promise<Response> {
+  let parsed: { id: string; action: 'start' | 'stop' | 'restart' }
+  try {
+    const raw = await req.text()
+    let body: unknown
+    try {
+      body = raw ? (JSON.parse(raw) as unknown) : null
+    } catch {
+      return Response.json({ error: 'Ungültiges JSON' }, { status: 400 })
+    }
+    const p = parseContainerAction(body)
+    if (!p) {
+      return Response.json({ error: 'Ungültige Parameter (id, action)' }, { status: 400 })
+    }
+    parsed = p
+  } catch {
+    return Response.json({ error: 'Body konnte nicht gelesen werden' }, { status: 400 })
+  }
+
+  const path =
+    parsed.action === 'start'
+      ? `/containers/${encodeURIComponent(parsed.id)}/start`
+      : parsed.action === 'stop'
+        ? `/containers/${encodeURIComponent(parsed.id)}/stop?t=10`
+        : `/containers/${encodeURIComponent(parsed.id)}/restart?t=10`
+
+  try {
+    const r = await dockerRequest('POST', path, '', 60_000)
+    if (!r.ok) {
+      let msg = r.body?.slice(0, 500) || `Docker HTTP ${r.status}`
+      try {
+        const j = JSON.parse(r.body) as { message?: string }
+        if (typeof j.message === 'string' && j.message.trim()) msg = j.message.trim()
+      } catch {
+        /* use slice */
+      }
+      const status = r.status >= 400 && r.status < 600 ? r.status : 502
+      void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id, status: r.status })
+      return Response.json({ error: msg }, { status })
+    }
+    listCache.clear()
+    return Response.json({ ok: true, action: parsed.action, id: parsed.id })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/EACCES|permission denied/i.test(msg)) {
+      void logPluginApiFailure('docker', parsed.action, 'docker_socket_eacces', { id: parsed.id })
+      return Response.json(
+        {
+          error:
+            'Kein Zugriff auf den Docker-Socket (EACCES). Unter Unraid: Extra Parameter --group-add=281 (oder GID von stat -c %g /var/run/docker.sock). Neuere Images laufen als root und umgehen das oft automatisch.',
+        },
+        { status: 503 },
+      )
+    }
+    void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id })
+    return Response.json({ error: msg }, { status: 503 })
+  }
+}
+
+export async function dockerServerHandler(ctx: PluginServerContext): Promise<Response> {
+  const method = ctx.request.method.toUpperCase()
+  const [seg] = ctx.path
+
+  if (method === 'GET' && (!seg || seg === 'containers')) {
+    return handleListGet(ctx.request)
+  }
+
+  if (method === 'POST' && (!seg || seg === 'containers')) {
+    return handleActionPost(ctx.request)
+  }
+
+  return Response.json(
+    { error: 'not_found', pluginId: ctx.pluginId, path: ctx.path.join('/') },
+    { status: 404 },
+  )
+}
+
+export default dockerServerHandler

@@ -8,6 +8,7 @@
     "prebuild": "node scripts/vendor-builtin-plugins.mjs",
     "sync-plugins": "node scripts/sync-plugins-for-build.mjs",
     "vendor-plugins": "node scripts/vendor-builtin-plugins.mjs",
+    "sync:plugin-servers": "node scripts/sync-plugin-servers-to-pack.mjs",
     "build": "next build",
     "build:plugin-pack": "node scripts/build-plugin-pack.mjs",
     "generate:plugins-index": "node scripts/generate-plugins-index.mjs",

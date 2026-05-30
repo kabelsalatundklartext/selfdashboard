@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-05-29T17:08:38.369Z",
+  "generatedAt": "2026-05-30T07:41:08.205Z",
   "plugins": [
     {
       "id": "adguard",
@@ -16,7 +16,8 @@
       "iconUrl": "/plugin-logos/adguard.png",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -43,7 +44,8 @@
       "icon": "📅",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -72,7 +74,8 @@
       "files": [
         "plugin.json",
         "widget.js",
-        "widget.css"
+        "widget.css",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -87,7 +90,8 @@
       "iconUrl": "/plugin-logos/docker.png",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -116,7 +120,8 @@
       "iconUrl": "/plugin-logos/fritzbox.svg",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -137,7 +142,8 @@
       },
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -170,7 +176,8 @@
       },
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     },
@@ -298,7 +305,8 @@
       "icon": "🌤️",
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "server.mjs"
       ],
       "hasServer": true
     }

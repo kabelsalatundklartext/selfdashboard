@@ -12,7 +12,7 @@
 
 ## Workflow (API mit `server.mjs`)
 
-Für Plugins mit **`hasServer: true`** und **`server.mjs`** im Index (aktuell **Pi-hole**, **Selfstream**, **Uptime Kuma**):
+Für Plugins mit **`hasServer: true`** und **`server.mjs`** im Index (u. a. **AdGuard**, **Kalender**, **CrowdSec**, **Docker**, **Fritzbox**, **Fritz-Energy**, **Mail**, **Pi-hole**, **Selfstream**, **Uptime Kuma**, **Wetter**):
 
 1. **`plugins-pack/<id>/server.ts`** bearbeiten (bundle-sicher, kein `@/lib/*`, kein Next.js)  
 2. **`npm run build:plugin-pack -- <id>`** — erzeugt `server.mjs` neben `widget.js`  
@@ -44,8 +44,8 @@ Build: `npm run build:plugin-pack -- uptime-kuma` (liest `plugins-pack/<id>/inde
 | `plugins/` | Legacy-Dev-Ordner (`.gitignore`) — kann weg |
 | `plugin-pack/` | Build-Zwischenspeicher + ZIP (`.gitignore`) — kann weg |
 
-## API-Änderungen (andere Plugins)
+## Server-Quellen aus dem Image nachziehen
 
-Plugins **ohne** `server.mjs` im Store (z. B. Kalender, Docker, Wetter): Server-Code weiter in **`src/builtin-plugins/<id>/`** → neues **Docker-Image**.
+`npm run sync:plugin-servers` kopiert `server.ts` + `lib/` aus `src/builtin-plugins/` ins Pack (Pi-hole/Selfstream/Uptime Kuma bleiben unverändert, wenn schon pack-ready).
 
 **Performance-Tipps für Autoren:** [docs/PLUGIN_PERFORMANCE.md](../docs/PLUGIN_PERFORMANCE.md)
