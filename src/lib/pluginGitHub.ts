@@ -175,6 +175,7 @@ const INSTALL_FILES = new Set([
   'widget.mjs',
   'server.js',
   'server.mjs',
+  'server.cjs',
   'icon.png',
   'icon.svg',
   'icon.jpg',
@@ -250,7 +251,7 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
     const required =
       REQUIRED_INSTALL_FILES.has(file) ||
-      (entry.hasServer === true && (file === 'server.mjs' || file === 'server.js'))
+      (entry.hasServer === true && (file === 'server.cjs' || file === 'server.mjs' || file === 'server.js'))
 
     if (!res.ok) {
 
@@ -302,8 +303,10 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
   if (entry.hasServer) {
     const hasServerOnDisk =
+      written.includes('server.cjs') ||
       written.includes('server.mjs') ||
       written.includes('server.js') ||
+      fs.existsSync(path.join(destDir, 'server.cjs')) ||
       fs.existsSync(path.join(destDir, 'server.mjs')) ||
       fs.existsSync(path.join(destDir, 'server.js'))
     if (!hasServerOnDisk) {
@@ -312,7 +315,13 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
         pluginId,
         written,
         error: 'missing_server_mjs',
-        hint: `server.mjs fehlt auf GitHub (${cfg.ref}/${cfg.basePath}/${pluginId}/) — plugins-pack mit server.mjs pushen.`,
+        hint: `server.cjs fehlt auf GitHub (${cfg.ref}/${cfg.basePath}/${pluginId}/) — plugins-pack mit server.cjs pushen.`,
+      }
+    }
+    if (written.includes('server.cjs')) {
+      for (const legacy of ['server.mjs', 'server.js']) {
+        const legacyPath = path.join(destDir, legacy)
+        if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath)
       }
     }
   }

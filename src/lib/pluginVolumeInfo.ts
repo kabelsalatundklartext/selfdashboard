@@ -40,6 +40,9 @@ export function getCustomWidgetOverrideIds(): string[] {
 /** Custom `server.js` / `server.mjs` from plugin store — loaded on install/reload (overrides image builtins). */
 export function getCustomServerPluginIds(): string[] {
   return listCustomPluginDirs().filter(
-    (id) => hasVolumeFile(id, 'server.js') || hasVolumeFile(id, 'server.mjs'),
+    (id) =>
+      hasVolumeFile(id, 'server.cjs') ||
+      hasVolumeFile(id, 'server.js') ||
+      hasVolumeFile(id, 'server.mjs'),
   )
 }

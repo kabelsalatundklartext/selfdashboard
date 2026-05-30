@@ -93,7 +93,10 @@ function enrichManifest(m: PluginManifest): PluginManifest {
     hasServer:
       m.hasServer ||
       getRegisteredPluginServerIds().includes(m.id) ||
-      (onVolume && (hasVolumeFile(m.id, 'server.js') || hasVolumeFile(m.id, 'server.mjs'))),
+      (onVolume &&
+        (hasVolumeFile(m.id, 'server.cjs') ||
+          hasVolumeFile(m.id, 'server.js') ||
+          hasVolumeFile(m.id, 'server.mjs'))),
     hasWidgetFile: onVolume && hasVolumeFile(m.id, 'widget.js'),
     overridesBuiltin: getCustomWidgetOverrideIds().includes(m.id),
   }

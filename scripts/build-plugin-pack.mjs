@@ -272,6 +272,9 @@ export class NextResponse extends Response {
           path: 'next-server-stub',
           namespace: SERVER_SHIM_NS,
         }))
+        build.onResolve({ filter: /^debug$/ }, () => ({
+          path: path.join(packSharedDir, 'debug-stub.ts'),
+        }))
         build.onResolve({ filter: /^@\// }, (args) => {
           if (args.kind === 'import-type' || args.kind === 'export-type') return null
           const file = SERVER_LIB_ALIASES[args.path]
@@ -297,12 +300,12 @@ export class NextResponse extends Response {
 async function bundleServer(pluginId, destDir) {
   const entry = resolvePluginServerEntry(root, pluginId)
   if (!entry) return false
-  const outfile = path.join(destDir, 'server.mjs')
+  const outfile = path.join(destDir, 'server.cjs')
   await esbuild.build({
     entryPoints: [entry],
     outfile,
     bundle: true,
-    format: 'esm',
+    format: 'cjs',
     platform: 'node',
     target: 'node18',
     absWorkingDir: root,
@@ -327,8 +330,12 @@ async function bundleServer(pluginId, destDir) {
   const out = fs.readFileSync(outfile, 'utf8')
   if (/next\/dist|from\s+["']next/.test(out) || /server-only/.test(out)) {
     throw new Error(
-      `${pluginId} server.mjs bundles Next.js or server-only — fix plugins/${pluginId}/ imports`,
+      `${pluginId} server.cjs bundles Next.js or server-only — fix plugins/${pluginId}/ imports`,
     )
+  }
+  for (const legacy of ['server.mjs', 'server.js']) {
+    const legacyPath = path.join(destDir, legacy)
+    if (fs.existsSync(legacyPath)) fs.unlinkSync(legacyPath)
   }
   return true
 }
@@ -455,7 +462,7 @@ async function main() {
     if (serverTs) {
       try {
         if (await bundleServer(id, dest)) {
-          console.info(`[SelfDashboard] server.mjs bundled: ${id}`)
+          console.info(`[SelfDashboard] server.cjs bundled: ${id}`)
         }
       } catch (e) {
         console.warn(`server bundle failed for ${id}:`, e.message || e)

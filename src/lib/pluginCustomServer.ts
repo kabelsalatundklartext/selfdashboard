@@ -21,7 +21,7 @@ export function getCustomServerLoadErrors(): Record<string, string> {
 
 function resolveServerModulePath(id: string): string | null {
   const dir = customPluginDir(id)
-  const candidates = ['server.mjs', 'server.js']
+  const candidates = ['server.cjs', 'server.mjs', 'server.js']
   for (const file of candidates) {
     const p = path.join(dir, file)
     if (path.resolve(p).startsWith(path.resolve(dir)) && path.basename(p) === file && fs.existsSync(p)) {

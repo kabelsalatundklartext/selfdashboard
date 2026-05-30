@@ -116,15 +116,15 @@ async function installTasksApiFromStore(locale: 'de' | 'en'): Promise<string | u
     }
     return j.hint || j.error || `HTTP ${res.status}`
   }
-  if (!j.written?.includes('server.mjs') && !j.written?.includes('server.js')) {
+  if (!j.written?.includes('server.cjs') && !j.written?.includes('server.mjs') && !j.written?.includes('server.js')) {
     return locale === 'de'
-      ? 'server.mjs fehlt im Store — plugins-pack pushen.'
-      : 'server.mjs missing on store — push plugins-pack.'
+      ? 'server.cjs fehlt im Store — plugins-pack pushen.'
+      : 'server.cjs missing on store — push plugins-pack.'
   }
   if (j.serverLoaded === false) {
     return locale === 'de'
-      ? `server.mjs installiert, startet aber nicht${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Container-Log prüfen / Image aktualisieren.`
-      : `server.mjs installed but failed to load${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Check container log / update image.`
+      ? `Plugin-API installiert, startet aber nicht${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Container-Log prüfen / Image aktualisieren.`
+      : `Plugin API installed but failed to load${j.serverLoadError ? `: ${j.serverLoadError}` : ''}. Check container log / update image.`
   }
   window.location.reload()
   return undefined
@@ -826,7 +826,7 @@ export const meta: PluginMeta = {
   name: 'Aufgaben',
   description:
     'CalDAV (Synology, Nextcloud), Google Tasks und Microsoft To Do: Checkbox-Liste mit Zwei-Wege-Sync. API: /api/plugins/tasks.',
-  version: '1.2.7',
+  version: '1.2.9',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '✅',

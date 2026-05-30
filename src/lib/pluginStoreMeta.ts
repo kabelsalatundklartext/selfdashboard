@@ -21,7 +21,7 @@ const BUILTIN_STORE_META: Record<string, PluginMeta> = {
     id: 'tasks',
     name: 'Aufgaben',
     description: 'CalDAV + Google + Microsoft To Do',
-    version: '1.2.7',
+    version: '1.2.9',
     author: 'SelfDashboard',
     category: 'productivity',
     icon: '✅',
