@@ -89,6 +89,19 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
       </label>
 
       {cfg.showMap ? (
+      <>
+      <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.mapAlertList}
+          onChange={(e) => onChange('mapAlertList', e.target.checked)}
+        />
+        <span>
+          {de
+            ? 'Karte: Alert-Liste daneben anzeigen (nur breite Widgets)'
+            : 'Map: show alert list next to the map (wide widgets only)'}
+        </span>
+      </label>
       <label className="cs-settings-row">
         <span>{de ? 'Dein Land (Karte → Bögen)' : 'Your country (map → arcs)'}</span>
         <select value={cfg.homeCountry} onChange={(e) => onChange('homeCountry', e.target.value)}>
@@ -104,6 +117,7 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
             ))}
         </select>
       </label>
+      </>
       ) : null}
 
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

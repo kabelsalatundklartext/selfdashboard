@@ -490,6 +490,72 @@
   color: color-mix(in srgb, #ef4444 85%, var(--text));
 }
 
+/* Kartenansicht: optionale Alert-Spalte neben der Karte (nur breite Widgets). */
+.cs-map-split {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cs-map-feed {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 290px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 4px 8px 8px;
+}
+
+@container (min-width: 860px) {
+  .cs-map-feed {
+    display: flex;
+  }
+}
+
+.cs-map-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.cs-map-feed-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cs-map-feed-ip {
+  font-weight: 700;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.cs-map-feed-scenario {
+  font-size: 9px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-map-feed-time {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .cs-empty,
 .cs-loading {
   padding: 20px;

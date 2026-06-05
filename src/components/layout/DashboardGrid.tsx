@@ -303,8 +303,11 @@ export function DashboardGrid() {
         )}
 
         <div ref={measureRef} style={{ width: '100%', minWidth: 0 }}>
+        {/* Kein key={layoutMode}: ein Remount würde beim Breakpoint-Wechsel ALLE
+            Widgets neu mounten (jedes lädt seine Daten neu). RGL übernimmt
+            layout/cols als kontrollierte Props; das rAF-Gate in
+            layoutPersistReadyRef blockt das Persistieren während des Wechsels. */}
         <GridLayout
-          key={layoutMode}
           className="layout"
           layout={gridLayout}
           cols={gridCols}

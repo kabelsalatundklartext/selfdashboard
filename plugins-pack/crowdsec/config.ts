@@ -12,6 +12,8 @@ export interface CrowdsecConfig {
   showCountriesList: boolean
   /** Karte (Liste/Karte-Umschalter) anzeigen — bei schmalen Hochkant-Widgets oft unerwünscht. */
   showMap: boolean
+  /** In der Kartenansicht bei breiten Widgets eine kompakte Alert-Liste neben der Karte zeigen. */
+  mapAlertList: boolean
   /** ISO-3166 alpha-2 of your server's country — target of the map "arcs" mode. */
   homeCountry: string
   lookupEnabled: Record<LookupServiceId, boolean>
@@ -52,6 +54,7 @@ export function parseCrowdsecConfig(raw: Record<string, unknown>): CrowdsecConfi
     confirmUnban: cfgBool(raw.confirmUnban, true),
     showCountriesList: cfgBool(raw.showCountriesList, true),
     showMap: cfgBool(raw.showMap, true),
+    mapAlertList: cfgBool(raw.mapAlertList, true),
     homeCountry: (() => {
       const v = cfgStr(raw.homeCountry, 'DE').toUpperCase()
       return /^[A-Z]{2}$/.test(v) ? v : 'DE'

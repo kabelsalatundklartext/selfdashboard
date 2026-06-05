@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
-import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
+import { Copy, Globe, Search, Shield, Trash2 } from 'lucide-react'
 import { pluginApiJson, pluginApiJsonWithStale, reportPluginError } from '@/lib/pluginDev'
 import type { ThemeId } from '@/types'
 import { parseCrowdsecConfig } from './config'
@@ -272,19 +272,6 @@ export function CrowdsecWidget({
 
             <article className="cs-nav-item">
               <span className="cs-nav-row">
-                <Gavel size={14} strokeWidth={2.2} aria-hidden />
-                {de ? 'Banns' : 'Bans'}
-              </span>
-              {data ? (
-                <>
-                  <span className="cs-nav-stat">{formatInt(data.activeBans, locale)}</span>
-                  <span className="cs-nav-sub">{de ? 'Aktive Banns' : 'Active bans'}</span>
-                </>
-              ) : null}
-            </article>
-
-            <article className="cs-nav-item">
-              <span className="cs-nav-row">
                 <Globe size={14} strokeWidth={2.2} aria-hidden />
                 {de ? 'Länder' : 'Countries'}
               </span>
@@ -365,6 +352,7 @@ export function CrowdsecWidget({
           </header>
 
           {showMapView ? (
+          <section className="cs-map-split">
             <section
               className="cs-map-panel"
               style={{
@@ -403,6 +391,29 @@ export function CrowdsecWidget({
               ) : null}
               <WorldMap points={mapPoints} mode={mapMode} homeCc={cfg.homeCountry} style={{ height: '100%' }} />
             </section>
+            {cfg.mapAlertList ? (
+              <aside className="cs-map-feed">
+                <span className="cs-side-label">{de ? 'Letzte Alerts' : 'Recent alerts'}</span>
+                {filteredFeed.slice(0, 40).map((item) => {
+                  const cc = normalizeCountryCode(item.country)
+                  return (
+                    <article
+                      key={`map-${item.alertId}-${item.ip}`}
+                      className="cs-map-feed-row"
+                      title={`${item.ip} · ${item.scenario}`}
+                    >
+                      <CountryFlag code={cc || item.country} size={16} />
+                      <span className="cs-map-feed-main">
+                        <span className="cs-map-feed-ip">{item.ip}</span>
+                        <span className="cs-map-feed-scenario">{item.scenario}</span>
+                      </span>
+                      <span className="cs-map-feed-time">{formatRelative(item.time_iso, locale)}</span>
+                    </article>
+                  )
+                })}
+              </aside>
+            ) : null}
+          </section>
           ) : (
           <section className="cs-feed-list">
             {loading && !data && !error ? (
