@@ -16,6 +16,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   'fritz-energy': ['password'],
   selfstream: ['password'],
   'selfstream-emby': ['password'], // posts to the selfstream server proxy
+  'speedtest-tracker': ['apiToken'],
 }
 
 type PluginLike = { pluginId?: unknown; config?: unknown }
