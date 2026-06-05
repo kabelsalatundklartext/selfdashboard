@@ -1,0 +1,16 @@
+{
+  "id": "unifi",
+  "name": "UniFi Controller",
+  "description": "UniFi-Netzwerkstatus: WLAN/LAN/WAN, APs, Switches, Clients (Controller-Login, serverseitig). (Beta)",
+  "version": "0.9.0",
+  "author": "SelfDashboard",
+  "category": "network",
+  "icon": "📶",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/unifi.png",
+  "defaultLayout": {
+    "w": 4,
+    "h": 2,
+    "minW": 2,
+    "minH": 2
+  }
+}

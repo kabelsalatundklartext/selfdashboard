@@ -1,0 +1,16 @@
+{
+  "id": "proxmox",
+  "name": "Proxmox VE",
+  "description": "Proxmox-Knoten mit CPU/RAM und laufenden VMs/LXCs per API-Token. (Beta)",
+  "version": "0.9.0",
+  "author": "SelfDashboard",
+  "category": "system",
+  "icon": "🖥️",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/proxmox.png",
+  "defaultLayout": {
+    "w": 4,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  }
+}

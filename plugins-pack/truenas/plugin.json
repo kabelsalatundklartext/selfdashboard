@@ -1,0 +1,16 @@
+{
+  "id": "truenas",
+  "name": "TrueNAS",
+  "description": "TrueNAS-Systeminfo und Pool-Status per REST-API-Key. (Beta)",
+  "version": "0.9.0",
+  "author": "SelfDashboard",
+  "category": "storage",
+  "icon": "💾",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/truenas.png",
+  "defaultLayout": {
+    "w": 3,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  }
+}

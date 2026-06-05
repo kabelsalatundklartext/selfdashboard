@@ -17,6 +17,14 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   selfstream: ['password'],
   'selfstream-emby': ['password'], // posts to the selfstream server proxy
   'speedtest-tracker': ['apiToken'],
+  plex: ['token'],
+  proxmox: ['apiToken'],
+  truenas: ['apiKey'],
+  'home-assistant': ['token'],
+  opnsense: ['apiSecret'],
+  unifi: ['password'],
+  npm: ['password'],
+  openmediavault: ['password'],
 }
 
 type PluginLike = { pluginId?: unknown; config?: unknown }
