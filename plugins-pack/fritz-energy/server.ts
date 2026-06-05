@@ -1,4 +1,6 @@
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { openSealedSecret } from '@/lib/secretCrypto'
+import { assertSafeOutboundUrlResolved, UnsafeOutboundUrlError } from '@/lib/security/ssrf'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
 import {
   fetchFritzEnergyReading,
@@ -27,11 +29,15 @@ function clampStr(v: unknown, max: number): string {
   return v.trim().slice(0, max)
 }
 
-function connFromBody(body: Record<string, unknown>): FritzBoxConnection {
+async function connFromBody(body: Record<string, unknown>): Promise<FritzBoxConnection> {
+  const baseUrl = fritzboxRootFromInput(String(body.baseUrl ?? ''))
+  await assertSafeOutboundUrlResolved(baseUrl)
   return {
-    baseUrl: fritzboxRootFromInput(String(body.baseUrl ?? '')),
+    baseUrl,
     username: clampStr(body.username, 200),
-    password: typeof body.password === 'string' ? body.password.slice(0, 500) : '',
+    password: openSealedSecret(
+      typeof body.password === 'string' ? body.password.slice(0, 2000) : '',
+    ).slice(0, 500),
     insecureTls: body.insecureTls === true,
   }
 }
@@ -52,8 +58,11 @@ async function handlePost(req: Request): Promise<Response> {
   if (body.action === 'listDevices') {
     let conn: FritzBoxConnection
     try {
-      conn = connFromBody(body)
+      conn = await connFromBody(body)
     } catch (e) {
+      if (e instanceof UnsafeOutboundUrlError) {
+        return Response.json({ ok: false, error: 'blocked_url', detail: e.message }, { status: 400 })
+      }
       const code = e instanceof Error ? e.message : 'bad_url'
       return Response.json({ ok: false, error: code }, { status: 400 })
     }
@@ -79,8 +88,11 @@ async function handlePost(req: Request): Promise<Response> {
 
   let conn: FritzBoxConnection
   try {
-    conn = connFromBody(body)
+    conn = await connFromBody(body)
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      return Response.json({ ok: false, error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     const code = e instanceof Error ? e.message : 'bad_url'
     return Response.json({ ok: false, error: code }, { status: 400 })
   }

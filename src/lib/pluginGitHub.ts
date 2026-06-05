@@ -6,6 +6,7 @@ import type { PluginManifest } from '@/types/pluginManifest'
 import type { PluginCategory } from '@/types'
 
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
+import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 
 import { listInstalledVolumePluginIds, readInstalledPluginVersion } from '@/lib/pluginVolumeInfo'
 import { isPluginUpdateAvailable } from '@/lib/pluginVersion'
@@ -214,7 +215,11 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
 
   if (!cfg) return { ok: false, pluginId, written: [], error: 'github_not_configured' }
 
-
+  // The id becomes a filesystem path segment and a raw-URL segment — never
+  // trust it (request body / remote index): strict charset + containment.
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(pluginId)) {
+    return { ok: false, pluginId, written: [], error: 'invalid_plugin_id' }
+  }
 
   const index = await fetchGitHubPluginIndex(true)
 
@@ -227,6 +232,10 @@ export async function installPluginFromGitHub(pluginId: string): Promise<{
   const files = (entry.files ?? ['plugin.json', 'widget.js']).filter((f) => isInstallablePluginFile(f))
 
   const destDir = customPluginDir(pluginId)
+  const root = path.resolve(getCustomPluginsRoot())
+  if (!path.resolve(destDir).startsWith(root + path.sep)) {
+    return { ok: false, pluginId, written: [], error: 'invalid_plugin_id' }
+  }
 
   fs.mkdirSync(destDir, { recursive: true })
 

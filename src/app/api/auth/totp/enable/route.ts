@@ -7,7 +7,7 @@ import {
   enableTotpForUser,
   generateBackupCodes,
   isTotpEnabledForUser,
-  verifyTotpCode,
+  verifyTotpCodeStep,
 } from '@/lib/auth/totp'
 
 export const dynamic = 'force-dynamic'
@@ -41,11 +41,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
   }
 
-  if (!verifyTotpCode(secret, code)) {
+  const step = verifyTotpCodeStep(secret, code)
+  if (step === null) {
     return NextResponse.json({ error: 'invalid_code' }, { status: 403 })
   }
 
-  enableTotpForUser(auth.userId, secret)
+  // Record the consumed step so the enrollment code cannot be replayed at login.
+  enableTotpForUser(auth.userId, secret, step)
   const backupCodes = generateBackupCodes(auth.userId)
   markSessionMfaVerified(auth.id)
 

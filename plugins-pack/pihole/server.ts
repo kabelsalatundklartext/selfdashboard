@@ -1,4 +1,6 @@
 import { logPluginApiFailure } from '../_shared/log'
+import { openSealedSecret } from '../_shared/secret-crypto'
+import { fetchWithSsrfGuard, UnsafeOutboundUrlError } from '../_shared/ssrf'
 
 type PluginServerContext = {
   pluginId: string
@@ -68,7 +70,7 @@ async function fetchJson(
 ): Promise<{ ok: boolean; status: number; json: unknown; text: string }> {
   const h: Record<string, string> = { ...headers, Accept: 'application/json' }
   if (body != null) h['Content-Type'] = 'application/json'
-  const res = await fetch(url, {
+  const res = await fetchWithSsrfGuard(url, {
     method,
     headers: h,
     body: body != null ? JSON.stringify(body) : null,
@@ -194,7 +196,7 @@ async function handlePiholePost(req: Request): Promise<Response> {
     return Response.json({ error: 'invalid_url' }, { status: 400 })
   }
 
-  const password = String(body.password ?? '')
+  const password = openSealedSecret(String(body.password ?? ''))
   const totp = body.totp != null && body.totp !== '' ? String(body.totp).trim() : ''
 
   const ac = new AbortController()
@@ -252,6 +254,10 @@ async function handlePiholePost(req: Request): Promise<Response> {
       blockingHttp: blockingRes.status,
     })
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      void logPluginApiFailure('pihole', 'request', `blocked_url:${e.message}`)
+      return Response.json({ error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     const err = e as Error & { status?: number; detail?: string }
     if (err.message === 'auth_failed' || err.message === 'auth_invalid') {
       void logPluginApiFailure('pihole', 'auth', err.message, {

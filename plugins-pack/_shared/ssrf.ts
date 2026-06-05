@@ -1,5 +1,8 @@
-import 'server-only'
-import net from 'net'
+/**
+ * Bundle-safe copy of src/lib/security/ssrf.ts (no 'server-only' import).
+ * Keep both files in sync.
+ */
+import net from 'node:net'
 import { lookup } from 'node:dns/promises'
 
 const BLOCKED_HOSTNAMES = new Set([
@@ -98,9 +101,7 @@ export function assertSafeOutboundUrl(urlStr: string): void {
 /**
  * Static checks + DNS resolution: every address the hostname resolves to must
  * pass the IP blocklist. Closes the "evil.example.com → 127.0.0.1 / 169.254.169.254"
- * bypass of the literal-hostname check. (Note: a TTL-0 rebinding attacker could
- * still swap records between this check and the actual connect; full pinning
- * would require a custom dispatcher. This covers the practical cases.)
+ * bypass of the literal-hostname check.
  */
 export async function assertSafeOutboundUrlResolved(urlStr: string): Promise<void> {
   assertSafeOutboundUrl(urlStr)

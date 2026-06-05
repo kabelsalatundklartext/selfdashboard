@@ -1,4 +1,5 @@
 import { logPluginApiFailure } from '../_shared/log'
+import { fetchWithSsrfGuard, UnsafeOutboundUrlError } from '../_shared/ssrf'
 import type {
   UptimeKumaDashboardPayload,
   UptimeKumaMonitorRow,
@@ -148,7 +149,7 @@ async function fetchUpstream(
   url: string,
   signal: AbortSignal,
 ): Promise<{ ok: boolean; status: number; json: unknown | null; text: string }> {
-  const res = await fetch(url, {
+  const res = await fetchWithSsrfGuard(url, {
     method: 'GET',
     headers: { Accept: 'application/json' },
     cache: 'no-store',
@@ -221,6 +222,10 @@ async function handleUptimeKumaPost(req: Request): Promise<Response> {
     }
     return Response.json(payload)
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      void logPluginApiFailure('uptime-kuma', 'request', `blocked_url:${e.message}`)
+      return Response.json({ error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     if (e instanceof Error && e.name === 'AbortError') {
       void logPluginApiFailure('uptime-kuma', 'request', 'timeout')
       return Response.json({ error: 'timeout' }, { status: 504 })

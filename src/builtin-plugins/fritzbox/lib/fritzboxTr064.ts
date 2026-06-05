@@ -5,6 +5,7 @@
 
 import DigestClient from 'digest-fetch'
 import https from 'node:https'
+import { createTr064DigestClient } from './tr064NodeFetch'
 
 const BLOCKED_HOSTNAMES = new Set(
   ['metadata.google.internal', 'metadata.goog', '169.254.169.254'].map((h) => h.toLowerCase()),
@@ -209,7 +210,7 @@ async function soapAction(
 }
 
 function digestClient(user: string, pass: string): DigestClient {
-  return new DigestClient(user || '', pass || '')
+  return createTr064DigestClient(user, pass)
 }
 
 export async function fetchFritzBoxSummary(

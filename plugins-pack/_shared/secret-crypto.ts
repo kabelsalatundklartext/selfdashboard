@@ -57,3 +57,43 @@ export function decrypt(ciphertext: string): string {
   decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
+
+/**
+ * Sealed widget secrets ("sdsec1:" + base64(iv|tag|enc)).
+ * Fixed byte layout — MUST stay identical to src/lib/secretCrypto.ts,
+ * because values sealed by the core app are opened inside bundled plugin servers.
+ */
+const TAG_LEN = 16
+
+export const SEALED_SECRET_PREFIX = 'sdsec1:'
+
+export function isSealedSecret(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith(SEALED_SECRET_PREFIX)
+}
+
+export function sealSecret(plaintext: string): string {
+  if (!plaintext) return ''
+  const key = loadOrCreateKey()
+  const iv = randomBytes(IV_LEN)
+  const cipher = createCipheriv(ALGO, key, iv)
+  const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return SEALED_SECRET_PREFIX + Buffer.concat([iv, tag, enc]).toString('base64')
+}
+
+/** Returns plaintext for sealed values, the value unchanged for legacy plaintext, '' on tamper/key mismatch. */
+export function openSealedSecret(value: string): string {
+  if (!isSealedSecret(value)) return value
+  try {
+    const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), 'base64')
+    if (buf.length < IV_LEN + TAG_LEN + 1) return ''
+    const iv = buf.subarray(0, IV_LEN)
+    const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN)
+    const enc = buf.subarray(IV_LEN + TAG_LEN)
+    const decipher = createDecipheriv(ALGO, loadOrCreateKey(), iv)
+    decipher.setAuthTag(tag)
+    return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
+  } catch {
+    return ''
+  }
+}

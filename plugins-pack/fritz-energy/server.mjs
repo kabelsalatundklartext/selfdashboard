@@ -4,12 +4,184 @@ async function logPluginApiFailure(pluginId, operation, message, detail) {
   console.error(`[SelfDashboard][${pluginId}] ${operation}: ${message}${extra}`);
 }
 
-// plugins-pack/fritzbox/lib/fritzHomeautoTr064.ts
-import DigestClient2 from "digest-fetch";
+// plugins-pack/_shared/secret-crypto.ts
+import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
+import { join as join2 } from "node:path";
+
+// plugins-pack/_shared/data-dir.ts
+import { join } from "path";
+function dataDir() {
+  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
+  if (raw) return raw;
+  return join(process.cwd(), "data");
+}
+
+// plugins-pack/_shared/secret-crypto.ts
+var ALGO = "aes-256-gcm";
+var IV_LEN = 12;
+var KEY_LEN = 32;
+var cachedKey = null;
+function deriveKey(material) {
+  return scryptSync(material, "selfdashboard.calendar.v1", KEY_LEN);
+}
+function loadOrCreateKey() {
+  if (cachedKey) return cachedKey;
+  const envKey = process.env.SELFDASHBOARD_CALENDAR_KEY?.trim();
+  if (envKey) {
+    cachedKey = deriveKey(envKey);
+    return cachedKey;
+  }
+  const keyFile = join2(dataDir(), ".calendar-key");
+  if (existsSync(keyFile)) {
+    cachedKey = deriveKey(readFileSync(keyFile, "utf8").trim());
+    return cachedKey;
+  }
+  const fresh = randomBytes(32).toString("base64");
+  writeFileSync(keyFile, fresh, "utf8");
+  try {
+    chmodSync(keyFile, 384);
+  } catch {
+  }
+  cachedKey = deriveKey(fresh);
+  return cachedKey;
+}
+var TAG_LEN = 16;
+var SEALED_SECRET_PREFIX = "sdsec1:";
+function isSealedSecret(value) {
+  return typeof value === "string" && value.startsWith(SEALED_SECRET_PREFIX);
+}
+function openSealedSecret(value) {
+  if (!isSealedSecret(value)) return value;
+  try {
+    const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), "base64");
+    if (buf.length < IV_LEN + TAG_LEN + 1) return "";
+    const iv = buf.subarray(0, IV_LEN);
+    const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
+    const enc = buf.subarray(IV_LEN + TAG_LEN);
+    const decipher = createDecipheriv(ALGO, loadOrCreateKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+// plugins-pack/_shared/ssrf.ts
+import net from "node:net";
+import { lookup } from "node:dns/promises";
+var BLOCKED_HOSTNAMES = /* @__PURE__ */ new Set([
+  "localhost",
+  "metadata.google.internal",
+  "metadata.google",
+  "instance-data"
+]);
+function isAlwaysBlockedIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const normalized = ip.toLowerCase();
+    if (normalized === "::1") return true;
+    if (normalized.startsWith("fe80:")) return true;
+    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+    const embedded = embeddedIpv4(normalized);
+    if (embedded) return isAlwaysBlockedIp(embedded);
+  }
+  return false;
+}
+function embeddedIpv4(normalizedV6) {
+  if (!normalizedV6.startsWith("::ffff:")) return null;
+  const rest = normalizedV6.slice("::ffff:".length);
+  if (net.isIPv4(rest)) return rest;
+  const hex = rest.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hex) return null;
+  const hi = parseInt(hex[1], 16);
+  const lo = parseInt(hex[2], 16);
+  return `${hi >> 8 & 255}.${hi & 255}.${lo >> 8 & 255}.${lo & 255}`;
+}
+function isPrivateLanIp(ip) {
+  if (!net.isIPv4(ip)) return false;
+  const [a, b] = ip.split(".").map(Number);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+function blockPrivateLanUrls() {
+  const v = process.env.SELFDASHBOARD_BLOCK_PRIVATE_CALENDAR_URLS?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+var UnsafeOutboundUrlError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UnsafeOutboundUrlError";
+  }
+};
+function assertSafeOutboundUrl(urlStr) {
+  let u;
+  try {
+    u = new URL(urlStr);
+  } catch {
+    throw new UnsafeOutboundUrlError("invalid_url");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new UnsafeOutboundUrlError("unsupported_protocol");
+  }
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (!host) throw new UnsafeOutboundUrlError("missing_host");
+  if (BLOCKED_HOSTNAMES.has(host)) throw new UnsafeOutboundUrlError("blocked_host");
+  if (host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new UnsafeOutboundUrlError("blocked_host");
+  }
+  const ipVersion = net.isIP(host);
+  if (ipVersion) {
+    if (isAlwaysBlockedIp(host)) throw new UnsafeOutboundUrlError("blocked_ip");
+    if (blockPrivateLanUrls() && isPrivateLanIp(host)) {
+      throw new UnsafeOutboundUrlError("private_ip_blocked");
+    }
+    return;
+  }
+  if (host.endsWith(".localhost")) throw new UnsafeOutboundUrlError("blocked_host");
+}
+async function assertSafeOutboundUrlResolved(urlStr) {
+  assertSafeOutboundUrl(urlStr);
+  const u = new URL(urlStr);
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (net.isIP(host)) return;
+  let addrs;
+  try {
+    addrs = await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new UnsafeOutboundUrlError("dns_lookup_failed");
+  }
+  if (addrs.length === 0) throw new UnsafeOutboundUrlError("dns_lookup_failed");
+  for (const { address } of addrs) {
+    if (isAlwaysBlockedIp(address)) throw new UnsafeOutboundUrlError("blocked_ip_resolved");
+    if (blockPrivateLanUrls() && isPrivateLanIp(address)) {
+      throw new UnsafeOutboundUrlError("private_ip_blocked");
+    }
+  }
+}
+
+// plugins-pack/fritzbox/lib/tr064NodeFetch.ts
+import nodeFetch from "node-fetch";
+import DigestClient from "digest-fetch";
+function createTr064DigestClient(user, pass) {
+  const client = new DigestClient(user || "", pass || "");
+  client.getClient = async () => nodeFetch;
+  return client;
+}
+async function runWithTr064NodeFetch(_conn, fn) {
+  return fn();
+}
 
 // plugins-pack/fritzbox/lib/fritzboxTr064.ts
-import DigestClient from "digest-fetch";
-var BLOCKED_HOSTNAMES = new Set(
+var BLOCKED_HOSTNAMES2 = new Set(
   ["metadata.google.internal", "metadata.goog", "169.254.169.254"].map((h) => h.toLowerCase())
 );
 function normalizeBaseUrl(raw) {
@@ -19,7 +191,7 @@ function normalizeBaseUrl(raw) {
   const u = new URL(withProto);
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error("invalid_protocol");
   const host = u.hostname.toLowerCase();
-  if (BLOCKED_HOSTNAMES.has(host)) throw new Error("blocked_host");
+  if (BLOCKED_HOSTNAMES2.has(host)) throw new Error("blocked_host");
   return u;
 }
 function fritzboxRootFromInput(raw) {
@@ -104,23 +276,6 @@ ${inner}
 </s:Envelope>`;
 }
 
-// plugins-pack/fritzbox/lib/tr064NodeFetch.ts
-function tr064NeedsInsecureAgent(conn) {
-  const usesHttps = tr064OriginsForConnection(conn).some((o) => o.startsWith("https:"));
-  return usesHttps && conn.insecureTls;
-}
-async function runWithTr064NodeFetch(conn, fn) {
-  if (!tr064NeedsInsecureAgent(conn)) return fn();
-  const prev = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-  try {
-    return await fn();
-  } finally {
-    if (prev === void 0) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = prev;
-  }
-}
-
 // plugins-pack/fritzbox/lib/fritzHomeautoTr064.ts
 import https from "node:https";
 function absUrl(origin, relativeOrAbsolute) {
@@ -166,7 +321,7 @@ async function resolveHomeautoService(conn, client, signal) {
   throw new Error("homeauto_not_found");
 }
 async function homeautoCtx(conn, signal) {
-  const client = new DigestClient2(conn.username || "", conn.password || "");
+  const client = createTr064DigestClient(conn.username, conn.password);
   const { service: ha, origin } = await resolveHomeautoService(conn, client, signal);
   const controlUrl = absUrl(origin, ha.controlUrl);
   return { client, ha, controlUrl };
@@ -630,29 +785,19 @@ async function fetchFritzEnergyHistoryFromBox(conn, ain, signal) {
 
 // plugins-pack/fritzbox/lib/fritzEnergyStore.ts
 import { mkdir, readFile, rename, writeFile } from "fs/promises";
-import { join as join2 } from "path";
+import { join as join3 } from "path";
 import { createHash as createHash2 } from "node:crypto";
-
-// plugins-pack/_shared/data-dir.ts
-import { join } from "path";
-function dataDir() {
-  const raw = process.env.SELFDASHBOARD_DATA_DIR?.trim();
-  if (raw) return raw;
-  return join(process.cwd(), "data");
-}
-
-// plugins-pack/fritzbox/lib/fritzEnergyStore.ts
 var MAX_RECENT = 10080;
 var MAX_DAILY_KEYS = 400;
 function storeDir() {
-  return join2(dataDir(), "fritz-energy");
+  return join3(dataDir(), "fritz-energy");
 }
 function energyStoreKey(baseUrl, ain) {
   const norm = `${baseUrl.trim().toLowerCase()}|${ain.replace(/\s/g, "")}`;
   return createHash2("sha256").update(norm).digest("hex").slice(0, 24);
 }
 function storePath(key) {
-  return join2(storeDir(), `${key}.json`);
+  return join3(storeDir(), `${key}.json`);
 }
 function berlinDateKey2(ms) {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -843,11 +988,15 @@ function clampStr(v, max) {
   if (typeof v !== "string") return "";
   return v.trim().slice(0, max);
 }
-function connFromBody(body) {
+async function connFromBody(body) {
+  const baseUrl = fritzboxRootFromInput(String(body.baseUrl ?? ""));
+  await assertSafeOutboundUrlResolved(baseUrl);
   return {
-    baseUrl: fritzboxRootFromInput(String(body.baseUrl ?? "")),
+    baseUrl,
     username: clampStr(body.username, 200),
-    password: typeof body.password === "string" ? body.password.slice(0, 500) : "",
+    password: openSealedSecret(
+      typeof body.password === "string" ? body.password.slice(0, 2e3) : ""
+    ).slice(0, 500),
     insecureTls: body.insecureTls === true
   };
 }
@@ -865,8 +1014,11 @@ async function handlePost(req) {
   if (body.action === "listDevices") {
     let conn2;
     try {
-      conn2 = connFromBody(body);
+      conn2 = await connFromBody(body);
     } catch (e) {
+      if (e instanceof UnsafeOutboundUrlError) {
+        return Response.json({ ok: false, error: "blocked_url", detail: e.message }, { status: 400 });
+      }
       const code = e instanceof Error ? e.message : "bad_url";
       return Response.json({ ok: false, error: code }, { status: 400 });
     }
@@ -890,8 +1042,11 @@ async function handlePost(req) {
   }
   let conn;
   try {
-    conn = connFromBody(body);
+    conn = await connFromBody(body);
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      return Response.json({ ok: false, error: "blocked_url", detail: e.message }, { status: 400 });
+    }
     const code = e instanceof Error ? e.message : "bad_url";
     return Response.json({ ok: false, error: code }, { status: 400 });
   }

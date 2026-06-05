@@ -65,34 +65,60 @@ export function buildOtpAuthUri(username: string, secret: string): string {
   return `otpauth://totp/${label}?secret=${secret}&issuer=SelfDashboard&algorithm=SHA1&digits=6&period=30`
 }
 
-export function verifyTotpCode(secretBase32: string, token: string, windowSteps = 1): boolean {
+/**
+ * Verify a TOTP code and return the matched time-step counter (for replay
+ * protection), or null when no step in the window matches.
+ */
+export function verifyTotpCodeStep(
+  secretBase32: string,
+  token: string,
+  windowSteps = 1,
+): number | null {
   const code = token.replace(/\s/g, '')
-  if (!/^\d{6}$/.test(code)) return false
+  if (!/^\d{6}$/.test(code)) return null
   const secret = base32Decode(secretBase32)
-  if (secret.length < 10) return false
+  if (secret.length < 10) return null
   const now = Date.now()
   for (let w = -windowSteps; w <= windowSteps; w++) {
     const t = now + w * TOTP_STEP_SEC * 1000
     const expected = totpAt(secret, t)
     try {
-      if (timingSafeEqual(Buffer.from(expected), Buffer.from(code))) return true
+      if (timingSafeEqual(Buffer.from(expected), Buffer.from(code))) {
+        return Math.floor(t / 1000 / TOTP_STEP_SEC)
+      }
     } catch {
       /* length mismatch */
     }
   }
-  return false
+  return null
+}
+
+export function verifyTotpCode(secretBase32: string, token: string, windowSteps = 1): boolean {
+  return verifyTotpCodeStep(secretBase32, token, windowSteps) !== null
 }
 
 type UserTotpRow = {
   totp_secret: string | null
   totp_enabled: number
+  totp_last_step: number
 }
 
 function getUserTotpRow(userId: string): UserTotpRow | null {
   const row = getAuthDb()
-    .prepare('SELECT totp_secret, totp_enabled FROM users WHERE id = ?')
+    .prepare('SELECT totp_secret, totp_enabled, totp_last_step FROM users WHERE id = ?')
     .get(userId) as UserTotpRow | undefined
   return row ?? null
+}
+
+/**
+ * Replay protection: a TOTP step may only be consumed once. Returns true when
+ * `step` is newer than the last consumed step and records it atomically.
+ */
+function consumeTotpStep(userId: string, step: number): boolean {
+  const res = getAuthDb()
+    .prepare('UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?')
+    .run(step, userId, step)
+  return res.changes === 1
 }
 
 export function isTotpEnabledForUser(userId: string): boolean {
@@ -106,15 +132,15 @@ export function getTotpSecretForUser(userId: string): string | null {
   return row.totp_secret
 }
 
-export function enableTotpForUser(userId: string, secret: string): void {
+export function enableTotpForUser(userId: string, secret: string, consumedStep = 0): void {
   getAuthDb()
-    .prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?')
-    .run(secret, userId)
+    .prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_last_step = ? WHERE id = ?')
+    .run(secret, Math.max(0, consumedStep), userId)
 }
 
 export function disableTotpForUser(userId: string): void {
   getAuthDb()
-    .prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?')
+    .prepare('UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_last_step = 0 WHERE id = ?')
     .run(userId)
   clearBackupCodes(userId)
 }
@@ -167,7 +193,12 @@ export function verifyBackupCode(userId: string, rawCode: string): boolean {
 
 export function verifyUserSecondFactor(userId: string, code: string): boolean {
   const secret = getTotpSecretForUser(userId)
-  if (secret && verifyTotpCode(secret, code)) return true
+  if (secret) {
+    const step = verifyTotpCodeStep(secret, code)
+    // consumeTotpStep rejects codes whose step was already used (replay).
+    if (step !== null && consumeTotpStep(userId, step)) return true
+    if (step !== null) return false
+  }
   return verifyBackupCode(userId, code)
 }
 
