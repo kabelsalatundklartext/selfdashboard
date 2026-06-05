@@ -1,6 +1,7 @@
 import { useDashboardStore } from '@/lib/store'
 import type { PluginSettingsProps } from '@/types'
 import { parseCrowdsecConfig } from './config'
+import { COUNTRY_NAME } from './constants'
 import { DEFAULT_LOOKUP_ENABLED, LOOKUP_SERVICES, type LookupServiceId } from './ipLookup'
 import { DAY_RANGE_PRESETS, MAX_ALERT_PRESETS } from './presets'
 
@@ -72,6 +73,22 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
           onChange={(e) => onChange('showCountriesList', e.target.checked)}
         />
         <span>{de ? 'Länderliste in der Sidebar dauerhaft anzeigen' : 'Always show country list in sidebar'}</span>
+      </label>
+
+      <label className="cs-settings-row">
+        <span>{de ? 'Dein Land (Karte → Bögen)' : 'Your country (map → arcs)'}</span>
+        <select value={cfg.homeCountry} onChange={(e) => onChange('homeCountry', e.target.value)}>
+          {!COUNTRY_NAME[cfg.homeCountry] ? (
+            <option value={cfg.homeCountry}>{cfg.homeCountry}</option>
+          ) : null}
+          {Object.entries(COUNTRY_NAME)
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([code, name]) => (
+              <option key={code} value={code}>
+                {name} ({code})
+              </option>
+            ))}
+        </select>
       </label>
 
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

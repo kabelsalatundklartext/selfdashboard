@@ -279,6 +279,8 @@ function loadActiveBanFeed(db: Database.Database, geoip: GeoipLookup): CrowdsecF
       asnumber: '',
       iprange: formatIpRange(ip, null),
       active_ban: true,
+      lat: geo.lat,
+      lon: geo.lon,
     })
   }
   return feed
@@ -564,6 +566,8 @@ async function loadCrowdsecDashboardInner(
           asnumber: formatAsNumber(row.as_number != null ? String(row.as_number) : ''),
           iprange: formatIpRange(ip, row.ip_range),
           active_ban: isBan,
+          lat: geo.lat,
+          lon: geo.lon,
         })
       }
     }

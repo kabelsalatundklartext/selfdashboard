@@ -151,11 +151,11 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🌍 **Multilingual** | German & English interface |
 | 🖱️ **Drag & Drop** | Move and resize widgets freely |
 | 📐 **Widget Controls** | Per-widget zoom, padding and height adjustments |
-| 🔍 **Dashboard Zoom** | Scale the entire dashboard (70%–150%) |
+| 🔍 **Dashboard Zoom** | Scale the entire dashboard (60%–150%) |
 | 📏 **Grid Spacing** | Adjust widget gap and outer padding |
 | 🔗 **Navbar Options** | Show icon only, text only, or both — toggle dashboard tabs |
 | 📱 **Responsive layout** | **Phone / tablet / desktop** grid based on dashboard width; optional per-widget overrides in **⚙️ → Layout: phone & tablet**; compact **navbar search** (full-width row) on narrow viewports |
-| 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
+| 🐳 **Single Container** | Next.js 15, no external database (embedded SQLite for auth), no Redis needed |
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
 | 🔐 **Login & multi-user** | SQLite auth, admin/user roles, plugin whitelist, optional TOTP 2FA |
@@ -196,7 +196,9 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 
 **Required:** map **`/app/data`** and **`/app/plugins/custom`**. Without the plugins folder, the store can install files but they will not persist.
 
-**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
+**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); the **`:beta`** image loads its catalog from the **`beta`** branch.
+
+**Non-root container:** the app runs as UID **1001**. On start, the entrypoint chowns `/app/data` and `/app/plugins/custom` automatically (opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) and adds read permissions on `/crowdsec-data` (opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
 
 ### Option 1 — Unraid Community Apps (recommended)
 
@@ -389,7 +391,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | Problem | Solution |
 |---|---|
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
-| Config lost after update | Image updates do not remove your appdata volume; **`dashboard.json`** and **`localStorage`** keep your layout. If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
+| **500 error after update** (`SQLITE_READONLY` in logs) | The container now runs as **non-root (UID 1001)**. The entrypoint fixes volume ownership automatically on start; if you set `SELFDASHBOARD_SKIP_CHOWN=1`, run `chown -R 1001:1001` on your appdata folder yourself. |
+| Config lost after update | Image updates do not remove your appdata volume; your layout lives in **`/app/data/users/<userId>/dashboard.json`** (plus a `localStorage` cache). If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
 | Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:latest` image defaults |
 | Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
 | Update installed, UI unchanged | **Ctrl+F5** (hard reload) — browser caches `widget.js` |
@@ -568,11 +571,11 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🌍 **Mehrsprachig** | Deutsch & Englisch |
 | 🖱️ **Drag & Drop** | Widgets frei verschieben und skalieren |
 | 📐 **Widget-Controls** | Zoom, Innenabstand und Höhe pro Widget einstellbar |
-| 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (70%–150%) |
+| 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (60%–150%) |
 | 📏 **Grid-Abstände** | Widget-Abstand und Außenrand einstellbar |
 | 🔗 **Navbar-Optionen** | Nur Icon, nur Text oder beides — Dashboard-Tabs ein/ausblendbar |
 | 📱 **Responsives Layout** | **Handy / Tablet / Desktop**-Raster je nach Dashboard-Breite; optionale Widget-Overrides unter **⚙️ → Layout: Handy & Tablet**; **Navbar-Suche** auf schmalen Viewports in **eigener voller Zeile** |
-| 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
+| 🐳 **Single Container** | Next.js 15, keine externe Datenbank (eingebettetes SQLite für Auth), kein Redis nötig |
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
 | 🔐 **Login & Mehrbenutzer** | SQLite-Auth, Admin/User-Rollen, Plugin-Whitelist, optional TOTP-2FA |
@@ -615,7 +618,9 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 
 **Pflicht:** **`/app/data`** und **`/app/plugins/custom`** mounten. Ohne Plugin-Ordner gehen Store-Installationen beim Neustart verloren.
 
-**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
+**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); das **`:beta`**-Image lädt seinen Katalog vom **`beta`**-Branch.
+
+**Non-root-Container:** Die App läuft als UID **1001**. Der Entrypoint chownt beim Start automatisch `/app/data` und `/app/plugins/custom` (Opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) und setzt Leserechte auf `/crowdsec-data` (Opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
 
 ### Option 1 — Unraid Community Apps (empfohlen)
 
@@ -808,10 +813,11 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | Problem | Lösung |
 |---|---|
 | Dashboard lädt nicht | Logs prüfen: `docker logs selfdashboard` |
+| **500-Fehler nach Update** (`SQLITE_READONLY` im Log) | Der Container läuft jetzt als **non-root (UID 1001)**. Der Entrypoint korrigiert die Volume-Rechte beim Start automatisch; bei `SELFDASHBOARD_SKIP_CHOWN=1` selbst `chown -R 1001:1001` auf den Appdata-Ordner ausführen. |
 | CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
-| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
+| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; dein Layout liegt in **`/app/data/users/<userId>/dashboard.json`** (plus `localStorage`-Cache). Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
 | Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:latest`-Image mit Defaults nutzen |
 | Widget hängt bei „Plugin wird geladen…“ | Kurz warten; **Plugin-Store → Plugins neu laden**; prüfen: `/app/plugins/custom/<id>/widget.js` |
 | Update installiert, UI unverändert | **Strg+F5** — Browser cached `widget.js` |

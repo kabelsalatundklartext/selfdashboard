@@ -5,7 +5,7 @@ import path from 'path'
 import maxmind, { type CityResponse, type Reader } from 'maxmind'
 
 export type GeoipLookup = {
-  lookup: (ip: string) => { country: string; city: string }
+  lookup: (ip: string) => { country: string; city: string; lat: number | null; lon: number | null }
   dbPath: string
 }
 
@@ -92,19 +92,21 @@ export async function createGeoipLookup(): Promise<GeoipLookup | null> {
     return {
       dbPath,
       lookup(ip: string) {
-        if (!isPublicIp(ip)) return { country: '', city: '' }
+        if (!isPublicIp(ip)) return { country: '', city: '', lat: null, lon: null }
         try {
           const hit = reader.get(ip)
-          if (!hit) return { country: '', city: '' }
+          if (!hit) return { country: '', city: '', lat: null, lon: null }
           const country = hit.country?.iso_code?.trim().toUpperCase() || ''
           const city =
             hit.city?.names?.en ||
             hit.city?.names?.de ||
             (hit.city?.names ? Object.values(hit.city.names)[0] : '') ||
             ''
-          return { country, city: typeof city === 'string' ? city : '' }
+          const lat = typeof hit.location?.latitude === 'number' ? hit.location.latitude : null
+          const lon = typeof hit.location?.longitude === 'number' ? hit.location.longitude : null
+          return { country, city: typeof city === 'string' ? city : '', lat, lon }
         } catch {
-          return { country: '', city: '' }
+          return { country: '', city: '', lat: null, lon: null }
         }
       },
     }
@@ -128,12 +130,13 @@ export function applyGeoipToCountry(
   country: string,
   city: string,
   geoip: GeoipLookup | null,
-): { country: string; city: string } {
-  let cc = normalizeCountryCode(country)
-  let c = city?.trim() || ''
-  if (cc) return { country: cc, city: c }
-  if (!geoip) return { country: '??', city: c }
-  const g = geoip.lookup(ip)
-  if (g.country) return { country: g.country, city: g.city || c }
-  return { country: '??', city: c }
+): { country: string; city: string; lat: number | null; lon: number | null } {
+  const cc = normalizeCountryCode(country)
+  const c = city?.trim() || ''
+  const g = geoip ? geoip.lookup(ip) : null
+  const lat = g?.lat ?? null
+  const lon = g?.lon ?? null
+  if (cc) return { country: cc, city: c || (g?.city ?? ''), lat, lon }
+  if (g?.country) return { country: g.country, city: g.city || c, lat, lon }
+  return { country: '??', city: c, lat, lon }
 }

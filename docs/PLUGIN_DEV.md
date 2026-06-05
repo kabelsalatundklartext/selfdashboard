@@ -258,7 +258,13 @@ Nutzer mit Image `:beta` sehen neue Plugins im Store nach ein paar Minuten (Inde
 
 1. Ordner `plugins/meinplugin/` mit `plugin.json` + `index.tsx`
 2. `npm run publish:plugin-pack` — wenn der Build für `meinplugin` fehlschlägt, steht es **nicht** im Index
-3. `plugins-pack/meinplugin/` und `plugins-index.json` pushen
+3. `plugins-pack/meinplugin/` pushen — **fertig**
+
+> **Auto-Index:** Seit der `plugins-index.yml`-Action wird `plugins-index.json`
+> bei jedem Push nach `plugins-pack/**` (main/beta) **automatisch** neu generiert
+> und committet. Ein Plugin-Ordner mit `plugin.json` + `widget.js` reicht —
+> der Index muss nicht mehr von Hand gepflegt werden.
+> (`npm run generate:plugins-index` lokal geht weiterhin.)
 
 ---
 

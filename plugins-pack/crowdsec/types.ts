@@ -9,6 +9,9 @@ export interface CrowdsecFeedItem {
   asnumber: string
   iprange: string
   active_ban: boolean
+  /** Exact GeoIP coordinates (GeoLite2-City), null when unavailable. */
+  lat: number | null
+  lon: number | null
 }
 
 export interface CrowdsecCountryStat {

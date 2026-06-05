@@ -9,6 +9,9 @@ export interface CrowdsecFeedItem {
   asnumber: string
   iprange: string
   active_ban: boolean
+  /** GeoIP-Standort (City-DB) für die Weltkarte — null ohne City-Datenbank. */
+  lat?: number | null
+  lon?: number | null
 }
 
 export interface CrowdsecCountryStat {
