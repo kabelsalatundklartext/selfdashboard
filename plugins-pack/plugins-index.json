@@ -1,9 +1,9 @@
 {
   "version": 1,
   "repository": "kabelsalatundklartext/selfdashboard",
-  "ref": "main",
+  "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T19:52:46.578Z",
+  "generatedAt": "2026-06-05T19:55:01.667Z",
   "plugins": [
     {
       "id": "adguard",
@@ -255,7 +255,7 @@
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
-      "iconUrl": "https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/selfstream-emby/icon.png",
+      "iconUrl": "https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/plugins-pack/selfstream-emby/icon.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
