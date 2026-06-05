@@ -157,6 +157,7 @@ function decisionSchemaMeta(db: Database.Database): {
   hasValue: boolean
   hasScope: boolean
   hasSimulated: boolean
+  hasOrigin: boolean
 } {
   const decisionTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
@@ -169,6 +170,7 @@ function decisionSchemaMeta(db: Database.Database): {
       hasValue: false,
       hasScope: false,
       hasSimulated: false,
+      hasOrigin: false,
     }
   }
   const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
@@ -185,6 +187,7 @@ function decisionSchemaMeta(db: Database.Database): {
     hasValue: dNames.has('value'),
     hasScope: dNames.has('scope'),
     hasSimulated: dNames.has('simulated'),
+    hasOrigin: dNames.has('origin'),
   }
 }
 
@@ -198,6 +201,13 @@ function activeDecisionWhere(meta: ReturnType<typeof decisionSchemaMeta>): strin
   if (meta.hasScope) {
     parts.push(
       `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`,
+    )
+  }
+  if (meta.hasOrigin) {
+    // Wie `cscli decisions list`: Community-Blocklist (CAPI/lists) nicht als
+    // "aktive Banns" zählen — nur lokale Entscheidungen (crowdsec/cscli/console).
+    parts.push(
+      `(d.origin IS NULL OR LOWER(TRIM(CAST(d.origin AS TEXT))) NOT IN ('capi', 'lists', 'listfile'))`,
     )
   }
   return `WHERE ${parts.join(' AND ')}`

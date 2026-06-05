@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="jf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aa5cc3"/>
+      <stop offset="1" stop-color="#00a4dc"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#101019"/>
+  <!-- stylized Jellyfin mark: outer + inner swoosh -->
+  <path fill="url(#jf)" d="M32 12c-5 0-17.5 24.5-15 29.5S27 46 32 46s12.5 0.5 15-4.5S37 12 32 12zm0 9.5c2.6 0 9.2 12.9 7.9 15.5S34.6 39.4 32 39.4s-6.6 0.2-7.9-2.4S29.4 21.5 32 21.5z"/>
+</svg>

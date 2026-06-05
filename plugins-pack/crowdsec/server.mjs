@@ -385,7 +385,8 @@ function decisionSchemaMeta(db) {
       hasUntil: false,
       hasValue: false,
       hasScope: false,
-      hasSimulated: false
+      hasSimulated: false,
+      hasOrigin: false
     };
   }
   const dCols = db.prepare("PRAGMA table_info(decisions)").all();
@@ -397,7 +398,8 @@ function decisionSchemaMeta(db) {
     hasUntil: dNames.has("until"),
     hasValue: dNames.has("value"),
     hasScope: dNames.has("scope"),
-    hasSimulated: dNames.has("simulated")
+    hasSimulated: dNames.has("simulated"),
+    hasOrigin: dNames.has("origin")
   };
 }
 function activeDecisionWhere(meta) {
@@ -410,6 +412,11 @@ function activeDecisionWhere(meta) {
   if (meta.hasScope) {
     parts.push(
       `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
+    );
+  }
+  if (meta.hasOrigin) {
+    parts.push(
+      `(d.origin IS NULL OR LOWER(TRIM(CAST(d.origin AS TEXT))) NOT IN ('capi', 'lists', 'listfile'))`
     );
   }
   return `WHERE ${parts.join(" AND ")}`;

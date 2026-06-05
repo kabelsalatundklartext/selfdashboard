@@ -1,0 +1,16 @@
+{
+  "id": "jellyfin",
+  "name": "Jellyfin",
+  "description": "Aktive Wiedergaben vom Jellyfin-Server: Nutzer, Titel, Fortschritt, Pause — direkt per Sessions-API (Basis-URL + API-Key). Widget-Titel anpassbar.",
+  "version": "1.0.0",
+  "author": "SelfDashboard",
+  "category": "media",
+  "icon": "🪼",
+  "iconUrl": "/api/plugins/custom-assets/jellyfin/icon.svg",
+  "defaultLayout": {
+    "w": 4,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  }
+}

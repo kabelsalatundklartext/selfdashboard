@@ -124,6 +124,12 @@ export function CrowdsecWidget({
   const [view, setView] = useState<'feed' | 'map'>('feed')
   const [mapMode, setMapMode] = useState<'dots' | 'arcs'>('dots')
 
+  // Karte deaktiviert (Einstellungen) → immer Liste zeigen.
+  useEffect(() => {
+    if (!cfg.showMap && view === 'map') setView('feed')
+  }, [cfg.showMap, view])
+  const showMapView = cfg.showMap && view === 'map'
+
   const lookupServices = useMemo(
     () => LOOKUP_SERVICES.filter((s) => cfg.lookupEnabled[s.id]),
     [cfg.lookupEnabled],
@@ -277,6 +283,7 @@ export function CrowdsecWidget({
 
           {data && cfg.showCountriesList ? (
             <section className={`cs-sidebar-extra${cfg.showCountriesList ? ' cs-sidebar-extra-pinned' : ''}`}>
+              <span className="cs-side-label">{de ? 'Top-Länder' : 'Top countries'}</span>
               <section className="cs-country-list">
                 {data.countries.slice(0, 40).map((c) => {
                   const cc = normalizeCountryCode(c.country) || '??'
@@ -317,29 +324,31 @@ export function CrowdsecWidget({
                 placeholder={de ? 'Filter IP…' : 'Filter IP…'}
               />
             </label>
-            <div
-              className="cs-view-toggle"
-              role="tablist"
-              style={{
-                display: 'flex',
-                gap: 2,
-                background: 'rgba(255,255,255,.04)',
-                border: '1px solid rgba(255,255,255,.08)',
-                borderRadius: 9,
-                padding: 3,
-              }}
-            >
-              <button type="button" role="tab" aria-selected={view === 'feed'} onClick={() => setView('feed')} style={segStyle(view === 'feed')}>
-                {de ? 'Liste' : 'List'}
-              </button>
-              <button type="button" role="tab" aria-selected={view === 'map'} onClick={() => setView('map')} style={segStyle(view === 'map')}>
-                {de ? 'Karte' : 'Map'}
-              </button>
-            </div>
+            {cfg.showMap ? (
+              <div
+                className="cs-view-toggle"
+                role="tablist"
+                style={{
+                  display: 'flex',
+                  gap: 2,
+                  background: 'rgba(255,255,255,.04)',
+                  border: '1px solid rgba(255,255,255,.08)',
+                  borderRadius: 9,
+                  padding: 3,
+                }}
+              >
+                <button type="button" role="tab" aria-selected={view === 'feed'} onClick={() => setView('feed')} style={segStyle(view === 'feed')}>
+                  {de ? 'Liste' : 'List'}
+                </button>
+                <button type="button" role="tab" aria-selected={view === 'map'} onClick={() => setView('map')} style={segStyle(view === 'map')}>
+                  {de ? 'Karte' : 'Map'}
+                </button>
+              </div>
+            ) : null}
             <span className="cs-feed-count">{filteredFeed.length}</span>
           </header>
 
-          {view === 'map' ? (
+          {showMapView ? (
             <section
               className="cs-map-panel"
               style={{

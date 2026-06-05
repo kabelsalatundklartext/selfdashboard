@@ -75,6 +75,8 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  gap: 8px;
+  padding: 10px 10px 4px;
 }
 
 .cs-nav-item {
@@ -83,10 +85,17 @@
   align-items: stretch;
   width: 100%;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--text-muted);
   text-align: left;
+}
+
+/* Übersicht-Karte hervorgehoben (wie Referenz-Design). */
+.cs-nav-item:first-child {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
 }
 
 .cs-nav-item .cs-nav-stat {
@@ -117,17 +126,20 @@
   padding-left: 22px;
 }
 
+/* Übersicht: beide Werte nebeneinander (Alerts · Banns aktiv). */
 .cs-nav-metrics {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 6px;
 }
 
 .cs-nav-metric {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
 .cs-nav-stat-compact {
@@ -136,16 +148,28 @@
   line-height: 1.15;
 }
 
-.cs-nav-metrics .cs-nav-sub {
-  padding-left: 22px;
+.cs-nav-metrics .cs-nav-sub,
+.cs-nav-metrics .cs-nav-stat,
+.cs-nav-item .cs-nav-stat,
+.cs-nav-item .cs-nav-sub {
+  padding-left: 0;
 }
 
 .cs-nav-sub {
   font-size: 9px;
   color: var(--text-muted);
-  padding-left: 22px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.cs-side-label {
+  display: block;
+  padding: 8px 4px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .cs-sidebar-extra {

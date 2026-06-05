@@ -75,6 +75,20 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
         <span>{de ? 'Länderliste in der Sidebar dauerhaft anzeigen' : 'Always show country list in sidebar'}</span>
       </label>
 
+      <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.showMap}
+          onChange={(e) => onChange('showMap', e.target.checked)}
+        />
+        <span>
+          {de
+            ? 'Weltkarte anzeigen (Liste/Karte-Umschalter) — bei Hochkant-Widgets besser aus'
+            : 'Show world map (list/map toggle) — better off for portrait widgets'}
+        </span>
+      </label>
+
+      {cfg.showMap ? (
       <label className="cs-settings-row">
         <span>{de ? 'Dein Land (Karte → Bögen)' : 'Your country (map → arcs)'}</span>
         <select value={cfg.homeCountry} onChange={(e) => onChange('homeCountry', e.target.value)}>
@@ -90,6 +104,7 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
             ))}
         </select>
       </label>
+      ) : null}
 
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <input

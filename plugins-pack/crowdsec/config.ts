@@ -10,6 +10,8 @@ export interface CrowdsecConfig {
   crowdsecContainer: string
   confirmUnban: boolean
   showCountriesList: boolean
+  /** Karte (Liste/Karte-Umschalter) anzeigen — bei schmalen Hochkant-Widgets oft unerwünscht. */
+  showMap: boolean
   /** ISO-3166 alpha-2 of your server's country — target of the map "arcs" mode. */
   homeCountry: string
   lookupEnabled: Record<LookupServiceId, boolean>
@@ -49,6 +51,7 @@ export function parseCrowdsecConfig(raw: Record<string, unknown>): CrowdsecConfi
     crowdsecContainer: cfgStr(raw.crowdsecContainer, 'crowdsec'),
     confirmUnban: cfgBool(raw.confirmUnban, true),
     showCountriesList: cfgBool(raw.showCountriesList, true),
+    showMap: cfgBool(raw.showMap, true),
     homeCountry: (() => {
       const v = cfgStr(raw.homeCountry, 'DE').toUpperCase()
       return /^[A-Z]{2}$/.test(v) ? v : 'DE'

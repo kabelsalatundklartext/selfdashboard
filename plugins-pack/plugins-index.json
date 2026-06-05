@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T18:50:50.688Z",
+  "generatedAt": "2026-06-05T19:07:35.005Z",
   "plugins": [
     {
       "id": "adguard",
@@ -66,7 +66,7 @@
       "id": "crowdsec",
       "name": "CrowdSec",
       "description": "Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder, durchsuchbarer IP-Feed (mit Stadt + AS), Weltkarte der Angriffe (echte GeoIP-Standorte, Punkte/Bögen) mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.",
-      "version": "1.5.1",
+      "version": "1.5.3",
       "author": "SelfDashboard",
       "category": "security",
       "icon": "🛡️",
@@ -161,6 +161,27 @@
       ]
     },
     {
+      "id": "jellyfin",
+      "name": "Jellyfin",
+      "description": "Aktive Wiedergaben vom Jellyfin-Server: Nutzer, Titel, Fortschritt, Pause — direkt per Sessions-API (Basis-URL + API-Key). Widget-Titel anpassbar.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "media",
+      "icon": "🪼",
+      "iconUrl": "/api/plugins/custom-assets/jellyfin/icon.svg",
+      "defaultLayout": {
+        "w": 4,
+        "h": 3,
+        "minW": 2,
+        "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "icon.svg"
+      ]
+    },
+    {
       "id": "mail",
       "name": "E-Mail / IMAP",
       "description": "Navbar-Badge mit ungelesenen Mails, mehrere IMAP-Konten, Einstellungen unter E-Mail.",
@@ -229,8 +250,8 @@
     {
       "id": "selfstream-emby",
       "name": "Selfstream-Emby",
-      "description": "Aktive Streams von Selfstream und Emby/Jellyfin in einer gemischten Liste — mit Quellen-Icon pro Zeile. Nutzt /api/plugins/selfstream und die Emby-Sessions-API.",
-      "version": "1.0.0",
+      "description": "Aktive Streams von Selfstream, Emby und Jellyfin in einer gemischten Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.",
+      "version": "1.1.0",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
@@ -243,7 +264,8 @@
       },
       "files": [
         "plugin.json",
-        "widget.js"
+        "widget.js",
+        "jellyfin.svg"
       ]
     },
     {

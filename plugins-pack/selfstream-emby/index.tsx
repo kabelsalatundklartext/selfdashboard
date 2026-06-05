@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-type Source = 'selfstream' | 'emby'
+type Source = 'selfstream' | 'emby' | 'jellyfin'
 
 type StreamRow = {
   id: string
@@ -41,6 +41,7 @@ type EmbySession = {
 const SOURCE_ICON: Record<Source, string> = {
   selfstream: '/plugin-logos/selfstream.png',
   emby: '/plugin-logos/emby.png',
+  jellyfin: '/api/plugins/custom-assets/selfstream-emby/jellyfin.svg',
 }
 
 function str(v: unknown): string {
@@ -172,11 +173,16 @@ function Widget({ config }: PluginWidgetProps) {
   const selfstreamPassword = str(config.selfstreamPassword)
   const embyUrl = normalizeBaseUrl(str(config.embyUrl))
   const embyApiKey = str(config.embyApiKey)
+  const jellyfinUrl = normalizeBaseUrl(str(config.jellyfinUrl))
+  const jellyfinApiKey = str(config.jellyfinApiKey)
   const refreshMs = Math.max(5, num(config.refreshSeconds) || 10) * 1000
+  // Konfigurierbarer Widget-Titel — leer = Kopfzeile ausblenden.
+  const widgetTitle = config.title === undefined ? 'Selfstream-Emby' : str(config.title)
 
   const hasSelfstream = Boolean(selfstreamUrl && selfstreamPassword)
   const hasEmby = Boolean(embyUrl && embyApiKey)
-  const configured = hasSelfstream || hasEmby
+  const hasJellyfin = Boolean(jellyfinUrl && jellyfinApiKey)
+  const configured = hasSelfstream || hasEmby || hasJellyfin
 
   const refresh = useCallback(async () => {
     if (!configured) {
@@ -209,9 +215,15 @@ function Widget({ config }: PluginWidgetProps) {
       }
     }
 
-    if (hasEmby) {
+    // Emby und Jellyfin teilen sich dieselbe Sessions-API.
+    const mediaServers: Array<{ source: Source; url: string; key: string; label: string; enabled: boolean }> = [
+      { source: 'emby', url: embyUrl, key: embyApiKey, label: 'Emby', enabled: hasEmby },
+      { source: 'jellyfin', url: jellyfinUrl, key: jellyfinApiKey, label: 'Jellyfin', enabled: hasJellyfin },
+    ]
+    for (const srv of mediaServers) {
+      if (!srv.enabled) continue
       try {
-        const sessions = activeEmbySessions(await fetchEmbySessions(embyUrl, embyApiKey))
+        const sessions = activeEmbySessions(await fetchEmbySessions(srv.url, srv.key))
         for (const s of sessions) {
           const user = str(s.UserName) || (de ? 'Nutzer' : 'User')
           const pos = num(s.PlayState?.PositionTicks)
@@ -219,8 +231,8 @@ function Widget({ config }: PluginWidgetProps) {
           const duration =
             run > 0 ? `${formatTicks(pos)} / ${formatTicks(run)}` : formatTicks(pos)
           merged.push({
-            id: `emby-${s.Id ?? user}-${embyLineTitle(s, de)}`,
-            source: 'emby',
+            id: `${srv.source}-${s.Id ?? user}-${embyLineTitle(s, de)}`,
+            source: srv.source,
             user,
             title: embyLineTitle(s, de),
             duration,
@@ -228,14 +240,14 @@ function Widget({ config }: PluginWidgetProps) {
           })
         }
       } catch (e) {
-        nextErrors.push(`Emby: ${e instanceof Error ? e.message : String(e)}`)
+        nextErrors.push(`${srv.label}: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
 
     setRows(merged)
     setErrors(nextErrors)
     setLoading(false)
-  }, [configured, de, embyApiKey, embyUrl, hasEmby, hasSelfstream, selfstreamPassword, selfstreamUrl])
+  }, [configured, de, embyApiKey, embyUrl, hasEmby, hasJellyfin, hasSelfstream, jellyfinApiKey, jellyfinUrl, selfstreamPassword, selfstreamUrl])
 
   useEffect(() => {
     setLoading(true)
@@ -262,8 +274,8 @@ function Widget({ config }: PluginWidgetProps) {
   const hint = useMemo(() => {
     if (configured) return null
     return de
-      ? 'Selfstream-URL/Passwort und/oder Emby-URL/API-Key in den Einstellungen eintragen.'
-      : 'Enter Selfstream URL/password and/or Emby URL/API key in settings.'
+      ? 'Selfstream-URL/Passwort, Emby- und/oder Jellyfin-URL/API-Key in den Einstellungen eintragen.'
+      : 'Enter Selfstream URL/password, Emby and/or Jellyfin URL/API key in settings.'
   }, [configured, de])
 
   if (hint) {
@@ -289,18 +301,20 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div style={shell}>
-      <p
-        style={{
-          margin: 0,
-          fontSize: 'clamp(9px, 2.4cqmin, 10px)',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          color: 'var(--text-muted)',
-        }}
-      >
-        Selfstream-Emby
-      </p>
+      {widgetTitle ? (
+        <p
+          style={{
+            margin: 0,
+            fontSize: 'clamp(9px, 2.4cqmin, 10px)',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.08em',
+            color: 'var(--text-muted)',
+          }}
+        >
+          {widgetTitle}
+        </p>
+      ) : null}
 
       {rows.length === 0 ? (
         <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>
@@ -309,13 +323,8 @@ function Widget({ config }: PluginWidgetProps) {
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, width: '100%', minWidth: 0 }}>
           {rows.map((row, idx) => {
-            const playIcon = row.source === 'emby' && row.paused ? '⏸' : row.isCatchup ? '⏪' : '▶'
-            const playColor =
-              row.source === 'emby' && row.paused
-                ? '#f59e0b'
-                : row.isCatchup
-                  ? '#a78bfa'
-                  : 'var(--accent)'
+            const playIcon = row.paused ? '⏸' : row.isCatchup ? '⏪' : '▶'
+            const playColor = row.paused ? '#f59e0b' : row.isCatchup ? '#a78bfa' : 'var(--accent)'
             return (
               <li
                 key={row.id}
@@ -426,6 +435,17 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
+          {de ? 'Widget-Titel (leer = ausblenden)' : 'Widget title (empty = hidden)'}
+        </label>
+        <input
+          style={inp}
+          value={config.title === undefined ? 'Selfstream-Emby' : str(config.title)}
+          placeholder={de ? 'z. B. Streams' : 'e.g. Streams'}
+          onChange={(e) => onChange('title', e.target.value)}
+        />
+      </div>
+      <div>
         <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
           Selfstream
         </p>
@@ -448,7 +468,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       </div>
       <div>
         <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-          Emby / Jellyfin
+          Emby
         </p>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Basis-URL' : 'Base URL'}</label>
         <input
@@ -464,6 +484,30 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           value={str(config.embyApiKey)}
           onChange={(e) => onChange('embyApiKey', e.target.value)}
         />
+      </div>
+      <div>
+        <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+          Jellyfin
+        </p>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Basis-URL' : 'Base URL'}</label>
+        <input
+          style={inp}
+          value={str(config.jellyfinUrl)}
+          placeholder="http://192.168.1.21:8096"
+          onChange={(e) => onChange('jellyfinUrl', e.target.value)}
+        />
+        <label style={{ display: 'block', fontSize: 12, margin: '10px 0 4px' }}>API-Key</label>
+        <input
+          style={inp}
+          type="password"
+          value={str(config.jellyfinApiKey)}
+          onChange={(e) => onChange('jellyfinApiKey', e.target.value)}
+        />
+        <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+          {de
+            ? 'Nur ausfüllen, was du nutzt — Selfstream, Emby und Jellyfin sind alle optional.'
+            : 'Only fill in what you use — Selfstream, Emby and Jellyfin are all optional.'}
+        </p>
       </div>
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
@@ -486,18 +530,21 @@ export const meta: PluginMeta = {
   id: 'selfstream-emby',
   name: 'Selfstream-Emby',
   description:
-    'Selfstream und Emby/Jellyfin in einer Liste — Quellen-Icon pro Zeile. Alte Einzel-Plugins bleiben optional.',
-  version: '1.0.0',
+    'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
   iconUrl: '/plugin-logos/selfstream.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
+    { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Selfstream-Emby' },
     { key: 'selfstreamUrl', label: 'Selfstream URL', type: 'text', defaultValue: '' },
     { key: 'selfstreamPassword', label: 'Selfstream Passwort', type: 'password', defaultValue: '' },
     { key: 'embyUrl', label: 'Emby URL', type: 'text', defaultValue: '' },
     { key: 'embyApiKey', label: 'Emby API-Key', type: 'password', defaultValue: '' },
+    { key: 'jellyfinUrl', label: 'Jellyfin URL', type: 'text', defaultValue: '' },
+    { key: 'jellyfinApiKey', label: 'Jellyfin API-Key', type: 'password', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 10 },
   ],
 }
