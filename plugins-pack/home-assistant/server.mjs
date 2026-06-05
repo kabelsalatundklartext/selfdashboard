@@ -27,7 +27,7 @@ function deriveKey(material) {
 }
 function loadOrCreateKey() {
   if (cachedKey) return cachedKey;
-  const envKey = process.env.SELFDASHBOARD_CALENDAR_KEY?.trim();
+  const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim();
   if (envKey) {
     cachedKey = deriveKey(envKey);
     return cachedKey;

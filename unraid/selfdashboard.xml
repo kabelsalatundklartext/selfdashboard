@@ -67,6 +67,17 @@
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
   <Config
+    Name="Secret Key (Verschlüsselung)"
+    Target="SELFDASHBOARD_SECRET_KEY"
+    Default=""
+    Mode=""
+    Description="EMPFOHLEN — fester Schlüssel für ALLE gespeicherten Zugangsdaten (Kalender, E-Mail, Widget-Passwörter wie AdGuard/Pi-hole/FRITZ!/Speedtest). Beliebiger langer Zufallsstring (30+ Zeichen). Ohne ihn hängt die Verschlüsselung an einer Datei im Volume und kann bei Image-Updates verloren gehen. WICHTIG: einmal setzen, NIE mehr ändern — sonst werden gespeicherte Passwörter unlesbar (dann neu eintragen)."
+    Type="Variable"
+    Display="always"
+    Required="false"
+    Mask="true"></Config>
+
+  <Config
     Name="GitHub Plugins Repo"
     Target="SELFDASHBOARD_PLUGINS_GITHUB_REPO"
     Default="kabelsalatundklartext/selfdashboard"

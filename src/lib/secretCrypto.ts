@@ -23,7 +23,9 @@ function deriveKey(material: string): Buffer {
 function loadOrCreateKey(): Buffer {
   if (cachedKey) return cachedKey
 
-  const envKey = process.env.SELFDASHBOARD_CALENDAR_KEY?.trim()
+  // Allgemeiner Name bevorzugt; SELFDASHBOARD_CALENDAR_KEY als Legacy-Fallback.
+  // Gleiche Ableitung → derselbe Wert ergibt unter beiden Namen denselben Schlüssel.
+  const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim()
   if (envKey) {
     cachedKey = deriveKey(envKey)
     return cachedKey
