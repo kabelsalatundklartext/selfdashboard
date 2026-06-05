@@ -80,5 +80,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Beta images load their plugin catalog from the beta branch.
+          build-args: |
+            PLUGINS_REF=${{ (github.ref == 'refs/heads/beta' || github.base_ref == 'beta') && 'beta' || 'main' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
