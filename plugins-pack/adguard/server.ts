@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { openSealedSecret } from '@/lib/secretCrypto'
+import { fetchWithSsrfGuard, UnsafeOutboundUrlError } from '@/lib/security/ssrf'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
 
 const FETCH_TIMEOUT_MS = 12_000
@@ -44,7 +46,7 @@ async function fetchJson(
   headers: Record<string, string>,
   signal: AbortSignal,
 ): Promise<{ ok: boolean; status: number; json: unknown; text: string }> {
-  const res = await fetch(url, { method: 'GET', headers, cache: 'no-store', signal })
+  const res = await fetchWithSsrfGuard(url, { method: 'GET', headers, cache: 'no-store', signal })
   const text = await res.text()
   let json: unknown = null
   try {
@@ -62,7 +64,7 @@ async function fetchJsonPost(
   signal: AbortSignal,
 ): Promise<{ ok: boolean; status: number; json: unknown; text: string }> {
   const h = { ...headers, 'Content-Type': 'application/json' }
-  const res = await fetch(url, {
+  const res = await fetchWithSsrfGuard(url, {
     method: 'POST',
     headers: h,
     body: JSON.stringify(body),
@@ -193,7 +195,7 @@ export async function handleAdguardPluginRequest(req: Request, _path: string[]):
   }
 
   const user = String(body.username ?? '')
-  const pass = String(body.password ?? '')
+  const pass = openSealedSecret(String(body.password ?? ''))
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (user !== '' || pass !== '') {
     const token = Buffer.from(`${user}:${pass}`, 'utf8').toString('base64')
@@ -256,6 +258,10 @@ export async function handleAdguardPluginRequest(req: Request, _path: string[]):
       statsConfig,
     })
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      void logPluginApiFailure('adguard', 'request', `blocked_url:${e.message}`)
+      return NextResponse.json({ error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     const msg = e instanceof Error ? e.message : String(e)
     const aborted = e instanceof Error && e.name === 'AbortError'
     void logPluginApiFailure('adguard', 'request', aborted ? 'timeout' : msg)

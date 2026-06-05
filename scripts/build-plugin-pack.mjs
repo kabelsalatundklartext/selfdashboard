@@ -245,6 +245,7 @@ const SERVER_LIB_ALIASES = {
   '@/lib/auth/service': 'auth-lite.ts',
   '@/lib/auth/users': 'auth-lite.ts',
   '@/lib/errorLog': 'error-log-lite.ts',
+  '@/lib/security/ssrf': 'ssrf.ts',
 }
 
 function serverBundlePlugins() {

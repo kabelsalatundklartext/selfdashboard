@@ -44,6 +44,20 @@ for (const name of fs.readdirSync(packRoot, { withFileTypes: true })) {
   if (serverPack) files.push(serverPack)
   const hasServer = Boolean(serverPack)
   const { hasServer: _manifestHasServer, ...meta } = m
+  // Lokale Icon-Assets (./icon.png oder /api/plugins/custom-assets/<id>/<file>)
+  // → raw-GitHub-URL, damit Store-Karten das Icon schon VOR der Installation
+  // laden können (vorher existiert der custom-assets-Pfad noch nicht).
+  const id = meta.id || name.name
+  if (typeof meta.iconUrl === 'string') {
+    const local = meta.iconUrl.startsWith('./')
+      ? meta.iconUrl.slice(2)
+      : meta.iconUrl.startsWith(`/api/plugins/custom-assets/${id}/`)
+        ? meta.iconUrl.slice(`/api/plugins/custom-assets/${id}/`.length)
+        : null
+    if (local && fs.existsSync(path.join(packDir, local))) {
+      meta.iconUrl = `https://raw.githubusercontent.com/${repo}/${ref}/${basePath}/${id}/${local}`
+    }
+  }
   plugins.push({ ...meta, id: meta.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }
 

@@ -5,6 +5,7 @@ import {
   loadKioskDashboardBundle,
 } from '@/lib/kiosk/config'
 import { issueKioskToken, applyKioskCookie, kioskAccessGranted } from '@/lib/kiosk/session'
+import { sealDashboardSecrets } from '@/lib/widgetSecrets'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,8 @@ export async function GET(req: Request) {
     }
   }
 
-  const res = NextResponse.json(state)
+  // Never expose legacy plaintext widget secrets to the (possibly public) kiosk view.
+  const res = NextResponse.json(sealDashboardSecrets(state).state)
   const granted = kioskAccessGranted(req, config)
   if (config.passwordHash) {
     if (granted) {

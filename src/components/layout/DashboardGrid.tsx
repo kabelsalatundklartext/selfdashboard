@@ -100,17 +100,15 @@ export function DashboardGrid() {
     () => 0,
   )
 
-  const {
-    activeDashboard,
-    editMode,
-    locale,
-    updatePluginLayout,
-    updatePluginLayoutPhone,
-    updatePluginLayoutTablet,
-    dashboardZoom,
-    gridGap,
-    gridPadding,
-  } = useDashboardStore()
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
+  const editMode = useDashboardStore((s) => s.editMode)
+  const locale = useDashboardStore((s) => s.locale)
+  const updatePluginLayout = useDashboardStore((s) => s.updatePluginLayout)
+  const updatePluginLayoutPhone = useDashboardStore((s) => s.updatePluginLayoutPhone)
+  const updatePluginLayoutTablet = useDashboardStore((s) => s.updatePluginLayoutTablet)
+  const dashboardZoom = useDashboardStore((s) => s.dashboardZoom)
+  const gridGap = useDashboardStore((s) => s.gridGap)
+  const gridPadding = useDashboardStore((s) => s.gridPadding)
   const userZoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins
@@ -305,8 +303,11 @@ export function DashboardGrid() {
         )}
 
         <div ref={measureRef} style={{ width: '100%', minWidth: 0 }}>
+        {/* Kein key={layoutMode}: ein Remount würde beim Breakpoint-Wechsel ALLE
+            Widgets neu mounten (jedes lädt seine Daten neu). RGL übernimmt
+            layout/cols als kontrollierte Props; das rAF-Gate in
+            layoutPersistReadyRef blockt das Persistieren während des Wechsels. */}
         <GridLayout
-          key={layoutMode}
           className="layout"
           layout={gridLayout}
           cols={gridCols}

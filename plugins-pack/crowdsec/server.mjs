@@ -227,15 +227,17 @@ async function createGeoipLookup() {
     return {
       dbPath,
       lookup(ip) {
-        if (!isPublicIp(ip)) return { country: "", city: "" };
+        if (!isPublicIp(ip)) return { country: "", city: "", lat: null, lon: null };
         try {
           const hit = reader.get(ip);
-          if (!hit) return { country: "", city: "" };
+          if (!hit) return { country: "", city: "", lat: null, lon: null };
           const country = hit.country?.iso_code?.trim().toUpperCase() || "";
           const city = hit.city?.names?.en || hit.city?.names?.de || (hit.city?.names ? Object.values(hit.city.names)[0] : "") || "";
-          return { country, city: typeof city === "string" ? city : "" };
+          const lat = typeof hit.location?.latitude === "number" ? hit.location.latitude : null;
+          const lon = typeof hit.location?.longitude === "number" ? hit.location.longitude : null;
+          return { country, city: typeof city === "string" ? city : "", lat, lon };
         } catch {
-          return { country: "", city: "" };
+          return { country: "", city: "", lat: null, lon: null };
         }
       }
     };
@@ -251,13 +253,14 @@ function normalizeCountryCode(raw) {
   return "";
 }
 function applyGeoipToCountry(ip, country, city, geoip) {
-  let cc = normalizeCountryCode(country);
-  let c = city?.trim() || "";
-  if (cc) return { country: cc, city: c };
-  if (!geoip) return { country: "??", city: c };
-  const g = geoip.lookup(ip);
-  if (g.country) return { country: g.country, city: g.city || c };
-  return { country: "??", city: c };
+  const cc = normalizeCountryCode(country);
+  const c = city?.trim() || "";
+  const g = geoip ? geoip.lookup(ip) : null;
+  const lat = g?.lat ?? null;
+  const lon = g?.lon ?? null;
+  if (cc) return { country: cc, city: c || (g?.city ?? ""), lat, lon };
+  if (g?.country) return { country: g.country, city: g.city || c, lat, lon };
+  return { country: "??", city: c, lat, lon };
 }
 
 // plugins-pack/crowdsec/lib/crowdsecDb.ts
@@ -382,7 +385,8 @@ function decisionSchemaMeta(db) {
       hasUntil: false,
       hasValue: false,
       hasScope: false,
-      hasSimulated: false
+      hasSimulated: false,
+      hasOrigin: false
     };
   }
   const dCols = db.prepare("PRAGMA table_info(decisions)").all();
@@ -394,7 +398,8 @@ function decisionSchemaMeta(db) {
     hasUntil: dNames.has("until"),
     hasValue: dNames.has("value"),
     hasScope: dNames.has("scope"),
-    hasSimulated: dNames.has("simulated")
+    hasSimulated: dNames.has("simulated"),
+    hasOrigin: dNames.has("origin")
   };
 }
 function activeDecisionWhere(meta) {
@@ -409,7 +414,28 @@ function activeDecisionWhere(meta) {
       `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
     );
   }
+  if (meta.hasOrigin) {
+    parts.push(
+      `(d.origin IS NULL OR LOWER(TRIM(CAST(d.origin AS TEXT))) NOT IN ('capi', 'lists', 'listfile'))`
+    );
+  }
   return `WHERE ${parts.join(" AND ")}`;
+}
+function countCommunityBans(db) {
+  const meta = decisionSchemaMeta(db);
+  if (!meta.hasTable || !meta.hasValue || !meta.hasUntil || !meta.hasOrigin) return 0;
+  const parts = [decisionUntilClause("d")];
+  if (meta.hasSimulated) parts.push(`(d.simulated IS NULL OR d.simulated = 0)`);
+  if (meta.hasScope) {
+    parts.push(
+      `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
+    );
+  }
+  parts.push(`LOWER(TRIM(CAST(d.origin AS TEXT))) IN ('capi', 'lists', 'listfile')`);
+  const row = db.prepare(
+    `SELECT COUNT(DISTINCT TRIM(CAST(d.value AS TEXT))) AS n FROM decisions d WHERE ${parts.join(" AND ")}`
+  ).get();
+  return row?.n ?? 0;
 }
 function loadActiveBannedIpSet(db) {
   const meta = decisionSchemaMeta(db);
@@ -470,7 +496,9 @@ function loadActiveBanFeed(db, geoip) {
       asname: "",
       asnumber: "",
       iprange: formatIpRange(ip, null),
-      active_ban: true
+      active_ban: true,
+      lat: geo.lat,
+      lon: geo.lon
     });
   }
   return feed;
@@ -648,6 +676,7 @@ async function loadCrowdsecDashboardInner(dbPath, opts = {}) {
     const alertsLast24h = alertsInRange;
     const bannedIps = loadActiveBannedIpSet(db);
     const activeBans = bannedIps.size;
+    const communityBans = countCommunityBans(db);
     const bannedAlertIds = loadAlertIdsWithActiveBan(db);
     const banFeed = loadActiveBanFeed(db, geoip);
     const { sql, params } = buildAlertsSql(db, cutoffUnix);
@@ -686,7 +715,9 @@ LIMIT ?`).all(...params, maxAlerts) : db.prepare(sql).all(...params);
           asname: row.as_name ? String(row.as_name) : "",
           asnumber: formatAsNumber(row.as_number != null ? String(row.as_number) : ""),
           iprange: formatIpRange(ip, row.ip_range),
-          active_ban: isBan
+          active_ban: isBan,
+          lat: geo.lat,
+          lon: geo.lon
         });
       }
     }
@@ -697,6 +728,7 @@ LIMIT ?`).all(...params, maxAlerts) : db.prepare(sql).all(...params);
       alertsInRange,
       alertsLast24h,
       activeBans,
+      communityBans,
       countryCount: countries.length,
       scenarioCount: scenarios.size,
       countries,

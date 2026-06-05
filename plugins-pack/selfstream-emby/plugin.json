@@ -1,12 +1,12 @@
 {
   "id": "selfstream-emby",
-  "name": "Selfstream-Emby",
-  "description": "Aktive Streams von Selfstream und Emby/Jellyfin in einer gemischten Liste — mit Quellen-Icon pro Zeile. Nutzt /api/plugins/selfstream und die Emby-Sessions-API.",
-  "version": "1.0.0",
+  "name": "Selfstream · Emby · Jellyfin",
+  "description": "Aktive Streams von Selfstream, Emby und Jellyfin in einer gemischten Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.",
+  "version": "1.2.1",
   "author": "SelfDashboard",
   "category": "media",
   "icon": "📺",
-  "iconUrl": "/plugin-logos/selfstream.png",
+  "iconUrl": "/api/plugins/custom-assets/selfstream-emby/icon.png",
   "defaultLayout": {
     "w": 4,
     "h": 3,

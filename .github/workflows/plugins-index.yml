@@ -1,0 +1,50 @@
+name: Auto-generate plugin index
+
+# Drop a plugin folder into plugins-pack/<id>/ (plugin.json + widget.js) and
+# push — this workflow regenerates plugins-index.json automatically, so the
+# plugin shows up in the store without editing the index by hand.
+
+on:
+  push:
+    branches: [main, beta]
+    paths:
+      - 'plugins-pack/**'
+      - '!plugins-pack/plugins-index.json'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate plugins-index.json
+        env:
+          # Index "ref" must match the branch the store downloads from.
+          SELFDASHBOARD_PLUGINS_GITHUB_REF: ${{ github.ref_name }}
+        run: node scripts/generate-plugins-index.mjs
+
+      - name: Commit & push if changed
+        run: |
+          # -I generatedAt: ignore the timestamp-only diff
+          if git diff -I generatedAt --quiet -- plugins-pack/plugins-index.json; then
+            echo "Index unchanged — nothing to commit."
+            git checkout -- plugins-pack/plugins-index.json
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add plugins-pack/plugins-index.json
+          git commit -m "chore: auto-generate plugins-index.json [skip ci]"
+          git push

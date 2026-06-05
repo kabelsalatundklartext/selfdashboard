@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
-import { Copy, Gavel, Globe, Search, Shield, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
+import { Copy, Globe, Search, Shield, Trash2 } from 'lucide-react'
 import { pluginApiJson, pluginApiJsonWithStale, reportPluginError } from '@/lib/pluginDev'
 import type { ThemeId } from '@/types'
 import { parseCrowdsecConfig } from './config'
@@ -11,6 +11,7 @@ import { IpLookupMenu } from './IpLookupMenu'
 import { LOOKUP_SERVICES } from './ipLookup'
 import { alertRangeLabel } from './presets'
 import type { CrowdsecDashboardData, CrowdsecFeedItem } from './types'
+import { WorldMap, type WorldMapPoint } from './WorldMap'
 
 function formatInt(n: number, locale: 'de' | 'en'): string {
   return Math.round(n).toLocaleString(locale === 'en' ? 'en-GB' : 'de-DE')
@@ -46,6 +47,26 @@ function feedMatchesSearch(item: CrowdsecFeedItem, q: string): boolean {
     .join(' ')
     .toLowerCase()
   return hay.includes(q)
+}
+
+/** Map a scenario/ban status to a marker severity for the world map. */
+function severityOf(item: CrowdsecFeedItem): 'crit' | 'warn' | 'info' {
+  if (/cve|exploit|\brce\b|traversal|sqli|log4j|backdoor/i.test(item.scenario)) return 'crit'
+  if (item.active_ban) return 'warn'
+  return 'info'
+}
+
+function segStyle(active: boolean): CSSProperties {
+  return {
+    fontSize: 12,
+    fontWeight: active ? 600 : 500,
+    padding: '5px 11px',
+    borderRadius: 6,
+    border: 'none',
+    cursor: 'pointer',
+    background: active ? 'var(--cs-info, #7b6cf6)' : 'transparent',
+    color: active ? '#fff' : 'var(--cs-muted, #9aa0c4)',
+  }
 }
 
 async function copyIp(ip: string, e?: MouseEvent) {
@@ -100,6 +121,14 @@ export function CrowdsecWidget({
   const [unbanPending, setUnbanPending] = useState<CrowdsecFeedItem | null>(null)
   const [unbanBusy, setUnbanBusy] = useState(false)
   const [unbanMsg, setUnbanMsg] = useState<string | null>(null)
+  const [view, setView] = useState<'feed' | 'map'>('feed')
+  const [mapMode, setMapMode] = useState<'dots' | 'arcs'>('dots')
+
+  // Karte deaktiviert (Einstellungen) → immer Liste zeigen.
+  useEffect(() => {
+    if (!cfg.showMap && view === 'map') setView('feed')
+  }, [cfg.showMap, view])
+  const showMapView = cfg.showMap && view === 'map'
 
   const lookupServices = useMemo(
     () => LOOKUP_SERVICES.filter((s) => cfg.lookupEnabled[s.id]),
@@ -139,6 +168,27 @@ export function CrowdsecWidget({
   const q = search.trim().toLowerCase()
   const baseFeed = useMemo(() => data?.feed ?? [], [data])
   const filteredFeed = useMemo(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q])
+  // Punkte am (fast) selben Ort zusammenfassen — sonst stapeln sich an
+  // Hotspots dutzende identische Maximal-Kreise (hässliche Blobs).
+  const mapPoints = useMemo<WorldMapPoint[]>(() => {
+    const groups = new Map<string, WorldMapPoint>()
+    for (const it of filteredFeed) {
+      const cc = normalizeCountryCode(it.country) || it.country
+      const lon = it.lon ?? undefined
+      const lat = it.lat ?? undefined
+      const key =
+        lon !== undefined && lat !== undefined ? `${lon.toFixed(1)},${lat.toFixed(1)}` : `cc:${cc}`
+      const sev = severityOf(it)
+      const prev = groups.get(key)
+      if (prev) {
+        prev.count += 1
+        if (sev === 'crit' || (sev === 'warn' && prev.severity === 'info')) prev.severity = sev
+      } else {
+        groups.set(key, { cc, lon, lat, count: 1, severity: sev })
+      }
+    }
+    return [...groups.values()]
+  }, [filteredFeed])
 
   const errLabel = (code: string) => {
     const map = de
@@ -208,22 +258,15 @@ export function CrowdsecWidget({
                   </div>
                   <div className="cs-nav-metric">
                     <span className="cs-nav-stat cs-nav-stat-compact">{formatInt(data.activeBans, locale)}</span>
-                    <span className="cs-nav-sub">{de ? 'Banns aktiv' : 'Active bans'}</span>
+                    <span className="cs-nav-sub">{de ? 'Aktive Banns' : 'Active bans'}</span>
                   </div>
+                  {typeof data.communityBans === 'number' ? (
+                    <div className="cs-nav-metric">
+                      <span className="cs-nav-stat cs-nav-stat-compact">{formatInt(data.communityBans, locale)}</span>
+                      <span className="cs-nav-sub">{de ? 'Community-Banns' : 'Community bans'}</span>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </article>
-
-            <article className="cs-nav-item">
-              <span className="cs-nav-row">
-                <Gavel size={14} strokeWidth={2.2} aria-hidden />
-                {de ? 'Banns' : 'Bans'}
-              </span>
-              {data ? (
-                <>
-                  <span className="cs-nav-stat">{formatInt(data.activeBans, locale)}</span>
-                  <span className="cs-nav-sub">{de ? 'Aktive Banns' : 'Active bans'}</span>
-                </>
               ) : null}
             </article>
 
@@ -243,6 +286,7 @@ export function CrowdsecWidget({
 
           {data && cfg.showCountriesList ? (
             <section className={`cs-sidebar-extra${cfg.showCountriesList ? ' cs-sidebar-extra-pinned' : ''}`}>
+              <span className="cs-side-label">{de ? 'Top-Länder' : 'Top countries'}</span>
               <section className="cs-country-list">
                 {data.countries.slice(0, 40).map((c) => {
                   const cc = normalizeCountryCode(c.country) || '??'
@@ -283,9 +327,94 @@ export function CrowdsecWidget({
                 placeholder={de ? 'Filter IP…' : 'Filter IP…'}
               />
             </label>
+            {cfg.showMap ? (
+              <div
+                className="cs-view-toggle"
+                role="tablist"
+                style={{
+                  display: 'flex',
+                  gap: 2,
+                  background: 'rgba(255,255,255,.04)',
+                  border: '1px solid rgba(255,255,255,.08)',
+                  borderRadius: 9,
+                  padding: 3,
+                }}
+              >
+                <button type="button" role="tab" aria-selected={view === 'feed'} onClick={() => setView('feed')} style={segStyle(view === 'feed')}>
+                  {de ? 'Liste' : 'List'}
+                </button>
+                <button type="button" role="tab" aria-selected={view === 'map'} onClick={() => setView('map')} style={segStyle(view === 'map')}>
+                  {de ? 'Karte' : 'Map'}
+                </button>
+              </div>
+            ) : null}
             <span className="cs-feed-count">{filteredFeed.length}</span>
           </header>
 
+          {showMapView ? (
+          <section className="cs-map-split">
+            <section
+              className="cs-map-panel"
+              style={{
+                position: 'relative',
+                flex: 1,
+                minHeight: 320,
+                overflow: 'hidden',
+                background: 'radial-gradient(120% 130% at 50% 0%, rgba(20,24,48,.55), rgba(7,9,18,.35))',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 10,
+                  right: 12,
+                  zIndex: 2,
+                  display: 'flex',
+                  gap: 2,
+                  background: 'rgba(10,11,18,.7)',
+                  border: '1px solid rgba(255,255,255,.1)',
+                  borderRadius: 8,
+                  padding: 3,
+                }}
+              >
+                <button type="button" onClick={() => setMapMode('dots')} style={segStyle(mapMode === 'dots')}>
+                  {de ? 'Punkte' : 'Dots'}
+                </button>
+                <button type="button" onClick={() => setMapMode('arcs')} style={segStyle(mapMode === 'arcs')}>
+                  {de ? 'Bögen' : 'Arcs'}
+                </button>
+              </div>
+              {!loading && mapPoints.length === 0 ? (
+                <p className="cs-empty" style={{ position: 'absolute', top: 12, left: 14 }}>
+                  {de ? 'Keine Einträge im Zeitraum.' : 'No entries in this period.'}
+                </p>
+              ) : null}
+              <WorldMap points={mapPoints} mode={mapMode} homeCc={cfg.homeCountry} style={{ height: '100%' }} />
+            </section>
+            {cfg.mapAlertList ? (
+              <aside className="cs-map-feed">
+                <span className="cs-side-label">{de ? 'Letzte Alerts' : 'Recent alerts'}</span>
+                {filteredFeed.slice(0, 40).map((item) => {
+                  const cc = normalizeCountryCode(item.country)
+                  return (
+                    <article
+                      key={`map-${item.alertId}-${item.ip}`}
+                      className="cs-map-feed-row"
+                      title={`${item.ip} · ${item.scenario}`}
+                    >
+                      <CountryFlag code={cc || item.country} size={16} />
+                      <span className="cs-map-feed-main">
+                        <span className="cs-map-feed-ip">{item.ip}</span>
+                        <span className="cs-map-feed-scenario">{item.scenario}</span>
+                      </span>
+                      <span className="cs-map-feed-time">{formatRelative(item.time_iso, locale)}</span>
+                    </article>
+                  )
+                })}
+              </aside>
+            ) : null}
+          </section>
+          ) : (
           <section className="cs-feed-list">
             {loading && !data && !error ? (
               <p className="cs-loading">{de ? 'Lade…' : 'Loading…'}</p>
@@ -321,6 +450,28 @@ export function CrowdsecWidget({
                       </span>
                       <span className="cs-card-time">{formatRelative(item.time_iso, locale)}</span>
                     </header>
+                    {item.city || item.asname || item.asnumber ? (
+                      <span
+                        className="cs-card-meta"
+                        style={{
+                          display: 'block',
+                          marginTop: 2,
+                          fontSize: 11,
+                          color: 'var(--cs-faint, #6b7194)',
+                          fontFamily: 'ui-monospace, monospace',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {[
+                          item.city?.trim(),
+                          [item.asnumber, item.asname].filter(Boolean).join(' ').trim(),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    ) : null}
                     <span
                       className={`cs-status ${item.active_ban ? 'cs-status-ban' : 'cs-status-free'}`}
                       title={
@@ -380,6 +531,7 @@ export function CrowdsecWidget({
               )
             })}
           </section>
+          )}
         </section>
       </section>
 

@@ -1,4 +1,6 @@
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
+import { openSealedSecret } from '@/lib/secretCrypto'
+import { assertSafeOutboundUrlResolved, UnsafeOutboundUrlError } from '@/lib/security/ssrf'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
 import {
   fetchFritzBoxByteCountersOnly,
@@ -36,13 +38,19 @@ export async function handleFritzboxPluginRequest(req: Request, _path: string[])
   let baseUrl: string
   try {
     baseUrl = fritzboxRootFromInput(String(body.baseUrl ?? ''))
+    await assertSafeOutboundUrlResolved(baseUrl)
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      return Response.json({ ok: false, error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     const code = e instanceof Error ? e.message : 'bad_url'
     return Response.json({ ok: false, error: code }, { status: 400 })
   }
 
   const username = clampStr(body.username, 200)
-  const password = typeof body.password === 'string' ? body.password.slice(0, 500) : ''
+  const password = openSealedSecret(
+    typeof body.password === 'string' ? body.password.slice(0, 2000) : '',
+  ).slice(0, 500)
   const insecureTls = body.insecureTls === true
   const lite = body.lite === true
 

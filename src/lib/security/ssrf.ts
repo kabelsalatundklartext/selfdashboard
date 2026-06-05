@@ -1,5 +1,6 @@
 import 'server-only'
 import net from 'net'
+import { lookup } from 'node:dns/promises'
 
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
@@ -22,8 +23,24 @@ function isAlwaysBlockedIp(ip: string): boolean {
     if (normalized === '::1') return true
     if (normalized.startsWith('fe80:')) return true
     if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true
+    // IPv4-mapped IPv6 — both dotted (::ffff:127.0.0.1) and hex (::ffff:7f00:1)
+    // form (the URL parser normalizes to hex!) — check the embedded IPv4.
+    const embedded = embeddedIpv4(normalized)
+    if (embedded) return isAlwaysBlockedIp(embedded)
   }
   return false
+}
+
+/** Extract the IPv4 inside an IPv4-mapped IPv6 address, or null. */
+function embeddedIpv4(normalizedV6: string): string | null {
+  if (!normalizedV6.startsWith('::ffff:')) return null
+  const rest = normalizedV6.slice('::ffff:'.length)
+  if (net.isIPv4(rest)) return rest
+  const hex = rest.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (!hex) return null
+  const hi = parseInt(hex[1], 16)
+  const lo = parseInt(hex[2], 16)
+  return `${(hi >> 8) & 255}.${hi & 255}.${(lo >> 8) & 255}.${lo & 255}`
 }
 
 function isPrivateLanIp(ip: string): boolean {
@@ -78,12 +95,40 @@ export function assertSafeOutboundUrl(urlStr: string): void {
   if (host.endsWith('.localhost')) throw new UnsafeOutboundUrlError('blocked_host')
 }
 
+/**
+ * Static checks + DNS resolution: every address the hostname resolves to must
+ * pass the IP blocklist. Closes the "evil.example.com → 127.0.0.1 / 169.254.169.254"
+ * bypass of the literal-hostname check. (Note: a TTL-0 rebinding attacker could
+ * still swap records between this check and the actual connect; full pinning
+ * would require a custom dispatcher. This covers the practical cases.)
+ */
+export async function assertSafeOutboundUrlResolved(urlStr: string): Promise<void> {
+  assertSafeOutboundUrl(urlStr)
+  const u = new URL(urlStr)
+  const host = u.hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '')
+  if (net.isIP(host)) return // literal IP already checked above
+
+  let addrs: Array<{ address: string }>
+  try {
+    addrs = await lookup(host, { all: true, verbatim: true })
+  } catch {
+    throw new UnsafeOutboundUrlError('dns_lookup_failed')
+  }
+  if (addrs.length === 0) throw new UnsafeOutboundUrlError('dns_lookup_failed')
+  for (const { address } of addrs) {
+    if (isAlwaysBlockedIp(address)) throw new UnsafeOutboundUrlError('blocked_ip_resolved')
+    if (blockPrivateLanUrls() && isPrivateLanIp(address)) {
+      throw new UnsafeOutboundUrlError('private_ip_blocked')
+    }
+  }
+}
+
 export async function fetchWithSsrfGuard(
   urlStr: string,
   init?: RequestInit,
   maxRedirects = 5,
 ): Promise<Response> {
-  assertSafeOutboundUrl(urlStr)
+  await assertSafeOutboundUrlResolved(urlStr)
   let current = urlStr
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -93,7 +138,7 @@ export async function fetchWithSsrfGuard(
     const location = resp.headers.get('location')
     if (!location) return resp
     current = new URL(location, current).href
-    assertSafeOutboundUrl(current)
+    await assertSafeOutboundUrlResolved(current)
   }
 
   throw new UnsafeOutboundUrlError('too_many_redirects')

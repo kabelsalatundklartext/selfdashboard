@@ -81,26 +81,50 @@ function DashboardIcon({ icon, size = 24 }: { icon: string; size?: number }) {
 
 export function SettingsModal({ open, onClose }: Props) {
   const router = useRouter()
-  const store = useDashboardStore()
-  const {
-    locale, setLocale, setTheme, setTitle, setCustomLogo, setCustomColors, resetCustomColors,
-    dashboards, addDashboard, removeDashboard, updateDashboard, activeDashboardId,
-    showDashboardTabs, setShowDashboardTabs,
-    navbarStyle, setNavbarStyle,
-    gridGap, setGridGap, gridPadding, setGridPadding,
-    navbarSearchEnabled, setNavbarSearchEnabled,
-    navbarSearchPosition, setNavbarSearchPosition,
-    navbarSearchProviders, setNavbarSearchProviderEnabled,
-    navbarSearchCustomProviders, setNavbarSearchCustomProviderEnabled,
-    addNavbarSearchCustomProvider, removeNavbarSearchCustomProvider,
-    navbarBackgroundImage, setNavbarBackgroundImage,
-    navbarBackgroundOverlay, setNavbarBackgroundOverlay,
-    dashboardBackgroundMode, setDashboardBackgroundMode,
-    dashboardBackgroundImage, setDashboardBackgroundImage,
-    dashboardBackgroundImage2, setDashboardBackgroundImage2,
-    dashboardBackgroundOverlay, setDashboardBackgroundOverlay,
-  } = store
-  const dash = store.activeDashboard()
+  const locale = useDashboardStore((s) => s.locale)
+  const setLocale = useDashboardStore((s) => s.setLocale)
+  const setTheme = useDashboardStore((s) => s.setTheme)
+  const setTitle = useDashboardStore((s) => s.setTitle)
+  const setCustomLogo = useDashboardStore((s) => s.setCustomLogo)
+  const setCustomColors = useDashboardStore((s) => s.setCustomColors)
+  const resetCustomColors = useDashboardStore((s) => s.resetCustomColors)
+  const dashboards = useDashboardStore((s) => s.dashboards)
+  const addDashboard = useDashboardStore((s) => s.addDashboard)
+  const removeDashboard = useDashboardStore((s) => s.removeDashboard)
+  const updateDashboard = useDashboardStore((s) => s.updateDashboard)
+  const activeDashboardId = useDashboardStore((s) => s.activeDashboardId)
+  const showDashboardTabs = useDashboardStore((s) => s.showDashboardTabs)
+  const setShowDashboardTabs = useDashboardStore((s) => s.setShowDashboardTabs)
+  const navbarStyle = useDashboardStore((s) => s.navbarStyle)
+  const setNavbarStyle = useDashboardStore((s) => s.setNavbarStyle)
+  const gridGap = useDashboardStore((s) => s.gridGap)
+  const setGridGap = useDashboardStore((s) => s.setGridGap)
+  const gridPadding = useDashboardStore((s) => s.gridPadding)
+  const setGridPadding = useDashboardStore((s) => s.setGridPadding)
+  const navbarSearchEnabled = useDashboardStore((s) => s.navbarSearchEnabled)
+  const setNavbarSearchEnabled = useDashboardStore((s) => s.setNavbarSearchEnabled)
+  const navbarSearchPosition = useDashboardStore((s) => s.navbarSearchPosition)
+  const setNavbarSearchPosition = useDashboardStore((s) => s.setNavbarSearchPosition)
+  const navbarSearchProviders = useDashboardStore((s) => s.navbarSearchProviders)
+  const setNavbarSearchProviderEnabled = useDashboardStore((s) => s.setNavbarSearchProviderEnabled)
+  const navbarSearchCustomProviders = useDashboardStore((s) => s.navbarSearchCustomProviders)
+  const setNavbarSearchCustomProviderEnabled = useDashboardStore((s) => s.setNavbarSearchCustomProviderEnabled)
+  const addNavbarSearchCustomProvider = useDashboardStore((s) => s.addNavbarSearchCustomProvider)
+  const removeNavbarSearchCustomProvider = useDashboardStore((s) => s.removeNavbarSearchCustomProvider)
+  const navbarBackgroundImage = useDashboardStore((s) => s.navbarBackgroundImage)
+  const setNavbarBackgroundImage = useDashboardStore((s) => s.setNavbarBackgroundImage)
+  const navbarBackgroundOverlay = useDashboardStore((s) => s.navbarBackgroundOverlay)
+  const setNavbarBackgroundOverlay = useDashboardStore((s) => s.setNavbarBackgroundOverlay)
+  const dashboardBackgroundMode = useDashboardStore((s) => s.dashboardBackgroundMode)
+  const setDashboardBackgroundMode = useDashboardStore((s) => s.setDashboardBackgroundMode)
+  const dashboardBackgroundImage = useDashboardStore((s) => s.dashboardBackgroundImage)
+  const setDashboardBackgroundImage = useDashboardStore((s) => s.setDashboardBackgroundImage)
+  const dashboardBackgroundImage2 = useDashboardStore((s) => s.dashboardBackgroundImage2)
+  const setDashboardBackgroundImage2 = useDashboardStore((s) => s.setDashboardBackgroundImage2)
+  const dashboardBackgroundOverlay = useDashboardStore((s) => s.dashboardBackgroundOverlay)
+  const setDashboardBackgroundOverlay = useDashboardStore((s) => s.setDashboardBackgroundOverlay)
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
+  const dash = activeDashboard()
 
   const [tab, setTab] = useState<TabId>('general')
   const [newName, setNewName] = useState('')
@@ -512,7 +536,7 @@ export function SettingsModal({ open, onClose }: Props) {
               </div>
 
 
-              <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v0.1.0</p>
+              <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v2.0.0</p>
             </>)}
 
             {/* ── Dashboards ── */}

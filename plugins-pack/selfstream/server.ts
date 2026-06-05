@@ -1,4 +1,6 @@
 import { logPluginApiFailure } from '../_shared/log'
+import { openSealedSecret } from '../_shared/secret-crypto'
+import { fetchWithSsrfGuard, UnsafeOutboundUrlError } from '../_shared/ssrf'
 import type { SelfstreamDashboardPayload, SelfstreamNowPlayingItem } from './lib/types'
 
 type PluginServerContext = {
@@ -161,7 +163,7 @@ async function handleSelfstreamPost(req: Request): Promise<Response> {
     return Response.json({ error: msg }, { status: 400 })
   }
 
-  const password = String(body.password ?? process.env.SELFSTREAM_ADMIN_TOKEN ?? '').trim()
+  const password = openSealedSecret(String(body.password ?? process.env.SELFSTREAM_ADMIN_TOKEN ?? '').trim())
   if (!password) {
     return Response.json({ error: 'missing_password' }, { status: 400 })
   }
@@ -171,7 +173,7 @@ async function handleSelfstreamPost(req: Request): Promise<Response> {
 
   try {
     const url = apiEndpoint(base, '/api/stats')
-    const res = await fetch(url, {
+    const res = await fetchWithSsrfGuard(url, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -205,6 +207,10 @@ async function handleSelfstreamPost(req: Request): Promise<Response> {
     }
     return Response.json(normalizeStats(json))
   } catch (e) {
+    if (e instanceof UnsafeOutboundUrlError) {
+      void logPluginApiFailure('selfstream', 'request', `blocked_url:${e.message}`)
+      return Response.json({ error: 'blocked_url', detail: e.message }, { status: 400 })
+    }
     if (e instanceof Error && e.name === 'AbortError') {
       void logPluginApiFailure('selfstream', 'request', 'timeout')
       return Response.json({ error: 'timeout' }, { status: 504 })

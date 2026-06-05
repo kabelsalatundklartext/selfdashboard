@@ -9,7 +9,8 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* yarn.lock* ./
-RUN npm install --frozen-lockfile 2>/dev/null || npm install
+# npm ci = reproducible install strictly from the lockfile
+RUN npm ci
 
 # ── Stage 2: builder ─────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -29,7 +30,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apk add --no-cache unzip
+RUN apk add --no-cache unzip su-exec
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser  --system --uid 1001 nextjs
@@ -42,16 +43,26 @@ COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlit
 COPY --from=builder /app/scripts/auth-reset-password.mjs ./scripts/auth-reset-password.mjs
 COPY --from=builder /app/node_modules/imapflow ./node_modules/imapflow
 COPY --from=builder /app/node_modules/socks ./node_modules/socks
-USER root
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV SELFDASHBOARD_DATA_DIR=/app/data
 ENV CROWDSEC_DATA_DIR=/crowdsec-data
 ENV SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard
-ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=main
+# Plugin catalog branch: main for release images, beta for :beta (set by CI build-arg).
+ARG PLUGINS_REF=main
+ENV SELFDASHBOARD_PLUGINS_GITHUB_REF=$PLUGINS_REF
 ENV SELFDASHBOARD_PLUGINS_GITHUB_PATH=plugins-pack
 
-RUN mkdir -p /app/data /crowdsec-data
+# Writable dirs for the non-root user. The entrypoint chowns mounted volumes
+# on first start and then drops privileges to nextjs (1001) via su-exec.
+RUN mkdir -p /app/data /crowdsec-data /app/plugins/custom && \
+    chown -R nextjs:nodejs /app/data /crowdsec-data /app/plugins
+COPY --from=builder /app/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/auth/setup-status >/dev/null 2>&1 || exit 1
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

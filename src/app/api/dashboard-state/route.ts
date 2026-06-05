@@ -9,10 +9,22 @@ import {
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
 import { stripRemovedPlugins } from '@/lib/removedPlugins'
+import { sealDashboardSecrets } from '@/lib/widgetSecrets'
 
 export const dynamic = 'force-dynamic'
 
 const MAX_BYTES = 4_000_000
+
+async function writeStateAtomic(file: string, state: DashboardStatePersisted): Promise<void> {
+  const tmp = `${file}.tmp`
+  await mkdir(dirname(file), { recursive: true })
+  try {
+    await writeFile(tmp, JSON.stringify(state), 'utf8')
+    await rename(tmp, file)
+  } catch {
+    await writeFile(file, JSON.stringify(state), 'utf8')
+  }
+}
 
 /**
  * GET/PUT persisted dashboard state for the signed-in user only.
@@ -27,7 +39,16 @@ export async function GET(req: Request) {
     if (!validateDashboardStatePersisted(parsed)) {
       return NextResponse.json({ error: 'invalid file contents' }, { status: 500 })
     }
-    const filtered = filterDashboardStatePlugins(parsed, auth.userId, auth.role)
+    // Upgrade legacy plaintext widget secrets on read: seal + persist once.
+    const sealed = sealDashboardSecrets(parsed)
+    if (sealed.changed) {
+      try {
+        await writeStateAtomic(file, sealed.state)
+      } catch {
+        /* keep serving the sealed copy even if the rewrite fails */
+      }
+    }
+    const filtered = filterDashboardStatePlugins(sealed.state, auth.userId, auth.role)
     return NextResponse.json({
       ...filtered,
       dashboards: stripRemovedPlugins(filtered.dashboards),
@@ -63,23 +84,15 @@ export async function PUT(req: Request) {
     auth.userId,
     auth.role,
   )
-  const cleaned: DashboardStatePersisted = {
+  const cleaned: DashboardStatePersisted = sealDashboardSecrets({
     ...safe,
     dashboards: stripRemovedPlugins(safe.dashboards),
-  }
+  }).state
   const file = userDashboardPath(auth.userId)
-  const tmp = `${file}.tmp`
   try {
-    await mkdir(dirname(file), { recursive: true })
-    await writeFile(tmp, JSON.stringify(cleaned), 'utf8')
-    await rename(tmp, file)
+    await writeStateAtomic(file, cleaned)
   } catch {
-    try {
-      await mkdir(dirname(file), { recursive: true })
-      await writeFile(file, JSON.stringify(cleaned), 'utf8')
-    } catch {
-      return NextResponse.json({ error: 'write failed' }, { status: 500 })
-    }
+    return NextResponse.json({ error: 'write failed' }, { status: 500 })
   }
   return NextResponse.json({ ok: true })
 }

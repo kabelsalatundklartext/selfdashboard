@@ -2,7 +2,7 @@
   "id": "selfstream",
   "name": "Selfstream",
   "description": "Aktive IPTV-Streams aus dem Selfstream-Admin: Nutzer, Sender/Sendung und Laufzeit. Admin-Passwort wird serverseitig als API-Token genutzt. API: /api/plugins/selfstream.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "SelfDashboard",
   "category": "media",
   "icon": "📺",

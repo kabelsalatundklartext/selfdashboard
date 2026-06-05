@@ -151,11 +151,11 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 🌍 **Multilingual** | German & English interface |
 | 🖱️ **Drag & Drop** | Move and resize widgets freely |
 | 📐 **Widget Controls** | Per-widget zoom, padding and height adjustments |
-| 🔍 **Dashboard Zoom** | Scale the entire dashboard (70%–150%) |
+| 🔍 **Dashboard Zoom** | Scale the entire dashboard (60%–150%) |
 | 📏 **Grid Spacing** | Adjust widget gap and outer padding |
 | 🔗 **Navbar Options** | Show icon only, text only, or both — toggle dashboard tabs |
 | 📱 **Responsive layout** | **Phone / tablet / desktop** grid based on dashboard width; optional per-widget overrides in **⚙️ → Layout: phone & tablet**; compact **navbar search** (full-width row) on narrow viewports |
-| 🐳 **Single Container** | Next.js 15, no database, no Redis needed |
+| 🐳 **Single Container** | Next.js 15, no external database (embedded SQLite for auth), no Redis needed |
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
 | 🔐 **Login & multi-user** | SQLite auth, admin/user roles, plugin whitelist, optional TOTP 2FA |
@@ -166,37 +166,51 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 ## Plugins
 
-Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Each plugin has its own **README (EN/DE)** under `docs/plugins/<id>/`.
+Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Each plugin has its own **README (EN/DE)** under `plugins-pack/<id>/`.
 
-Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
+Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+
+Plugins marked **(Beta)** are new integrations that have not yet been tested against every server version — feedback (with the service version) is welcome.
 
 | Plugin | Category | Description | README |
 |--------|----------|-------------|--------|
-| [AdGuard Home](docs/plugins/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
-| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
-| [Calendar](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
-| [Clock](docs/plugins/clock/README.md) | Utility | Time, date, timezone | EN/DE |
-| [CrowdSec](docs/plugins/crowdsec/README.md) | Security | Alerts & bans (optional) | EN/DE |
-| [Docker](docs/plugins/docker/README.md) | System | Containers via socket | EN/DE |
-| [Emby](docs/plugins/emby/README.md) | Media | Active sessions | EN/DE |
-| [FRITZ! WAN](docs/plugins/fritzbox/README.md) | Network | Throughput chart | EN/DE |
-| [FRITZ! Energy](docs/plugins/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
-| [Iframe](docs/plugins/iframe/README.md) | Utility | Embed URLs | EN/DE |
-| [Email](docs/plugins/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
-| [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
-| [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
-| [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
-| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in one list | EN/DE |
-| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
-| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
+| [AdGuard Home](plugins-pack/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
+| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
+| [Calendar](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
+| [Clock](plugins-pack/clock/README.md) | Utility | Time, date, timezone | EN/DE |
+| [CrowdSec](plugins-pack/crowdsec/README.md) | Security | Alerts, bans, world map (optional) | EN/DE |
+| [Docker](plugins-pack/docker/README.md) | System | Containers via socket | EN/DE |
+| [Emby](plugins-pack/emby/README.md) | Media | Active sessions | EN/DE |
+| [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart | EN/DE |
+| [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
+| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** | EN/DE |
+| [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs | EN/DE |
+| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Active sessions | EN/DE |
+| [Email](plugins-pack/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
+| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** | EN/DE |
+| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** | EN/DE |
+| [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** | EN/DE |
+| [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
+| [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** | EN/DE |
+| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | EN/DE |
+| [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes | EN/DE |
+| [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV | EN/DE |
+| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list | EN/DE |
+| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** | EN/DE |
+| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** | EN/DE |
+| [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** | EN/DE |
+| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
+| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
 | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors | EN/DE |
-| [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
+| [Weather](plugins-pack/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
 
 ## Quick Start
 
 **Required:** map **`/app/data`** and **`/app/plugins/custom`**. Without the plugins folder, the store can install files but they will not persist.
 
-**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
+**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); the **`:beta`** image loads its catalog from the **`beta`** branch.
+
+**Non-root container:** the app runs as UID **1001**. On start, the entrypoint chowns `/app/data` and `/app/plugins/custom` automatically (opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) and adds read permissions on `/crowdsec-data` (opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
 
 ### Option 1 — Unraid Community Apps (recommended)
 
@@ -389,7 +403,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | Problem | Solution |
 |---|---|
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
-| Config lost after update | Image updates do not remove your appdata volume; **`dashboard.json`** and **`localStorage`** keep your layout. If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
+| **500 error after update** (`SQLITE_READONLY` in logs) | The container now runs as **non-root (UID 1001)**. The entrypoint fixes volume ownership automatically on start; if you set `SELFDASHBOARD_SKIP_CHOWN=1`, run `chown -R 1001:1001` on your appdata folder yourself. |
+| Config lost after update | Image updates do not remove your appdata volume; your layout lives in **`/app/data/users/<userId>/dashboard.json`** (plus a `localStorage` cache). If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
 | Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:latest` image defaults |
 | Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
 | Update installed, UI unchanged | **Ctrl+F5** (hard reload) — browser caches `widget.js` |
@@ -568,11 +583,11 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 🌍 **Mehrsprachig** | Deutsch & Englisch |
 | 🖱️ **Drag & Drop** | Widgets frei verschieben und skalieren |
 | 📐 **Widget-Controls** | Zoom, Innenabstand und Höhe pro Widget einstellbar |
-| 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (70%–150%) |
+| 🔍 **Dashboard-Zoom** | Gesamtes Dashboard skalieren (60%–150%) |
 | 📏 **Grid-Abstände** | Widget-Abstand und Außenrand einstellbar |
 | 🔗 **Navbar-Optionen** | Nur Icon, nur Text oder beides — Dashboard-Tabs ein/ausblendbar |
 | 📱 **Responsives Layout** | **Handy / Tablet / Desktop**-Raster je nach Dashboard-Breite; optionale Widget-Overrides unter **⚙️ → Layout: Handy & Tablet**; **Navbar-Suche** auf schmalen Viewports in **eigener voller Zeile** |
-| 🐳 **Single Container** | Next.js 15, keine Datenbank, kein Redis nötig |
+| 🐳 **Single Container** | Next.js 15, keine externe Datenbank (eingebettetes SQLite für Auth), kein Redis nötig |
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
 | 🔐 **Login & Mehrbenutzer** | SQLite-Auth, Admin/User-Rollen, Plugin-Whitelist, optional TOTP-2FA |
@@ -583,31 +598,43 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 ## Plugins
 
-Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Pro Plugin eine eigene **README (DE/EN)** unter `docs/plugins/<id>/`.
+Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Pro Plugin eine eigene **README (DE/EN)** unter `plugins-pack/<id>/`.
 
-Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
+Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+
+Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen jede Server-Version getestet sind — Feedback (mit Versionsangabe) ist willkommen.
 
 | Plugin | Kategorie | Kurzbeschreibung | README |
 |--------|-----------|------------------|--------|
-| [AdGuard Home](docs/plugins/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
-| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
-| [Kalender](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
-| [Uhr](docs/plugins/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
-| [CrowdSec](docs/plugins/crowdsec/README.md) | Sicherheit | Alerts & Banns (optional) | DE/EN |
-| [Docker](docs/plugins/docker/README.md) | System | Container per Socket | DE/EN |
-| [Emby](docs/plugins/emby/README.md) | Media | Aktive Sessions | DE/EN |
-| [FRITZ! Internet](docs/plugins/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
-| [FRITZ! Energie](docs/plugins/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
-| [Iframe](docs/plugins/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
-| [E-Mail](docs/plugins/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
-| [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
-| [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
-| [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
-| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in einer Liste | DE/EN |
-| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
-| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
+| [AdGuard Home](plugins-pack/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
+| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
+| [Kalender](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
+| [Uhr](plugins-pack/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
+| [CrowdSec](plugins-pack/crowdsec/README.md) | Sicherheit | Alerts, Banns, Weltkarte (optional) | DE/EN |
+| [Docker](plugins-pack/docker/README.md) | System | Container per Socket | DE/EN |
+| [Emby](plugins-pack/emby/README.md) | Media | Aktive Sessions | DE/EN |
+| [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
+| [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
+| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** | DE/EN |
+| [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
+| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Aktive Sessions | DE/EN |
+| [E-Mail](plugins-pack/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
+| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** | DE/EN |
+| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** | DE/EN |
+| [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** | DE/EN |
+| [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
+| [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** | DE/EN |
+| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | DE/EN |
+| [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
+| [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
+| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste | DE/EN |
+| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** | DE/EN |
+| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** | DE/EN |
+| [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** | DE/EN |
+| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
+| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
 | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore | DE/EN |
-| [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
+| [Wetter](plugins-pack/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
 
 ---
 
@@ -615,7 +642,9 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 
 **Pflicht:** **`/app/data`** und **`/app/plugins/custom`** mounten. Ohne Plugin-Ordner gehen Store-Installationen beim Neustart verloren.
 
-**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`).
+**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); das **`:beta`**-Image lädt seinen Katalog vom **`beta`**-Branch.
+
+**Non-root-Container:** Die App läuft als UID **1001**. Der Entrypoint chownt beim Start automatisch `/app/data` und `/app/plugins/custom` (Opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) und setzt Leserechte auf `/crowdsec-data` (Opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
 
 ### Option 1 — Unraid Community Apps (empfohlen)
 
@@ -808,10 +837,11 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | Problem | Lösung |
 |---|---|
 | Dashboard lädt nicht | Logs prüfen: `docker logs selfdashboard` |
+| **500-Fehler nach Update** (`SQLITE_READONLY` im Log) | Der Container läuft jetzt als **non-root (UID 1001)**. Der Entrypoint korrigiert die Volume-Rechte beim Start automatisch; bei `SELFDASHBOARD_SKIP_CHOWN=1` selbst `chown -R 1001:1001` auf den Appdata-Ordner ausführen. |
 | CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
-| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; **`dashboard.json`** und **`localStorage`** behalten dein Layout. Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
+| Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; dein Layout liegt in **`/app/data/users/<userId>/dashboard.json`** (plus `localStorage`-Cache). Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
 | Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:latest`-Image mit Defaults nutzen |
 | Widget hängt bei „Plugin wird geladen…“ | Kurz warten; **Plugin-Store → Plugins neu laden**; prüfen: `/app/plugins/custom/<id>/widget.js` |
 | Update installiert, UI unverändert | **Strg+F5** — Browser cached `widget.js` |

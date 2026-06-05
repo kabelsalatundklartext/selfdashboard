@@ -75,6 +75,8 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  gap: 8px;
+  padding: 10px 10px 4px;
 }
 
 .cs-nav-item {
@@ -83,11 +85,13 @@
   align-items: stretch;
   width: 100%;
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
   color: var(--text-muted);
   text-align: left;
 }
+
 
 .cs-nav-item .cs-nav-stat {
   color: var(--accent);
@@ -117,17 +121,19 @@
   padding-left: 22px;
 }
 
+/* Übersicht: Werte untereinander (Alerts → Aktive Banns → Community-Banns). */
 .cs-nav-metrics {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .cs-nav-metric {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
 .cs-nav-stat-compact {
@@ -136,16 +142,28 @@
   line-height: 1.15;
 }
 
-.cs-nav-metrics .cs-nav-sub {
-  padding-left: 22px;
+.cs-nav-metrics .cs-nav-sub,
+.cs-nav-metrics .cs-nav-stat,
+.cs-nav-item .cs-nav-stat,
+.cs-nav-item .cs-nav-sub {
+  padding-left: 0;
 }
 
 .cs-nav-sub {
   font-size: 9px;
   color: var(--text-muted);
-  padding-left: 22px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.cs-side-label {
+  display: block;
+  padding: 8px 4px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .cs-sidebar-extra {
@@ -335,12 +353,14 @@
   filter: none;
 }
 
+/* Card body: 3 lines — (IP · scenario · time) / (city · AS) / status badge */
 .cs-card-body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
 }
 
 .cs-card-top {
@@ -349,6 +369,7 @@
   gap: 6px;
   flex-wrap: nowrap;
   min-width: 0;
+  width: 100%;
 }
 
 .cs-card-ip {
@@ -362,13 +383,13 @@
 .cs-scenario-tag {
   font-size: 9px;
   font-weight: 600;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 4px;
   background: var(--surface);
   color: var(--text-muted);
   border: 1px solid var(--border);
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -379,6 +400,11 @@
   color: var(--text-muted);
   flex-shrink: 0;
   white-space: nowrap;
+  margin-left: auto;
+}
+
+.cs-card-meta {
+  min-width: 0;
 }
 
 .cs-status {
@@ -387,9 +413,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 4px;
-  align-self: center;
+  align-self: flex-start;
 }
 
 .cs-status-ban {
@@ -455,6 +481,79 @@
 .cs-unban-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Selected row: unban stands out in red (like the reference design). */
+.cs-card-selected .cs-unban-btn {
+  border-color: color-mix(in srgb, #ef4444 45%, var(--border));
+  background: color-mix(in srgb, #ef4444 12%, var(--surface));
+  color: color-mix(in srgb, #ef4444 85%, var(--text));
+}
+
+/* Kartenansicht: optionale Alert-Spalte neben der Karte (nur breite Widgets). */
+.cs-map-split {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cs-map-feed {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  flex: 0 0 290px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--surface-2);
+  padding: 4px 8px 8px;
+}
+
+@container (min-width: 860px) {
+  .cs-map-feed {
+    display: flex;
+  }
+}
+
+.cs-map-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.cs-map-feed-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cs-map-feed-ip {
+  font-weight: 700;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.cs-map-feed-scenario {
+  font-size: 9px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-map-feed-time {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .cs-empty,

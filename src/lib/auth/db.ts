@@ -41,6 +41,7 @@ function migrate(database: Database.Database) {
   `)
   ensureColumn(database, 'users', 'totp_secret', 'TEXT')
   ensureColumn(database, 'users', 'totp_enabled', 'INTEGER NOT NULL DEFAULT 0')
+  ensureColumn(database, 'users', 'totp_last_step', 'INTEGER NOT NULL DEFAULT 0')
   ensureColumn(database, 'sessions', 'mfa_verified', 'INTEGER NOT NULL DEFAULT 1')
   database.exec(`
     CREATE TABLE IF NOT EXISTS user_backup_codes (

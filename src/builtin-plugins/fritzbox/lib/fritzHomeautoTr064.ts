@@ -12,7 +12,7 @@ import {
   type FritzBoxConnection,
   type Tr064Service,
 } from './fritzTr064Shared'
-import { runWithTr064NodeFetch } from './tr064NodeFetch'
+import { createTr064DigestClient, runWithTr064NodeFetch } from './tr064NodeFetch'
 import https from 'node:https'
 
 export type FritzEnergyReading = {
@@ -89,7 +89,7 @@ type HomeautoCtx = {
 }
 
 async function homeautoCtx(conn: FritzBoxConnection, signal: AbortSignal): Promise<HomeautoCtx> {
-  const client = new DigestClient(conn.username || '', conn.password || '')
+  const client = createTr064DigestClient(conn.username, conn.password)
   const { service: ha, origin } = await resolveHomeautoService(conn, client, signal)
   const controlUrl = absUrl(origin, ha.controlUrl)
   return { client, ha, controlUrl }

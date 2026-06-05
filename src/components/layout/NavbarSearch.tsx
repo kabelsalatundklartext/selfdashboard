@@ -40,14 +40,12 @@ export function NavbarSearch({
   /** Volle Zeile (Navbar kompakt): keine feste Pixelbreite, Provider-Pills aus. */
   fullBleed?: boolean
 }) {
-  const {
-    navbarSearchProviders,
-    navbarSearchCustomProviders,
-    navbarSearchLastProvider,
-    setNavbarSearchLastProvider,
-    navbarSearchWidthPx,
-    setNavbarSearchWidthPx,
-  } = useDashboardStore()
+  const navbarSearchProviders = useDashboardStore((s) => s.navbarSearchProviders)
+  const navbarSearchCustomProviders = useDashboardStore((s) => s.navbarSearchCustomProviders)
+  const navbarSearchLastProvider = useDashboardStore((s) => s.navbarSearchLastProvider)
+  const setNavbarSearchLastProvider = useDashboardStore((s) => s.setNavbarSearchLastProvider)
+  const navbarSearchWidthPx = useDashboardStore((s) => s.navbarSearchWidthPx)
+  const setNavbarSearchWidthPx = useDashboardStore((s) => s.setNavbarSearchWidthPx)
 
   const compactBar = useSyncExternalStore(subscribeCompactSearch, snapshotCompactSearch, serverSnapshotCompactSearch)
   const hideProviderPills = compactBar || fullBleed

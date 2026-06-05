@@ -255,12 +255,14 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [installingId, setInstallingId] = useState<string | null>(null)
   const [uninstallingId, setUninstallingId] = useState<string | null>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
-  const { addPlugin, activeDashboard, locale } = useDashboardStore()
+  const addPlugin = useDashboardStore((s) => s.addPlugin)
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
+  const locale = useDashboardStore((s) => s.locale)
   const existingPlugins = activeDashboard()?.plugins ?? []
   const [remotePlugins, setRemotePlugins] = useState<RemotePluginRow[]>([])
   const [githubConfigured, setGithubConfigured] = useState(false)
   const [githubRepo, setGithubRepo] = useState('kabelsalatundklartext/selfdashboard')
-  const [githubRef, setGithubRef] = useState('beta')
+  const [githubRef, setGithubRef] = useState('main')
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
   const [updatesCount, setUpdatesCount] = useState(0)
@@ -891,7 +893,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
             {' · '}
             {t(locale, 'devHint')}{' '}
             <a
-              href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DEV.md"
+              href="https://github.com/kabelsalatundklartext/selfdashboard/blob/main/docs/PLUGIN_DEV.md"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: 'var(--accent)' }}

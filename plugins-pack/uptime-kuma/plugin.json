@@ -2,10 +2,11 @@
   "id": "uptime-kuma",
   "name": "Uptime Kuma",
   "description": "Status-Page-Übersicht aus Uptime Kuma: kompakte Monitor-Liste (2 Spalten ab 6 Einträgen). API: /api/plugins/uptime-kuma.",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "author": "SelfDashboard",
   "category": "network",
   "icon": "💚",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png",
   "defaultLayout": {
     "w": 4,
     "h": 3,

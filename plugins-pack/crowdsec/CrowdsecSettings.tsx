@@ -1,6 +1,7 @@
 import { useDashboardStore } from '@/lib/store'
 import type { PluginSettingsProps } from '@/types'
 import { parseCrowdsecConfig } from './config'
+import { COUNTRY_NAME } from './constants'
 import { DEFAULT_LOOKUP_ENABLED, LOOKUP_SERVICES, type LookupServiceId } from './ipLookup'
 import { DAY_RANGE_PRESETS, MAX_ALERT_PRESETS } from './presets'
 
@@ -73,6 +74,51 @@ export function CrowdsecSettings({ config, onChange }: PluginSettingsProps) {
         />
         <span>{de ? 'Länderliste in der Sidebar dauerhaft anzeigen' : 'Always show country list in sidebar'}</span>
       </label>
+
+      <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.showMap}
+          onChange={(e) => onChange('showMap', e.target.checked)}
+        />
+        <span>
+          {de
+            ? 'Weltkarte anzeigen (Liste/Karte-Umschalter) — bei Hochkant-Widgets besser aus'
+            : 'Show world map (list/map toggle) — better off for portrait widgets'}
+        </span>
+      </label>
+
+      {cfg.showMap ? (
+      <>
+      <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={cfg.mapAlertList}
+          onChange={(e) => onChange('mapAlertList', e.target.checked)}
+        />
+        <span>
+          {de
+            ? 'Karte: Alert-Liste daneben anzeigen (nur breite Widgets)'
+            : 'Map: show alert list next to the map (wide widgets only)'}
+        </span>
+      </label>
+      <label className="cs-settings-row">
+        <span>{de ? 'Dein Land (Karte → Bögen)' : 'Your country (map → arcs)'}</span>
+        <select value={cfg.homeCountry} onChange={(e) => onChange('homeCountry', e.target.value)}>
+          {!COUNTRY_NAME[cfg.homeCountry] ? (
+            <option value={cfg.homeCountry}>{cfg.homeCountry}</option>
+          ) : null}
+          {Object.entries(COUNTRY_NAME)
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([code, name]) => (
+              <option key={code} value={code}>
+                {name} ({code})
+              </option>
+            ))}
+        </select>
+      </label>
+      </>
+      ) : null}
 
       <label className="cs-settings-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <input

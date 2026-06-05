@@ -5,7 +5,7 @@ import { useDashboardStore } from '@/lib/store'
 import { getTheme } from '@/lib/themes'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { activeDashboard } = useDashboardStore()
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
   const dash = activeDashboard()
   const themeId = dash?.theme ?? 'dark'
   const customColors = dash?.customColors
