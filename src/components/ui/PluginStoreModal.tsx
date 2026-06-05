@@ -262,7 +262,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
   const [remotePlugins, setRemotePlugins] = useState<RemotePluginRow[]>([])
   const [githubConfigured, setGithubConfigured] = useState(false)
   const [githubRepo, setGithubRepo] = useState('kabelsalatundklartext/selfdashboard')
-  const [githubRef, setGithubRef] = useState('beta')
+  const [githubRef, setGithubRef] = useState('main')
   const [volumeOnly, setVolumeOnly] = useState(false)
   const [volumeInstalledIds, setVolumeInstalledIds] = useState<string[]>([])
   const [updatesCount, setUpdatesCount] = useState(0)
@@ -893,7 +893,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
             {' · '}
             {t(locale, 'devHint')}{' '}
             <a
-              href="https://github.com/kabelsalatundklartext/selfdashboard/blob/beta/docs/PLUGIN_DEV.md"
+              href="https://github.com/kabelsalatundklartext/selfdashboard/blob/main/docs/PLUGIN_DEV.md"
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: 'var(--accent)' }}

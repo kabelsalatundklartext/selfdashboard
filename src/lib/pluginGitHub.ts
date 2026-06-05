@@ -193,7 +193,7 @@ const REQUIRED_INSTALL_FILES = new Set(['plugin.json', 'widget.js'])
 
 
 
-/** Install only from GitHub raw URLs (plugins-pack/<id>/ on branch beta). */
+/** Install only from GitHub raw URLs (plugins-pack/<id>/ on the configured branch, default main). */
 
 export async function installPluginFromGitHub(pluginId: string): Promise<{
 

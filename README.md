@@ -166,31 +166,43 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 
 ## Plugins
 
-Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Each plugin has its own **README (EN/DE)** under `docs/plugins/<id>/`.
+Widgets are **not** bundled in the image — install them from the **Plugin Store** or upload a ZIP. Each plugin has its own **README (EN/DE)** under `plugins-pack/<id>/`.
 
-Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
+Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+
+Plugins marked **(Beta)** are new integrations that have not yet been tested against every server version — feedback (with the service version) is welcome.
 
 | Plugin | Category | Description | README |
 |--------|----------|-------------|--------|
-| [AdGuard Home](docs/plugins/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
-| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
-| [Calendar](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
-| [Clock](docs/plugins/clock/README.md) | Utility | Time, date, timezone | EN/DE |
-| [CrowdSec](docs/plugins/crowdsec/README.md) | Security | Alerts & bans (optional) | EN/DE |
-| [Docker](docs/plugins/docker/README.md) | System | Containers via socket | EN/DE |
-| [Emby](docs/plugins/emby/README.md) | Media | Active sessions | EN/DE |
-| [FRITZ! WAN](docs/plugins/fritzbox/README.md) | Network | Throughput chart | EN/DE |
-| [FRITZ! Energy](docs/plugins/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
-| [Iframe](docs/plugins/iframe/README.md) | Utility | Embed URLs | EN/DE |
-| [Email](docs/plugins/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
-| [Pi-hole](docs/plugins/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
-| [Scratchpad](docs/plugins/scratchpad/README.md) | Utility | Short notes | EN/DE |
-| [Selfstream](docs/plugins/selfstream/README.md) | Media | Live IPTV | EN/DE |
-| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in one list | EN/DE |
-| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
-| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
+| [AdGuard Home](plugins-pack/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
+| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
+| [Calendar](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
+| [Clock](plugins-pack/clock/README.md) | Utility | Time, date, timezone | EN/DE |
+| [CrowdSec](plugins-pack/crowdsec/README.md) | Security | Alerts, bans, world map (optional) | EN/DE |
+| [Docker](plugins-pack/docker/README.md) | System | Containers via socket | EN/DE |
+| [Emby](plugins-pack/emby/README.md) | Media | Active sessions | EN/DE |
+| [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart | EN/DE |
+| [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
+| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** | EN/DE |
+| [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs | EN/DE |
+| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Active sessions | EN/DE |
+| [Email](plugins-pack/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
+| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** | EN/DE |
+| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** | EN/DE |
+| [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** | EN/DE |
+| [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
+| [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** | EN/DE |
+| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | EN/DE |
+| [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes | EN/DE |
+| [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV | EN/DE |
+| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list | EN/DE |
+| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** | EN/DE |
+| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** | EN/DE |
+| [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** | EN/DE |
+| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
+| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
 | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors | EN/DE |
-| [Weather](docs/plugins/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
+| [Weather](plugins-pack/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
 
 ## Quick Start
 
@@ -586,31 +598,43 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 
 ## Plugins
 
-Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Pro Plugin eine eigene **README (DE/EN)** unter `docs/plugins/<id>/`.
+Widgets kommen **nicht** im Image mit — Installation über **Plugin-Store** oder ZIP. Pro Plugin eine eigene **README (DE/EN)** unter `plugins-pack/<id>/`.
 
-Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)** · Index: **[docs/plugins/README.md](docs/plugins/README.md)**
+Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**
+
+Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen jede Server-Version getestet sind — Feedback (mit Versionsangabe) ist willkommen.
 
 | Plugin | Kategorie | Kurzbeschreibung | README |
 |--------|-----------|------------------|--------|
-| [AdGuard Home](docs/plugins/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
-| [Bookmarks](docs/plugins/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
-| [Kalender](docs/plugins/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
-| [Uhr](docs/plugins/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
-| [CrowdSec](docs/plugins/crowdsec/README.md) | Sicherheit | Alerts & Banns (optional) | DE/EN |
-| [Docker](docs/plugins/docker/README.md) | System | Container per Socket | DE/EN |
-| [Emby](docs/plugins/emby/README.md) | Media | Aktive Sessions | DE/EN |
-| [FRITZ! Internet](docs/plugins/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
-| [FRITZ! Energie](docs/plugins/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
-| [Iframe](docs/plugins/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
-| [E-Mail](docs/plugins/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
-| [Pi-hole](docs/plugins/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
-| [Notizzettel](docs/plugins/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
-| [Selfstream](docs/plugins/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
-| [Selfstream-Emby](plugins-pack/selfstream-emby/README.md) | Media | Selfstream + Emby in einer Liste | DE/EN |
-| [Unraid](docs/plugins/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
-| [Unraid Docker](docs/plugins/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
+| [AdGuard Home](plugins-pack/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
+| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
+| [Kalender](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
+| [Uhr](plugins-pack/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
+| [CrowdSec](plugins-pack/crowdsec/README.md) | Sicherheit | Alerts, Banns, Weltkarte (optional) | DE/EN |
+| [Docker](plugins-pack/docker/README.md) | System | Container per Socket | DE/EN |
+| [Emby](plugins-pack/emby/README.md) | Media | Aktive Sessions | DE/EN |
+| [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
+| [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
+| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** | DE/EN |
+| [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
+| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Aktive Sessions | DE/EN |
+| [E-Mail](plugins-pack/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
+| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** | DE/EN |
+| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** | DE/EN |
+| [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** | DE/EN |
+| [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
+| [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** | DE/EN |
+| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | DE/EN |
+| [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
+| [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
+| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste | DE/EN |
+| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** | DE/EN |
+| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** | DE/EN |
+| [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** | DE/EN |
+| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
+| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
 | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore | DE/EN |
-| [Wetter](docs/plugins/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
+| [Wetter](plugins-pack/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
 
 ---
 

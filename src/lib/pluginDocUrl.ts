@@ -4,8 +4,10 @@ export function pluginReadmeDocUrl(
   opts?: { repository?: string; ref?: string },
 ): string {
   const repo = opts?.repository?.trim() || 'kabelsalatundklartext/selfdashboard'
-  const ref = opts?.ref?.trim() || 'beta'
-  return `https://github.com/${repo}/blob/${ref}/docs/plugins/${encodeURIComponent(pluginId)}/README.md`
+  const ref = opts?.ref?.trim() || 'main'
+  // README liegt pro Plugin in plugins-pack/<id>/ (Verteilungsort) — dort hat
+  // jedes Plugin eine, auch die neueren.
+  return `https://github.com/${repo}/blob/${ref}/plugins-pack/${encodeURIComponent(pluginId)}/README.md`
 }
 
 export const PLUGIN_CATALOG_DOC_URL =
