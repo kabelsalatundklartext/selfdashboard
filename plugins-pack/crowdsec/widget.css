@@ -92,11 +92,6 @@
   text-align: left;
 }
 
-/* Übersicht-Karte hervorgehoben (wie Referenz-Design). */
-.cs-nav-item:first-child {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-}
 
 .cs-nav-item .cs-nav-stat {
   color: var(--accent);
@@ -126,12 +121,11 @@
   padding-left: 22px;
 }
 
-/* Übersicht: beide Werte nebeneinander (Alerts · Banns aktiv). */
+/* Übersicht: Werte untereinander (Alerts → Aktive Banns → Community-Banns). */
 .cs-nav-metrics {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px 16px;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 6px;
 }
 

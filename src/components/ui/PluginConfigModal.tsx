@@ -44,7 +44,9 @@ const fieldInput: React.CSSProperties = {
 }
 
 export function PluginConfigModal({ instance, open, onClose }: Props) {
-  const { updatePluginConfig, setPluginResponsiveLayouts, locale } = useDashboardStore()
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
+  const setPluginResponsiveLayouts = useDashboardStore((s) => s.setPluginResponsiveLayouts)
+  const locale = useDashboardStore((s) => s.locale)
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>({ ...instance.config })
   const [phoneH, setPhoneH] = useState('')
   const [phoneMinH, setPhoneMinH] = useState('')

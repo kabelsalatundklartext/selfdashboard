@@ -339,11 +339,11 @@ export const meta: PluginMeta = {
   name: 'Jellyfin',
   description:
     'Aktive Wiedergaben vom Jellyfin-Server: Nutzer, Titel, Fortschritt, Pause (Sessions-API, Basis-URL + API-Key).',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🪼',
-  iconUrl: '/api/plugins/custom-assets/jellyfin/icon.svg',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Jellyfin' },

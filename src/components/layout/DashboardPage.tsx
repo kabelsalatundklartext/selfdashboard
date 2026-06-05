@@ -23,7 +23,8 @@ function DashboardLoadingShell() {
 
 export function DashboardPage({ id }: { id: string }) {
   const storeHydrated = useDashboardStoreHydrated()
-  const { dashboards, setActiveDashboard } = useDashboardStore()
+  const dashboards = useDashboardStore((s) => s.dashboards)
+  const setActiveDashboard = useDashboardStore((s) => s.setActiveDashboard)
   const router = useRouter()
 
   useEffect(() => {

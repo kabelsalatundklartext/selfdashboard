@@ -214,6 +214,26 @@ function activeDecisionWhere(meta: ReturnType<typeof decisionSchemaMeta>): strin
 }
 
 /** One query — avoids per-alert EXISTS on 30k+ decisions (was freezing the dashboard). */
+/** Aktive Community-Blocklist-Entscheidungen (CAPI/lists) — distinkte IPs. */
+function countCommunityBans(db: Database.Database): number {
+  const meta = decisionSchemaMeta(db)
+  if (!meta.hasTable || !meta.hasValue || !meta.hasUntil || !meta.hasOrigin) return 0
+  const parts: string[] = [decisionUntilClause('d')]
+  if (meta.hasSimulated) parts.push(`(d.simulated IS NULL OR d.simulated = 0)`)
+  if (meta.hasScope) {
+    parts.push(
+      `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`,
+    )
+  }
+  parts.push(`LOWER(TRIM(CAST(d.origin AS TEXT))) IN ('capi', 'lists', 'listfile')`)
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT TRIM(CAST(d.value AS TEXT))) AS n FROM decisions d WHERE ${parts.join(' AND ')}`,
+    )
+    .get() as { n?: number } | undefined
+  return row?.n ?? 0
+}
+
 function loadActiveBannedIpSet(db: Database.Database): Set<string> {
   const meta = decisionSchemaMeta(db)
   if (!meta.hasTable || !meta.hasValue) return new Set()
@@ -528,6 +548,7 @@ async function loadCrowdsecDashboardInner(
     const alertsLast24h = alertsInRange
     const bannedIps = loadActiveBannedIpSet(db)
     const activeBans = bannedIps.size
+    const communityBans = countCommunityBans(db)
     const bannedAlertIds = loadAlertIdsWithActiveBan(db)
     const banFeed = loadActiveBanFeed(db, geoip)
 
@@ -590,6 +611,7 @@ async function loadCrowdsecDashboardInner(
       alertsInRange,
       alertsLast24h,
       activeBans,
+      communityBans,
       countryCount: countries.length,
       scenarioCount: scenarios.size,
       countries,

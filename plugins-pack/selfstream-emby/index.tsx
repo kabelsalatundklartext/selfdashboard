@@ -41,7 +41,8 @@ type EmbySession = {
 const SOURCE_ICON: Record<Source, string> = {
   selfstream: '/plugin-logos/selfstream.png',
   emby: '/plugin-logos/emby.png',
-  jellyfin: '/api/plugins/custom-assets/selfstream-emby/jellyfin.svg',
+  // Original-Logo von der Icon-CDN (wie beim Docker-Plugin).
+  jellyfin: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png',
 }
 
 function str(v: unknown): string {
@@ -528,14 +529,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
 export const meta: PluginMeta = {
   id: 'selfstream-emby',
-  name: 'Selfstream-Emby',
+  name: 'Selfstream · Emby · Jellyfin',
   description:
     'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
-  version: '1.1.0',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
-  iconUrl: '/plugin-logos/selfstream.png',
+  iconUrl: '/api/plugins/custom-assets/selfstream-emby/icon.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Selfstream-Emby' },

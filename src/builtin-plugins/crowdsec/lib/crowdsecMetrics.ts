@@ -30,7 +30,10 @@ export interface CrowdsecDashboardData {
   banFeed: CrowdsecFeedItem[]
   alertsInRange: number
   alertsLast24h: number
+  /** Lokale aktive Banns (crowdsec/cscli/console) — wie `cscli decisions list`. */
   activeBans: number
+  /** Aktive Community-Blocklist-Entscheidungen (CAPI/lists) — separat ausgewiesen. */
+  communityBans: number
   countryCount: number
   scenarioCount: number
   countries: CrowdsecCountryStat[]

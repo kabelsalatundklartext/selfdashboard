@@ -47,13 +47,23 @@ const PluginStoreModal = dynamic(
 
 export function Navbar() {
   const router = useRouter()
-  const {
-    dashboards, activeDashboardId, editMode, setEditMode, locale,
-    activeDashboard, setTheme, showDashboardTabs, navbarStyle,
-    dashboardZoom, setDashboardZoom,
-    navbarSearchEnabled, navbarSearchPosition, navbarSearchProviders, navbarSearchCustomProviders,
-    navbarBackgroundImage, navbarBackgroundOverlay,
-  } = useDashboardStore()
+  const dashboards = useDashboardStore((s) => s.dashboards)
+  const activeDashboardId = useDashboardStore((s) => s.activeDashboardId)
+  const editMode = useDashboardStore((s) => s.editMode)
+  const setEditMode = useDashboardStore((s) => s.setEditMode)
+  const locale = useDashboardStore((s) => s.locale)
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
+  const setTheme = useDashboardStore((s) => s.setTheme)
+  const showDashboardTabs = useDashboardStore((s) => s.showDashboardTabs)
+  const navbarStyle = useDashboardStore((s) => s.navbarStyle)
+  const dashboardZoom = useDashboardStore((s) => s.dashboardZoom)
+  const setDashboardZoom = useDashboardStore((s) => s.setDashboardZoom)
+  const navbarSearchEnabled = useDashboardStore((s) => s.navbarSearchEnabled)
+  const navbarSearchPosition = useDashboardStore((s) => s.navbarSearchPosition)
+  const navbarSearchProviders = useDashboardStore((s) => s.navbarSearchProviders)
+  const navbarSearchCustomProviders = useDashboardStore((s) => s.navbarSearchCustomProviders)
+  const navbarBackgroundImage = useDashboardStore((s) => s.navbarBackgroundImage)
+  const navbarBackgroundOverlay = useDashboardStore((s) => s.navbarBackgroundOverlay)
   const dash = activeDashboard()
   const isLight = dash.theme === 'light'
   const [settingsOpen, setSettingsOpen] = useState(false)

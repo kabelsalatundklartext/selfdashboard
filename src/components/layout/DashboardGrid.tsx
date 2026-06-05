@@ -100,17 +100,15 @@ export function DashboardGrid() {
     () => 0,
   )
 
-  const {
-    activeDashboard,
-    editMode,
-    locale,
-    updatePluginLayout,
-    updatePluginLayoutPhone,
-    updatePluginLayoutTablet,
-    dashboardZoom,
-    gridGap,
-    gridPadding,
-  } = useDashboardStore()
+  const activeDashboard = useDashboardStore((s) => s.activeDashboard)
+  const editMode = useDashboardStore((s) => s.editMode)
+  const locale = useDashboardStore((s) => s.locale)
+  const updatePluginLayout = useDashboardStore((s) => s.updatePluginLayout)
+  const updatePluginLayoutPhone = useDashboardStore((s) => s.updatePluginLayoutPhone)
+  const updatePluginLayoutTablet = useDashboardStore((s) => s.updatePluginLayoutTablet)
+  const dashboardZoom = useDashboardStore((s) => s.dashboardZoom)
+  const gridGap = useDashboardStore((s) => s.gridGap)
+  const gridPadding = useDashboardStore((s) => s.gridPadding)
   const userZoom = coerceZoom(dashboardZoom)
   const dash = activeDashboard()
   const plugins = dash.plugins

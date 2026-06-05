@@ -168,17 +168,27 @@ export function CrowdsecWidget({
   const q = search.trim().toLowerCase()
   const baseFeed = useMemo(() => data?.feed ?? [], [data])
   const filteredFeed = useMemo(() => baseFeed.filter((f) => feedMatchesSearch(f, q)), [baseFeed, q])
-  const mapPoints = useMemo<WorldMapPoint[]>(
-    () =>
-      filteredFeed.map((it) => ({
-        cc: normalizeCountryCode(it.country) || it.country,
-        lon: it.lon ?? undefined,
-        lat: it.lat ?? undefined,
-        count: 1,
-        severity: severityOf(it),
-      })),
-    [filteredFeed],
-  )
+  // Punkte am (fast) selben Ort zusammenfassen — sonst stapeln sich an
+  // Hotspots dutzende identische Maximal-Kreise (hässliche Blobs).
+  const mapPoints = useMemo<WorldMapPoint[]>(() => {
+    const groups = new Map<string, WorldMapPoint>()
+    for (const it of filteredFeed) {
+      const cc = normalizeCountryCode(it.country) || it.country
+      const lon = it.lon ?? undefined
+      const lat = it.lat ?? undefined
+      const key =
+        lon !== undefined && lat !== undefined ? `${lon.toFixed(1)},${lat.toFixed(1)}` : `cc:${cc}`
+      const sev = severityOf(it)
+      const prev = groups.get(key)
+      if (prev) {
+        prev.count += 1
+        if (sev === 'crit' || (sev === 'warn' && prev.severity === 'info')) prev.severity = sev
+      } else {
+        groups.set(key, { cc, lon, lat, count: 1, severity: sev })
+      }
+    }
+    return [...groups.values()]
+  }, [filteredFeed])
 
   const errLabel = (code: string) => {
     const map = de
@@ -248,8 +258,14 @@ export function CrowdsecWidget({
                   </div>
                   <div className="cs-nav-metric">
                     <span className="cs-nav-stat cs-nav-stat-compact">{formatInt(data.activeBans, locale)}</span>
-                    <span className="cs-nav-sub">{de ? 'Banns aktiv' : 'Active bans'}</span>
+                    <span className="cs-nav-sub">{de ? 'Aktive Banns' : 'Active bans'}</span>
                   </div>
+                  {typeof data.communityBans === 'number' ? (
+                    <div className="cs-nav-metric">
+                      <span className="cs-nav-stat cs-nav-stat-compact">{formatInt(data.communityBans, locale)}</span>
+                      <span className="cs-nav-sub">{de ? 'Community-Banns' : 'Community bans'}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </article>

@@ -421,6 +421,22 @@ function activeDecisionWhere(meta) {
   }
   return `WHERE ${parts.join(" AND ")}`;
 }
+function countCommunityBans(db) {
+  const meta = decisionSchemaMeta(db);
+  if (!meta.hasTable || !meta.hasValue || !meta.hasUntil || !meta.hasOrigin) return 0;
+  const parts = [decisionUntilClause("d")];
+  if (meta.hasSimulated) parts.push(`(d.simulated IS NULL OR d.simulated = 0)`);
+  if (meta.hasScope) {
+    parts.push(
+      `(d.scope IS NULL OR TRIM(CAST(d.scope AS TEXT)) = '' OR LOWER(TRIM(CAST(d.scope AS TEXT))) IN ('ip', 'range'))`
+    );
+  }
+  parts.push(`LOWER(TRIM(CAST(d.origin AS TEXT))) IN ('capi', 'lists', 'listfile')`);
+  const row = db.prepare(
+    `SELECT COUNT(DISTINCT TRIM(CAST(d.value AS TEXT))) AS n FROM decisions d WHERE ${parts.join(" AND ")}`
+  ).get();
+  return row?.n ?? 0;
+}
 function loadActiveBannedIpSet(db) {
   const meta = decisionSchemaMeta(db);
   if (!meta.hasTable || !meta.hasValue) return /* @__PURE__ */ new Set();
@@ -660,6 +676,7 @@ async function loadCrowdsecDashboardInner(dbPath, opts = {}) {
     const alertsLast24h = alertsInRange;
     const bannedIps = loadActiveBannedIpSet(db);
     const activeBans = bannedIps.size;
+    const communityBans = countCommunityBans(db);
     const bannedAlertIds = loadAlertIdsWithActiveBan(db);
     const banFeed = loadActiveBanFeed(db, geoip);
     const { sql, params } = buildAlertsSql(db, cutoffUnix);
@@ -711,6 +728,7 @@ LIMIT ?`).all(...params, maxAlerts) : db.prepare(sql).all(...params);
       alertsInRange,
       alertsLast24h,
       activeBans,
+      communityBans,
       countryCount: countries.length,
       scenarioCount: scenarios.size,
       countries,

@@ -29,7 +29,10 @@ export interface CrowdsecDashboardData {
   banFeed?: CrowdsecFeedItem[]
   alertsInRange: number
   alertsLast24h: number
+  /** Lokale aktive Banns (wie `cscli decisions list`). */
   activeBans: number
+  /** Aktive Community-Blocklist-Entscheidungen (CAPI/lists) — fehlt bei alten server.mjs. */
+  communityBans?: number
   countryCount: number
   scenarioCount: number
   countries: CrowdsecCountryStat[]

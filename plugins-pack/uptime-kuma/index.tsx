@@ -456,10 +456,11 @@ export const meta: PluginMeta = {
   name: 'Uptime Kuma',
   description:
     'Öffentliche Status-Page als kompakte Monitor-Liste — passt neben Selfstream-Emby. Probleme (Down) zuerst.',
-  version: '1.0.4',
+  version: '1.0.7',
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'url', label: 'Uptime Kuma URL', type: 'text', defaultValue: '' },

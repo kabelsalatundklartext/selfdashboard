@@ -39,7 +39,7 @@ const SEV_COLOR: Record<AttackSeverity, string> = {
 
 function radiusFor(count: number, maxCount: number): number {
   const ratio = maxCount > 0 ? count / maxCount : 0
-  return Math.max(3, 3 + Math.sqrt(ratio) * 9)
+  return Math.max(2.5, 2.5 + Math.sqrt(ratio) * 6.5)
 }
 
 /**
@@ -136,7 +136,16 @@ export function WorldMap({
             {big && (
               <circle className={`csRing-${uid}`} cx={x} cy={y} fill="none" stroke={color} opacity={0.45} />
             )}
-            <circle cx={x} cy={y} r={r} fill={color} style={{ filter: `drop-shadow(0 0 5px ${color})` }} />
+            <circle
+              cx={x}
+              cy={y}
+              r={r}
+              fill={color}
+              fillOpacity={0.85}
+              stroke="rgba(255,255,255,.35)"
+              strokeWidth={0.6}
+              style={{ filter: `drop-shadow(0 0 2px ${color})` }}
+            />
             {p.label && (
               <text
                 x={x + r + 5}

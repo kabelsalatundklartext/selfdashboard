@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T19:07:35.005Z",
+  "generatedAt": "2026-06-05T19:30:53.930Z",
   "plugins": [
     {
       "id": "adguard",
@@ -66,7 +66,7 @@
       "id": "crowdsec",
       "name": "CrowdSec",
       "description": "Kompaktes CrowdSec-Dashboard aus crowdsec.db: Übersicht, Banns, Länder, durchsuchbarer IP-Feed (mit Stadt + AS), Weltkarte der Angriffe (echte GeoIP-Standorte, Punkte/Bögen) mit Lookup-Links und optionalem Entsperren per Docker/cscli. API: /api/plugins/crowdsec.",
-      "version": "1.5.3",
+      "version": "1.5.5",
       "author": "SelfDashboard",
       "category": "security",
       "icon": "🛡️",
@@ -164,11 +164,11 @@
       "id": "jellyfin",
       "name": "Jellyfin",
       "description": "Aktive Wiedergaben vom Jellyfin-Server: Nutzer, Titel, Fortschritt, Pause — direkt per Sessions-API (Basis-URL + API-Key). Widget-Titel anpassbar.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "🪼",
-      "iconUrl": "/api/plugins/custom-assets/jellyfin/icon.svg",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
@@ -249,13 +249,13 @@
     },
     {
       "id": "selfstream-emby",
-      "name": "Selfstream-Emby",
+      "name": "Selfstream · Emby · Jellyfin",
       "description": "Aktive Streams von Selfstream, Emby und Jellyfin in einer gemischten Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
-      "iconUrl": "/plugin-logos/selfstream.png",
+      "iconUrl": "https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/selfstream-emby/icon.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
@@ -265,7 +265,7 @@
       "files": [
         "plugin.json",
         "widget.js",
-        "jellyfin.svg"
+        "icon.png"
       ]
     },
     {
@@ -300,10 +300,11 @@
       "id": "uptime-kuma",
       "name": "Uptime Kuma",
       "description": "Status-Page-Übersicht aus Uptime Kuma: kompakte Monitor-Liste (2 Spalten ab 6 Einträgen). API: /api/plugins/uptime-kuma.",
-      "version": "1.0.6",
+      "version": "1.0.7",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "💚",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,

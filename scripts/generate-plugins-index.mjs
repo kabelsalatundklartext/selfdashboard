@@ -44,6 +44,11 @@ for (const name of fs.readdirSync(packRoot, { withFileTypes: true })) {
   if (serverPack) files.push(serverPack)
   const hasServer = Boolean(serverPack)
   const { hasServer: _manifestHasServer, ...meta } = m
+  // "./icon.png" in plugin.json → raw-GitHub-URL, damit Store-Karten das Icon
+  // schon VOR der Installation laden können (Browser holt es direkt von GitHub).
+  if (typeof meta.iconUrl === 'string' && meta.iconUrl.startsWith('./')) {
+    meta.iconUrl = `https://raw.githubusercontent.com/${repo}/${ref}/${basePath}/${meta.id || name.name}/${meta.iconUrl.slice(2)}`
+  }
   plugins.push({ ...meta, id: meta.id || name.name, files, ...(hasServer ? { hasServer: true } : {}) })
 }
 
