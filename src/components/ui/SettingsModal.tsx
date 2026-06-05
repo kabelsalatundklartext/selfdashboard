@@ -536,7 +536,7 @@ export function SettingsModal({ open, onClose }: Props) {
               </div>
 
 
-              <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v0.1.0</p>
+              <p style={{ fontSize: '12px', textAlign: 'center', color: 'var(--text-muted)' }}>SelfDashboard v2.0.0</p>
             </>)}
 
             {/* ── Dashboards ── */}
