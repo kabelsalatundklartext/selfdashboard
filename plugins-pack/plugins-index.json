@@ -1,9 +1,9 @@
 {
   "version": 1,
   "repository": "kabelsalatundklartext/selfdashboard",
-  "ref": "main",
+  "ref": "beta",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T18:50:50.688Z",
+  "generatedAt": "2026-06-05T18:54:35.040Z",
   "plugins": [
     {
       "id": "adguard",
