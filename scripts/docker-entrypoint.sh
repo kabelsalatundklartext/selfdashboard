@@ -32,7 +32,28 @@ if [ "$(id -u)" = "0" ]; then
     chmod -R a+rX "$CS_DIR" 2>/dev/null || true
   fi
 
-  exec su-exec "$APP_UID:$APP_GID" "$@"
+  # Docker socket (optional mount, Docker/CrowdSec plugins): the app user needs
+  # the socket's group. Resolve its GID and add nextjs to that group — no
+  # --group-add needed in the template.
+  DOCKER_SOCK="/var/run/docker.sock"
+  if [ -S "$DOCKER_SOCK" ]; then
+    SOCK_GID="$(stat -c %g "$DOCKER_SOCK" 2>/dev/null || echo '')"
+    if [ -n "$SOCK_GID" ] && [ "$SOCK_GID" != "0" ]; then
+      if ! getent group "$SOCK_GID" >/dev/null 2>&1; then
+        addgroup -g "$SOCK_GID" docker-sock 2>/dev/null || true
+      fi
+      SOCK_GRP="$(getent group "$SOCK_GID" | cut -d: -f1)"
+      if [ -n "$SOCK_GRP" ]; then
+        addgroup nextjs "$SOCK_GRP" 2>/dev/null || true
+        echo "[entrypoint] docker.sock group ${SOCK_GRP} (gid ${SOCK_GID}) -> nextjs"
+      fi
+    elif [ "$SOCK_GID" = "0" ]; then
+      echo "[entrypoint] docker.sock has gid 0 — grant access via --group-add or socket permissions" >&2
+    fi
+  fi
+
+  # Run as the named user so su-exec picks up supplementary groups (initgroups).
+  exec su-exec nextjs "$@"
 fi
 
 exec "$@"
