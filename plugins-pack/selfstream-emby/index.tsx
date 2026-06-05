@@ -532,7 +532,7 @@ export const meta: PluginMeta = {
   name: 'Selfstream · Emby · Jellyfin',
   description:
     'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
-  version: '1.2.0',
+  version: '1.2.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',

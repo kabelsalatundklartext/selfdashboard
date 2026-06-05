@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T20:09:52.214Z",
+  "generatedAt": "2026-06-05T20:20:40.181Z",
   "plugins": [
     {
       "id": "adguard",
@@ -251,7 +251,7 @@
       "id": "selfstream-emby",
       "name": "Selfstream · Emby · Jellyfin",
       "description": "Aktive Streams von Selfstream, Emby und Jellyfin in einer gemischten Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "📺",
