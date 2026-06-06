@@ -235,6 +235,26 @@ function Toggle({ on, fg }: { on: boolean; fg: string }) {
   )
 }
 
+/** Window/door state icon: ajar sash when open, framed cross when closed. */
+function WindowIcon({ open, color }: { open: boolean; color: string }) {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
+      {open ? (
+        <>
+          <path d="M5 4h6v16H5z" />
+          <path d="M13 4v16" />
+          <path d="M13 6l6-2v12l-6 2" />
+        </>
+      ) : (
+        <>
+          <rect x="4" y="4" width="16" height="16" rx="1.5" />
+          <path d="M12 4v16M4 12h16" />
+        </>
+      )}
+    </svg>
+  )
+}
+
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const baseUrl = str(config.baseUrl)
@@ -478,8 +498,9 @@ function Widget({ config }: PluginWidgetProps) {
                         <Toggle on={ctrl.on} fg="var(--accent)" />
                       </button>
                     ) : ctrl.kind === 'contact' ? (
-                      <span style={{ fontSize: 12, fontWeight: 600, color: ctrl.open ? '#f59e0b' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {ctrl.open ? (de ? '🪟 Offen' : '🪟 Open') : de ? 'Zu' : 'Closed'}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: ctrl.open ? '#f59e0b' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        <WindowIcon open={ctrl.open} color={ctrl.open ? '#f59e0b' : 'var(--text-muted)'} />
+                        {ctrl.open ? (de ? 'Offen' : 'Open') : de ? 'Zu' : 'Closed'}
                       </span>
                     ) : ctrl.kind === 'dim' ? (
                       <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{ctrl.level}%</span>
@@ -757,7 +778,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.5',
+  version: '0.9.6',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
