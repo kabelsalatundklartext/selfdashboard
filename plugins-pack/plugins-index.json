@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-06T06:48:55.352Z",
+  "generatedAt": "2026-06-06T07:08:30.536Z",
   "plugins": [
     {
       "id": "adguard",
@@ -159,6 +159,28 @@
       "defaultLayout": {
         "w": 3,
         "h": 3,
+        "minW": 2,
+        "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
+    },
+    {
+      "id": "hue",
+      "name": "Philips Hue",
+      "description": "Philips-Hue-Lampen und Räume per lokaler Bridge-API: an/aus schalten, Helligkeit ändern, Status. Bridge-Koppeln im Plugin (kein Cloud-Account). (Beta)",
+      "version": "0.9.0",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "💡",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/philips-hue.png",
+      "defaultLayout": {
+        "w": 3,
+        "h": 4,
         "minW": 2,
         "minH": 2
       },

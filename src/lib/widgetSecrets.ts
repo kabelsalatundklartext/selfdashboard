@@ -17,6 +17,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   selfstream: ['password'],
   'selfstream-emby': ['password'], // posts to the selfstream server proxy
   'speedtest-tracker': ['apiToken'],
+  hue: ['apiKey'],
   plex: ['token'],
   proxmox: ['apiToken'],
   truenas: ['apiKey'],
