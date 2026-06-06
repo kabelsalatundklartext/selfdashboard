@@ -1,19 +1,35 @@
 #!/bin/sh
 # SelfDashboard container entrypoint.
 #
-# Starts as root, fixes ownership of the writable volume mounts once
-# (existing installs predate the non-root image), then drops privileges
-# and runs the app as nextjs (1001) — LinuxServer-style.
+# Starts as root, optionally remaps the app user to PUID/PGID, fixes ownership
+# of the writable volume mounts, then drops privileges and runs the app.
 #
-# Opt-outs:
-#   SELFDASHBOARD_SKIP_CHOWN=1          — never touch ownership
-#   SELFDASHBOARD_FIX_CROWDSEC_PERMS=0  — don't add read perms on /crowdsec-data
+# Run SelfDashboard with the SAME PUID/PGID as CrowdSec (Unraid default 99/100)
+# so it can read crowdsec.db directly as the owner — survives nightly backups
+# that restart CrowdSec, no chmod needed.
+#
+# Opt-outs / tuning:
+#   PUID / PGID                          — run the app as this uid/gid (default 1001)
+#   SELFDASHBOARD_SKIP_CHOWN=1           — never touch ownership
+#   SELFDASHBOARD_FIX_CROWDSEC_PERMS=0   — don't add read perms on /crowdsec-data
 set -e
 
-APP_UID=1001
-APP_GID=1001
+APP_UID="${PUID:-1001}"
+APP_GID="${PGID:-1001}"
 
 if [ "$(id -u)" = "0" ]; then
+  # Remap the named nextjs/nodejs user+group to the requested ids, so su-exec
+  # keeps the named user (and its supplementary groups, e.g. docker).
+  CUR_UID="$(id -u nextjs 2>/dev/null || echo 1001)"
+  CUR_GID="$(id -g nextjs 2>/dev/null || echo 1001)"
+  if [ "$APP_GID" != "$CUR_GID" ]; then
+    sed -i "s/^nodejs:x:[0-9]*:/nodejs:x:${APP_GID}:/" /etc/group 2>/dev/null || true
+    sed -i "s/^\(nextjs:x:[0-9]*\):[0-9]*:/\1:${APP_GID}:/" /etc/passwd 2>/dev/null || true
+  fi
+  if [ "$APP_UID" != "$CUR_UID" ]; then
+    sed -i "s/^nextjs:x:[0-9]*:/nextjs:x:${APP_UID}:/" /etc/passwd 2>/dev/null || true
+  fi
+
   if [ "${SELFDASHBOARD_SKIP_CHOWN:-0}" != "1" ]; then
     for d in "${SELFDASHBOARD_DATA_DIR:-/app/data}" /app/plugins/custom; do
       mkdir -p "$d" 2>/dev/null || true
@@ -25,16 +41,15 @@ if [ "$(id -u)" = "0" ]; then
     done
   fi
 
-  # CrowdSec DB mount is read-only for us and owned by the CrowdSec container —
-  # don't chown, just make sure the app user can read it (best effort).
+  # CrowdSec DB mount is owned by the CrowdSec container. If SelfDashboard runs
+  # with the same PUID it can read it directly; otherwise add read perms once
+  # (best effort — set matching PUID/PGID for a permanent, backup-proof fix).
   CS_DIR="${CROWDSEC_DATA_DIR:-/crowdsec-data}"
   if [ "${SELFDASHBOARD_FIX_CROWDSEC_PERMS:-1}" = "1" ] && [ -d "$CS_DIR" ]; then
     chmod -R a+rX "$CS_DIR" 2>/dev/null || true
   fi
 
-  # Docker socket (optional mount, Docker/CrowdSec plugins): the app user needs
-  # the socket's group. Resolve its GID and add nextjs to that group — no
-  # --group-add needed in the template.
+  # Docker socket (optional mount): give the app user the socket's group.
   DOCKER_SOCK="/var/run/docker.sock"
   if [ -S "$DOCKER_SOCK" ]; then
     SOCK_GID="$(stat -c %g "$DOCKER_SOCK" 2>/dev/null || echo '')"
@@ -52,7 +67,8 @@ if [ "$(id -u)" = "0" ]; then
     fi
   fi
 
-  # Run as the named user so su-exec picks up supplementary groups (initgroups).
+  echo "[entrypoint] running as ${APP_UID}:${APP_GID}"
+  # Named user so su-exec applies supplementary groups (initgroups).
   exec su-exec nextjs "$@"
 fi
 

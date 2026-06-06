@@ -210,7 +210,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 
 **Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); the **`:beta`** image loads its catalog from the **`beta`** branch.
 
-**Non-root container:** the app runs as UID **1001**. On start, the entrypoint chowns `/app/data` and `/app/plugins/custom` automatically (opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) and adds read permissions on `/crowdsec-data` (opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
+**Non-root container (PUID/PGID):** the app runs non-root, by default as **PUID/PGID 99/100** (Unraid `nobody:users`). On start, the entrypoint remaps to your PUID/PGID and chowns `/app/data` + `/app/plugins/custom` automatically (opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`). **CrowdSec tip:** set PUID/PGID to the **same values as your CrowdSec container** — then SelfDashboard owns and reads `crowdsec.db` directly, surviving nightly backups that restart CrowdSec (no chmod needed).
 
 ### Option 1 — Unraid Community Apps (recommended)
 
@@ -403,7 +403,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | Problem | Solution |
 |---|---|
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
-| **500 error after update** (`SQLITE_READONLY` in logs) | The container now runs as **non-root (UID 1001)**. The entrypoint fixes volume ownership automatically on start; if you set `SELFDASHBOARD_SKIP_CHOWN=1`, run `chown -R 1001:1001` on your appdata folder yourself. |
+| **500 error after update** (`SQLITE_READONLY` in logs) | The container runs **non-root** (PUID/PGID, default 99/100). The entrypoint fixes volume ownership automatically on start; if you set `SELFDASHBOARD_SKIP_CHOWN=1`, run `chown -R <PUID>:<PGID>` on your appdata folder yourself. |
+| **CrowdSec: `unable to open database file`** (often after nightly backups) | Set the container's **PUID/PGID to the same values as your CrowdSec container** (Unraid default 99/100). Then SelfDashboard reads `crowdsec.db` as the owner — permanently, no chmod. |
 | Config lost after update | Image updates do not remove your appdata volume; your layout lives in **`/app/data/users/<userId>/dashboard.json`** (plus a `localStorage` cache). If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
 | Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:latest` image defaults |
 | Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
@@ -644,7 +645,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 
 **Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); das **`:beta`**-Image lädt seinen Katalog vom **`beta`**-Branch.
 
-**Non-root-Container:** Die App läuft als UID **1001**. Der Entrypoint chownt beim Start automatisch `/app/data` und `/app/plugins/custom` (Opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`) und setzt Leserechte auf `/crowdsec-data` (Opt-out: `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`).
+**Non-root-Container (PUID/PGID):** Die App läuft non-root, standardmäßig als **PUID/PGID 99/100** (Unraid `nobody:users`). Der Entrypoint mappt beim Start auf deine PUID/PGID und chownt `/app/data` + `/app/plugins/custom` automatisch (Opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`). **CrowdSec-Tipp:** PUID/PGID auf **dieselben Werte wie dein CrowdSec-Container** setzen — dann besitzt und liest SelfDashboard die `crowdsec.db` direkt, auch nach nächtlichen Backups, die CrowdSec neu starten (kein chmod nötig).
 
 ### Option 1 — Unraid Community Apps (empfohlen)
 
@@ -837,7 +838,8 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | Problem | Lösung |
 |---|---|
 | Dashboard lädt nicht | Logs prüfen: `docker logs selfdashboard` |
-| **500-Fehler nach Update** (`SQLITE_READONLY` im Log) | Der Container läuft jetzt als **non-root (UID 1001)**. Der Entrypoint korrigiert die Volume-Rechte beim Start automatisch; bei `SELFDASHBOARD_SKIP_CHOWN=1` selbst `chown -R 1001:1001` auf den Appdata-Ordner ausführen. |
+| **500-Fehler nach Update** (`SQLITE_READONLY` im Log) | Der Container läuft **non-root** (PUID/PGID, Standard 99/100). Der Entrypoint korrigiert die Volume-Rechte beim Start automatisch; bei `SELFDASHBOARD_SKIP_CHOWN=1` selbst `chown -R <PUID>:<PGID>` auf den Appdata-Ordner ausführen. |
+| **CrowdSec: `unable to open database file`** (oft nach nächtlichem Backup) | **PUID/PGID des Containers auf dieselben Werte wie dein CrowdSec-Container** setzen (Unraid-Standard 99/100). Dann liest SelfDashboard die `crowdsec.db` als Eigentümer — dauerhaft, ohne chmod. |
 | CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |

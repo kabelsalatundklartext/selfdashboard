@@ -67,6 +67,28 @@
     Mask="false">/mnt/user/appdata/selfdashboard/plugins</Config>
 
   <Config
+    Name="PUID"
+    Target="PUID"
+    Default="99"
+    Mode=""
+    Description="User-ID, unter der die App läuft. Setze sie auf DENSELBEN Wert wie dein CrowdSec-Container (Unraid-Standard 99 = nobody), damit SelfDashboard die crowdsec.db direkt lesen kann — auch nach nächtlichen Backups. Ohne CrowdSec einfach 99 lassen."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">99</Config>
+
+  <Config
+    Name="PGID"
+    Target="PGID"
+    Default="100"
+    Mode=""
+    Description="Gruppen-ID, unter der die App läuft (Unraid-Standard 100 = users). Wie bei PUID: passend zu CrowdSec setzen."
+    Type="Variable"
+    Display="advanced"
+    Required="false"
+    Mask="false">100</Config>
+
+  <Config
     Name="Secret Key (Verschlüsselung)"
     Target="SELFDASHBOARD_SECRET_KEY"
     Default=""
