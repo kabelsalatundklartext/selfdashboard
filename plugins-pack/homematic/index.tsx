@@ -68,10 +68,37 @@ const SENSOR_DP: { key: string; unit: string; d: number }[] = [
 type Control =
   | { kind: 'switch'; on: boolean }
   | { kind: 'dim'; level: number }
+  | { kind: 'thermostat'; setKey: string; setpoint: number; actual: number | null; valve: number | null; window: boolean | null; boost: boolean | null }
   | { kind: 'sensor' }
+
+const SET_MIN = 4.5
+const SET_MAX = 30.5
+const SET_STEP = 0.5
 
 function detectControl(values: Record<string, unknown> | undefined): Control {
   if (!values) return { kind: 'sensor' }
+  // Heizungsthermostat zuerst (hat LEVEL als Ventil + eine Soll-Temperatur).
+  let setKey: string | null = null
+  if (typeof values.SET_POINT_TEMPERATURE === 'number') setKey = 'SET_POINT_TEMPERATURE'
+  else if (typeof values.SET_TEMPERATURE === 'number') setKey = 'SET_TEMPERATURE'
+  if (setKey) {
+    let valve: number | null = null
+    if (typeof values.LEVEL === 'number') valve = Math.round(values.LEVEL * 100)
+    else if (typeof values.VALVE_STATE === 'number') valve = Math.round(values.VALVE_STATE)
+    let window: boolean | null = null
+    if ('WINDOW_STATE' in values && values.WINDOW_STATE != null) window = Number(values.WINDOW_STATE) > 0
+    let boost: boolean | null = null
+    if (typeof values.BOOST_MODE === 'boolean') boost = values.BOOST_MODE
+    return {
+      kind: 'thermostat',
+      setKey,
+      setpoint: Number(values[setKey]),
+      actual: typeof values.ACTUAL_TEMPERATURE === 'number' ? values.ACTUAL_TEMPERATURE : null,
+      valve,
+      window,
+      boost,
+    }
+  }
   if (typeof values.LEVEL === 'number') return { kind: 'dim', level: Math.round(values.LEVEL * 100) }
   if (typeof values.STATE === 'boolean') return { kind: 'switch', on: values.STATE }
   return { kind: 'sensor' }
@@ -315,11 +342,44 @@ function Widget({ config }: PluginWidgetProps) {
             {channels.map((ch) => {
               const v = values[ch.address]
               const ctrl = detectControl(v)
+              const nameEl = (
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={ch.name}>{ch.name}</div>
+              )
+
+              // --- Heizungsthermostat: Ist-Temp, Fenster, Ventil + Soll per −/+ ---
+              if (ctrl.kind === 'thermostat') {
+                const sp = Number.isFinite(ctrl.setpoint) ? ctrl.setpoint : null
+                const stepSet = (delta: number) => {
+                  if (sp == null) return
+                  const next = Math.min(SET_MAX, Math.max(SET_MIN, Math.round((sp + delta) * 2) / 2))
+                  if (next === sp) return
+                  void setDevice(ch, ctrl.setKey, 'double', next)
+                }
+                const info: string[] = []
+                if (ctrl.actual != null) info.push(`${de ? 'Ist' : 'Now'} ${round(ctrl.actual, 1)} °C`)
+                if (ctrl.window != null) info.push(ctrl.window ? (de ? '🪟 offen' : '🪟 open') : de ? 'Fenster zu' : 'Window closed')
+                if (ctrl.valve != null) info.push(`${de ? 'Ventil' : 'Valve'} ${ctrl.valve}%`)
+                const stepBtn: CSSProperties = { width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 18, fontWeight: 700, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
+                return (
+                  <div key={ch.address} style={{ ...card, gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
+                    <div style={{ minWidth: 0 }}>
+                      {nameEl}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{info.join(' · ') || '…'}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button type="button" style={{ ...stepBtn, opacity: sp == null || sp <= SET_MIN ? 0.4 : 1 }} disabled={sp == null || sp <= SET_MIN} onClick={() => stepSet(-SET_STEP)} title={de ? 'Wärmer runter' : 'Down'}>−</button>
+                      <span style={{ fontSize: 16, fontWeight: 700, minWidth: 52, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{sp != null ? `${round(sp, 1)}°` : '—'}</span>
+                      <button type="button" style={{ ...stepBtn, opacity: sp == null || sp >= SET_MAX ? 0.4 : 1 }} disabled={sp == null || sp >= SET_MAX} onClick={() => stepSet(SET_STEP)} title={de ? 'Wärmer rauf' : 'Up'}>+</button>
+                    </div>
+                  </div>
+                )
+              }
+
               const sensor = sensorText(v)
               return (
                 <div key={ch.address} style={card}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ch.name}>{ch.name}</div>
+                    {nameEl}
                     {sensor ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{sensor}</div> : null}
                     {ctrl.kind === 'dim' ? (
                       <input
@@ -561,12 +621,12 @@ export const meta: PluginMeta = {
   id: 'homematic',
   name: 'Homematic',
   description:
-    'Homematic / RaspberryMatic per JSON-RPC (Login): Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.0',
+    'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
-  iconUrl: '/api/plugins/custom-assets/homematic/icon.svg',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png',
   defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Homematic' },
