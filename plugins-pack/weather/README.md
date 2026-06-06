@@ -18,4 +18,4 @@ Legacy: `GET /api/weather?action=geocode|forecast|resolve` (Shim).
 2. Plugin-Pack Version ≥ **1.5.0** (`npm run publish:plugin-pack`).
 3. Hard-Reload im Browser.
 
-Architektur: [PLUGIN_ARCH_BETA.md](../../PLUGIN_ARCH_BETA.md).
+Architektur: [docs/PLUGIN_ARCHITECTURE.md](../../docs/PLUGIN_ARCHITECTURE.md).

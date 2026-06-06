@@ -4,7 +4,7 @@
 
 | Teil | Wo |
 |------|-----|
-| **SelfDashboard** | Docker-Image `ghcr.io/.../selfdashboard:beta` — nur App-Kern |
+| **SelfDashboard** | Docker-Image `ghcr.io/.../selfdashboard:latest` — nur App-Kern |
 | **Plugins** | GitHub-Ordner `plugins-pack/` im Repo — **nicht** ins Image gebündelt (optional ZIP nur für Erststart) |
 | **Installiert** | Unraid/Docker-Mount → `/app/plugins/custom` |
 
@@ -25,7 +25,7 @@
 
 ```text
 SELFDASHBOARD_PLUGINS_GITHUB_REPO=kabelsalatundklartext/selfdashboard
-SELFDASHBOARD_PLUGINS_GITHUB_REF=beta
+SELFDASHBOARD_PLUGINS_GITHUB_REF=main
 SELFDASHBOARD_PLUGINS_GITHUB_PATH=plugins-pack
 ```
 
@@ -34,7 +34,7 @@ Index-Datei: `plugins-pack/plugins-index.json` (Liste aller Plugins + Dateien).
 Raw-URL-Beispiel:
 
 ```text
-https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/beta/plugins-pack/clock/widget.js
+https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/clock/widget.js
 ```
 
 ## Maintainer: Pack auf GitHub aktualisieren

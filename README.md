@@ -96,28 +96,23 @@ flowchart TB
 | A **plugin** (`widget.js` and/or `server.mjs` on GitHub) | **No** | Plugin Store → **Update** (or **Update all**) → **Ctrl+F5** |
 | **SelfDashboard core** (UI, APIs, store, loader) | **Yes** | `docker pull` + restart container; keep `/app/data` and `/app/plugins/custom` mounts |
 
-## What's new (recent)
+## What's new — v2.0.0
 
-### Core app (Docker image)
+### Security & hardening (Docker image)
 
-- **Public kiosk mode** — **`/kiosk`** view-only URL for wall tablets (no admin login); optional password & session duration. Configure under **Settings → Users → Kiosk**. Edit widgets via normal login on **`/dashboard/<id>`**.
-- **Two-factor auth (TOTP)** — **Settings → Users** — Authenticator apps supported at login.
-- **Multi-user settings** — password change, 2FA, and kiosk config moved to **Settings → Users** (admin: user management + plugin whitelist).
-- **Design backgrounds** — **Settings → Design**: **navbar** wallpaper (JPG/PNG/WebP + overlay) and **dashboard** background (**off / 1 image / 2 images** left+right), saved globally in `dashboard.json`.
-- **Weather API proxy** — **`GET /api/plugins/weather/resolve`**; Open-Meteo via container HTTPS.
-- **Settings modal** — fixed width, taller viewport; **Logs** tab scrolls inside the list.
+- **Non-root container (PUID/PGID)** — runs as a configurable unprivileged user (Unraid default **99/100**); the entrypoint fixes volume ownership on start. Match CrowdSec's PUID/PGID to read `crowdsec.db` directly.
+- **Encrypted credentials everywhere** — calendar, mail and widget passwords/tokens (AdGuard, Pi-hole, FRITZ!, Speedtest, …) are sealed with **AES-256-GCM**; the browser only sees ciphertext. Set a fixed **`SELFDASHBOARD_SECRET_KEY`** so they survive updates.
+- **SSRF protection** in every proxy plugin (DNS-resolved, blocks loopback / link-local / cloud-metadata); **TOTP replay protection**; reproducible `npm ci` build + container **HEALTHCHECK**.
 
-### Plugins (volume / store — no image rebuild)
+### New plugins
 
-- **Uptime Kuma** — status-page overview (compact list, 2 columns from 6 monitors). Store ships `server.mjs` — API updates via plugin update.
-- **Selfstream-Emby** — Selfstream + Emby/Jellyfin sessions in one mixed list with source icons per row.
-- **Store-shipped APIs** — All backend plugins (AdGuard, Calendar, CrowdSec, Docker, Fritzbox, Fritz-Energy, Mail, Pi-hole, Selfstream, Uptime Kuma, Weather) ship `server.mjs` in `plugins-pack/` (no image rebuild for API fixes).
-- **Weather 1.5.x** — current conditions; **four day blocks** (0–6, 6–12, 12–18, 18–24); **7-day** from **tomorrow**. Uses `/api/plugins/weather/…`.
-- **Unraid 1.5.x** — GraphQL for **Unraid 7.2+** (not 7.3-only); array + pool disks, configurable suffix labels.
-- **CrowdSec** — alert count respects time range (`daysBack`).
-- **Volume-only model** — widgets live in `/app/plugins/custom`; **Plugin Store** from GitHub `plugins-pack/` (branch **`main`**); **Update all** + **Ctrl+F5** after plugin bumps.
-- **Email plugin** — navbar IMAP badge + settings tab from the store.
-- **Central log** — **Settings → Logs** (app, API, plugins).
+- **Jellyfin** — active sessions (own widget) · **Selfstream · Emby · Jellyfin** — combined stream list with a configurable title.
+- **8 new integrations (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, plus **Speedtest Tracker**.
+- **Auto-index store** — drop a plugin folder into `plugins-pack/<id>/` and push; `plugins-index.json` regenerates automatically (no manual index editing).
+
+### CrowdSec 1.5.x
+
+- Attack **world map** (real GeoIP dots, point/arc view) · separate **local bans** vs. **community (CAPI) bans** counts · optional alert list beside the map.
 
 Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 
@@ -159,6 +154,7 @@ Recent plugin and API changes are summarized in **[docs/CHANGELOG.md](docs/CHANG
 | 📋 **Central error log** | **Settings → Logs**: app, API, and plugin errors (filter, export, 3–30 day retention) — automatic for every registered plugin |
 | ✉️ **Navbar mail (IMAP)** | Unread badge in the navbar — multiple accounts, Synology/MailPlus-friendly, encrypted passwords, webmail link on click |
 | 🔐 **Login & multi-user** | SQLite auth, admin/user roles, plugin whitelist, optional TOTP 2FA |
+| 🔒 **Secure by default** | Non-root container, AES-256-GCM-encrypted credentials, SSRF guard on all proxy plugins |
 | 📺 **Kiosk mode** | Public **`/kiosk`** URL — view-only full-screen dashboard for wall tablets; optional password (admin configures under **Settings → Users → Kiosk**) |
 | 🖥️ **Unraid Ready** | Community Apps template included |
 
@@ -208,7 +204,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 
 **Required:** map **`/app/data`** and **`/app/plugins/custom`**. Without the plugins folder, the store can install files but they will not persist.
 
-**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin catalog defaults to GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); the **`:beta`** image loads its catalog from the **`beta`** branch.
+**Image tags:** Unraid template uses **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. The plugin catalog is loaded from GitHub branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`, normally left as-is).
 
 **Non-root container (PUID/PGID):** the app runs non-root, by default as **PUID/PGID 99/100** (Unraid `nobody:users`). On start, the entrypoint remaps to your PUID/PGID and chowns `/app/data` + `/app/plugins/custom` automatically (opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`). **CrowdSec tip:** set PUID/PGID to the **same values as your CrowdSec container** — then SelfDashboard owns and reads `crowdsec.db` directly, surviving nightly backups that restart CrowdSec (no chmod needed).
 
@@ -529,28 +525,23 @@ flowchart TB
 | Ein **Plugin** (`widget.js` und/oder `server.mjs` auf GitHub) | **Nein** | Plugin-Store → **Aktualisieren** (oder **Alle aktualisieren**) → **Strg+F5** |
 | **SelfDashboard-Kern** (UI, APIs, Store, Loader) | **Ja** | `docker pull` + Container neu starten; Mounts `/app/data` und `/app/plugins/custom` behalten |
 
-## Neu (aktuelle Erweiterungen)
+## Neu — v2.0.0
 
-### Kern-App (Docker-Image)
+### Sicherheit & Härtung (Docker-Image)
 
-- **Öffentlicher Kiosk-Modus** — URL **`/kiosk`** (Nur-Ansicht, kein Admin-Login); optional Passwort & Sitzungsdauer. Konfiguration: **Einstellungen → Benutzer → Kiosk**. Widgets bearbeiten per Login unter **`/dashboard/<id>`**.
-- **Zwei-Faktor-Auth (TOTP)** — **Einstellungen → Benutzer** — Authenticator-Apps beim Login.
-- **Einstellungen Benutzer-Tab** — Passwort, 2FA, Kiosk; Admin: Benutzerverwaltung & Plugin-Freigaben.
-- **Hintergrundbilder im Design** — **Einstellungen → Design**: **Navbar**-Wallpaper (JPG/PNG/WebP + Overlay) und **Dashboard**-Hintergrund (**Aus / 1 Bild / 2 Bilder** links+rechts), global in `dashboard.json`.
-- **Wetter-API-Proxy** — **`GET /api/plugins/weather/resolve`**; Open-Meteo über HTTPS im Container.
-- **Einstellungs-Dialog** — feste Breite, höheres Fenster; Tab **Protokoll** scrollt in der Liste.
+- **Non-root-Container (PUID/PGID)** — läuft als einstellbarer unprivilegierter User (Unraid-Standard **99/100**); der Entrypoint korrigiert die Volume-Rechte beim Start. PUID/PGID wie bei CrowdSec setzen, um `crowdsec.db` direkt zu lesen.
+- **Verschlüsselte Zugangsdaten überall** — Kalender-, Mail- und Widget-Passwörter/-Tokens (AdGuard, Pi-hole, FRITZ!, Speedtest, …) werden mit **AES-256-GCM** versiegelt; der Browser sieht nur Ciphertext. Festen **`SELFDASHBOARD_SECRET_KEY`** setzen, damit sie Updates überleben.
+- **SSRF-Schutz** in jedem Proxy-Plugin (DNS-aufgelöst, blockt Loopback / Link-Local / Cloud-Metadata); **TOTP-Replay-Schutz**; reproduzierbarer `npm ci`-Build + Container-**HEALTHCHECK**.
 
-### Plugins (Volume / Store — kein Image-Rebuild)
+### Neue Plugins
 
-- **Uptime Kuma** — Status-Page-Übersicht (kompakte Liste, 2 Spalten ab 6 Monitoren). Store liefert `server.mjs` — API-Updates per Plugin-Update.
-- **Selfstream-Emby** — Selfstream- und Emby/Jellyfin-Sessions in einer gemischten Liste mit Quellen-Icon pro Zeile.
-- **APIs im Store** — Alle Backend-Plugins (AdGuard, Kalender, CrowdSec, Docker, Fritzbox, Fritz-Energy, Mail, Pi-hole, Selfstream, Uptime Kuma, Wetter) liefern `server.mjs` in `plugins-pack/` (kein Image-Rebuild für API-Fixes).
-- **Wetter 1.5.x** — aktuelles Wetter; **vier Tagesabschnitte** (0–6, 6–12, 12–18, 18–24); **7-Tage** ab **morgen**. Nutzt `/api/plugins/weather/…`.
-- **Unraid 1.5.x** — GraphQL für **Unraid 7.2+** (nicht nur 7.3); Array + Pool, konfigurierbare Zusatz-Labels.
-- **CrowdSec** — Alert-Zähler beachtet Zeitraum (`daysBack`).
-- **Nur Plugins vom Volume** — Widgets unter `/app/plugins/custom`; **Plugin-Store** von GitHub `plugins-pack/` (Branch **`main`**); **Alle aktualisieren** + **Strg+F5** nach Plugin-Updates.
-- **E-Mail-Plugin** — Navbar-IMAP-Badge + Einstellungs-Tab aus dem Store.
-- **Zentrales Protokoll** — **Einstellungen → Protokoll** (App, API, Plugins).
+- **Jellyfin** — aktive Sessions (eigenes Widget) · **Selfstream · Emby · Jellyfin** — kombinierte Stream-Liste mit einstellbarem Titel.
+- **8 neue Integrationen (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, dazu **Speedtest Tracker**.
+- **Auto-Index-Store** — Plugin-Ordner nach `plugins-pack/<id>/` legen und pushen; `plugins-index.json` wird automatisch neu generiert (kein Hand-Editieren des Index).
+
+### CrowdSec 1.5.x
+
+- Angriffs-**Weltkarte** (echte GeoIP-Punkte, Punkt-/Bogen-Ansicht) · getrennte Zähler für **lokale Banns** und **Community-Banns (CAPI)** · optionale Alert-Liste neben der Karte.
 
 API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 
@@ -592,6 +583,7 @@ Aktuelle Plugin- und API-Änderungen: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**
 | 📋 **Zentrales Protokoll** | **Einstellungen → Protokoll**: App-, API- und Plugin-Fehler (Filter, Export, 3–30 Tage) — automatisch für jedes registrierte Plugin |
 | ✉️ **Navbar E-Mail (IMAP)** | Ungelesen-Badge in der Navbar — mehrere Konten, Synology/MailPlus, verschlüsselte Passwörter, Webmail per Klick |
 | 🔐 **Login & Mehrbenutzer** | SQLite-Auth, Admin/User-Rollen, Plugin-Whitelist, optional TOTP-2FA |
+| 🔒 **Sicher per Default** | Non-root-Container, AES-256-GCM-verschlüsselte Zugangsdaten, SSRF-Schutz in allen Proxy-Plugins |
 | 📺 **Kiosk-Modus** | Öffentliche URL **`/kiosk`** — Nur-Ansicht/Vollbild fürs Wand-Tablet; optional Passwort (**Einstellungen → Benutzer → Kiosk**) |
 | 🖥️ **Unraid-ready** | Community Apps Template inklusive |
 
@@ -643,7 +635,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 
 **Pflicht:** **`/app/data`** und **`/app/plugins/custom`** mounten. Ohne Plugin-Ordner gehen Store-Installationen beim Neustart verloren.
 
-**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Plugin-Katalog standardmäßig GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`); das **`:beta`**-Image lädt seinen Katalog vom **`beta`**-Branch.
+**Image-Tags:** Unraid-Template nutzt **`ghcr.io/kabelsalatundklartext/selfdashboard:latest`**. Der Plugin-Katalog kommt vom GitHub-Branch **`main`** (`SELFDASHBOARD_PLUGINS_GITHUB_REF`, normalerweise unverändert lassen).
 
 **Non-root-Container (PUID/PGID):** Die App läuft non-root, standardmäßig als **PUID/PGID 99/100** (Unraid `nobody:users`). Der Entrypoint mappt beim Start auf deine PUID/PGID und chownt `/app/data` + `/app/plugins/custom` automatisch (Opt-out: `SELFDASHBOARD_SKIP_CHOWN=1`). **CrowdSec-Tipp:** PUID/PGID auf **dieselben Werte wie dein CrowdSec-Container** setzen — dann besitzt und liest SelfDashboard die `crowdsec.db` direkt, auch nach nächtlichen Backups, die CrowdSec neu starten (kein chmod nötig).
 

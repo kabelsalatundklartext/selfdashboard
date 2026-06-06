@@ -249,10 +249,10 @@ Das Skript:
 ```bash
 git add plugins-pack/
 git commit -m "Plugins: Update Store-Paket"
-git push origin beta
+git push origin main
 ```
 
-Nutzer mit Image `:beta` sehen neue Plugins im Store nach ein paar Minuten (Index-Cache ~5 Min).
+Nutzer sehen neue Plugins im Store nach ein paar Minuten (Index-Cache ~5 Min).
 
 ### Neues Plugin in den Index
 
@@ -261,7 +261,7 @@ Nutzer mit Image `:beta` sehen neue Plugins im Store nach ein paar Minuten (Inde
 3. `plugins-pack/meinplugin/` pushen — **fertig**
 
 > **Auto-Index:** Seit der `plugins-index.yml`-Action wird `plugins-index.json`
-> bei jedem Push nach `plugins-pack/**` (main/beta) **automatisch** neu generiert
+> bei jedem Push nach `plugins-pack/**` (main) **automatisch** neu generiert
 > und committet. Ein Plugin-Ordner mit `plugin.json` + `widget.js` reicht —
 > der Index muss nicht mehr von Hand gepflegt werden.
 > (`npm run generate:plugins-index` lokal geht weiterhin.)
@@ -312,7 +312,7 @@ Kein Eintrag in `plugins-index.json` nötig.
 - [ ] `npm run publish:plugin-pack` ohne Fehler
 - [ ] `plugins-pack/<id>/widget.js` vorhanden
 - [ ] `plugins-index.json` enthält Eintrag
-- [ ] Git push (`beta` o. ä.)
+- [ ] Git push (`main`)
 - [ ] Im Container testen: Install → Strg+F5
 
 ---
@@ -347,7 +347,7 @@ Kein Eintrag in `plugins-index.json` nötig.
 | `SELFDASHBOARD_PLUGINS_SRC` | Absoluter Pfad zu `plugins/` |
 | `SELFDASHBOARD_PLUGIN_PACK_DIR` | Absoluter Pfad zu `plugin-pack/` |
 | `SELFDASHBOARD_PLUGINS_GITHUB_REPO` | für `generate-plugins-index` |
-| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | Branch im Index (default `beta`) |
+| `SELFDASHBOARD_PLUGINS_GITHUB_REF` | Branch im Index (default `main`) |
 
 ---
 

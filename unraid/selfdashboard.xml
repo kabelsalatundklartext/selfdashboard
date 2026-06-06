@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/kabelsalatundklartext/selfdashboard/issues</Support>
   <Project>https://github.com/kabelsalatundklartext/selfdashboard</Project>
-  <Overview>SelfDashboard — modulares Homelab-Dashboard (Stable, Image :latest). Kern-App im Container; Widgets über Plugin-Store „Von GitHub“ (Branch main, Ordner plugins-pack) oder ZIP nach /app/plugins/custom (plugin.json + widget.js). Plugin-APIs sind im Image (Builtin); nach Plugin-Update: Strg+F5. Config Storage: dashboard.json unter /app/data. Tester: Image :beta + GitHub-Branch beta. Doku: docs/PLUGINS.md, docs/PLUGIN_DEV.md.</Overview>
+  <Overview>SelfDashboard — modulares Homelab-Dashboard (Image :latest). Kern-App im Container; Widgets über Plugin-Store „Von GitHub“ (Branch main, Ordner plugins-pack) oder ZIP nach /app/plugins/custom (plugin.json + widget.js). Plugin-APIs sind im Image (Builtin); nach Plugin-Update: Strg+F5. Config Storage: dashboard.json unter /app/data. CrowdSec-Nutzer: PUID/PGID wie beim CrowdSec-Container setzen. Doku: docs/PLUGINS.md, docs/PLUGIN_DEV.md.</Overview>
   <Category>Tools: Status:Stable</Category>
   <WebUI>http://[IP]:[PORT:3000]</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/unraid/selfdashboard.xml</TemplateURL>
@@ -115,7 +115,7 @@
     Target="SELFDASHBOARD_PLUGINS_GITHUB_REF"
     Default="main"
     Mode=""
-    Description="Branch oder Tag (Stable: main). Muss plugins-pack/ mit plugins-index.json enthalten. Beta-Tester: beta + Image :beta."
+    Description="GitHub-Branch oder Tag mit dem Plugin-Katalog (Standard: main). Muss plugins-pack/ mit plugins-index.json enthalten. Normalerweise nicht ändern."
     Type="Variable"
     Display="always"
     Required="false"

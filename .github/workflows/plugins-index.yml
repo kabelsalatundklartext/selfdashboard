@@ -6,7 +6,7 @@ name: Auto-generate plugin index
 
 on:
   push:
-    branches: [main, beta]
+    branches: [main]
     paths:
       - 'plugins-pack/**'
       - '!plugins-pack/plugins-index.json'
