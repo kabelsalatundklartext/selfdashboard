@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.9'
+const HUE_VERSION = '0.9.10'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -280,6 +280,7 @@ function Widget({ config }: PluginWidgetProps) {
           boxSizing: 'border-box',
           width: '100%',
           maxWidth: '100%',
+          minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           gap: briShown ? 9 : 0,
@@ -288,7 +289,6 @@ function Widget({ config }: PluginWidgetProps) {
           background: cardBg(item),
           border: lit ? '1px solid rgba(255,255,255,.08)' : '1px solid var(--border)',
           opacity: item.reachable ? 1 : 0.5,
-          overflow: 'hidden',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
@@ -475,6 +475,10 @@ function Widget({ config }: PluginWidgetProps) {
         style={{
           flex: 1,
           minHeight: 0,
+          minWidth: 0,
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
           overflowY: 'auto',
           overflowX: 'hidden',
           paddingRight: 10,
@@ -600,7 +604,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.9',
+  version: '0.9.10',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
