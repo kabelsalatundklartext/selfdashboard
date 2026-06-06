@@ -616,4 +616,11 @@ export const meta: PluginMeta = {
     { key: 'colorBackground', label: 'Lichtfarbe als Hintergrund', type: 'boolean', defaultValue: true },
     { key: 'showBrightness', label: 'Helligkeits-Slider', type: 'boolean', defaultValue: true },
     { key: 'defaultView', label: 'Standard-Ansicht', type: 'text', defaultValue: 'groups' },
-    { key: 'refreshSecond
+    { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 20 },
+  ],
+}
+
+export const component: PluginComponent = {
+  Widget,
+  Settings,
+}
