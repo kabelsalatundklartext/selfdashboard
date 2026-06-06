@@ -81,10 +81,24 @@ async function rpc(
 }
 
 /** Map a Device.listAllDetail entry to a compact device with channels. */
-type MappedChannel = { address: string; name: string; index: number }
-type MappedDevice = { address: string; name: string; type: string; interface: string; channels: MappedChannel[] }
+type MappedChannel = { address: string; name: string; index: number; room: string }
+type MappedDevice = { address: string; name: string; type: string; interface: string; room: string; channels: MappedChannel[] }
 
-function mapDevices(result: unknown): MappedDevice[] {
+/** Room.getAll → map channel ise-id → room name. */
+function buildRoomMap(result: unknown): Record<string, string> {
+  const map: Record<string, string> = {}
+  if (!Array.isArray(result)) return map
+  for (const r of result) {
+    if (!isObject(r)) continue
+    const name = str(r.name)
+    const ids = Array.isArray(r.channelIds) ? r.channelIds : []
+    if (!name) continue
+    for (const cid of ids) map[str(cid)] = name
+  }
+  return map
+}
+
+function mapDevices(result: unknown, rooms: Record<string, string> = {}): MappedDevice[] {
   if (!Array.isArray(result)) return []
   const out: MappedDevice[] = []
   for (const d of result) {
@@ -94,18 +108,22 @@ function mapDevices(result: unknown): MappedDevice[] {
     const iface = str(d.interface) || 'BidCos-RF'
     const channelsRaw = Array.isArray(d.channels) ? d.channels : []
     const channels: MappedChannel[] = []
+    let devRoom = ''
     for (const c of channelsRaw) {
       if (!isObject(c)) continue
       const caddr = str(c.address)
       if (!caddr || !caddr.includes(':')) continue // skip device-level (:0 maintenance often kept, but require channel form)
       const idx = Number(caddr.split(':')[1])
-      channels.push({ address: caddr, name: str(c.name) || caddr, index: Number.isFinite(idx) ? idx : 0 })
+      const room = rooms[str(c.id)] || ''
+      if (room && !devRoom) devRoom = room
+      channels.push({ address: caddr, name: str(c.name) || caddr, index: Number.isFinite(idx) ? idx : 0, room })
     }
     out.push({
       address,
       name: str(d.name) || address,
       type: str(d.type),
       interface: iface,
+      room: devRoom,
       channels,
     })
   }
@@ -202,13 +220,14 @@ async function handlePost(req: Request): Promise<Response> {
 
     // --- Settings picker: full lists of devices, sysvars and programs ---
     if (action === 'list') {
-      const [dev, sys, prg] = await Promise.all([
+      const [dev, sys, prg, rooms] = await Promise.all([
         rpc(base, 'Device.listAllDetail', { _session_id_: sid }, ac.signal),
         rpc(base, 'SysVar.getAll', { _session_id_: sid }, ac.signal),
         rpc(base, 'Program.getAll', { _session_id_: sid }, ac.signal),
+        rpc(base, 'Room.getAll', { _session_id_: sid }, ac.signal),
       ])
       return Response.json({
-        devices: mapDevices(dev.result),
+        devices: mapDevices(dev.result, buildRoomMap(rooms.result)),
         sysvars: mapSysvars(sys.result),
         programs: mapPrograms(prg.result),
       })

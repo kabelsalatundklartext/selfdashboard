@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-type ChannelCfg = { interface: string; address: string; name: string; type?: string }
+type ChannelCfg = { interface: string; address: string; name: string; type?: string; room?: string }
 type RefCfg = { id: string; name: string }
 
 type StateResponse = {
@@ -15,7 +15,7 @@ type StateResponse = {
 }
 
 type ListResponse = {
-  devices?: { address: string; name: string; type: string; interface: string; channels: { address: string; name: string; index: number }[] }[]
+  devices?: { address: string; name: string; type: string; interface: string; room: string; channels: { address: string; name: string; index: number; room: string }[] }[]
   sysvars?: { id: string; name: string; value: unknown; unit: string; type: string }[]
   programs?: { id: string; name: string }[]
   error?: string
@@ -30,6 +30,17 @@ function num(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Group selected channels by their CCU room (rooms first A–Z, "no room" last). */
+function groupByRoom(chs: ChannelCfg[]): [string, ChannelCfg[]][] {
+  const map = new Map<string, ChannelCfg[]>()
+  for (const c of chs) {
+    const r = c.room || ''
+    if (!map.has(r)) map.set(r, [])
+    map.get(r)!.push(c)
+  }
+  return Array.from(map.entries()).sort((a, b) => (a[0] || '￿').localeCompare(b[0] || '￿'))
 }
 
 function parseArr<T>(v: unknown): T[] {
@@ -84,7 +95,7 @@ const SENSOR_DP: { key: string; unit: string; d: number }[] = [
 type Control =
   | { kind: 'switch'; on: boolean }
   | { kind: 'dim'; level: number }
-  | { kind: 'thermostat'; setKey: string; setpoint: number | null; actual: number | null; valve: number | null; window: boolean | null }
+  | { kind: 'thermostat'; setKey: string; setpoint: number | null; actual: number | null; valve: number | null; window: boolean | null; mode: number | null; boost: boolean | null; hmip: boolean; hasModes: boolean }
   | { kind: 'contact'; open: boolean }
   | { kind: 'sensor' }
 
@@ -103,6 +114,11 @@ function detectControl(values: Record<string, unknown> | undefined, type = ''): 
     if (asNum(values.LEVEL) != null) valve = Math.round((asNum(values.LEVEL) as number) * 100)
     else if (asNum(values.VALVE_STATE) != null) valve = Math.round(asNum(values.VALVE_STATE) as number)
     const win = asBool(values.WINDOW_STATE) ?? (asNum(values.WINDOW_STATE) != null ? (asNum(values.WINDOW_STATE) as number) > 0 : null)
+    const hmip = setKey === 'SET_POINT_TEMPERATURE'
+    // Aktueller Modus: HmIP über SET_POINT_MODE (les-/schreibbar), klassisch über CONTROL_MODE.
+    const mode = asNum(values.SET_POINT_MODE) ?? asNum(values.CONTROL_MODE)
+    const boost = asBool(values.BOOST_MODE)
+    const hasModes = 'SET_POINT_MODE' in values || 'CONTROL_MODE' in values || 'BOOST_MODE' in values || 'AUTO_MODE' in values
     return {
       kind: 'thermostat',
       setKey,
@@ -110,6 +126,10 @@ function detectControl(values: Record<string, unknown> | undefined, type = ''): 
       actual: asNum(values.ACTUAL_TEMPERATURE),
       valve,
       window: win,
+      mode,
+      boost,
+      hmip,
+      hasModes,
     }
   }
   // Fenster-/Türkontakt: STATE ist ein Sensor (offen/zu), kein Schalter.
@@ -353,10 +373,11 @@ function Widget({ config }: PluginWidgetProps) {
           </p>
         ) : null}
 
-        {channels.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {sectionLabel(de ? 'Geräte' : 'Devices')}
-            {channels.map((ch) => {
+        {channels.length > 0
+          ? groupByRoom(channels).map(([roomName, roomChannels]) => (
+          <div key={roomName || '_none'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sectionLabel(roomName || (de ? 'Geräte' : 'Devices'))}
+            {roomChannels.map((ch) => {
               const v = values[ch.address]
               const ctrl = detectControl(v, ch.type || '')
               const nameEl = (
@@ -377,17 +398,43 @@ function Widget({ config }: PluginWidgetProps) {
                 if (ctrl.window != null) info.push(ctrl.window ? (de ? '🪟 offen' : '🪟 open') : de ? 'Fenster zu' : 'Window closed')
                 if (ctrl.valve != null) info.push(`${de ? 'Ventil' : 'Valve'} ${ctrl.valve}%`)
                 const stepBtn: CSSProperties = { width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 18, fontWeight: 700, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
+                const setMode = (target: 'auto' | 'manu') => {
+                  if (ctrl.hmip) void setDevice(ch, 'CONTROL_MODE', 'integer', target === 'auto' ? 0 : 1)
+                  else void setDevice(ch, target === 'auto' ? 'AUTO_MODE' : 'MANU_MODE', 'boolean', true)
+                }
+                const toggleBoost = () => void setDevice(ch, 'BOOST_MODE', 'boolean', !(ctrl.boost === true))
+                const isBoost = ctrl.boost === true
+                const modeBtn = (active: boolean, accent: boolean): CSSProperties => ({
+                  flex: 1,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: '5px 4px',
+                  borderRadius: 7,
+                  border: '1px solid ' + (active ? 'transparent' : 'var(--border)'),
+                  background: active ? (accent ? '#f59e0b' : 'var(--accent)') : 'var(--surface)',
+                  color: active ? '#fff' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                })
                 return (
-                  <div key={ch.address} style={{ ...card, gridTemplateColumns: 'minmax(0, 1fr) auto' }}>
-                    <div style={{ minWidth: 0 }}>
-                      {nameEl}
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{info.join(' · ') || '…'}</div>
+                  <div key={ch.address} style={{ ...card, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        {nameEl}
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{info.join(' · ') || '…'}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button type="button" style={{ ...stepBtn, opacity: sp == null || sp <= SET_MIN ? 0.4 : 1 }} disabled={sp == null || sp <= SET_MIN} onClick={() => stepSet(-SET_STEP)} title={de ? 'Wärmer runter' : 'Down'}>−</button>
+                        <span style={{ fontSize: 16, fontWeight: 700, minWidth: 52, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{sp != null ? `${round(sp, 1)}°` : '—'}</span>
+                        <button type="button" style={{ ...stepBtn, opacity: sp == null || sp >= SET_MAX ? 0.4 : 1 }} disabled={sp == null || sp >= SET_MAX} onClick={() => stepSet(SET_STEP)} title={de ? 'Wärmer rauf' : 'Up'}>+</button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <button type="button" style={{ ...stepBtn, opacity: sp == null || sp <= SET_MIN ? 0.4 : 1 }} disabled={sp == null || sp <= SET_MIN} onClick={() => stepSet(-SET_STEP)} title={de ? 'Wärmer runter' : 'Down'}>−</button>
-                      <span style={{ fontSize: 16, fontWeight: 700, minWidth: 52, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{sp != null ? `${round(sp, 1)}°` : '—'}</span>
-                      <button type="button" style={{ ...stepBtn, opacity: sp == null || sp >= SET_MAX ? 0.4 : 1 }} disabled={sp == null || sp >= SET_MAX} onClick={() => stepSet(SET_STEP)} title={de ? 'Wärmer rauf' : 'Up'}>+</button>
-                    </div>
+                    {ctrl.hasModes ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" style={modeBtn(!isBoost && ctrl.mode === 0, false)} onClick={() => setMode('auto')}>{de ? 'Auto' : 'Auto'}</button>
+                        <button type="button" style={modeBtn(!isBoost && ctrl.mode === 1, false)} onClick={() => setMode('manu')}>{de ? 'Manuell' : 'Manual'}</button>
+                        <button type="button" style={modeBtn(isBoost, true)} onClick={toggleBoost}>🔥 Boost</button>
+                      </div>
+                    ) : null}
                   </div>
                 )
               }
@@ -432,7 +479,8 @@ function Widget({ config }: PluginWidgetProps) {
               )
             })}
           </div>
-        ) : null}
+            ))
+          : null}
 
         {selSysvars.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -590,7 +638,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
                     const shown = allChannels ? usable : usable.slice(0, 1)
                     return shown.map((c) => {
                       const label = allChannels && usable.length > 1 ? `${d.name} · ${c.name}` : d.name
-                      const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label, type: d.type }
+                      const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label, type: d.type, room: c.room || d.room }
                       return (
                         <label key={c.address} style={row}>
                           <input type="checkbox" checked={inChannels(c.address)} onChange={() => toggleChannel(cfg)} />
@@ -651,7 +699,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.2',
+  version: '0.9.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

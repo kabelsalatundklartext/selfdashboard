@@ -225,7 +225,19 @@ async function rpc(base, method, params, signal) {
   const error = isObject(json) ? json.error : void 0;
   return { ok: res.ok, status: res.status, result, error };
 }
-function mapDevices(result) {
+function buildRoomMap(result) {
+  const map = {};
+  if (!Array.isArray(result)) return map;
+  for (const r of result) {
+    if (!isObject(r)) continue;
+    const name = str(r.name);
+    const ids = Array.isArray(r.channelIds) ? r.channelIds : [];
+    if (!name) continue;
+    for (const cid of ids) map[str(cid)] = name;
+  }
+  return map;
+}
+function mapDevices(result, rooms = {}) {
   if (!Array.isArray(result)) return [];
   const out = [];
   for (const d of result) {
@@ -235,18 +247,22 @@ function mapDevices(result) {
     const iface = str(d.interface) || "BidCos-RF";
     const channelsRaw = Array.isArray(d.channels) ? d.channels : [];
     const channels = [];
+    let devRoom = "";
     for (const c of channelsRaw) {
       if (!isObject(c)) continue;
       const caddr = str(c.address);
       if (!caddr || !caddr.includes(":")) continue;
       const idx = Number(caddr.split(":")[1]);
-      channels.push({ address: caddr, name: str(c.name) || caddr, index: Number.isFinite(idx) ? idx : 0 });
+      const room = rooms[str(c.id)] || "";
+      if (room && !devRoom) devRoom = room;
+      channels.push({ address: caddr, name: str(c.name) || caddr, index: Number.isFinite(idx) ? idx : 0, room });
     }
     out.push({
       address,
       name: str(d.name) || address,
       type: str(d.type),
       interface: iface,
+      room: devRoom,
       channels
     });
   }
@@ -327,13 +343,14 @@ async function handlePost(req) {
       );
     }
     if (action === "list") {
-      const [dev, sys2, prg] = await Promise.all([
+      const [dev, sys2, prg, rooms] = await Promise.all([
         rpc(base, "Device.listAllDetail", { _session_id_: sid }, ac.signal),
         rpc(base, "SysVar.getAll", { _session_id_: sid }, ac.signal),
-        rpc(base, "Program.getAll", { _session_id_: sid }, ac.signal)
+        rpc(base, "Program.getAll", { _session_id_: sid }, ac.signal),
+        rpc(base, "Room.getAll", { _session_id_: sid }, ac.signal)
       ]);
       return Response.json({
-        devices: mapDevices(dev.result),
+        devices: mapDevices(dev.result, buildRoomMap(rooms.result)),
         sysvars: mapSysvars(sys2.result),
         programs: mapPrograms(prg.result)
       });
