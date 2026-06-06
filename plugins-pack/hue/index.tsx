@@ -431,8 +431,9 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   return (
-    <div style={shell}>
+    <div className="hue-root" style={shell}>
       <style>{`
+        .hue-root *{box-sizing:border-box}
         .hue-range{-webkit-appearance:none;appearance:none;height:5px;border-radius:999px;
           background:rgba(255,255,255,.22);outline:none}
         .hue-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
@@ -589,7 +590,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.4',
+  version: '0.9.5',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
