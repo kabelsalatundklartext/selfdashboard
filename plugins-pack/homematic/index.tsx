@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type ChannelCfg = { interface: string; address: string; name: string; type?: string; room?: string }
@@ -41,6 +42,16 @@ function groupByRoom(chs: ChannelCfg[]): [string, ChannelCfg[]][] {
     map.get(r)!.push(c)
   }
   return Array.from(map.entries()).sort((a, b) => (a[0] || '￿').localeCompare(b[0] || '￿'))
+}
+
+/** Reorder room groups by a saved order (unknown rooms keep alphabetical at the end). */
+function applyRoomOrder(groups: [string, ChannelCfg[]][], order: string[]): [string, ChannelCfg[]][] {
+  if (!order.length) return groups
+  const idx = (r: string) => {
+    const i = order.indexOf(r)
+    return i === -1 ? 1e9 : i
+  }
+  return [...groups].sort((a, b) => idx(a[0]) - idx(b[0]))
 }
 
 function parseArr<T>(v: unknown): T[] {
@@ -255,8 +266,9 @@ function WindowIcon({ open, color }: { open: boolean; color: string }) {
   )
 }
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
   const baseUrl = str(config.baseUrl)
   const username = str(config.username)
   const password = str(config.password)
@@ -278,6 +290,23 @@ function Widget({ config }: PluginWidgetProps) {
           gap: 10,
           alignItems: 'start',
         }
+
+  const roomOrder = parseArr<string>(config.roomOrder)
+  const orderedGroups = applyRoomOrder(groupByRoom(channels), roomOrder)
+  const [dragRoom, setDragRoom] = useState<string | null>(null)
+  const dropOnRoom = (target: string) => {
+    const dragged = dragRoom
+    setDragRoom(null)
+    if (!dragged || dragged === target) return
+    const cur = orderedGroups.map((g) => g[0]).filter(Boolean)
+    const from = cur.indexOf(dragged)
+    const to = cur.indexOf(target)
+    if (from === -1 || to === -1) return
+    const next = [...cur]
+    next.splice(from, 1)
+    next.splice(to, 0, dragged)
+    updatePluginConfig(instanceId, { roomOrder: JSON.stringify(next) })
+  }
 
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({})
   const [sysvars, setSysvars] = useState<StateResponse['sysvars']>([])
@@ -406,9 +435,34 @@ function Widget({ config }: PluginWidgetProps) {
 
         {channels.length > 0 ? (
           <div style={roomGridStyle}>
-          {groupByRoom(channels).map(([roomName, roomChannels]) => (
-          <div key={roomName || '_none'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {sectionLabel(roomName || (de ? 'Geräte' : 'Devices'))}
+          {orderedGroups.map(([roomName, roomChannels]) => (
+          <div
+            key={roomName || '_none'}
+            style={{ display: 'flex', flexDirection: 'column', gap: 6, ...(editMode && dragRoom && dragRoom !== roomName ? { outline: '1px dashed var(--border)', outlineOffset: 2, borderRadius: 8 } : {}) }}
+            onDragOver={editMode && roomName ? (e) => e.preventDefault() : undefined}
+            onDrop={editMode && roomName ? () => dropOnRoom(roomName) : undefined}
+          >
+            <div
+              draggable={!!(editMode && roomName)}
+              onDragStart={editMode && roomName ? () => setDragRoom(roomName) : undefined}
+              onDragEnd={() => setDragRoom(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 'clamp(8px, 2cqmin, 10px)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.07em',
+                color: 'var(--text-muted)',
+                cursor: editMode && roomName ? 'grab' : 'default',
+                opacity: dragRoom === roomName ? 0.4 : 1,
+                userSelect: 'none',
+              }}
+            >
+              {editMode && roomName ? <span aria-hidden style={{ opacity: 0.7 }}>⠿</span> : null}
+              {roomName || (de ? 'Geräte' : 'Devices')}
+            </div>
             {roomChannels.map((ch) => {
               const v = values[ch.address]
               const ctrl = detectControl(v, ch.type || '')
@@ -778,7 +832,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.6',
+  version: '0.9.7',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
@@ -793,6 +847,7 @@ export const meta: PluginMeta = {
     { key: 'sysvars', label: 'Variablen (JSON)', type: 'text', defaultValue: '' },
     { key: 'programs', label: 'Programme (JSON)', type: 'text', defaultValue: '' },
     { key: 'columns', label: 'Spalten', type: 'text', defaultValue: '1' },
+    { key: 'roomOrder', label: 'Raum-Reihenfolge (JSON)', type: 'text', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
   ],
 }
