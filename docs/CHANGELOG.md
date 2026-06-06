@@ -15,7 +15,7 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | **TOTP replay protection** | Each TOTP code/step is valid **once** (new `totp_last_step` column, auto-migrated). |
 | **Non-root container** | App runs as UID **1001**; entrypoint chowns `/app/data` + `/app/plugins/custom` on start (opt-out `SELFDASHBOARD_SKIP_CHOWN=1`) and adds read perms on `/crowdsec-data` (opt-out `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`). |
 | **Image build** | `npm ci` (reproducible), `HEALTHCHECK` on `/api/auth/setup-status`, plugin-id validation on store installs, scoped TLS handling for FRITZ! self-signed certs (no more global `NODE_TLS_REJECT_UNAUTHORIZED`). |
-| **Beta image** | `:beta` loads its plugin catalog from the **`beta`** branch (CI build-arg `PLUGINS_REF`). |
+| **Theme reactivity** | The theme provider now subscribes to the theme value reactively — light/dark and colour schemes apply **instantly app-wide** (previously only after a page reload; only CrowdSec updated live). Picking a theme also clears custom colours. |
 
 ### Plugins (2026-06) — store update recommended
 
@@ -26,6 +26,8 @@ This file summarizes **notable plugin and API behaviour** that may not fit in th
 | Fritz-Energy | **1.3.3** | SSRF guard, sealed passwords, scoped TLS agent |
 | Selfstream | **1.1.2** | SSRF guard + sealed-password support (also used by Selfstream-Emby) |
 | Uptime Kuma | **1.0.6** | SSRF guard |
+| Philips Hue | **Beta** | Hue-app-style room/light control: toggles, brightness, real light colour, colour picker |
+| Homematic / RaspberryMatic | **Beta** | Heating (target temp + Auto/Manual/Boost), switches, RGBW colour, window contacts, sensors, sysvars, programs; auto-grouped by CCU room (drag-and-drop, multi-column), renamable devices; JSON-RPC login |
 
 After **Update all**: **Ctrl+F5**. Existing plaintext passwords are migrated automatically on next load.
 
@@ -75,7 +77,7 @@ After **Update all**: **Ctrl+F5**. Existing plaintext passwords are migrated aut
 | **TOTP-Replay-Schutz** | Jeder TOTP-Code/Step gilt nur **einmal** (neue Spalte `totp_last_step`, automatische Migration). |
 | **Non-root-Container** | App läuft als UID **1001**; Entrypoint chownt `/app/data` + `/app/plugins/custom` beim Start (Opt-out `SELFDASHBOARD_SKIP_CHOWN=1`) und setzt Leserechte auf `/crowdsec-data` (Opt-out `SELFDASHBOARD_FIX_CROWDSEC_PERMS=0`). |
 | **Image-Build** | `npm ci` (reproduzierbar), `HEALTHCHECK` auf `/api/auth/setup-status`, Plugin-ID-Validierung bei Store-Installs, gescopetes TLS-Handling für selbstsignierte FRITZ!-Zertifikate (kein globales `NODE_TLS_REJECT_UNAUTHORIZED` mehr). |
-| **Beta-Image** | `:beta` lädt seinen Plugin-Katalog vom **`beta`**-Branch (CI-Build-Arg `PLUGINS_REF`). |
+| **Theme-Reaktivität** | Der Theme-Provider abonniert den Theme-Wert jetzt reaktiv — Hell/Dunkel und Farbschemata greifen **sofort app-weit** (vorher erst nach Reload; live aktualisierte sich nur CrowdSec). Eine Theme-Auswahl setzt außerdem die Eigenfarben zurück. |
 
 ### Plugins (2026-06) — Store-Update empfohlen
 
@@ -86,6 +88,8 @@ After **Update all**: **Ctrl+F5**. Existing plaintext passwords are migrated aut
 | Fritz-Energy | **1.3.3** | SSRF-Schutz, versiegelte Passwörter, gescopeter TLS-Agent |
 | Selfstream | **1.1.2** | SSRF-Schutz + versiegelte Passwörter (auch von Selfstream-Emby genutzt) |
 | Uptime Kuma | **1.0.6** | SSRF-Schutz |
+| Philips Hue | **Beta** | Räume/Lampen im Hue-App-Stil: Toggles, Helligkeit, echte Lichtfarbe, Farbwähler |
+| Homematic / RaspberryMatic | **Beta** | Heizung (Soll-Temp + Auto/Manuell/Boost), Schalter, RGBW-Farbe, Fensterkontakte, Sensoren, Sysvars, Programme; auto-gruppiert nach CCU-Raum (Drag-and-Drop, mehrspaltig), umbenennbare Geräte; JSON-RPC-Login |
 
 Nach **Update all**: **Strg+F5**. Bestehende Klartext-Passwörter werden beim nächsten Laden automatisch migriert.
 
