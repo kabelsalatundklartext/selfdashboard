@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.10'
+const HUE_VERSION = '0.9.11'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -291,7 +291,7 @@ function Widget({ config }: PluginWidgetProps) {
           opacity: item.reachable ? 1 : 0.5,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, width: '100%', overflow: 'hidden' }}>
           {item.hasColor && item.on ? (
             <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
               <input
@@ -481,8 +481,7 @@ function Widget({ config }: PluginWidgetProps) {
           boxSizing: 'border-box',
           overflowY: 'auto',
           overflowX: 'hidden',
-          paddingRight: 10,
-          scrollbarGutter: 'stable',
+          paddingRight: 14,
           ...(style === 'tiles'
             ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 7, alignContent: 'start' }
             : { display: 'flex', flexDirection: 'column', gap: style === 'compact' ? 1 : 6 }),
@@ -604,7 +603,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.10',
+  version: '0.9.11',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
