@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.8'
+const HUE_VERSION = '0.9.9'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -277,18 +277,21 @@ function Widget({ config }: PluginWidgetProps) {
       <div
         key={`${target}-${item.id}`}
         style={{
-          position: 'relative',
           boxSizing: 'border-box',
           width: '100%',
           maxWidth: '100%',
-          padding: briShown ? '11px 14px 16px' : '11px 14px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: briShown ? 9 : 0,
+          padding: briShown ? '11px 14px 12px' : '12px 14px',
           borderRadius: 16,
           background: cardBg(item),
           border: lit ? '1px solid rgba(255,255,255,.08)' : '1px solid var(--border)',
           opacity: item.reachable ? 1 : 0.5,
+          overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 48 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           {item.hasColor && item.on ? (
             <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
               <input
@@ -329,25 +332,23 @@ function Widget({ config }: PluginWidgetProps) {
           {item.on && item.brightness != null && !showBri ? (
             <span style={{ fontSize: 12, color: sub, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{item.brightness}%</span>
           ) : null}
+          <button
+            type="button"
+            onClick={() => void toggle(item)}
+            disabled={!item.reachable}
+            title={item.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}
+            style={{
+              flexShrink: 0,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              lineHeight: 0,
+              cursor: item.reachable ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <Toggle on={item.on} fg={lit ? fg : 'var(--accent)'} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void toggle(item)}
-          disabled={!item.reachable}
-          title={item.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}
-          style={{
-            position: 'absolute',
-            top: 11,
-            right: 14,
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            lineHeight: 0,
-            cursor: item.reachable ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <Toggle on={item.on} fg={lit ? fg : 'var(--accent)'} />
-        </button>
         {briShown ? (
           <input
             className="hue-range hue-range-bottom"
@@ -359,11 +360,8 @@ function Widget({ config }: PluginWidgetProps) {
             onMouseUp={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
             onTouchEnd={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
             style={{
-              position: 'absolute',
-              left: 14,
-              right: 14,
-              bottom: 7,
-              width: 'auto',
+              display: 'block',
+              width: '100%',
               accentColor: lit ? fg : 'var(--accent)',
               cursor: 'pointer',
             }}
@@ -602,7 +600,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.8',
+  version: '0.9.9',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
