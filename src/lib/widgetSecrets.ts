@@ -27,6 +27,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   npm: ['password'],
   openmediavault: ['password'],
   homematic: ['password'],
+  'fritz-smarthome': ['password'],
 }
 
 type PluginLike = { pluginId?: unknown; config?: unknown }
@@ -69,5 +70,4 @@ export function sealDashboardSecrets(
     return { ...d, plugins }
   })
   if (!anyChanged) return { state, changed: false }
-  return { state: { ...state, dashboards }, changed: true }
-}
+  return { state: { ...state
