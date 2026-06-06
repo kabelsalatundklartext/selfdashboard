@@ -110,6 +110,7 @@ flowchart TB
 
 - **Philips Hue (Beta)** — control lights & rooms in the Hue-app style: per-room toggle, brightness slider, real light colour, colour picker.
 - **Homematic / RaspberryMatic (Beta)** — heating thermostats (target temp + Auto/Manual/Boost), switches, dimmers (on/off + colour), window contacts, sensors, system variables and programs; auto-grouped by CCU room (drag-and-drop sortable, multi-column), devices renamable. JSON-RPC login, no add-on required.
+- **FRITZ! Smart Home (Beta)** — FRITZ!DECT thermostats (target temp), smart plugs (on/off + watt), window contacts and sensors via the AHA-HTTP interface; PBKDF2 SID login.
 - **Jellyfin** — active sessions (own widget) · **Selfstream · Emby · Jellyfin** — combined stream list with a configurable title.
 - **8 new integrations (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, plus **Speedtest Tracker**.
 - **Auto-index store** — drop a plugin folder into `plugins-pack/<id>/` and push; `plugins-index.json` regenerates automatically (no manual index editing).
@@ -183,6 +184,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/emby.png" width="22"/> | [Emby](plugins-pack/emby/README.md) | Media | Active sessions |
 | 📈 | [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart |
 | ⚡ | [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostats, plugs, contacts (AHA) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heating, switches, sensors, rooms (RaspberryMatic) **(Beta)** |
 | 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs |
@@ -548,6 +550,7 @@ flowchart TB
 
 - **Philips Hue (Beta)** — Lampen & Räume im Hue-App-Stil steuern: Toggle pro Raum, Helligkeits-Slider, echte Lichtfarbe, Farbwähler.
 - **Homematic / RaspberryMatic (Beta)** — Heizungsthermostate (Soll-Temp + Auto/Manuell/Boost), Schalter, Dimmer (an/aus + Farbe), Fensterkontakte, Sensoren, Systemvariablen und Programme; automatisch nach CCU-Raum gruppiert (per Drag-and-Drop sortierbar, mehrspaltig), Geräte umbenennbar. JSON-RPC-Login, kein Addon nötig.
+- **FRITZ! Smart Home (Beta)** — FRITZ!DECT-Thermostate (Soll-Temp), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren über das AHA-HTTP-Interface; PBKDF2-SID-Login.
 - **Jellyfin** — aktive Sessions (eigenes Widget) · **Selfstream · Emby · Jellyfin** — kombinierte Stream-Liste mit einstellbarem Titel.
 - **8 neue Integrationen (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, dazu **Speedtest Tracker**.
 - **Auto-Index-Store** — Plugin-Ordner nach `plugins-pack/<id>/` legen und pushen; `plugins-index.json` wird automatisch neu generiert (kein Hand-Editieren des Index).
@@ -621,6 +624,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/emby.png" width="22"/> | [Emby](plugins-pack/emby/README.md) | Media | Aktive Sessions |
 | 📈 | [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve |
 | ⚡ | [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostate, Steckdosen, Kontakte (AHA) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heizung, Schalter, Sensoren, Räume (RaspberryMatic) **(Beta)** |
 | 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten |
