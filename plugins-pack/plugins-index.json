@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-06T10:20:33.233Z",
+  "generatedAt": "2026-06-06T17:59:33.551Z",
   "plugins": [
     {
       "id": "adguard",
@@ -165,6 +165,29 @@
       "files": [
         "plugin.json",
         "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
+    },
+    {
+      "id": "homematic",
+      "name": "Homematic",
+      "description": "Homematic / RaspberryMatic per JSON-RPC (Login): Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)",
+      "version": "0.9.0",
+      "author": "SelfDashboard",
+      "category": "utility",
+      "icon": "🏠",
+      "iconUrl": "https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/homematic/icon.svg",
+      "defaultLayout": {
+        "w": 3,
+        "h": 4,
+        "minW": 2,
+        "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "icon.svg",
         "server.mjs"
       ],
       "hasServer": true

@@ -26,6 +26,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   unifi: ['password'],
   npm: ['password'],
   openmediavault: ['password'],
+  homematic: ['password'],
 }
 
 type PluginLike = { pluginId?: unknown; config?: unknown }
