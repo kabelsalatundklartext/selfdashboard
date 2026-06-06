@@ -11,6 +11,8 @@ type HueLamp = {
   brightness: number | null
   reachable: boolean
   kind?: string
+  hasColor?: boolean
+  color?: string | null
 }
 
 type StateResponse = {
@@ -19,6 +21,8 @@ type StateResponse = {
   error?: string
   detail?: string
 }
+
+type Style = 'cards' | 'compact' | 'tiles'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -29,6 +33,23 @@ function num(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Relative luminance of a #rrggbb colour (0 dark – 1 light). */
+function luminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return 0
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/** Text colour with good contrast on a coloured tile. */
+function textOn(hex: string | null | undefined): string {
+  if (!hex) return 'var(--text)'
+  return luminance(hex) > 0.62 ? '#15171e' : '#ffffff'
 }
 
 function errorText(code: string, detail: string, de: boolean): string {
@@ -59,16 +80,31 @@ async function callHue(body: Record<string, unknown>): Promise<StateResponse> {
   return json
 }
 
-function Toggle({ on }: { on: boolean }) {
+function BulbIcon({ color, size = 16 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+      <path
+        d="M9 18h6m-5 3h4M12 3a7 7 0 0 0-4 12.7c.8.6 1.3 1.3 1.5 2.3h5c.2-1 .7-1.7 1.5-2.3A7 7 0 0 0 12 3Z"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function Toggle({ on, fg }: { on: boolean; fg: string }) {
   return (
     <span
       aria-hidden
       style={{
-        width: 34,
-        height: 19,
+        width: 38,
+        height: 22,
         borderRadius: 999,
         flexShrink: 0,
-        background: on ? 'var(--accent)' : 'color-mix(in srgb, var(--text-muted) 35%, transparent)',
+        background: on ? 'color-mix(in srgb, ' + fg + ' 38%, transparent)' : 'rgba(255,255,255,.14)',
+        border: '1px solid ' + (on ? 'transparent' : 'rgba(255,255,255,.18)'),
         position: 'relative',
         transition: 'background 0.15s',
       }}
@@ -77,13 +113,13 @@ function Toggle({ on }: { on: boolean }) {
         style={{
           position: 'absolute',
           top: 2,
-          left: on ? 17 : 2,
-          width: 15,
-          height: 15,
+          left: on ? 18 : 2,
+          width: 17,
+          height: 17,
           borderRadius: '50%',
           background: '#fff',
           transition: 'left 0.15s',
-          boxShadow: '0 1px 2px rgba(0,0,0,.35)',
+          boxShadow: '0 1px 3px rgba(0,0,0,.4)',
         }}
       />
     </span>
@@ -96,6 +132,10 @@ function Widget({ config }: PluginWidgetProps) {
   const apiKey = str(config.apiKey)
   const refreshMs = Math.max(5, num(config.refreshSeconds) || 20) * 1000
   const title = config.title === undefined ? 'Hue' : str(config.title)
+  const style: Style =
+    config.style === 'compact' ? 'compact' : config.style === 'tiles' ? 'tiles' : 'cards'
+  const colorBg = config.colorBackground !== false
+  const showBri = config.showBrightness !== false
   const configured = Boolean(baseUrl && apiKey)
 
   const [view, setView] = useState<'groups' | 'lights'>(
@@ -113,9 +153,8 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     const json = await callHue({ url: baseUrl, apiKey, action: 'state' })
-    if (json.error) {
-      setError(errorText(json.error, json.detail || '', de))
-    } else {
+    if (json.error) setError(errorText(json.error, json.detail || '', de))
+    else {
       setError(null)
       setGroups(Array.isArray(json.groups) ? json.groups : [])
       setLights(Array.isArray(json.lights) ? json.lights : [])
@@ -140,15 +179,13 @@ function Widget({ config }: PluginWidgetProps) {
 
   const toggle = async (item: HueLamp) => {
     busyRef.current = true
-    apply(item.id, { on: !item.on }) // optimistic
+    apply(item.id, { on: !item.on })
     const json = await callHue({ url: baseUrl, apiKey, action: 'set', target, id: item.id, on: !item.on })
     busyRef.current = false
     if (json.error) {
-      apply(item.id, { on: item.on }) // revert
+      apply(item.id, { on: item.on })
       setError(errorText(json.error, json.detail || '', de))
-    } else {
-      void refresh()
-    }
+    } else void refresh()
   }
 
   const setBrightness = async (item: HueLamp, pct: number) => {
@@ -156,6 +193,14 @@ function Widget({ config }: PluginWidgetProps) {
     apply(item.id, { brightness: pct, on: pct > 0 })
     await callHue({ url: baseUrl, apiKey, action: 'set', target, id: item.id, bri: pct, on: pct > 0 })
     busyRef.current = false
+  }
+
+  const setColor = async (item: HueLamp, hex: string) => {
+    busyRef.current = true
+    apply(item.id, { color: hex, on: true })
+    await callHue({ url: baseUrl, apiKey, action: 'set', target, id: item.id, hex, on: true })
+    busyRef.current = false
+    setTimeout(() => void refresh(), 400)
   }
 
   const shell: CSSProperties = {
@@ -177,9 +222,7 @@ function Widget({ config }: PluginWidgetProps) {
       <div style={{ ...shell, alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
         <span style={{ fontSize: 24 }}>💡</span>
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
-          {de
-            ? 'Bridge-IP eintragen und in den Einstellungen koppeln.'
-            : 'Enter the bridge IP and pair in settings.'}
+          {de ? 'Bridge-IP eintragen und in den Einstellungen koppeln.' : 'Enter the bridge IP and pair in settings.'}
         </p>
       </div>
     )
@@ -189,7 +232,7 @@ function Widget({ config }: PluginWidgetProps) {
     flex: 1,
     fontSize: 11,
     fontWeight: active ? 700 : 500,
-    padding: '4px 0',
+    padding: '4px 10px',
     borderRadius: 6,
     border: 'none',
     cursor: 'pointer',
@@ -197,138 +240,219 @@ function Widget({ config }: PluginWidgetProps) {
     color: active ? '#fff' : 'var(--text-muted)',
   })
 
+  const cardBg = (item: HueLamp): string => {
+    if (item.on && colorBg && item.color) {
+      return `linear-gradient(100deg, ${item.color}, color-mix(in srgb, ${item.color} 62%, #000))`
+    }
+    return 'var(--surface-2)'
+  }
+
+  const renderRow = (item: HueLamp) => {
+    const lit = item.on && colorBg && item.color
+    const fg = lit ? textOn(item.color) : 'var(--text)'
+    const sub = lit ? `color-mix(in srgb, ${textOn(item.color)} 72%, transparent)` : 'var(--text-muted)'
+    const iconColor = item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'
+    return (
+      <div
+        key={`${target}-${item.id}`}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 7,
+          padding: '9px 12px',
+          borderRadius: 14,
+          background: cardBg(item),
+          border: lit ? '1px solid rgba(255,255,255,.08)' : '1px solid var(--border)',
+          opacity: item.reachable ? 1 : 0.5,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {item.hasColor && item.on ? (
+            <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
+              <input
+                type="color"
+                value={item.color ?? '#ffffff'}
+                onChange={(e) => void setColor(item, e.target.value)}
+                style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}
+              />
+              <span
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: item.color ?? '#fff',
+                  border: '2px solid rgba(255,255,255,.7)',
+                  boxShadow: '0 0 6px ' + (item.color ?? '#fff'),
+                }}
+              />
+            </label>
+          ) : (
+            <BulbIcon color={iconColor} size={18} />
+          )}
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 13,
+              fontWeight: 600,
+              color: fg,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={item.name}
+          >
+            {item.name}
+          </span>
+          {item.on && item.brightness != null && !showBri ? (
+            <span style={{ fontSize: 11, color: sub, fontVariantNumeric: 'tabular-nums' }}>{item.brightness}%</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void toggle(item)}
+            disabled={!item.reachable}
+            title={item.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}
+            style={{ background: 'none', border: 'none', padding: 0, flexShrink: 0, cursor: item.reachable ? 'pointer' : 'not-allowed' }}
+          >
+            <Toggle on={item.on} fg={lit ? fg : 'var(--accent)'} />
+          </button>
+        </div>
+        {item.on && showBri ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="hue-range"
+              type="range"
+              min={1}
+              max={100}
+              value={item.brightness ?? 100}
+              onChange={(e) => apply(item.id, { brightness: Number(e.target.value) })}
+              onMouseUp={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
+              onTouchEnd={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
+              style={{ flex: 1, accentColor: lit ? fg : 'var(--accent)', cursor: 'pointer' }}
+              aria-label={de ? 'Helligkeit' : 'Brightness'}
+            />
+            <span style={{ fontSize: 11, color: sub, fontVariantNumeric: 'tabular-nums', width: 30, textAlign: 'right' }}>
+              {item.brightness ?? 100}%
+            </span>
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  const renderCompact = (item: HueLamp) => {
+    const dot = item.on ? item.color || 'var(--accent)' : 'transparent'
+    return (
+      <button
+        key={`${target}-${item.id}`}
+        type="button"
+        onClick={() => void toggle(item)}
+        disabled={!item.reachable}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          width: '100%',
+          padding: '6px 8px',
+          borderRadius: 8,
+          background: 'transparent',
+          border: 'none',
+          cursor: item.reachable ? 'pointer' : 'not-allowed',
+          opacity: item.reachable ? 1 : 0.5,
+          textAlign: 'left',
+        }}
+      >
+        <span style={{ width: 11, height: 11, borderRadius: '50%', flexShrink: 0, background: dot, border: item.on ? 'none' : '1.5px solid var(--text-muted)' }} />
+        <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.name}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {item.on ? `${item.brightness ?? 100}%` : de ? 'Aus' : 'Off'}
+        </span>
+      </button>
+    )
+  }
+
+  const renderTile = (item: HueLamp) => {
+    const lit = item.on && colorBg && item.color
+    const fg = lit ? textOn(item.color) : 'var(--text)'
+    return (
+      <button
+        key={`${target}-${item.id}`}
+        type="button"
+        onClick={() => void toggle(item)}
+        disabled={!item.reachable}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: 6,
+          minHeight: 64,
+          padding: '10px 12px',
+          borderRadius: 12,
+          background: cardBg(item),
+          border: lit ? '1px solid rgba(255,255,255,.08)' : '1px solid var(--border)',
+          cursor: item.reachable ? 'pointer' : 'not-allowed',
+          opacity: item.reachable ? 1 : 0.5,
+          textAlign: 'left',
+        }}
+      >
+        <BulbIcon color={item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'} size={18} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
+          {item.name}
+        </span>
+      </button>
+    )
+  }
+
   return (
     <div style={shell}>
       <style>{`
-        .hue-range { -webkit-appearance: none; appearance: none; height: 5px; border-radius: 999px;
-          background: color-mix(in srgb, var(--text-muted) 28%, transparent); outline: none; }
-        .hue-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
-          border-radius: 50%; background: var(--accent); cursor: pointer;
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-        .hue-range::-moz-range-thumb { width: 13px; height: 13px; border: none; border-radius: 50%;
-          background: var(--accent); cursor: pointer; }
-        .hue-range::-moz-range-progress { height: 5px; border-radius: 999px; background: var(--accent); }
+        .hue-range{-webkit-appearance:none;appearance:none;height:5px;border-radius:999px;
+          background:rgba(255,255,255,.22);outline:none}
+        .hue-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
+          border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+        .hue-range::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:#fff;cursor:pointer}
       `}</style>
       <header style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {title ? (
-          <span
-            style={{
-              fontSize: 'clamp(9px, 2.4cqmin, 10px)',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--text-muted)',
-              flexShrink: 0,
-            }}
-          >
+          <span style={{ fontSize: 'clamp(9px, 2.4cqmin, 10px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', flexShrink: 0 }}>
             {title}
           </span>
         ) : null}
-        <div
-          role="tablist"
-          style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            gap: 2,
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: 2,
-            minWidth: 120,
-          }}
-        >
-          <button type="button" onClick={() => setView('groups')} style={segStyle(view === 'groups')}>
-            {de ? 'Räume' : 'Rooms'}
-          </button>
-          <button type="button" onClick={() => setView('lights')} style={segStyle(view === 'lights')}>
-            {de ? 'Lampen' : 'Lights'}
-          </button>
+        <div role="tablist" style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
+          <button type="button" onClick={() => setView('groups')} style={segStyle(view === 'groups')}>{de ? 'Räume' : 'Rooms'}</button>
+          <button type="button" onClick={() => setView('lights')} style={segStyle(view === 'lights')}>{de ? 'Lampen' : 'Lights'}</button>
         </div>
       </header>
 
       {loading && items.length === 0 && !error ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[70, 55, 80].map((w, i) => (
-            <div key={i} className="skeleton" style={{ height: 14, width: `${w}%`, borderRadius: 4 }} />
-          ))}
+          {[70, 55, 80].map((w, i) => <div key={i} className="skeleton" style={{ height: 16, width: `${w}%`, borderRadius: 6 }} />)}
         </div>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 6 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: 4,
+          ...(style === 'tiles'
+            ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 7, alignContent: 'start' }
+            : { display: 'flex', flexDirection: 'column', gap: style === 'compact' ? 1 : 6 }),
+        }}
+      >
         {!loading && items.length === 0 && !error ? (
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-            {view === 'groups'
-              ? de ? 'Keine Räume gefunden.' : 'No rooms found.'
-              : de ? 'Keine Lampen gefunden.' : 'No lights found.'}
+            {view === 'groups' ? (de ? 'Keine Räume gefunden.' : 'No rooms found.') : de ? 'Keine Lampen gefunden.' : 'No lights found.'}
           </p>
         ) : null}
-
-        {items.map((item) => (
-          <div
-            key={`${target}-${item.id}`}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 5,
-              padding: '6px 8px',
-              borderRadius: 8,
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border)',
-              opacity: item.reachable ? 1 : 0.5,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-                title={item.name}
-              >
-                {item.name}
-              </span>
-              {item.on && item.brightness != null ? (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
-                  {item.brightness}%
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void toggle(item)}
-                disabled={!item.reachable}
-                title={item.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}
-                style={{ background: 'none', border: 'none', padding: 0, flexShrink: 0, cursor: item.reachable ? 'pointer' : 'not-allowed' }}
-              >
-                <Toggle on={item.on} />
-              </button>
-            </div>
-            {item.on ? (
-              <input
-                className="hue-range"
-                type="range"
-                min={1}
-                max={100}
-                value={item.brightness ?? 100}
-                onChange={(e) => apply(item.id, { brightness: Number(e.target.value) })}
-                onMouseUp={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
-                onTouchEnd={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
-                style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
-                aria-label={de ? 'Helligkeit' : 'Brightness'}
-              />
-            ) : null}
-          </div>
-        ))}
+        {items.map((item) => (style === 'compact' ? renderCompact(item) : style === 'tiles' ? renderTile(item) : renderRow(item)))}
       </div>
 
-      {error ? (
-        <p style={{ margin: 0, fontSize: 10, color: '#ef4444', lineHeight: 1.4, wordBreak: 'break-word' }}>{error}</p>
-      ) : null}
+      {error ? <p style={{ margin: 0, fontSize: 10, color: '#ef4444', lineHeight: 1.4, wordBreak: 'break-word' }}>{error}</p> : null}
     </div>
   )
 }
@@ -373,55 +497,25 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-          {de ? 'Widget-Titel (leer = ausblenden)' : 'Widget title (empty = hidden)'}
-        </label>
-        <input
-          style={inp}
-          value={config.title === undefined ? 'Hue' : str(config.title)}
-          placeholder="Hue"
-          onChange={(e) => onChange('title', e.target.value)}
-        />
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Widget-Titel (leer = ausblenden)' : 'Widget title (empty = hidden)'}</label>
+        <input style={inp} value={config.title === undefined ? 'Hue' : str(config.title)} placeholder="Hue" onChange={(e) => onChange('title', e.target.value)} />
       </div>
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Bridge-IP / URL' : 'Bridge IP / URL'}</label>
-        <input
-          style={inp}
-          value={baseUrl}
-          placeholder="192.168.1.50"
-          onChange={(e) => onChange('baseUrl', e.target.value)}
-        />
+        <input style={inp} value={baseUrl} placeholder="192.168.1.50" onChange={(e) => onChange('baseUrl', e.target.value)} />
       </div>
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>API-Key</label>
-        <input
-          style={inp}
-          type="password"
-          value={apiKey}
-          placeholder={de ? 'per „Bridge koppeln" erzeugen' : 'create via “Pair bridge”'}
-          onChange={(e) => onChange('apiKey', e.target.value)}
-        />
+        <input style={inp} type="password" value={apiKey} placeholder={de ? 'per „Bridge koppeln" erzeugen' : 'create via “Pair bridge”'} onChange={(e) => onChange('apiKey', e.target.value)} />
         <button
           type="button"
           onClick={() => void pair()}
           disabled={pairing}
-          style={{
-            marginTop: 8,
-            padding: '7px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--border)',
-            background: 'var(--accent)',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: pairing ? 'wait' : 'pointer',
-          }}
+          style={{ marginTop: 8, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: pairing ? 'wait' : 'pointer' }}
         >
           {pairing ? (de ? 'Koppeln …' : 'Pairing …') : de ? '🔗 Bridge koppeln' : '🔗 Pair bridge'}
         </button>
-        {pairMsg ? (
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{pairMsg}</p>
-        ) : null}
+        {pairMsg ? <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{pairMsg}</p> : null}
         <p style={{ margin: '6px 0 0', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
           {de
             ? 'Bridge-IP eintragen, den runden Knopf an der Hue Bridge drücken, dann innerhalb 30 s auf „Bridge koppeln" klicken. Der API-Key wird verschlüsselt gespeichert.'
@@ -429,28 +523,33 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </p>
       </div>
       <div>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Darstellung' : 'Style'}</label>
+        <select style={inp} value={str(config.style) || 'cards'} onChange={(e) => onChange('style', e.target.value)}>
+          <option value="cards">{de ? 'Karten (Hue-Stil, Farbe)' : 'Cards (Hue style, colour)'}</option>
+          <option value="compact">{de ? 'Kompakt (Liste)' : 'Compact (list)'}</option>
+          <option value="tiles">{de ? 'Kacheln' : 'Tiles'}</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={config.colorBackground !== false} onChange={(e) => onChange('colorBackground', e.target.checked)} />
+          <span>{de ? 'Karten in echter Lichtfarbe (an)' : 'Cards in real light colour (on)'}</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={config.showBrightness !== false} onChange={(e) => onChange('showBrightness', e.target.checked)} />
+          <span>{de ? 'Helligkeits-Slider zeigen' : 'Show brightness slider'}</span>
+        </label>
+      </div>
+      <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Standard-Ansicht' : 'Default view'}</label>
-        <select
-          style={inp}
-          value={config.defaultView === 'lights' ? 'lights' : 'groups'}
-          onChange={(e) => onChange('defaultView', e.target.value)}
-        >
+        <select style={inp} value={config.defaultView === 'lights' ? 'lights' : 'groups'} onChange={(e) => onChange('defaultView', e.target.value)}>
           <option value="groups">{de ? 'Räume' : 'Rooms'}</option>
           <option value="lights">{de ? 'Lampen' : 'Lights'}</option>
         </select>
       </div>
       <div>
-        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-          {de ? 'Aktualisieren (Sek.)' : 'Refresh (seconds)'}
-        </label>
-        <input
-          style={inp}
-          type="number"
-          min={5}
-          max={300}
-          value={num(config.refreshSeconds) || 20}
-          onChange={(e) => onChange('refreshSeconds', Math.max(5, num(e.target.value) || 20))}
-        />
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Aktualisieren (Sek.)' : 'Refresh (seconds)'}</label>
+        <input style={inp} type="number" min={5} max={300} value={num(config.refreshSeconds) || 20} onChange={(e) => onChange('refreshSeconds', Math.max(5, num(e.target.value) || 20))} />
       </div>
     </div>
   )
@@ -460,8 +559,8 @@ export const meta: PluginMeta = {
   id: 'hue',
   name: 'Philips Hue',
   description:
-    'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Status. Bridge-Koppeln im Plugin.',
-  version: '0.9.1',
+    'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
@@ -471,6 +570,9 @@ export const meta: PluginMeta = {
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Hue' },
     { key: 'baseUrl', label: 'Bridge-IP / URL', type: 'text', defaultValue: '' },
     { key: 'apiKey', label: 'API-Key', type: 'password', defaultValue: '' },
+    { key: 'style', label: 'Darstellung', type: 'text', defaultValue: 'cards' },
+    { key: 'colorBackground', label: 'Lichtfarbe als Hintergrund', type: 'boolean', defaultValue: true },
+    { key: 'showBrightness', label: 'Helligkeits-Slider', type: 'boolean', defaultValue: true },
     { key: 'defaultView', label: 'Standard-Ansicht', type: 'text', defaultValue: 'groups' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 20 },
   ],

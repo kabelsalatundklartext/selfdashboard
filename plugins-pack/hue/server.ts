@@ -16,6 +16,8 @@ type ReqBody = {
   on?: boolean
   /** Brightness 1–254 (Hue scale). */
   bri?: number
+  /** Colour as #rrggbb — converted to xy server-side. */
+  hex?: string
 }
 
 type HueLamp = {
@@ -26,6 +28,51 @@ type HueLamp = {
   brightness: number | null
   reachable: boolean
   kind?: string
+  /** true when the lamp/room supports colour (xy). */
+  hasColor: boolean
+  /** Approx. current colour as #rrggbb (for the swatch), null when none. */
+  color: string | null
+}
+
+/** hex #rrggbb → Hue xy (CIE). */
+function hexToXy(hex: string): [number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const intval = parseInt(m[1], 16)
+  const gamma = (c: number) => (c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92)
+  const r = gamma(((intval >> 16) & 255) / 255)
+  const g = gamma(((intval >> 8) & 255) / 255)
+  const b = gamma((intval & 255) / 255)
+  const X = r * 0.4124 + g * 0.3576 + b * 0.1805
+  const Y = r * 0.2126 + g * 0.7152 + b * 0.0722
+  const Z = r * 0.0193 + g * 0.1192 + b * 0.9505
+  const sum = X + Y + Z
+  if (sum === 0) return [0.3127, 0.329]
+  return [Number((X / sum).toFixed(4)), Number((Y / sum).toFixed(4))]
+}
+
+/** Hue xy → approx. #rrggbb for display. */
+function xyToHex(xy: unknown): string | null {
+  if (!Array.isArray(xy) || xy.length < 2) return null
+  const x = Number(xy[0])
+  const y = Number(xy[1])
+  if (!Number.isFinite(x) || !Number.isFinite(y) || y === 0) return null
+  const z = 1 - x - y
+  const Y = 1
+  const X = (Y / y) * x
+  const Z = (Y / y) * z
+  let r = X * 1.656492 - Y * 0.354851 - Z * 0.255038
+  let g = -X * 0.707196 + Y * 1.655397 + Z * 0.036152
+  let b = X * 0.051713 - Y * 0.121364 + Z * 1.01153
+  const max = Math.max(r, g, b)
+  if (max > 1) {
+    r /= max
+    g /= max
+    b /= max
+  }
+  const rev = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055)
+  const cl = (c: number) => Math.max(0, Math.min(255, Math.round(rev(Math.max(0, c)) * 255)))
+  return '#' + [cl(r), cl(g), cl(b)].map((v) => v.toString(16).padStart(2, '0')).join('')
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -94,19 +141,28 @@ async function hueFetch(
   return { ok: res.ok, status: res.status, json }
 }
 
+function supportsColor(type: string, state: Record<string, unknown>): boolean {
+  if ('xy' in state) return true
+  return /color/i.test(type) && !/temperature/i.test(type)
+}
+
 function mapLights(obj: unknown): HueLamp[] {
   if (!isObject(obj)) return []
   const out: HueLamp[] = []
   for (const [id, raw] of Object.entries(obj)) {
     if (!isObject(raw)) continue
     const state = isObject(raw.state) ? raw.state : {}
+    const type = str(raw.type)
+    const hasColor = supportsColor(type, state)
     out.push({
       id,
       name: str(raw.name) || `Lampe ${id}`,
       on: state.on === true,
       brightness: briToPct(state.bri),
       reachable: state.reachable !== false,
-      kind: str(raw.type) || undefined,
+      kind: type || undefined,
+      hasColor,
+      color: hasColor ? xyToHex(state.xy) : null,
     })
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
@@ -123,6 +179,7 @@ function mapGroups(obj: unknown): HueLamp[] {
     if (lights.length === 0 && type !== 'Room' && type !== 'Zone') continue
     const state = isObject(raw.state) ? raw.state : {}
     const action = isObject(raw.action) ? raw.action : {}
+    const hasColor = 'xy' in action
     out.push({
       id,
       name: str(raw.name) || `Gruppe ${id}`,
@@ -130,6 +187,8 @@ function mapGroups(obj: unknown): HueLamp[] {
       brightness: briToPct(action.bri),
       reachable: true,
       kind: type || undefined,
+      hasColor,
+      color: hasColor ? xyToHex(action.xy) : null,
     })
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
@@ -188,6 +247,13 @@ async function handlePost(req: Request): Promise<Response> {
       if (typeof body.bri === 'number' && Number.isFinite(body.bri)) {
         payload.on = body.on !== false
         payload.bri = pctToBri(body.bri <= 100 ? body.bri : briToPct(body.bri) ?? 100)
+      }
+      if (typeof body.hex === 'string') {
+        const xy = hexToXy(body.hex)
+        if (xy) {
+          payload.on = body.on !== false
+          payload.xy = xy
+        }
       }
       if (Object.keys(payload).length === 0) {
         return Response.json({ error: 'nothing_to_set' }, { status: 400 })
