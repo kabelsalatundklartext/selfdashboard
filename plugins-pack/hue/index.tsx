@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.12'
+const HUE_VERSION = '0.9.13'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -119,8 +119,11 @@ function Toggle({ on, fg }: { on: boolean; fg: string }) {
     <span
       aria-hidden
       style={{
+        display: 'inline-block',
         width: 38,
         height: 22,
+        minWidth: 38,
+        boxSizing: 'border-box',
         borderRadius: 999,
         flexShrink: 0,
         background: on ? 'color-mix(in srgb, ' + fg + ' 38%, transparent)' : 'rgba(255,255,255,.14)',
@@ -604,7 +607,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.12',
+  version: '0.9.13',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
