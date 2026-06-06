@@ -276,6 +276,9 @@ function Widget({ config }: PluginWidgetProps) {
         key={`${target}-${item.id}`}
         style={{
           position: 'relative',
+          boxSizing: 'border-box',
+          width: '100%',
+          maxWidth: '100%',
           padding: briShown ? '11px 14px 16px' : '11px 14px',
           borderRadius: 16,
           background: cardBg(item),
@@ -373,6 +376,7 @@ function Widget({ config }: PluginWidgetProps) {
           alignItems: 'center',
           gap: 9,
           width: '100%',
+          boxSizing: 'border-box',
           padding: '6px 8px',
           borderRadius: 8,
           background: 'transparent',
@@ -408,6 +412,7 @@ function Widget({ config }: PluginWidgetProps) {
           justifyContent: 'space-between',
           gap: 6,
           minHeight: 64,
+          boxSizing: 'border-box',
           padding: '10px 12px',
           borderRadius: 12,
           background: cardBg(item),
@@ -584,7 +589,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.3',
+  version: '0.9.4',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
