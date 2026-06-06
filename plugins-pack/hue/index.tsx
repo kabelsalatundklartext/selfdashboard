@@ -13,6 +13,30 @@ type HueLamp = {
   kind?: string
   hasColor?: boolean
   color?: string | null
+  roomClass?: string
+}
+
+const ROOM_PATHS: Record<string, string> = {
+  living: 'M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3m-18 0a2 2 0 0 0-2 2v3h22v-3a2 2 0 0 0-2-2m-18 0h18M5 17v2m14-2v2',
+  bedroom: 'M3 7v11m0-4h18m0 4V9a2 2 0 0 0-2-2h-7v7M3 11h4a2 2 0 0 1 2 2',
+  bathroom: 'M4 12V6a2 2 0 0 1 2-2c1.1 0 1.6.6 2 1.5M4 12h16v2a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-2Zm3 9-1 1m11-1 1 1M8 7h.01',
+  kitchen: 'M19 3v18M15 3v6a2 2 0 0 0 2 2M9 3v18M9 3c-2 0-3 1.5-3 4s1 4 3 4',
+  office: 'M3 4h18v12H3zM8 20h8m-4-4v4',
+  hallway: 'M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 12h.01M5 21h14',
+  garden: 'M12 3c2 4 4 6 4 9a4 4 0 0 1-8 0c0-3 2-5 4-9ZM12 21v-5',
+  bulb: 'M9 18h6m-5 3h4M12 3a7 7 0 0 0-4 12.7c.8.6 1.3 1.3 1.5 2.3h5c.2-1 .7-1.7 1.5-2.3A7 7 0 0 0 12 3Z',
+}
+
+function roomPath(cls?: string): string {
+  const c = (cls || '').toLowerCase()
+  if (/living|lounge|tv/.test(c)) return ROOM_PATHS.living
+  if (/bed|kid|nursery/.test(c)) return ROOM_PATHS.bedroom
+  if (/bath|toilet|shower/.test(c)) return ROOM_PATHS.bathroom
+  if (/kitchen|dining/.test(c)) return ROOM_PATHS.kitchen
+  if (/office|computer|studio/.test(c)) return ROOM_PATHS.office
+  if (/hall|stair|entr|floor|garage|closet/.test(c)) return ROOM_PATHS.hallway
+  if (/garden|terrace|balcon|outdoor/.test(c)) return ROOM_PATHS.garden
+  return ROOM_PATHS.bulb
 }
 
 type StateResponse = {
@@ -80,16 +104,10 @@ async function callHue(body: Record<string, unknown>): Promise<StateResponse> {
   return json
 }
 
-function BulbIcon({ color, size = 16 }: { color: string; size?: number }) {
+function RoomIcon({ d, color, size = 20 }: { d: string; color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
-      <path
-        d="M9 18h6m-5 3h4M12 3a7 7 0 0 0-4 12.7c.8.6 1.3 1.3 1.5 2.3h5c.2-1 .7-1.7 1.5-2.3A7 7 0 0 0 12 3Z"
-        stroke={color}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d={d} stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -252,21 +270,20 @@ function Widget({ config }: PluginWidgetProps) {
     const fg = lit ? textOn(item.color) : 'var(--text)'
     const sub = lit ? `color-mix(in srgb, ${textOn(item.color)} 72%, transparent)` : 'var(--text-muted)'
     const iconColor = item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'
+    const briShown = item.on && showBri
     return (
       <div
         key={`${target}-${item.id}`}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 7,
-          padding: '9px 12px',
-          borderRadius: 14,
+          position: 'relative',
+          padding: briShown ? '11px 14px 16px' : '11px 14px',
+          borderRadius: 16,
           background: cardBg(item),
           border: lit ? '1px solid rgba(255,255,255,.08)' : '1px solid var(--border)',
           opacity: item.reachable ? 1 : 0.5,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {item.hasColor && item.on ? (
             <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
               <input
@@ -277,23 +294,23 @@ function Widget({ config }: PluginWidgetProps) {
               />
               <span
                 style={{
-                  width: 20,
-                  height: 20,
+                  width: 22,
+                  height: 22,
                   borderRadius: '50%',
                   background: item.color ?? '#fff',
-                  border: '2px solid rgba(255,255,255,.7)',
+                  border: '2px solid rgba(255,255,255,.75)',
                   boxShadow: '0 0 6px ' + (item.color ?? '#fff'),
                 }}
               />
             </label>
           ) : (
-            <BulbIcon color={iconColor} size={18} />
+            <RoomIcon d={view === 'groups' ? roomPath(item.roomClass) : ROOM_PATHS.bulb} color={iconColor} size={22} />
           )}
           <span
             style={{
               flex: 1,
               minWidth: 0,
-              fontSize: 13,
+              fontSize: 14,
               fontWeight: 600,
               color: fg,
               overflow: 'hidden',
@@ -305,7 +322,7 @@ function Widget({ config }: PluginWidgetProps) {
             {item.name}
           </span>
           {item.on && item.brightness != null && !showBri ? (
-            <span style={{ fontSize: 11, color: sub, fontVariantNumeric: 'tabular-nums' }}>{item.brightness}%</span>
+            <span style={{ fontSize: 12, color: sub, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{item.brightness}%</span>
           ) : null}
           <button
             type="button"
@@ -317,24 +334,27 @@ function Widget({ config }: PluginWidgetProps) {
             <Toggle on={item.on} fg={lit ? fg : 'var(--accent)'} />
           </button>
         </div>
-        {item.on && showBri ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              className="hue-range"
-              type="range"
-              min={1}
-              max={100}
-              value={item.brightness ?? 100}
-              onChange={(e) => apply(item.id, { brightness: Number(e.target.value) })}
-              onMouseUp={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
-              onTouchEnd={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
-              style={{ flex: 1, accentColor: lit ? fg : 'var(--accent)', cursor: 'pointer' }}
-              aria-label={de ? 'Helligkeit' : 'Brightness'}
-            />
-            <span style={{ fontSize: 11, color: sub, fontVariantNumeric: 'tabular-nums', width: 30, textAlign: 'right' }}>
-              {item.brightness ?? 100}%
-            </span>
-          </div>
+        {briShown ? (
+          <input
+            className="hue-range hue-range-bottom"
+            type="range"
+            min={1}
+            max={100}
+            value={item.brightness ?? 100}
+            onChange={(e) => apply(item.id, { brightness: Number(e.target.value) })}
+            onMouseUp={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
+            onTouchEnd={(e) => void setBrightness(item, Number((e.target as HTMLInputElement).value))}
+            style={{
+              position: 'absolute',
+              left: 14,
+              right: 14,
+              bottom: 7,
+              width: 'auto',
+              accentColor: lit ? fg : 'var(--accent)',
+              cursor: 'pointer',
+            }}
+            aria-label={de ? 'Helligkeit' : 'Brightness'}
+          />
         ) : null}
       </div>
     )
@@ -397,7 +417,7 @@ function Widget({ config }: PluginWidgetProps) {
           textAlign: 'left',
         }}
       >
-        <BulbIcon color={item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'} size={18} />
+        <RoomIcon d={view === 'groups' ? roomPath(item.roomClass) : ROOM_PATHS.bulb} color={item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'} size={20} />
         <span style={{ fontSize: 12, fontWeight: 600, color: fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>
           {item.name}
         </span>
@@ -413,6 +433,9 @@ function Widget({ config }: PluginWidgetProps) {
         .hue-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
           border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
         .hue-range::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:#fff;cursor:pointer}
+        .hue-range-bottom{height:4px;background:rgba(255,255,255,.25)}
+        .hue-range-bottom::-webkit-slider-thumb{width:11px;height:11px}
+        .hue-range-bottom::-moz-range-thumb{width:11px;height:11px}
       `}</style>
       <header style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {title ? (
@@ -438,7 +461,8 @@ function Widget({ config }: PluginWidgetProps) {
           minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          paddingRight: 4,
+          paddingRight: 10,
+          scrollbarGutter: 'stable',
           ...(style === 'tiles'
             ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 7, alignContent: 'start' }
             : { display: 'flex', flexDirection: 'column', gap: style === 'compact' ? 1 : 6 }),
@@ -560,7 +584,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.2',
+  version: '0.9.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',

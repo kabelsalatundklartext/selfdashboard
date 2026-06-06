@@ -32,6 +32,8 @@ type HueLamp = {
   hasColor: boolean
   /** Approx. current colour as #rrggbb (for the swatch), null when none. */
   color: string | null
+  /** Hue room archetype/class (e.g. "Living room") for the room icon. */
+  roomClass?: string
 }
 
 /** hex #rrggbb → Hue xy (CIE). */
@@ -189,6 +191,7 @@ function mapGroups(obj: unknown): HueLamp[] {
       kind: type || undefined,
       hasColor,
       color: hasColor ? xyToHex(action.xy) : null,
+      roomClass: str(raw.class) || undefined,
     })
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))

@@ -317,7 +317,8 @@ function mapGroups(obj) {
       reachable: true,
       kind: type || void 0,
       hasColor,
-      color: hasColor ? xyToHex(action.xy) : null
+      color: hasColor ? xyToHex(action.xy) : null,
+      roomClass: str(raw.class) || void 0
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
