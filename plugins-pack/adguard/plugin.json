@@ -2,7 +2,7 @@
   "id": "adguard",
   "name": "AdGuard Home",
   "description": "DNS-Statistik und Schutzstatus per AdGuard-Home-API (Basis-URL + optional Basic-Auth).",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "author": "SelfDashboard",
   "category": "network",
   "icon": "🛡️",
