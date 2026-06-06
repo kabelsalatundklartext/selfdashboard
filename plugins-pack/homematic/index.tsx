@@ -247,6 +247,17 @@ function Widget({ config }: PluginWidgetProps) {
   const channels = parseArr<ChannelCfg>(config.channels)
   const sysvarSel = parseArr<RefCfg>(config.sysvars)
   const programSel = parseArr<RefCfg>(config.programs)
+  const columns = str(config.columns) || '1'
+  const roomGridStyle: CSSProperties =
+    columns === '1'
+      ? { display: 'flex', flexDirection: 'column', gap: 10 }
+      : {
+          display: 'grid',
+          gridTemplateColumns:
+            columns === 'auto' ? 'repeat(auto-fill, minmax(230px, 1fr))' : `repeat(${Number(columns) || 2}, minmax(0, 1fr))`,
+          gap: 10,
+          alignItems: 'start',
+        }
 
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({})
   const [sysvars, setSysvars] = useState<StateResponse['sysvars']>([])
@@ -373,8 +384,9 @@ function Widget({ config }: PluginWidgetProps) {
           </p>
         ) : null}
 
-        {channels.length > 0
-          ? groupByRoom(channels).map(([roomName, roomChannels]) => (
+        {channels.length > 0 ? (
+          <div style={roomGridStyle}>
+          {groupByRoom(channels).map(([roomName, roomChannels]) => (
           <div key={roomName || '_none'} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {sectionLabel(roomName || (de ? 'Geräte' : 'Devices'))}
             {roomChannels.map((ch) => {
@@ -479,8 +491,9 @@ function Widget({ config }: PluginWidgetProps) {
               )
             })}
           </div>
-            ))
-          : null}
+            ))}
+          </div>
+        ) : null}
 
         {selSysvars.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -723,6 +736,15 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       ) : null}
 
       <div>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Räume nebeneinander (Spalten)' : 'Rooms side by side (columns)'}</label>
+        <select style={inp} value={str(config.columns) || '1'} onChange={(e) => onChange('columns', e.target.value)}>
+          <option value="1">{de ? '1 Spalte (untereinander)' : '1 column (stacked)'}</option>
+          <option value="2">{de ? '2 Spalten' : '2 columns'}</option>
+          <option value="3">{de ? '3 Spalten' : '3 columns'}</option>
+          <option value="auto">{de ? 'Automatisch (nach Breite)' : 'Auto (by width)'}</option>
+        </select>
+      </div>
+      <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Aktualisieren (Sek.)' : 'Refresh (seconds)'}</label>
         <input style={inp} type="number" min={10} max={300} value={num(config.refreshSeconds) || 30} onChange={(e) => onChange('refreshSeconds', Math.max(10, num(e.target.value) || 30))} />
       </div>
@@ -735,7 +757,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.4',
+  version: '0.9.5',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
@@ -749,6 +771,7 @@ export const meta: PluginMeta = {
     { key: 'channels', label: 'Geräte (JSON)', type: 'text', defaultValue: '' },
     { key: 'sysvars', label: 'Variablen (JSON)', type: 'text', defaultValue: '' },
     { key: 'programs', label: 'Programme (JSON)', type: 'text', defaultValue: '' },
+    { key: 'columns', label: 'Spalten', type: 'text', defaultValue: '1' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
   ],
 }
