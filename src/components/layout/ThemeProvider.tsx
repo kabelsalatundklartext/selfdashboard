@@ -16,3 +16,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.setAttribute('data-theme', themeId)
     Object.entries(t.colors).forEach(([key, val]) => {
       root.style.setProperty(`--${key}`, val)
+    })
+    if (customColors) {
+      Object.entries(customColors).forEach(([key, val]) => {
+        if (val) root.style.setProperty(`--${key}`, val)
+      })
+    }
+  }, [themeId, customColors])
+
+  return <>{children}</>
+}
