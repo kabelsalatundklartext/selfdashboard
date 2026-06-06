@@ -70,4 +70,5 @@ export function sealDashboardSecrets(
     return { ...d, plugins }
   })
   if (!anyChanged) return { state, changed: false }
-  return { state: { ...state
+  return { state: { ...state, dashboards }, changed: true }
+}
