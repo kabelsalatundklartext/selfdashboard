@@ -571,6 +571,18 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     const next = has ? sel.filter((x) => x.id !== ref.id) : [...sel, ref]
     onChange(key, JSON.stringify(next))
   }
+  /** Alle Geräte (Hauptkanal je Gerät) mit Raum + Typ übernehmen. */
+  const addAllDevices = () => {
+    if (!data?.devices) return
+    const next: ChannelCfg[] = []
+    for (const d of data.devices) {
+      const c = d.channels.find((x) => x.index > 0)
+      if (!c) continue
+      next.push({ interface: d.interface, address: c.address, name: d.name, type: d.type, room: c.room || d.room })
+    }
+    onChange('channels', JSON.stringify(next))
+  }
+  const clearChannels = () => onChange('channels', '[]')
 
   const f = filter.trim().toLowerCase()
   const box: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, maxHeight: 190, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px' }
@@ -622,32 +634,56 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
           {(data.devices ?? []).length > 0 ? (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{de ? 'Geräte' : 'Devices'}</span>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={allChannels} onChange={(e) => setAllChannels(e.target.checked)} />
                   {de ? 'Alle Kanäle' : 'All channels'}
                 </label>
               </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <button type="button" onClick={addAllDevices} style={{ flex: 1, fontSize: 11, fontWeight: 600, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--accent)', color: '#fff', cursor: 'pointer' }}>
+                  {de ? 'Alle Geräte übernehmen (nach Raum)' : 'Add all devices (by room)'}
+                </button>
+                {channels.length > 0 ? (
+                  <button type="button" onClick={clearChannels} style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    {de ? 'Leeren' : 'Clear'}
+                  </button>
+                ) : null}
+              </div>
               <div style={box}>
-                {(data.devices ?? [])
-                  .filter((d) => !f || d.name.toLowerCase().includes(f))
-                  .flatMap((d) => {
-                    const usable = d.channels.filter((c) => c.index > 0)
-                    // Standard: nur den Hauptkanal (kleinster Index) pro Gerät zeigen.
-                    const shown = allChannels ? usable : usable.slice(0, 1)
-                    return shown.map((c) => {
-                      const label = allChannels && usable.length > 1 ? `${d.name} · ${c.name}` : d.name
-                      const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label, type: d.type, room: c.room || d.room }
-                      return (
-                        <label key={c.address} style={row}>
-                          <input type="checkbox" checked={inChannels(c.address)} onChange={() => toggleChannel(cfg)} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{allChannels ? c.address : d.type}</span>
-                        </label>
-                      )
-                    })
-                  })}
+                {(() => {
+                  const devs = (data.devices ?? []).filter((d) => !f || d.name.toLowerCase().includes(f))
+                  const byRoom = new Map<string, typeof devs>()
+                  for (const d of devs) {
+                    const r = d.room || ''
+                    if (!byRoom.has(r)) byRoom.set(r, [])
+                    byRoom.get(r)!.push(d)
+                  }
+                  const groups = Array.from(byRoom.entries()).sort((a, b) => (a[0] || '￿').localeCompare(b[0] || '￿'))
+                  return groups.map(([room, rdevs]) => (
+                    <div key={room || '_none'}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '6px 0 2px' }}>
+                        {room || (de ? 'Ohne Raum' : 'No room')}
+                      </div>
+                      {rdevs.flatMap((d) => {
+                        const usable = d.channels.filter((c) => c.index > 0)
+                        const shown = allChannels ? usable : usable.slice(0, 1)
+                        return shown.map((c) => {
+                          const label = allChannels && usable.length > 1 ? `${d.name} · ${c.name}` : d.name
+                          const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label, type: d.type, room: c.room || d.room }
+                          return (
+                            <label key={c.address} style={row}>
+                              <input type="checkbox" checked={inChannels(c.address)} onChange={() => toggleChannel(cfg)} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{allChannels ? c.address : d.type}</span>
+                            </label>
+                          )
+                        })
+                      })}
+                    </div>
+                  ))
+                })()}
               </div>
             </div>
           ) : null}
@@ -699,7 +735,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.3',
+  version: '0.9.4',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

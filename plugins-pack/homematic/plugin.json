@@ -2,7 +2,7 @@
   "id": "homematic",
   "name": "Homematic",
   "description": "Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "🏠",
