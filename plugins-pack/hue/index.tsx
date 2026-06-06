@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.13'
+const HUE_VERSION = '0.9.14'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -59,6 +59,16 @@ function num(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+/** Parse a comma-separated list of hidden item IDs from config into a Set. */
+function parseIdSet(v: unknown): Set<string> {
+  return new Set(
+    str(v)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
 }
 
 /** Relative luminance of a #rrggbb colour (0 dark – 1 light). */
@@ -160,6 +170,8 @@ function Widget({ config }: PluginWidgetProps) {
   const colorBg = config.colorBackground !== false
   const showBri = config.showBrightness !== false
   const configured = Boolean(baseUrl && apiKey)
+  const hiddenGroups = parseIdSet(config.hiddenGroups)
+  const hiddenLights = parseIdSet(config.hiddenLights)
 
   const [view, setView] = useState<'groups' | 'lights'>(
     config.defaultView === 'lights' ? 'lights' : 'groups',
@@ -192,7 +204,8 @@ function Widget({ config }: PluginWidgetProps) {
     return () => clearInterval(t)
   }, [refresh, refreshMs])
 
-  const items = view === 'groups' ? groups : lights
+  const hidden = view === 'groups' ? hiddenGroups : hiddenLights
+  const items = (view === 'groups' ? groups : lights).filter((it) => !hidden.has(it.id))
   const target = view === 'groups' ? 'group' : 'light'
 
   const apply = (id: string, patch: Partial<HueLamp>) => {
@@ -462,7 +475,9 @@ function Widget({ config }: PluginWidgetProps) {
             {title}
           </span>
         ) : null}
-        <span style={{ fontSize: 9, color: 'var(--text-muted)', opacity: 0.55, flexShrink: 0 }}>v{HUE_VERSION}</span>
+        {config.showVersion ? (
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', opacity: 0.55, flexShrink: 0 }}>v{HUE_VERSION}</span>
+        ) : null}
         <div role="tablist" style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
           <button type="button" onClick={() => setView('groups')} style={segStyle(view === 'groups')}>{de ? 'Räume' : 'Rooms'}</button>
           <button type="button" onClick={() => setView('lights')} style={segStyle(view === 'lights')}>{de ? 'Lampen' : 'Lights'}</button>
@@ -541,6 +556,36 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     }
   }
 
+  const [hueItems, setHueItems] = useState<{ groups: HueLamp[]; lights: HueLamp[] } | null>(null)
+  const [itemsLoading, setItemsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!baseUrl || !apiKey) {
+      setHueItems(null)
+      return
+    }
+    let active = true
+    setItemsLoading(true)
+    void callHue({ url: baseUrl, apiKey, action: 'state' }).then((json) => {
+      if (!active) return
+      setHueItems({
+        groups: Array.isArray(json.groups) ? json.groups : [],
+        lights: Array.isArray(json.lights) ? json.lights : [],
+      })
+      setItemsLoading(false)
+    })
+    return () => {
+      active = false
+    }
+  }, [baseUrl, apiKey])
+
+  const setHidden = (key: 'hiddenGroups' | 'hiddenLights', id: string, visible: boolean) => {
+    const cur = parseIdSet(config[key])
+    if (visible) cur.delete(id)
+    else cur.add(id)
+    onChange(key, Array.from(cur).join(','))
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
@@ -586,6 +631,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <input type="checkbox" checked={config.showBrightness !== false} onChange={(e) => onChange('showBrightness', e.target.checked)} />
           <span>{de ? 'Helligkeits-Slider zeigen' : 'Show brightness slider'}</span>
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={config.showVersion === true} onChange={(e) => onChange('showVersion', e.target.checked)} />
+          <span>{de ? 'Versionsnummer im Titel zeigen' : 'Show version number in title'}</span>
+        </label>
       </div>
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Standard-Ansicht' : 'Default view'}</label>
@@ -594,6 +643,52 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value="lights">{de ? 'Lampen' : 'Lights'}</option>
         </select>
       </div>
+      {hueItems ? (
+        <div>
+          <label style={{ display: 'block', fontSize: 12, marginBottom: 6 }}>
+            {de ? 'Räume / Lampen ein- oder ausblenden' : 'Show or hide rooms / lights'}
+          </label>
+          {(['groups', 'lights'] as const).map((kind) => {
+            const list = kind === 'groups' ? hueItems.groups : hueItems.lights
+            const cfgKey = kind === 'groups' ? 'hiddenGroups' : 'hiddenLights'
+            const hiddenSet = parseIdSet(config[cfgKey])
+            if (list.length === 0) return null
+            return (
+              <div key={kind} style={{ marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {kind === 'groups' ? (de ? 'Räume' : 'Rooms') : de ? 'Lampen' : 'Lights'}
+                </span>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                    marginTop: 4,
+                    maxHeight: 150,
+                    overflowY: 'auto',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                  }}
+                >
+                  {list.map((it) => (
+                    <label key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!hiddenSet.has(it.id)}
+                        onChange={(e) => setHidden(cfgKey, it.id, e.target.checked)}
+                      />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : baseUrl && apiKey && itemsLoading ? (
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{de ? 'Lade Räume/Lampen …' : 'Loading rooms/lights …'}</p>
+      ) : null}
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Aktualisieren (Sek.)' : 'Refresh (seconds)'}</label>
         <input style={inp} type="number" min={5} max={300} value={num(config.refreshSeconds) || 20} onChange={(e) => onChange('refreshSeconds', Math.max(5, num(e.target.value) || 20))} />
@@ -607,7 +702,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.13',
+  version: '0.9.14',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
@@ -620,7 +715,10 @@ export const meta: PluginMeta = {
     { key: 'style', label: 'Darstellung', type: 'text', defaultValue: 'cards' },
     { key: 'colorBackground', label: 'Lichtfarbe als Hintergrund', type: 'boolean', defaultValue: true },
     { key: 'showBrightness', label: 'Helligkeits-Slider', type: 'boolean', defaultValue: true },
+    { key: 'showVersion', label: 'Versionsnummer zeigen', type: 'boolean', defaultValue: false },
     { key: 'defaultView', label: 'Standard-Ansicht', type: 'text', defaultValue: 'groups' },
+    { key: 'hiddenGroups', label: 'Ausgeblendete Räume', type: 'text', defaultValue: '' },
+    { key: 'hiddenLights', label: 'Ausgeblendete Lampen', type: 'text', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 20 },
   ],
 }

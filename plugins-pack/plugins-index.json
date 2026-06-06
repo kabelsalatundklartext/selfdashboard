@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-06T10:09:19.321Z",
+  "generatedAt": "2026-06-06T10:20:33.233Z",
   "plugins": [
     {
       "id": "adguard",
@@ -173,7 +173,7 @@
       "id": "hue",
       "name": "Philips Hue",
       "description": "Philips-Hue-Lampen und Räume per lokaler Bridge-API: an/aus, Helligkeit, Farbe (echte Lichtfarbe). Karten/Kompakt/Kacheln, Bridge-Koppeln im Plugin. (Beta)",
-      "version": "0.9.13",
+      "version": "0.9.14",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "💡",
