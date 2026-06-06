@@ -48,6 +48,8 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
+const HUE_VERSION = '0.9.7'
+
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
 }
@@ -458,6 +460,7 @@ function Widget({ config }: PluginWidgetProps) {
             {title}
           </span>
         ) : null}
+        <span style={{ fontSize: 9, color: 'var(--text-muted)', opacity: 0.55, flexShrink: 0 }}>v{HUE_VERSION}</span>
         <div role="tablist" style={{ marginLeft: 'auto', display: 'flex', gap: 2, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: 2 }}>
           <button type="button" onClick={() => setView('groups')} style={segStyle(view === 'groups')}>{de ? 'Räume' : 'Rooms'}</button>
           <button type="button" onClick={() => setView('lights')} style={segStyle(view === 'lights')}>{de ? 'Lampen' : 'Lights'}</button>
@@ -599,7 +602,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.6',
+  version: '0.9.7',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
