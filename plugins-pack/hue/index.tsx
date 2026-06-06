@@ -48,7 +48,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.7'
+const HUE_VERSION = '0.9.8'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -602,7 +602,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.7',
+  version: '0.9.8',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
