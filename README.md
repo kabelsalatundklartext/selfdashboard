@@ -188,7 +188,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/philips-hue.png" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lights & rooms control **(Beta)** |
+| <img src="plugins-pack/hue/icon.svg" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lights & rooms control **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |
@@ -623,7 +623,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/philips-hue.png" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lampen & Räume steuern **(Beta)** |
+| <img src="plugins-pack/hue/icon.svg" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lampen & Räume steuern **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |

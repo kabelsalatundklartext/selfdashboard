@@ -199,6 +199,16 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div style={shell}>
+      <style>{`
+        .hue-range { -webkit-appearance: none; appearance: none; height: 5px; border-radius: 999px;
+          background: color-mix(in srgb, var(--text-muted) 28%, transparent); outline: none; }
+        .hue-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+          border-radius: 50%; background: var(--accent); cursor: pointer;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+        .hue-range::-moz-range-thumb { width: 13px; height: 13px; border: none; border-radius: 50%;
+          background: var(--accent); cursor: pointer; }
+        .hue-range::-moz-range-progress { height: 5px; border-radius: 999px; background: var(--accent); }
+      `}</style>
       <header style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {title ? (
           <span
@@ -244,7 +254,7 @@ function Widget({ config }: PluginWidgetProps) {
         </div>
       ) : null}
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 5, paddingRight: 6 }}>
         {!loading && items.length === 0 && !error ? (
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
             {view === 'groups'
@@ -293,13 +303,14 @@ function Widget({ config }: PluginWidgetProps) {
                 onClick={() => void toggle(item)}
                 disabled={!item.reachable}
                 title={item.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: item.reachable ? 'pointer' : 'not-allowed' }}
+                style={{ background: 'none', border: 'none', padding: 0, flexShrink: 0, cursor: item.reachable ? 'pointer' : 'not-allowed' }}
               >
                 <Toggle on={item.on} />
               </button>
             </div>
             {item.on ? (
               <input
+                className="hue-range"
                 type="range"
                 min={1}
                 max={100}
@@ -450,11 +461,11 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Status. Bridge-Koppeln im Plugin.',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/philips-hue.png',
+  iconUrl: '/api/plugins/custom-assets/hue/icon.svg',
   defaultLayout: { w: 3, h: 4, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Hue' },
