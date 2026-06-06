@@ -372,7 +372,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'storage',
   icon: '🗄️',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/openmediavault.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png',
   defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'OpenMediaVault' },

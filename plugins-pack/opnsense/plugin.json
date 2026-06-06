@@ -6,7 +6,7 @@
   "author": "SelfDashboard",
   "category": "security",
   "icon": "🧱",
-  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/opnsense.png",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png",
   "defaultLayout": {
     "w": 3,
     "h": 2,

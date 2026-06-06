@@ -348,7 +348,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'storage',
   icon: '💾',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/truenas.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'TrueNAS' },

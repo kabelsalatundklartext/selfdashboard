@@ -51,6 +51,8 @@ Everything supports **drag & drop**, **multiple dashboards** (e.g. `/dashboard/h
 
 # 🇬🇧 English
 
+**Contents:** [What is it](#what-is-selfdashboard) · [How it's built](#how-selfdashboard-is-built) · [What's new (v2.0.0)](#whats-new--v200) · [Plugins](#plugins) · [Quick Start](#quick-start) · [Docker & Unraid](#docker--unraid-template) · [Login & users](#login--multi-user) · [Kiosk](#kiosk-mode-wall-tablet) · [Env vars](#environment-variables) · [Troubleshooting](#troubleshooting)
+
 ## What is SelfDashboard?
 
 > **See the [overview](#overview) above** for a full screenshot walkthrough.
@@ -168,37 +170,39 @@ Install & folders: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Develop plugins: **
 
 Plugins marked **(Beta)** are new integrations that have not yet been tested against every server version — feedback (with the service version) is welcome.
 
-| Plugin | Category | Description | README |
-|--------|----------|-------------|--------|
-| [AdGuard Home](plugins-pack/adguard/README.md) | Network | DNS stats, protection toggle | EN/DE |
-| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Quick links with groups | EN/DE |
-| [Calendar](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | EN/DE |
-| [Clock](plugins-pack/clock/README.md) | Utility | Time, date, timezone | EN/DE |
-| [CrowdSec](plugins-pack/crowdsec/README.md) | Security | Alerts, bans, world map (optional) | EN/DE |
-| [Docker](plugins-pack/docker/README.md) | System | Containers via socket | EN/DE |
-| [Emby](plugins-pack/emby/README.md) | Media | Active sessions | EN/DE |
-| [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart | EN/DE |
-| [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh | EN/DE |
-| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** | EN/DE |
-| [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs | EN/DE |
-| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Active sessions | EN/DE |
-| [Email](plugins-pack/mail/README.md) | Productivity | Navbar IMAP badge | EN/DE |
-| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** | EN/DE |
-| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** | EN/DE |
-| [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** | EN/DE |
-| [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats | EN/DE |
-| [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** | EN/DE |
-| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | EN/DE |
-| [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes | EN/DE |
-| [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV | EN/DE |
-| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list | EN/DE |
-| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** | EN/DE |
-| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** | EN/DE |
-| [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** | EN/DE |
-| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL overview | EN/DE |
-| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Containers via Unraid API | EN/DE |
-| [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors | EN/DE |
-| [Weather](plugins-pack/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day | EN/DE |
+| | Plugin | Category | Description |
+|---|--------|----------|-------------|
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/adguard-home.png" width="22"/> | [AdGuard Home](plugins-pack/adguard/README.md) | Network | DNS stats, protection toggle |
+| 🔖 | [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Quick links with groups |
+| 📅 | [Calendar](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS |
+| 🕐 | [Clock](plugins-pack/clock/README.md) | Utility | Time, date, timezone |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/crowdsec.png" width="22"/> | [CrowdSec](plugins-pack/crowdsec/README.md) | Security | Alerts, bans, world map (optional) |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/docker.png" width="22"/> | [Docker](plugins-pack/docker/README.md) | System | Containers via socket |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/emby.png" width="22"/> | [Emby](plugins-pack/emby/README.md) | Media | Active sessions |
+| 📈 | [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart |
+| ⚡ | [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** |
+| 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="22"/> | [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Active sessions |
+| ✉️ | [Email](plugins-pack/mail/README.md) | Productivity | Navbar IMAP badge |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |
+| 📝 | [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes |
+| 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV |
+| 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL overview |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Containers via Unraid API |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="22"/> | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors |
+| 🌤️ | [Weather](plugins-pack/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day |
+
+<sub>All plugin READMEs are bilingual (EN/DE). Brand logos via [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons).</sub>
 
 ## Quick Start
 
@@ -401,6 +405,7 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | Dashboard not loading | Check logs: `docker logs selfdashboard` |
 | **500 error after update** (`SQLITE_READONLY` in logs) | The container runs **non-root** (PUID/PGID, default 99/100). The entrypoint fixes volume ownership automatically on start; if you set `SELFDASHBOARD_SKIP_CHOWN=1`, run `chown -R <PUID>:<PGID>` on your appdata folder yourself. |
 | **CrowdSec: `unable to open database file`** (often after nightly backups) | Set the container's **PUID/PGID to the same values as your CrowdSec container** (Unraid default 99/100). Then SelfDashboard reads `crowdsec.db` as the owner — permanently, no chmod. |
+| **Plugin shows `401` / `stats_failed` / auth error** (AdGuard, Pi-hole, FRITZ!, …) although credentials are correct | The encryption key changed. **Fix once:** set a fixed **`SELFDASHBOARD_SECRET_KEY`** (long random string) in Docker, restart, then re-enter the plugin's password in its settings and **Save**. The key never changes again → stays working. (On an older core image, also set `SELFDASHBOARD_CALENDAR_KEY` to the **same** value until you pull the new `:latest`.) |
 | Config lost after update | Image updates do not remove your appdata volume; your layout lives in **`/app/data/users/<userId>/dashboard.json`** (plus a `localStorage` cache). If a **new browser** shows an empty dashboard, check **`/app/data`** is mounted and writable (see **Docker & Unraid template**). |
 | Plugin store empty / “GitHub not configured” | Set `SELFDASHBOARD_PLUGINS_GITHUB_*` or use the official `:latest` image defaults |
 | Widget stuck on “Loading plugin…” | Wait a few seconds; **Plugin Store → Reload plugins**; check files under `/app/plugins/custom/<id>/widget.js` |
@@ -412,7 +417,7 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | CrowdSec widget: `crowdsec.db not found` | Set **CrowdSec Data (optional)** in the Unraid template (host folder with `crowdsec.db` → `/crowdsec-data:ro`), or remove the widget if you do not use CrowdSec |
 | CrowdSec: no country flags / all `??` | Ensure **GeoLite2-City.mmdb** (or Country) is in the mounted CrowdSec data folder, or set `CROWDSEC_GEOIP_PATH` |
 | CrowdSec: unban fails | Mount **Docker Socket**, check container name in plugin settings, enable unban there |
-| Mail badge red/yellow, count 0 | **Settings → Email** → re-enter password → **Save**. Set fixed `SELFDASHBOARD_CALENDAR_KEY` in Docker. Check **Logs** filter `mail` |
+| Mail badge red/yellow, count 0 | **Settings → Email** → re-enter password → **Save**. Set fixed `SELFDASHBOARD_SECRET_KEY` in Docker. Check **Logs** filter `mail` |
 | Mail: `ENOTFOUND host:5000` | IMAP host must be IP/hostname only (e.g. `192.168.1.15`), port **993** separate; webmail URL goes in **Webmail URL** field |
 | Mail test OK, navbar empty | Enable **Navbar email** (General or Email tab); save account; badge needs unread &gt; 0 |
 | Mail badge shows mail that is gone in MailPlus | IMAP may still list deleted/read messages until the server cleans up. Use **Show unread** in email settings to see subjects. After update, SelfDashboard ignores `\Deleted` and `\Seen` ghosts. In MailPlus: empty trash / expunge if needed, then **Refresh all accounts**. |
@@ -451,6 +456,8 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 <a id="deutsch"></a>
 
 # 🇩🇪 Deutsch
+
+**Inhalt:** [Was ist das](#was-ist-selfdashboard) · [Aufbau](#aufbau-von-selfdashboard) · [Neu (v2.0.0)](#neu--v200) · [Plugins](#plugins-1) · [Schnellstart](#schnellstart) · [Docker & Unraid](#docker--unraid-template-1) · [Login](#login--mehrbenutzer) · [Kiosk](#kiosk-modus-wand-tablet) · [Umgebungsvariablen](#umgebungsvariablen) · [Troubleshooting](#troubleshooting-1)
 
 <a id="overview-de"></a>
 
@@ -597,37 +604,39 @@ Installation & Ordner: **[docs/PLUGINS.md](docs/PLUGINS.md)** · Entwicklung: **
 
 Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen jede Server-Version getestet sind — Feedback (mit Versionsangabe) ist willkommen.
 
-| Plugin | Kategorie | Kurzbeschreibung | README |
-|--------|-----------|------------------|--------|
-| [AdGuard Home](plugins-pack/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten | DE/EN |
-| [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen | DE/EN |
-| [Kalender](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS | DE/EN |
-| [Uhr](plugins-pack/clock/README.md) | Utility | Zeit, Datum, Zeitzone | DE/EN |
-| [CrowdSec](plugins-pack/crowdsec/README.md) | Sicherheit | Alerts, Banns, Weltkarte (optional) | DE/EN |
-| [Docker](plugins-pack/docker/README.md) | System | Container per Socket | DE/EN |
-| [Emby](plugins-pack/emby/README.md) | Media | Aktive Sessions | DE/EN |
-| [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve | DE/EN |
-| [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W | DE/EN |
-| [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** | DE/EN |
-| [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten | DE/EN |
-| [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Aktive Sessions | DE/EN |
-| [E-Mail](plugins-pack/mail/README.md) | Productivity | Navbar IMAP-Badge | DE/EN |
-| [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** | DE/EN |
-| [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** | DE/EN |
-| [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** | DE/EN |
-| [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 | DE/EN |
-| [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** | DE/EN |
-| [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** | DE/EN |
-| [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen | DE/EN |
-| [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live | DE/EN |
-| [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste | DE/EN |
-| [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** | DE/EN |
-| [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** | DE/EN |
-| [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** | DE/EN |
-| [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht | DE/EN |
-| [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Container per Unraid-API | DE/EN |
-| [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore | DE/EN |
-| [Wetter](plugins-pack/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage | DE/EN |
+| | Plugin | Kategorie | Kurzbeschreibung |
+|---|--------|-----------|------------------|
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/adguard-home.png" width="22"/> | [AdGuard Home](plugins-pack/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten |
+| 🔖 | [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen |
+| 📅 | [Kalender](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS |
+| 🕐 | [Uhr](plugins-pack/clock/README.md) | Utility | Zeit, Datum, Zeitzone |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/crowdsec.png" width="22"/> | [CrowdSec](plugins-pack/crowdsec/README.md) | Sicherheit | Alerts, Banns, Weltkarte (optional) |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/docker.png" width="22"/> | [Docker](plugins-pack/docker/README.md) | System | Container per Socket |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/emby.png" width="22"/> | [Emby](plugins-pack/emby/README.md) | Media | Aktive Sessions |
+| 📈 | [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve |
+| ⚡ | [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** |
+| 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="22"/> | [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Aktive Sessions |
+| ✉️ | [E-Mail](plugins-pack/mail/README.md) | Productivity | Navbar IMAP-Badge |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |
+| 📝 | [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen |
+| 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live |
+| 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid](plugins-pack/unraid/README.md) | System | Unraid **7.2+** GraphQL-Übersicht |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Container per Unraid-API |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="22"/> | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore |
+| 🌤️ | [Wetter](plugins-pack/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage |
+
+<sub>Alle Plugin-READMEs sind zweisprachig (DE/EN). Marken-Logos via [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons).</sub>
 
 ---
 
@@ -835,6 +844,7 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | CrowdSec-Widget: `crowdsec.db nicht gefunden` | **CrowdSec Data (optional)** im Template setzen (Host-Ordner mit `crowdsec.db` → `/crowdsec-data:ro`) oder Mount weglassen und Widget entfernen, wenn du CrowdSec nicht nutzt |
 | CrowdSec: keine Länder / nur `??` | **GeoLite2-City.mmdb** (oder Country) im gemounteten CrowdSec-Ordner ablegen oder `CROWDSEC_GEOIP_PATH` setzen |
 | CrowdSec: Entsperren schlägt fehl | **Docker Socket** mounten, Container-Name in den Plugin-Einstellungen prüfen, Entsperren dort aktivieren |
+| **Plugin zeigt `401` / `stats_failed` / Auth-Fehler** (AdGuard, Pi-hole, FRITZ!, …) obwohl Zugangsdaten stimmen | Der Verschlüsselungs-Schlüssel hat sich geändert. **Einmal fix:** festen **`SELFDASHBOARD_SECRET_KEY`** (langer Zufallsstring) in Docker setzen, Container neu starten, dann das Plugin-Passwort in den Einstellungen neu eintippen und **Speichern**. Der Schlüssel bleibt → läuft dauerhaft. (Bei älterem Core-Image zusätzlich `SELFDASHBOARD_CALENDAR_KEY` auf **denselben** Wert setzen, bis du das neue `:latest` ziehst.) |
 | Konfiguration nach Update weg | Image-Updates löschen das Appdata-Volume nicht; dein Layout liegt in **`/app/data/users/<userId>/dashboard.json`** (plus `localStorage`-Cache). Leeres Dashboard im neuen Browser → **`/app/data`** gemappt und beschreibbar? (siehe **Docker & Unraid-Template**) |
 | Store leer / „GitHub nicht konfiguriert“ | `SELFDASHBOARD_PLUGINS_GITHUB_*` setzen oder offizielles `:latest`-Image mit Defaults nutzen |
 | Widget hängt bei „Plugin wird geladen…“ | Kurz warten; **Plugin-Store → Plugins neu laden**; prüfen: `/app/plugins/custom/<id>/widget.js` |
@@ -843,7 +853,7 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | Port bereits belegt | Host-Port ändern: `-p 3001:3000` |
 | Widgets im Bearbeitungsmodus unsichtbar | Seite neu laden |
 | Theme wird nicht übernommen | Browser-Cache leeren: Strg+Shift+R |
-| E-Mail: roter/gelber Punkt, 0 Mails | **Einstellungen → E-Mail** → Passwort neu → **Speichern**. Feste `SELFDASHBOARD_CALENDAR_KEY` im Container. **Protokoll** Filter `mail` |
+| E-Mail: roter/gelber Punkt, 0 Mails | **Einstellungen → E-Mail** → Passwort neu → **Speichern**. Feste `SELFDASHBOARD_SECRET_KEY` im Container. **Protokoll** Filter `mail` |
 | E-Mail: `ENOTFOUND host:5000` | IMAP-Host nur IP/Name (z. B. `192.168.1.15`), Port **993** extra; Webmail-URL ins Feld **Webmail-URL** |
 | Test OK, Navbar leer | **Navbar E-Mail** einschalten; Konto speichern; Badge nur bei Ungelesen &gt; 0 |
 | Badge zeigt Mail, die in MailPlus weg ist | IMAP kann gelöschte/gelesene Mails noch listen. **Ungelesen anzeigen** in den E-Mail-Einstellungen prüfen. Neuere Version ignoriert `\Deleted`/`\Seen`-Geister. In MailPlus Papierkorb leeren/leeren, dann **Alle Konten aktualisieren**. |

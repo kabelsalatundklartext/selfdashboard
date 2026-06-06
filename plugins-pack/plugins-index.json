@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-05T21:19:49.201Z",
+  "generatedAt": "2026-06-06T06:48:55.352Z",
   "plugins": [
     {
       "id": "adguard",
@@ -82,7 +82,7 @@
     {
       "id": "docker",
       "name": "Docker",
-      "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (walkxcode/dashboard-icons). Steuerung & Stats konfigurierbar. API: /api/plugins/docker/containers.",
+      "description": "Docker: kompakte Tabellenansicht oder klassische Zeile. Icons aus Container-Labels + optional CDN (homarr-labs/dashboard-icons). Steuerung & Stats konfigurierbar. API: /api/plugins/docker/containers.",
       "version": "1.9.0",
       "author": "SelfDashboard",
       "category": "system",
@@ -155,7 +155,7 @@
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🏠",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/home-assistant.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png",
       "defaultLayout": {
         "w": 3,
         "h": 3,
@@ -190,7 +190,7 @@
       "author": "SelfDashboard",
       "category": "media",
       "icon": "🪼",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
@@ -232,7 +232,7 @@
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🔀",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nginx-proxy-manager.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png",
       "defaultLayout": {
         "w": 3,
         "h": 2,
@@ -254,7 +254,7 @@
       "author": "SelfDashboard",
       "category": "storage",
       "icon": "🗄️",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/openmediavault.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png",
       "defaultLayout": {
         "w": 3,
         "h": 2,
@@ -276,7 +276,7 @@
       "author": "SelfDashboard",
       "category": "security",
       "icon": "🧱",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/opnsense.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png",
       "defaultLayout": {
         "w": 3,
         "h": 2,
@@ -314,7 +314,7 @@
       "author": "SelfDashboard",
       "category": "media",
       "icon": "🎬",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
@@ -336,7 +336,7 @@
       "author": "SelfDashboard",
       "category": "system",
       "icon": "🖥️",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/proxmox.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,
@@ -408,7 +408,7 @@
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🚀",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/speedtest-tracker.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png",
       "defaultLayout": {
         "w": 3,
         "h": 2,
@@ -430,7 +430,7 @@
       "author": "SelfDashboard",
       "category": "storage",
       "icon": "💾",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/truenas.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png",
       "defaultLayout": {
         "w": 3,
         "h": 3,
@@ -452,7 +452,7 @@
       "author": "SelfDashboard",
       "category": "network",
       "icon": "📶",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/unifi.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png",
       "defaultLayout": {
         "w": 4,
         "h": 2,
@@ -502,7 +502,7 @@
       "author": "SelfDashboard",
       "category": "network",
       "icon": "💚",
-      "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png",
       "defaultLayout": {
         "w": 4,
         "h": 3,

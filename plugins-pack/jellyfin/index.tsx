@@ -343,7 +343,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'media',
   icon: '🪼',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Jellyfin' },

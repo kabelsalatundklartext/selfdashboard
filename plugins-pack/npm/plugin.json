@@ -6,7 +6,7 @@
   "author": "SelfDashboard",
   "category": "network",
   "icon": "🔀",
-  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/nginx-proxy-manager.png",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png",
   "defaultLayout": {
     "w": 3,
     "h": 2,

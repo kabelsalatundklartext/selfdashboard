@@ -381,7 +381,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/proxmox.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Proxmox' },

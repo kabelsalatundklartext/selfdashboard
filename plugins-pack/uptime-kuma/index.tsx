@@ -460,7 +460,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/uptime-kuma.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png',
   defaultLayout: { w: 4, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'url', label: 'Uptime Kuma URL', type: 'text', defaultValue: '' },

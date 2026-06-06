@@ -347,7 +347,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'network',
   icon: '📶',
-  iconUrl: 'https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/unifi.png',
+  iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png',
   defaultLayout: { w: 4, h: 2, minW: 2, minH: 2 },
   configSchema: [
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'UniFi' },

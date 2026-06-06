@@ -6,7 +6,7 @@
   "author": "SelfDashboard",
   "category": "media",
   "icon": "🎬",
-  "iconUrl": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png",
   "defaultLayout": {
     "w": 4,
     "h": 3,
