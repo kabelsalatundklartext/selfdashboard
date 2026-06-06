@@ -93,6 +93,46 @@ function asBool(v: unknown): boolean | null {
   return null
 }
 
+/** #rrggbb → {h:0..360, s:0..1, v:0..1} */
+function hexToHsv(hex: string): { h: number; s: number; v: number } | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 255) / 255
+  const g = ((n >> 8) & 255) / 255
+  const b = (n & 255) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max }
+}
+
+/** {h:0..360, s:0..1, v:0..1} → #rrggbb */
+function hsvToHex(h: number, s: number, v: number): string {
+  const c = v * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const mm = v - c
+  let r = 0
+  let g = 0
+  let b = 0
+  if (h < 60) [r, g, b] = [c, x, 0]
+  else if (h < 120) [r, g, b] = [x, c, 0]
+  else if (h < 180) [r, g, b] = [0, c, x]
+  else if (h < 240) [r, g, b] = [0, x, c]
+  else if (h < 300) [r, g, b] = [x, 0, c]
+  else [r, g, b] = [c, 0, x]
+  const hx = (z: number) => Math.round((z + mm) * 255).toString(16).padStart(2, '0')
+  return '#' + hx(r) + hx(g) + hx(b)
+}
+
 /** Device types whose STATE is a read-only sensor (window/door/motion …), not a switch. */
 function isSensorType(type: string): boolean {
   return /SWDM|SWD\b|SCI|-SC\b|Sec-SC|Sec-RHS|RHS|SAM|SPI|SMI|SMO|MOTION|SWO|WDS|TRV|WTH|STH|STHO|SWO/i.test(type)
@@ -115,7 +155,7 @@ const SENSOR_DP: { key: string; unit: string; d: number }[] = [
 
 type Control =
   | { kind: 'switch'; on: boolean }
-  | { kind: 'dim'; level: number }
+  | { kind: 'dim'; level: number; hasColor: boolean; color: string | null }
   | { kind: 'thermostat'; setKey: string; setpoint: number | null; actual: number | null; valve: number | null; window: boolean | null; mode: number | null; boost: boolean | null; hmip: boolean; hasModes: boolean }
   | { kind: 'contact'; open: boolean }
   | { kind: 'sensor' }
@@ -157,7 +197,17 @@ function detectControl(values: Record<string, unknown> | undefined, type = ''): 
   if ('STATE' in values && isSensorType(type)) {
     return { kind: 'contact', open: (asBool(values.STATE) ?? false) }
   }
-  if (asNum(values.LEVEL) != null) return { kind: 'dim', level: Math.round((asNum(values.LEVEL) as number) * 100) }
+  if (asNum(values.LEVEL) != null) {
+    const level = Math.round((asNum(values.LEVEL) as number) * 100)
+    const hasColor = 'HUE' in values
+    let color: string | null = null
+    if (hasColor) {
+      const h = asNum(values.HUE)
+      const s = asNum(values.SATURATION)
+      if (h != null) color = hsvToHex(h, s ?? 1, 1)
+    }
+    return { kind: 'dim', level, hasColor, color }
+  }
   if ('STATE' in values && asBool(values.STATE) != null) return { kind: 'switch', on: asBool(values.STATE) as boolean }
   return { kind: 'sensor' }
 }
@@ -361,6 +411,20 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
     await callHm({ url: baseUrl, username, password, action: 'set', kind: 'device', interface: ch.interface, address: ch.address, valueKey, valueType, value })
     busyRef.current = false
     setTimeout(() => void refresh(), 400)
+  }
+
+  /** Set several datapoints at once (HUE + SATURATION + LEVEL for colour). */
+  const setDeviceMulti = async (ch: ChannelCfg, vals: Record<string, unknown>) => {
+    busyRef.current = true
+    setValues((prev) => ({ ...prev, [ch.address]: { ...(prev[ch.address] || {}), ...vals } }))
+    await callHm({ url: baseUrl, username, password, action: 'set', kind: 'multi', interface: ch.interface, address: ch.address, values: vals })
+    busyRef.current = false
+    setTimeout(() => void refresh(), 500)
+  }
+  const setColor = (ch: ChannelCfg, level: number, hex: string) => {
+    const hsv = hexToHsv(hex)
+    if (!hsv) return
+    void setDeviceMulti(ch, { HUE: Math.round(hsv.h), SATURATION: Math.round(hsv.s * 100) / 100, LEVEL: level > 0 ? level / 100 : 1 })
   }
 
   const runProgram = async (id: string) => {
@@ -571,6 +635,12 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
                     ) : ctrl.kind === 'dim' ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{ctrl.level}%</span>
+                        {ctrl.hasColor ? (
+                          <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
+                            <input type="color" value={ctrl.color ?? '#ffffff'} onChange={(e) => setColor(ch, ctrl.level, e.target.value)} style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }} />
+                            <span style={{ width: 20, height: 20, borderRadius: '50%', background: ctrl.color ?? '#fff', border: '2px solid rgba(255,255,255,.6)', boxShadow: '0 0 5px ' + (ctrl.color ?? 'transparent') }} />
+                          </label>
+                        ) : null}
                         <button type="button" onClick={() => void setDevice(ch, 'LEVEL', 'double', ctrl.level > 0 ? 0 : 1)} style={{ background: 'none', border: 'none', padding: 0, lineHeight: 0, cursor: 'pointer' }} title={ctrl.level > 0 ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}>
                           <Toggle on={ctrl.level > 0} fg="var(--accent)" />
                         </button>
@@ -870,7 +940,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.8',
+  version: '0.9.9',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

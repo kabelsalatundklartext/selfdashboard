@@ -17,12 +17,14 @@ type ReqBody = {
   /** state: channels to read (interface + channel address). */
   channels?: ChannelRef[]
   /** set: what kind of thing to control. */
-  kind?: 'device' | 'program' | 'sysvar'
+  kind?: 'device' | 'program' | 'sysvar' | 'multi'
   interface?: string
   address?: string
   valueKey?: string
   valueType?: 'boolean' | 'double' | 'integer' | 'string'
   value?: unknown
+  /** kind 'multi': several datapoints at once (e.g. HUE + SATURATION for colour). */
+  values?: Record<string, unknown>
   /** set program / sysvar by ise id. */
   id?: string
 }
@@ -241,6 +243,26 @@ async function handlePost(req: Request): Promise<Response> {
         const r = await rpc(base, 'Program.execute', { _session_id_: sid, id }, ac.signal)
         if (r.error) {
           void logPluginApiFailure('homematic', 'set', 'program_failed')
+          return Response.json({ error: 'set_failed' }, { status: 502 })
+        }
+        return Response.json({ ok: true })
+      }
+
+      // mehrere Datenpunkte auf einmal (z. B. HUE + SATURATION für Farbe) — putParamset
+      if (body.kind === 'multi') {
+        const iface = str(body.interface) || 'BidCos-RF'
+        const address = str(body.address)
+        if (!address || !address.includes(':') || !isObject(body.values)) {
+          return Response.json({ error: 'invalid_target' }, { status: 400 })
+        }
+        const r = await rpc(
+          base,
+          'Interface.putParamset',
+          { _session_id_: sid, interface: iface, address, paramsetKey: 'VALUES', set: body.values },
+          ac.signal,
+        )
+        if (r.error) {
+          void logPluginApiFailure('homematic', 'set', 'putparamset_failed')
           return Response.json({ error: 'set_failed' }, { status: 502 })
         }
         return Response.json({ ok: true })

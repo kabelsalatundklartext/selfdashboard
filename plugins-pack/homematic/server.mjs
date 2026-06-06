@@ -366,6 +366,24 @@ async function handlePost(req) {
         }
         return Response.json({ ok: true });
       }
+      if (body.kind === "multi") {
+        const iface2 = str(body.interface) || "BidCos-RF";
+        const address2 = str(body.address);
+        if (!address2 || !address2.includes(":") || !isObject(body.values)) {
+          return Response.json({ error: "invalid_target" }, { status: 400 });
+        }
+        const r2 = await rpc(
+          base,
+          "Interface.putParamset",
+          { _session_id_: sid, interface: iface2, address: address2, paramsetKey: "VALUES", set: body.values },
+          ac.signal
+        );
+        if (r2.error) {
+          void logPluginApiFailure("homematic", "set", "putparamset_failed");
+          return Response.json({ error: "set_failed" }, { status: 502 });
+        }
+        return Response.json({ ok: true });
+      }
       const iface = str(body.interface) || "BidCos-RF";
       const address = str(body.address);
       const valueKey = str(body.valueKey);
