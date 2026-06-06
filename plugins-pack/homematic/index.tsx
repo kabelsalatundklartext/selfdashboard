@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-type ChannelCfg = { interface: string; address: string; name: string }
+type ChannelCfg = { interface: string; address: string; name: string; type?: string }
 type RefCfg = { id: string; name: string }
 
 type StateResponse = {
@@ -48,12 +48,28 @@ function round(v: unknown, d = 1): string {
   return String(Math.round(n * f) / f)
 }
 
+/** CCU JSON-RPC returns values as strings ("20.000000", "0") — coerce safely. */
+function asNum(v: unknown): number | null {
+  if (v == null || v === '' || typeof v === 'boolean') return null
+  const n = typeof v === 'number' ? v : Number(String(v))
+  return Number.isFinite(n) ? n : null
+}
+
+function asBool(v: unknown): boolean | null {
+  if (v === true || v === 'true' || v === '1' || v === 1) return true
+  if (v === false || v === 'false' || v === '0' || v === 0) return false
+  return null
+}
+
+/** Device types whose STATE is a read-only sensor (window/door/motion …), not a switch. */
+function isSensorType(type: string): boolean {
+  return /SWDM|SWD\b|SCI|-SC\b|Sec-SC|Sec-RHS|RHS|SAM|SPI|SMI|SMO|MOTION|SWO|WDS|TRV|WTH|STH|STHO|SWO/i.test(type)
+}
+
 /** Sensor datapoints worth displaying, with unit + decimals. */
 const SENSOR_DP: { key: string; unit: string; d: number }[] = [
   { key: 'ACTUAL_TEMPERATURE', unit: '°C', d: 1 },
   { key: 'TEMPERATURE', unit: '°C', d: 1 },
-  { key: 'SET_TEMPERATURE', unit: '°C', d: 1 },
-  { key: 'SET_POINT_TEMPERATURE', unit: '°C', d: 1 },
   { key: 'HUMIDITY', unit: '%', d: 0 },
   { key: 'ACTUAL_HUMIDITY', unit: '%', d: 0 },
   { key: 'ILLUMINATION', unit: 'lx', d: 0 },
@@ -68,39 +84,40 @@ const SENSOR_DP: { key: string; unit: string; d: number }[] = [
 type Control =
   | { kind: 'switch'; on: boolean }
   | { kind: 'dim'; level: number }
-  | { kind: 'thermostat'; setKey: string; setpoint: number; actual: number | null; valve: number | null; window: boolean | null; boost: boolean | null }
+  | { kind: 'thermostat'; setKey: string; setpoint: number | null; actual: number | null; valve: number | null; window: boolean | null }
+  | { kind: 'contact'; open: boolean }
   | { kind: 'sensor' }
 
 const SET_MIN = 4.5
 const SET_MAX = 30.5
 const SET_STEP = 0.5
 
-function detectControl(values: Record<string, unknown> | undefined): Control {
+function detectControl(values: Record<string, unknown> | undefined, type = ''): Control {
   if (!values) return { kind: 'sensor' }
-  // Heizungsthermostat zuerst (hat LEVEL als Ventil + eine Soll-Temperatur).
+  // Heizungsthermostat zuerst (Soll-Temperatur vorhanden).
   let setKey: string | null = null
-  if (typeof values.SET_POINT_TEMPERATURE === 'number') setKey = 'SET_POINT_TEMPERATURE'
-  else if (typeof values.SET_TEMPERATURE === 'number') setKey = 'SET_TEMPERATURE'
+  if ('SET_POINT_TEMPERATURE' in values && asNum(values.SET_POINT_TEMPERATURE) != null) setKey = 'SET_POINT_TEMPERATURE'
+  else if ('SET_TEMPERATURE' in values && asNum(values.SET_TEMPERATURE) != null) setKey = 'SET_TEMPERATURE'
   if (setKey) {
     let valve: number | null = null
-    if (typeof values.LEVEL === 'number') valve = Math.round(values.LEVEL * 100)
-    else if (typeof values.VALVE_STATE === 'number') valve = Math.round(values.VALVE_STATE)
-    let window: boolean | null = null
-    if ('WINDOW_STATE' in values && values.WINDOW_STATE != null) window = Number(values.WINDOW_STATE) > 0
-    let boost: boolean | null = null
-    if (typeof values.BOOST_MODE === 'boolean') boost = values.BOOST_MODE
+    if (asNum(values.LEVEL) != null) valve = Math.round((asNum(values.LEVEL) as number) * 100)
+    else if (asNum(values.VALVE_STATE) != null) valve = Math.round(asNum(values.VALVE_STATE) as number)
+    const win = asBool(values.WINDOW_STATE) ?? (asNum(values.WINDOW_STATE) != null ? (asNum(values.WINDOW_STATE) as number) > 0 : null)
     return {
       kind: 'thermostat',
       setKey,
-      setpoint: Number(values[setKey]),
-      actual: typeof values.ACTUAL_TEMPERATURE === 'number' ? values.ACTUAL_TEMPERATURE : null,
+      setpoint: asNum(values[setKey]),
+      actual: asNum(values.ACTUAL_TEMPERATURE),
       valve,
-      window,
-      boost,
+      window: win,
     }
   }
-  if (typeof values.LEVEL === 'number') return { kind: 'dim', level: Math.round(values.LEVEL * 100) }
-  if (typeof values.STATE === 'boolean') return { kind: 'switch', on: values.STATE }
+  // Fenster-/Türkontakt: STATE ist ein Sensor (offen/zu), kein Schalter.
+  if ('STATE' in values && isSensorType(type)) {
+    return { kind: 'contact', open: (asBool(values.STATE) ?? false) }
+  }
+  if (asNum(values.LEVEL) != null) return { kind: 'dim', level: Math.round((asNum(values.LEVEL) as number) * 100) }
+  if ('STATE' in values && asBool(values.STATE) != null) return { kind: 'switch', on: asBool(values.STATE) as boolean }
   return { kind: 'sensor' }
 }
 
@@ -341,14 +358,14 @@ function Widget({ config }: PluginWidgetProps) {
             {sectionLabel(de ? 'Geräte' : 'Devices')}
             {channels.map((ch) => {
               const v = values[ch.address]
-              const ctrl = detectControl(v)
+              const ctrl = detectControl(v, ch.type || '')
               const nameEl = (
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={ch.name}>{ch.name}</div>
               )
 
               // --- Heizungsthermostat: Ist-Temp, Fenster, Ventil + Soll per −/+ ---
               if (ctrl.kind === 'thermostat') {
-                const sp = Number.isFinite(ctrl.setpoint) ? ctrl.setpoint : null
+                const sp = ctrl.setpoint
                 const stepSet = (delta: number) => {
                   if (sp == null) return
                   const next = Math.min(SET_MAX, Math.max(SET_MIN, Math.round((sp + delta) * 2) / 2))
@@ -401,6 +418,10 @@ function Widget({ config }: PluginWidgetProps) {
                       <button type="button" onClick={() => void setDevice(ch, 'STATE', 'boolean', !ctrl.on)} style={{ background: 'none', border: 'none', padding: 0, lineHeight: 0, cursor: 'pointer' }} title={ctrl.on ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}>
                         <Toggle on={ctrl.on} fg="var(--accent)" />
                       </button>
+                    ) : ctrl.kind === 'contact' ? (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: ctrl.open ? '#f59e0b' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        {ctrl.open ? (de ? '🪟 Offen' : '🪟 Open') : de ? 'Zu' : 'Closed'}
+                      </span>
                     ) : ctrl.kind === 'dim' ? (
                       <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{ctrl.level}%</span>
                     ) : !sensor && v == null ? (
@@ -475,6 +496,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
   const [loadErr, setLoadErr] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState('')
+  const [allChannels, setAllChannels] = useState(false)
 
   const load = useCallback(async () => {
     if (!configured) return
@@ -552,25 +574,32 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
           {(data.devices ?? []).length > 0 ? (
             <div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{de ? 'Geräte / Kanäle' : 'Devices / channels'}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{de ? 'Geräte' : 'Devices'}</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={allChannels} onChange={(e) => setAllChannels(e.target.checked)} />
+                  {de ? 'Alle Kanäle' : 'All channels'}
+                </label>
+              </div>
               <div style={box}>
                 {(data.devices ?? [])
                   .filter((d) => !f || d.name.toLowerCase().includes(f))
-                  .flatMap((d) =>
-                    d.channels
-                      .filter((c) => c.index > 0)
-                      .map((c) => {
-                        const label = d.channels.length > 1 ? `${d.name} · ${c.name}` : d.name
-                        const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label }
-                        return (
-                          <label key={c.address} style={row}>
-                            <input type="checkbox" checked={inChannels(c.address)} onChange={() => toggleChannel(cfg)} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{c.address}</span>
-                          </label>
-                        )
-                      }),
-                  )}
+                  .flatMap((d) => {
+                    const usable = d.channels.filter((c) => c.index > 0)
+                    // Standard: nur den Hauptkanal (kleinster Index) pro Gerät zeigen.
+                    const shown = allChannels ? usable : usable.slice(0, 1)
+                    return shown.map((c) => {
+                      const label = allChannels && usable.length > 1 ? `${d.name} · ${c.name}` : d.name
+                      const cfg: ChannelCfg = { interface: d.interface, address: c.address, name: label, type: d.type }
+                      return (
+                        <label key={c.address} style={row}>
+                          <input type="checkbox" checked={inChannels(c.address)} onChange={() => toggleChannel(cfg)} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{allChannels ? c.address : d.type}</span>
+                        </label>
+                      )
+                    })
+                  })}
               </div>
             </div>
           ) : null}
@@ -622,7 +651,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
