@@ -401,4 +401,7 @@ export function useDashboardStoreHydrated(): boolean {
       if (useDashboardStore.persist.hasHydrated()) return () => {}
       return useDashboardStore.persist.onFinishHydration(onStoreChange)
     },
-    () => useDashboardStore.persist.hasHydrated()
+    () => useDashboardStore.persist.hasHydrated(),
+    () => false,
+  )
+}
