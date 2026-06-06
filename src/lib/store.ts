@@ -197,7 +197,7 @@ export const useDashboardStore = create<DashboardStore>()(
       },
       setGridGap: (gridGap) => set({ gridGap }),
       setGridPadding: (gridPadding) => set({ gridPadding }),
-      setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme } : d) })) },
+      setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme, customColors: undefined } : d) })) },
       setTitle: (name) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, name } : d) })) },
       setCustomLogo: (customLogo) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customLogo } : d) })) },
       setCustomColors: (colors) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customColors: { ...d.customColors, ...colors } } : d) })) },
@@ -401,7 +401,4 @@ export function useDashboardStoreHydrated(): boolean {
       if (useDashboardStore.persist.hasHydrated()) return () => {}
       return useDashboardStore.persist.onFinishHydration(onStoreChange)
     },
-    () => useDashboardStore.persist.hasHydrated(),
-    () => false,
-  )
-}
+    () => useDashboardStore.persist.hasHydrated()
