@@ -228,9 +228,8 @@ export function CrowdsecWidget({
 
   return (
     <section
-      className={`cs-widget ${layoutClass} cs-theme-${theme}`.trim()}
+      className={`cs-widget ${layoutClass}`.trim()}
       style={{ position: 'relative' }}
-      data-theme={theme}
     >
       {error ? <p className="cs-error">{errLabel(error)}</p> : null}
 
