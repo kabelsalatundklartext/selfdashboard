@@ -63,6 +63,16 @@ function parseArr<T>(v: unknown): T[] {
   }
 }
 
+/** address -> custom display name. */
+function parseNameMap(v: unknown): Record<string, string> {
+  try {
+    const o = JSON.parse(str(v) || '{}')
+    return o && typeof o === 'object' && !Array.isArray(o) ? (o as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
 function round(v: unknown, d = 1): string {
   const n = typeof v === 'number' ? v : Number(v)
   if (!Number.isFinite(n)) return String(v)
@@ -279,6 +289,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const channels = parseArr<ChannelCfg>(config.channels)
   const sysvarSel = parseArr<RefCfg>(config.sysvars)
   const programSel = parseArr<RefCfg>(config.programs)
+  const nameMap = parseNameMap(config.names)
   const columns = str(config.columns) || '1'
   const roomGridStyle: CSSProperties =
     columns === '1'
@@ -466,8 +477,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
             {roomChannels.map((ch) => {
               const v = values[ch.address]
               const ctrl = detectControl(v, ch.type || '')
+              const chName = nameMap[ch.address] || ch.name
               const nameEl = (
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={ch.name}>{ch.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={chName}>{chName}</div>
               )
 
               // --- Heizungsthermostat: Ist-Temp, Fenster, Ventil + Soll per −/+ ---
@@ -557,7 +569,12 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
                         {ctrl.open ? (de ? 'Offen' : 'Open') : de ? 'Zu' : 'Closed'}
                       </span>
                     ) : ctrl.kind === 'dim' ? (
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{ctrl.level}%</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{ctrl.level}%</span>
+                        <button type="button" onClick={() => void setDevice(ch, 'LEVEL', 'double', ctrl.level > 0 ? 0 : 1)} style={{ background: 'none', border: 'none', padding: 0, lineHeight: 0, cursor: 'pointer' }} title={ctrl.level > 0 ? (de ? 'Ausschalten' : 'Turn off') : de ? 'Einschalten' : 'Turn on'}>
+                          <Toggle on={ctrl.level > 0} fg="var(--accent)" />
+                        </button>
+                      </div>
                     ) : !sensor && v == null ? (
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>…</span>
                     ) : null}
@@ -671,6 +688,13 @@ function Settings({ config, onChange }: PluginSettingsProps) {
     onChange('channels', JSON.stringify(next))
   }
   const clearChannels = () => onChange('channels', '[]')
+  const nameMap = parseNameMap(config.names)
+  const setName = (addr: string, name: string) => {
+    const next = { ...nameMap }
+    if (name.trim()) next[addr] = name
+    else delete next[addr]
+    onChange('names', JSON.stringify(next))
+  }
 
   const f = filter.trim().toLowerCase()
   const box: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, maxHeight: 190, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px' }
@@ -810,6 +834,20 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         </>
       ) : null}
 
+      {channels.length > 0 ? (
+        <div>
+          <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Geräte umbenennen' : 'Rename devices'}</label>
+          <div style={{ ...box, maxHeight: 220 }}>
+            {channels.map((ch) => (
+              <div key={ch.address} style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 6 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{(ch.room ? ch.room + ' · ' : '') + ch.address}</span>
+                <input style={inp} value={nameMap[ch.address] ?? ch.name} onChange={(e) => setName(ch.address, e.target.value)} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Räume nebeneinander (Spalten)' : 'Rooms side by side (columns)'}</label>
         <select style={inp} value={str(config.columns) || '1'} onChange={(e) => onChange('columns', e.target.value)}>
@@ -832,7 +870,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.7',
+  version: '0.9.8',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
@@ -847,6 +885,7 @@ export const meta: PluginMeta = {
     { key: 'sysvars', label: 'Variablen (JSON)', type: 'text', defaultValue: '' },
     { key: 'programs', label: 'Programme (JSON)', type: 'text', defaultValue: '' },
     { key: 'columns', label: 'Spalten', type: 'text', defaultValue: '1' },
+    { key: 'names', label: 'Eigene Namen (JSON)', type: 'text', defaultValue: '' },
     { key: 'roomOrder', label: 'Raum-Reihenfolge (JSON)', type: 'text', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 30 },
   ],
