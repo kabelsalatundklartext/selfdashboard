@@ -595,7 +595,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   const placeEl =
     place && showPlace ? (
-      <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 600, color: muted, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }} title={place}>{place}</p>
+      <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 600, color: muted, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0, maxWidth: '100%' }} title={place}>{place}</p>
     ) : null
 
   const feelsEl =
@@ -633,7 +633,7 @@ function Widget({ config }: PluginWidgetProps) {
     ) : null
 
   const statsChipsEl = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5, width: '100%' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5, width: '100%', flexShrink: 0 }}>
       {([[tr.hum, humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'], [tr.wind, windSpeed > 0 ? `${Math.round(windSpeed)} ${windDir(windDeg, de)}` : '—'], ['UV', Number.isFinite(uv) ? String(Math.round(uv)) : '—'], [de ? 'Böen' : 'Gusts', gusts > 0 ? String(Math.round(gusts)) : '—'], [de ? 'Luft' : 'Air', air && air.aqi != null ? String(air.aqi) : '—'], ['PM2.5', air && air.pm25 != null ? String(air.pm25) : '—']] as [string, string][]).map(([k, v]) => (
         <div key={k} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 4px', textAlign: 'center' }}>
           <div style={{ fontSize: 'clamp(8px, 1.8cqmin, 10px)', color: muted }}>{k}</div>
@@ -644,7 +644,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const statsPillsEl = (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center', flexShrink: 0 }}>
       {([showHumidityWind ? `${tr.hum} ${humidity != null ? Math.round(nm(humidity, 0)) + '%' : '—'}` : null, showHumidityWind ? `${tr.wind} ${windSpeed > 0 ? Math.round(windSpeed) + ' km/h' : '—'}` : null, showUvGusts ? `UV ${Number.isFinite(uv) ? Math.round(uv) : '—'}` : null, showUvGusts ? `${de ? 'Böen' : 'Gusts'} ${gusts > 0 ? Math.round(gusts) : '—'}` : null, showAirQuality && air && air.aqi != null ? `${de ? 'Luft' : 'Air'} ${air.aqi}` : null, showAirQuality && air && air.pm25 != null ? `PM2.5 ${air.pm25}` : null].filter(Boolean) as string[]).map((t, i) => (
         <span key={i} style={{ background: 'var(--surface-2)', borderRadius: 999, padding: '4px 11px', fontSize: 'clamp(9px, 2.1cqmin, 11px)', color: 'var(--text)' }}>{t}</span>
       ))}
@@ -652,7 +652,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const currentCentered = (large = false) => (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px, 0.6cqmin, 4px)', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px, 0.6cqmin, 4px)', width: '100%', flexShrink: 0 }}>
       {tempIconEl(large ? 'clamp(2rem, min(14cqmin, 22vw), 3.4rem)' : 'clamp(1.5rem, min(11cqmin, 20vw), 3rem)', large ? 'clamp(38px, min(12cqmin, 16vw), 64px)' : 'clamp(32px, min(10cqmin, 14vw), 60px)')}
       {feelsEl}
       <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(11px, 2.6cqmin, 14px)', color: 'var(--text)', fontWeight: 600, lineHeight: 1.25 }}>{label}</p>
@@ -660,7 +660,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const currentInline = (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexShrink: 0 }}>
       {tempIconEl('clamp(1.4rem, 9cqmin, 2.6rem)', 'clamp(28px, 8cqmin, 48px)')}
       <div style={{ textAlign: 'left', minWidth: 0 }}>
         <div style={{ fontSize: 'clamp(11px, 2.6cqmin, 14px)', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
@@ -798,11 +798,16 @@ function Widget({ config }: PluginWidgetProps) {
     </div>
   ) : null
 
-  const sidebarLayout = (leftTop: ReactNode, sevenEl: ReactNode, sidebarW: number, center = false): ReactNode => (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 14 }}>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(3px, 0.9cqmin, 6px)', justifyContent: center ? 'center' : undefined }}>
+  const colStack = (children: ReactNode) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>{children}</div>
+  )
+
+  const sidebarLayout = (leftTop: ReactNode, sevenEl: ReactNode, sidebarW: number, centerLeft = false): ReactNode => (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', width: '100%' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(3px, 0.9cqmin, 6px)', alignItems: centerLeft ? 'center' : 'stretch' }}>
         {leftTop}
-        <div style={{ marginTop: center ? undefined : 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>{rainEl}{hourlyEl}</div>
+        {rainEl}
+        {hourlyEl}
       </div>
       <div style={{ width: sidebarW, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
         {haveDaily ? nextDaysLabel : null}
@@ -812,7 +817,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const stackedFallback: ReactNode = (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(3px, 1cqmin, 6px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(3px, 1cqmin, 6px)', width: '100%' }}>
       {placeEl}
       {statsEl}
       {currentCentered(false)}
@@ -826,59 +831,61 @@ function Widget({ config }: PluginWidgetProps) {
     switch (layout) {
       case 'bottombar':
         return (
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               {currentInline}
-              <div style={{ maxWidth: '55%' }}>{statsEl}</div>
+              <div style={{ flex: 1, minWidth: 180 }}>{statsEl}</div>
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>{rainEl}{hourlyEl}</div>
+            {rainEl}
+            {hourlyEl}
             {sevenGridEl(false, false)}
           </div>
         )
       case 'statgrid':
-        return sidebarLayout(<>{placeEl}{currentInline}{statsChipsEl}</>, sevenListEl, 170)
+        return sidebarLayout(colStack(<>{placeEl}{currentInline}{statsChipsEl}</>), sevenListEl, 170)
       case 'rainfocus':
         return (
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 14 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', width: '100%' }}>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1cqmin, 8px)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>{currentInline}<span style={{ flex: 1 }} /></div>
+              {currentInline}
               {rainEl}
-              <div style={{ marginTop: 'auto' }}>{hourlyEl}</div>
+              {hourlyEl}
             </div>
             <div style={{ width: 132, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>{haveDaily ? nextDaysLabel : null}{sevenChipsEl}</div>
           </div>
         )
       case 'tworows':
         return (
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
-            <div style={{ display: 'flex', gap: 14 }}>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>{currentInline}{statsEl}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)', width: '100%' }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>{currentInline}{statsEl}</div>
               <div style={{ width: 286, flexShrink: 0 }}>{sevenGridEl(true, false)}</div>
             </div>
-            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>{rainEl}{hourlyEl}</div>
+            {rainEl}
+            {hourlyEl}
           </div>
         )
       case 'sparkline':
-        return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenBarsEl, 190)
+        return sidebarLayout(colStack(<>{placeEl}{currentInline}{statsEl}</>), sevenBarsEl, 190)
       case 'pills':
-        return sidebarLayout(<div style={{ display: 'flex', flexDirection: 'column', gap: 9, alignItems: 'center' }}>{currentCentered(false)}{statsPillsEl}</div>, sevenChipsEl, 150, true)
+        return sidebarLayout(<>{currentCentered(false)}{statsPillsEl}</>, sevenChipsEl, 150, true)
       case 'minimal':
-        return sidebarLayout(<div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>{currentCentered(true)}{statsEl}</div>, sevenListEl, 150, true)
+        return sidebarLayout(<>{currentCentered(true)}{statsEl}</>, sevenListEl, 150, true)
       case 'fullwidth':
         return (
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, flexWrap: 'wrap' }}>{currentInline}{statsEl}</div>
-            <div style={{ flex: 1, display: 'flex', gap: 14, minHeight: 0 }}>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 4 }}>{rainEl}{hourlyEl}</div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>{rainEl}{hourlyEl}</div>
               <div style={{ width: 252, flexShrink: 0 }}>{sevenGridEl(false, false)}</div>
             </div>
           </div>
         )
       case 'iconseven':
-        return sidebarLayout(<>{currentInline}{statsEl}</>, sevenIconEl, 122)
+        return sidebarLayout(colStack(<>{currentInline}{statsEl}</>), sevenIconEl, 122)
       case 'sidebar':
       default:
-        return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenListEl, 152)
+        return sidebarLayout(colStack(<>{placeEl}{currentInline}{statsEl}</>), sevenListEl, 152)
     }
   })()
 
@@ -896,7 +903,8 @@ function Widget({ config }: PluginWidgetProps) {
         gap: 'clamp(3px, 1cqmin, 6px)',
         padding: 'clamp(6px, 2cqmin, 12px)',
         boxSizing: 'border-box',
-        overflow: 'auto',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         opacity: stale ? 0.72 : 1,
         transition: 'opacity 0.2s ease',
       }}
@@ -904,7 +912,9 @@ function Widget({ config }: PluginWidgetProps) {
       {error && haveTemp ? (
         <p style={{ margin: 0, flexShrink: 0, fontSize: 'clamp(10px, 2.2cqmin, 11px)', color: '#fb7185', textAlign: 'center', lineHeight: 1.3 }}>{error}</p>
       ) : null}
-      {wide && haveDaily ? layoutEl : stackedFallback}
+      <div style={{ margin: 'auto 0', width: '100%', minWidth: 0 }}>
+        {wide && haveDaily ? layoutEl : stackedFallback}
+      </div>
     </div>
   )
 }
@@ -999,7 +1009,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.8.0',
+  version: '1.8.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
