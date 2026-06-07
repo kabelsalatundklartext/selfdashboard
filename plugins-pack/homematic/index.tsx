@@ -341,16 +341,13 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const programSel = parseArr<RefCfg>(config.programs)
   const nameMap = parseNameMap(config.names)
   const columns = str(config.columns) || '1'
+  const colMode = columns === '1' ? 'one' : columns === 'auto' ? 'auto' : 'fixed'
   const roomGridStyle: CSSProperties =
-    columns === '1'
+    colMode === 'one'
       ? { display: 'flex', flexDirection: 'column', gap: 10 }
-      : {
-          display: 'grid',
-          gridTemplateColumns:
-            columns === 'auto' ? 'repeat(auto-fill, minmax(230px, 1fr))' : `repeat(${Number(columns) || 2}, minmax(0, 1fr))`,
-          gap: 10,
-          alignItems: 'start',
-        }
+      : colMode === 'auto'
+        ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10, alignItems: 'start' }
+        : ({ display: 'grid', gap: 10, alignItems: 'start', '--hm-cols': String(Number(columns) || 2) } as unknown as CSSProperties)
 
   const roomOrder = parseArr<string>(config.roomOrder)
   const orderedGroups = applyRoomOrder(groupByRoom(channels), roomOrder)
@@ -487,6 +484,8 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
         .hm-range{-webkit-appearance:none;appearance:none;height:5px;border-radius:999px;background:rgba(255,255,255,.22);outline:none}
         .hm-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
         .hm-range::-moz-range-thumb{width:14px;height:14px;border:none;border-radius:50%;background:#fff;cursor:pointer}
+        .hm-roomgrid{display:grid;align-items:start;grid-template-columns:repeat(var(--hm-cols,2),minmax(0,1fr))}
+        @container (max-width: 440px){.hm-roomgrid{grid-template-columns:1fr}}
       `}</style>
 
       {title ? (
@@ -509,7 +508,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
         ) : null}
 
         {channels.length > 0 ? (
-          <div style={roomGridStyle}>
+          <div className={colMode === 'fixed' ? 'hm-roomgrid' : undefined} style={roomGridStyle}>
           {orderedGroups.map(([roomName, roomChannels]) => (
           <div
             key={roomName || '_none'}
@@ -940,7 +939,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.10',
+  version: '0.9.11',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

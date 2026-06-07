@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-07T11:51:07.124Z",
+  "generatedAt": "2026-06-07T13:25:00.787Z",
   "plugins": [
     {
       "id": "adguard",
@@ -195,7 +195,7 @@
       "id": "homematic",
       "name": "Homematic",
       "description": "Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)",
-      "version": "0.9.10",
+      "version": "0.9.11",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🏠",
