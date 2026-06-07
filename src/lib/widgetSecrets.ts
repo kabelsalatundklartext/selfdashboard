@@ -28,6 +28,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   openmediavault: ['password'],
   homematic: ['password'],
   'fritz-smarthome': ['password'],
+  'bambu-cam': ['accessCode'],
 }
 
 type PluginLike = { pluginId?: unknown; config?: unknown }
