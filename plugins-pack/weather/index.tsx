@@ -597,7 +597,7 @@ function Widget({ config }: PluginWidgetProps) {
         containerType: 'size',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'clamp(4px, 1.1cqmin, 8px)',
+        gap: 'clamp(3px, 1cqmin, 6px)',
         padding: 'clamp(6px, 2cqmin, 12px)',
         boxSizing: 'border-box',
         overflow: 'auto',
@@ -625,44 +625,36 @@ function Widget({ config }: PluginWidgetProps) {
             flexDirection: 'column',
             justifyContent: sideBySide ? 'flex-start' : 'center',
             alignItems: 'center',
-            gap: sideBySide ? 'clamp(3px, 0.9cqmin, 7px)' : 'clamp(4px, 1.2cqmin, 8px)',
+            gap: sideBySide ? 'clamp(2px, 0.7cqmin, 4px)' : 'clamp(2px, 0.9cqmin, 5px)',
             alignSelf: sideBySide ? 'stretch' : undefined,
             ...(sideBySide ? { paddingRight: 'clamp(6px, 1.5cqmin, 12px)', borderRight: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' } : {}),
           }}
         >
-          {showHumidityWind ? (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(8px, 3cqmin, 16px)', flexWrap: 'wrap', fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, width: '100%', flexShrink: 0 }}>
-              <span>{tr.hum} {humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span>
-              <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : `${tr.wind} —`}</span>
-            </div>
-          ) : null}
-          {showSun && sun ? (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(10px, 3cqmin, 18px)', flexWrap: 'wrap', fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, width: '100%', flexShrink: 0 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Sunrise aria-hidden style={{ width: 13, height: 13, color: '#fbbf24', flexShrink: 0 }} />
-                {fmtTime(sun.sunrise, de)}
-              </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Sunset aria-hidden style={{ width: 13, height: 13, color: '#fb923c', flexShrink: 0 }} />
-                {fmtTime(sun.sunset, de)}
-              </span>
-            </div>
-          ) : null}
-          {showUvGusts ? (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(8px, 3cqmin, 16px)', flexWrap: 'wrap', fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, width: '100%', flexShrink: 0 }}>
-              <span>UV {Number.isFinite(uv) ? Math.round(uv) : '—'}</span>
-              <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span>
-            </div>
-          ) : null}
-          {showAirQuality && air ? (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(8px, 3cqmin, 16px)', flexWrap: 'wrap', fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, width: '100%', flexShrink: 0 }}>
-              {air.aqi != null ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />
-                  {de ? 'Luft' : 'Air'} {air.aqi} · {aqiLabel(air.aqi, de)}
+          {showHumidityWind || showSun || showUvGusts || (showAirQuality && air) ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', columnGap: 'clamp(6px, 2cqmin, 12px)', rowGap: 1, flexWrap: 'wrap', fontSize: 'clamp(9px, 2.1cqmin, 11px)', color: muted, width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
+              {showHumidityWind ? <span>{tr.hum} {humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span> : null}
+              {showHumidityWind ? <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : `${tr.wind} —`}</span> : null}
+              {showUvGusts ? <span>UV {Number.isFinite(uv) ? Math.round(uv) : '—'}</span> : null}
+              {showUvGusts ? <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span> : null}
+              {showAirQuality && air && air.aqi != null ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />
+                  {air.aqi} {aqiLabel(air.aqi, de)}
                 </span>
               ) : null}
-              {air.pm25 != null ? <span>PM2.5 {air.pm25}</span> : null}
+              {showAirQuality && air && air.pm25 != null ? <span>PM2.5 {air.pm25}</span> : null}
+              {showSun && sun ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <Sunrise aria-hidden style={{ width: 12, height: 12, color: '#fbbf24', flexShrink: 0 }} />
+                  {fmtTime(sun.sunrise, de)}
+                </span>
+              ) : null}
+              {showSun && sun ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <Sunset aria-hidden style={{ width: 12, height: 12, color: '#fb923c', flexShrink: 0 }} />
+                  {fmtTime(sun.sunset, de)}
+                </span>
+              ) : null}
             </div>
           ) : null}
 
@@ -826,7 +818,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.7.1',
+  version: '1.7.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
