@@ -699,6 +699,21 @@ function Widget({ config }: PluginWidgetProps) {
               })}
             </div>
           ) : null}
+          {showRainForecast && rainHours.length > 0 ? (
+            <div style={{ width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, marginTop: sideBySide ? 'auto' : 4 }}>
+              <span style={{ fontSize: 'clamp(8px, 1.9cqmin, 10px)', color: muted, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{rainSummary}</span>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, width: '100%' }}>
+                {rainHours.map((r) => (
+                  <div key={r.hour} title={de ? `${r.hour} Uhr — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}` : `${r.hour}:00 — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                    <div style={{ width: '100%', height: 15, display: 'flex', alignItems: 'flex-end', background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: '100%', height: `${Math.max(3, r.prob)}%`, background: r.prob >= 50 ? '#3b82f6' : r.prob >= 20 ? '#60a5fa' : '#93c5fd', opacity: r.prob > 0 ? 1 : 0.3 }} />
+                    </div>
+                    <span style={{ fontSize: 'clamp(6px, 1.4cqmin, 8px)', color: muted, lineHeight: 1 }}>{r.hour}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {haveDaily ? (
@@ -733,21 +748,6 @@ function Widget({ config }: PluginWidgetProps) {
           </div>
         ) : null}
       </div>
-      {showRainForecast && rainHours.length > 0 ? (
-        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', color: muted, fontWeight: 600, textAlign: 'center' }}>{rainSummary}</span>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2 }}>
-            {rainHours.map((r) => (
-              <div key={r.hour} title={de ? `${r.hour} Uhr — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}` : `${r.hour}:00 — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                <div style={{ width: '100%', height: 18, display: 'flex', alignItems: 'flex-end', background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ width: '100%', height: `${Math.max(3, r.prob)}%`, background: r.prob >= 50 ? '#3b82f6' : r.prob >= 20 ? '#60a5fa' : '#93c5fd', opacity: r.prob > 0 ? 1 : 0.3 }} />
-                </div>
-                <span style={{ fontSize: 'clamp(6px, 1.4cqmin, 8px)', color: muted, lineHeight: 1 }}>{r.hour}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -826,7 +826,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.7.0',
+  version: '1.7.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
