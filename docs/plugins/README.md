@@ -7,7 +7,7 @@ Each plugin has a **README with German and English** sections:
 | Plugin | Doc |
 |--------|-----|
 | [AdGuard Home](adguard/README.md) | `adguard` |
-| [Bambu Lab Kamera](../../plugins-pack/bambu-cam/README.md) | `bambu-cam` |
+| [Bambu Lab Kamera](bambu-cam/README.md) | `bambu-cam` |
 | [Bookmarks](bookmarks/README.md) | `bookmarks` |
 | [Calendar](calendar/README.md) | `calendar` |
 | [Clock](clock/README.md) | `clock` |
@@ -16,28 +16,28 @@ Each plugin has a **README with German and English** sections:
 | [Email](mail/README.md) | `mail` |
 | [Emby](emby/README.md) | `emby` |
 | [FRITZ! Energy](fritz-energy/README.md) | `fritz-energy` |
-| [FRITZ! Smart Home](../../plugins-pack/fritz-smarthome/README.md) | `fritz-smarthome` |
+| [FRITZ! Smart Home](fritz-smarthome/README.md) | `fritz-smarthome` |
 | [FRITZ!Box](fritzbox/README.md) | `fritzbox` |
-| [Home Assistant](../../plugins-pack/home-assistant/README.md) | `home-assistant` |
-| [Homematic / RaspberryMatic](../../plugins-pack/homematic/README.md) | `homematic` |
+| [Home Assistant](home-assistant/README.md) | `home-assistant` |
+| [Homematic / RaspberryMatic](homematic/README.md) | `homematic` |
 | [Iframe](iframe/README.md) | `iframe` |
-| [Jellyfin](../../plugins-pack/jellyfin/README.md) | `jellyfin` |
-| [Nginx Proxy Manager](../../plugins-pack/npm/README.md) | `npm` |
-| [OPNsense](../../plugins-pack/opnsense/README.md) | `opnsense` |
-| [OpenMediaVault](../../plugins-pack/openmediavault/README.md) | `openmediavault` |
-| [Philips Hue](../../plugins-pack/hue/README.md) | `hue` |
+| [Jellyfin](jellyfin/README.md) | `jellyfin` |
+| [Nginx Proxy Manager](npm/README.md) | `npm` |
+| [OPNsense](opnsense/README.md) | `opnsense` |
+| [OpenMediaVault](openmediavault/README.md) | `openmediavault` |
+| [Philips Hue](hue/README.md) | `hue` |
 | [Pi-hole](pihole/README.md) | `pihole` |
-| [Plex](../../plugins-pack/plex/README.md) | `plex` |
-| [Proxmox VE](../../plugins-pack/proxmox/README.md) | `proxmox` |
+| [Plex](plex/README.md) | `plex` |
+| [Proxmox VE](proxmox/README.md) | `proxmox` |
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
 | [Selfstream](selfstream/README.md) | `selfstream` |
-| [Selfstream · Emby · Jellyfin](../../plugins-pack/selfstream-emby/README.md) | `selfstream-emby` |
-| [Speedtest Tracker](../../plugins-pack/speedtest-tracker/README.md) | `speedtest-tracker` |
-| [TrueNAS](../../plugins-pack/truenas/README.md) | `truenas` |
-| [UniFi Controller](../../plugins-pack/unifi/README.md) | `unifi` |
+| [Selfstream · Emby · Jellyfin](selfstream-emby/README.md) | `selfstream-emby` |
+| [Speedtest Tracker](speedtest-tracker/README.md) | `speedtest-tracker` |
+| [TrueNAS](truenas/README.md) | `truenas` |
+| [UniFi Controller](unifi/README.md) | `unifi` |
 | [Unraid](unraid/README.md) | `unraid` |
 | [Unraid Docker](unraid-docker/README.md) | `unraid-docker` |
-| [Uptime Kuma](../../plugins-pack/uptime-kuma/README.md) | `uptime-kuma` |
+| [Uptime Kuma](uptime-kuma/README.md) | `uptime-kuma` |
 | [Weather](weather/README.md) | `weather` |
 
 **Installation:** [../PLUGINS.md](../PLUGINS.md) · **Develop:** [../PLUGIN_DEV.md](../PLUGIN_DEV.md)
