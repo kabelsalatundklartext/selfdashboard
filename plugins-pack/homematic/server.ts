@@ -255,10 +255,21 @@ async function handlePost(req: Request): Promise<Response> {
         if (!address || !address.includes(':') || !isObject(body.values)) {
           return Response.json({ error: 'invalid_target' }, { status: 400 })
         }
+        // Datenpunkt-Typen serverseitig erzwingen (HUE = integer, SATURATION/LEVEL = double).
+        const intKeys = new Set(['HUE'])
+        const set: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(body.values)) {
+          const n = num(v)
+          if (n == null) continue
+          set[k] = intKeys.has(k) ? Math.round(n) : n
+        }
+        if (Object.keys(set).length === 0) {
+          return Response.json({ error: 'invalid_target' }, { status: 400 })
+        }
         const r = await rpc(
           base,
           'Interface.putParamset',
-          { _session_id_: sid, interface: iface, address, paramsetKey: 'VALUES', set: body.values },
+          { _session_id_: sid, interface: iface, address, paramsetKey: 'VALUES', set },
           ac.signal,
         )
         if (r.error) {

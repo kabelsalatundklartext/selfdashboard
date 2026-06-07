@@ -360,6 +360,7 @@ async function handlePost(req) {
     }
     const key = openSealedSecret(String(body.apiKey ?? ""));
     if (!key) return Response.json({ error: "missing_api_key" }, { status: 400 });
+    if (!/^[A-Za-z0-9_-]+$/.test(key)) return Response.json({ error: "auth_failed" }, { status: 401 });
     if (body.action === "set") {
       const target = body.target === "light" ? "light" : "group";
       const id = str(body.id);

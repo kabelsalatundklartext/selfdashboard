@@ -18,6 +18,8 @@ type ReqBody = {
   on?: boolean
   /** thermostat target in °C */
   tempC?: number
+  /** thermostat: set to off (frost protection / param 253) */
+  off?: boolean
 }
 
 function str(v: unknown): string {
@@ -220,7 +222,14 @@ async function handlePost(req: Request): Promise<Response> {
       const a = encodeURIComponent(ain)
       let url: string
       if (body.kind === 'thermostat') {
-        const param = tempToParam(Number(body.tempC))
+        let param: number
+        if (body.off === true) {
+          param = 253 // Aus (Frostschutz)
+        } else {
+          const tc = Number(body.tempC)
+          if (!Number.isFinite(tc)) return Response.json({ error: 'invalid_target' }, { status: 400 })
+          param = tempToParam(tc)
+        }
         url = aha(base, sid, 'sethkrtsoll', `&ain=${a}&param=${param}`)
       } else {
         url = aha(base, sid, body.on ? 'setswitchon' : 'setswitchoff', `&ain=${a}`)

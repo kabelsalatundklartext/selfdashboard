@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { login } from '@/lib/auth/service'
-import { rateLimitLogin, rateLimitResponse } from '@/lib/auth/rateLimit'
+import { rateLimitLogin, rateLimitLoginUser, rateLimitResponse } from '@/lib/auth/rateLimit'
 import { applySessionCookie } from '@/lib/auth/sessionResponse'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -25,6 +25,8 @@ export async function POST(req: Request) {
   if (!username || !password) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
   }
+  const rlUser = rateLimitLoginUser(username)
+  if (!rlUser.ok) return rateLimitResponse(rlUser.retryAfterSec)
   try {
     const session = await login({
       username,

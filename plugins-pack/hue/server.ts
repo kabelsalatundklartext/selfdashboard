@@ -239,6 +239,8 @@ async function handlePost(req: Request): Promise<Response> {
 
     const key = openSealedSecret(String(body.apiKey ?? ''))
     if (!key) return Response.json({ error: 'missing_api_key' }, { status: 400 })
+    // Hue-Whitelist-Key wird in den URL-Pfad eingesetzt — Zeichensatz absichern.
+    if (!/^[A-Za-z0-9_-]+$/.test(key)) return Response.json({ error: 'auth_failed' }, { status: 401 })
 
     // Schalten / dimmen.
     if (body.action === 'set') {

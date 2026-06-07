@@ -63,6 +63,13 @@ export function rateLimitLogin(req: Request): RateLimitResult {
   return checkRateLimit(`login:${getClientIp(req)}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
 }
 
+// Independent of IP: throttles brute-force against a single account even when
+// the attacker rotates X-Forwarded-For (which is not from a trusted proxy here).
+export function rateLimitLoginUser(username: string): RateLimitResult {
+  const u = username.trim().toLowerCase().slice(0, 64) || 'unknown'
+  return checkRateLimit(`login-user:${u}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
+}
+
 export function rateLimitTotpVerify(req: Request, userId: string): RateLimitResult {
   return checkRateLimit(
     `totp-verify:${userId}:${getClientIp(req)}`,

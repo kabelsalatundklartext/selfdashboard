@@ -135,7 +135,7 @@ function hsvToHex(h: number, s: number, v: number): string {
 
 /** Device types whose STATE is a read-only sensor (window/door/motion …), not a switch. */
 function isSensorType(type: string): boolean {
-  return /SWDM|SWD\b|SCI|-SC\b|Sec-SC|Sec-RHS|RHS|SAM|SPI|SMI|SMO|MOTION|SWO|WDS|TRV|WTH|STH|STHO|SWO/i.test(type)
+  return /SWDM|SWDO|SWD\b|SCI|-SC\b|Sec-SC|Sec-RHS|RHS|SAM|SPI|SMI|SMO|MOTION|SWO|WDS|DSD|DLD|TRV|WTH|STH|STHO/i.test(type)
 }
 
 /** Sensor datapoints worth displaying, with unit + decimals. */
@@ -940,7 +940,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.9',
+  version: '0.9.10',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

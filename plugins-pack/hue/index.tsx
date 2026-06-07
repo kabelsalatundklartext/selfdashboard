@@ -702,7 +702,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.14',
+  version: '0.9.15',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',

@@ -372,10 +372,20 @@ async function handlePost(req) {
         if (!address2 || !address2.includes(":") || !isObject(body.values)) {
           return Response.json({ error: "invalid_target" }, { status: 400 });
         }
+        const intKeys = /* @__PURE__ */ new Set(["HUE"]);
+        const set = {};
+        for (const [k, v] of Object.entries(body.values)) {
+          const n = num(v);
+          if (n == null) continue;
+          set[k] = intKeys.has(k) ? Math.round(n) : n;
+        }
+        if (Object.keys(set).length === 0) {
+          return Response.json({ error: "invalid_target" }, { status: 400 });
+        }
         const r2 = await rpc(
           base,
           "Interface.putParamset",
-          { _session_id_: sid, interface: iface2, address: address2, paramsetKey: "VALUES", set: body.values },
+          { _session_id_: sid, interface: iface2, address: address2, paramsetKey: "VALUES", set },
           ac.signal
         );
         if (r2.error) {

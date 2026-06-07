@@ -340,7 +340,14 @@ async function handlePost(req) {
       const a = encodeURIComponent(ain);
       let url;
       if (body.kind === "thermostat") {
-        const param = tempToParam(Number(body.tempC));
+        let param;
+        if (body.off === true) {
+          param = 253;
+        } else {
+          const tc = Number(body.tempC);
+          if (!Number.isFinite(tc)) return Response.json({ error: "invalid_target" }, { status: 400 });
+          param = tempToParam(tc);
+        }
         url = aha(base, sid, "sethkrtsoll", `&ain=${a}&param=${param}`);
       } else {
         url = aha(base, sid, body.on ? "setswitchon" : "setswitchoff", `&ain=${a}`);

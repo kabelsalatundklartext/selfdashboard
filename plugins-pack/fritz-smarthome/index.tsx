@@ -159,6 +159,13 @@ function Widget({ config }: PluginWidgetProps) {
     busyRef.current = false
     setTimeout(() => void refresh(), 600)
   }
+  const setOff = async (d: FritzDevice) => {
+    busyRef.current = true
+    apply(d.ain, { tsoll: 253 })
+    await callFritz({ url: baseUrl, username, password, action: 'set', kind: 'thermostat', ain: d.ain, off: true })
+    busyRef.current = false
+    setTimeout(() => void refresh(), 600)
+  }
 
   const shell: CSSProperties = { height: '100%', width: '100%', minWidth: 0, minHeight: 0, boxSizing: 'border-box', padding: '8px 10px 10px', containerType: 'size', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 8 }
 
@@ -188,11 +195,21 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const renderThermostat = (d: FritzDevice) => {
+    const off = d.tsoll === 253
     const tempC = tsollToTempC(d.tsoll)
-    const step = (delta: number) => {
-      const next = Math.min(SET_MAX, Math.max(SET_MIN, Math.round((tempC + delta) * 2) / 2))
-      if (next === tempC) return
-      void setTemp(d, next)
+    const stepDown = () => {
+      if (off) return
+      const next = Math.round((tempC - SET_STEP) * 2) / 2
+      if (next < SET_MIN) void setOff(d)
+      else void setTemp(d, next)
+    }
+    const stepUp = () => {
+      if (off) {
+        void setTemp(d, SET_MIN)
+        return
+      }
+      const next = Math.min(SET_MAX, Math.round((tempC + SET_STEP) * 2) / 2)
+      if (next !== tempC) void setTemp(d, next)
     }
     const info: string[] = []
     if (d.tist != null) info.push(`${de ? 'Ist' : 'Now'} ${round(d.tist, 1)} °C`)
@@ -205,9 +222,9 @@ function Widget({ config }: PluginWidgetProps) {
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{info.join(' · ') || '…'}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button type="button" style={stepBtn} onClick={() => step(-SET_STEP)} title={de ? 'Kälter' : 'Down'}>−</button>
-          <span style={{ fontSize: 15, fontWeight: 700, minWidth: 46, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: 'var(--accent)' }}>{tsollLabel(d.tsoll, de)}</span>
-          <button type="button" style={stepBtn} onClick={() => step(SET_STEP)} title={de ? 'Wärmer' : 'Up'}>+</button>
+          <button type="button" style={{ ...stepBtn, opacity: off ? 0.4 : 1 }} disabled={off} onClick={stepDown} title={de ? 'Kälter / Aus' : 'Down / off'}>−</button>
+          <span style={{ fontSize: 15, fontWeight: 700, minWidth: 46, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: off ? 'var(--text-muted)' : 'var(--accent)' }}>{tsollLabel(d.tsoll, de)}</span>
+          <button type="button" style={stepBtn} onClick={stepUp} title={de ? 'Wärmer / An' : 'Up / on'}>+</button>
         </div>
       </div>
     )
@@ -384,7 +401,7 @@ export const meta: PluginMeta = {
   name: 'FRITZ! Smart Home',
   description:
     'FRITZ! Smart Home über das AHA-HTTP-Interface: Heizthermostate (Soll-Temp), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
