@@ -39,16 +39,19 @@ function roomPath(cls?: string): string {
   return ROOM_PATHS.bulb
 }
 
+type HueScene = { id: string; name: string; group: string }
+
 type StateResponse = {
   groups?: HueLamp[]
   lights?: HueLamp[]
+  scenes?: HueScene[]
   error?: string
   detail?: string
 }
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.14'
+const HUE_VERSION = '0.9.16'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -169,6 +172,7 @@ function Widget({ config }: PluginWidgetProps) {
     config.style === 'compact' ? 'compact' : config.style === 'tiles' ? 'tiles' : 'cards'
   const colorBg = config.colorBackground !== false
   const showBri = config.showBrightness !== false
+  const showScenes = config.showScenes !== false
   const configured = Boolean(baseUrl && apiKey)
   const hiddenGroups = parseIdSet(config.hiddenGroups)
   const hiddenLights = parseIdSet(config.hiddenLights)
@@ -178,6 +182,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
   const [groups, setGroups] = useState<HueLamp[]>([])
   const [lights, setLights] = useState<HueLamp[]>([])
+  const [scenes, setScenes] = useState<HueScene[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const busyRef = useRef(false)
@@ -193,6 +198,7 @@ function Widget({ config }: PluginWidgetProps) {
       setError(null)
       setGroups(Array.isArray(json.groups) ? json.groups : [])
       setLights(Array.isArray(json.lights) ? json.lights : [])
+      setScenes(Array.isArray(json.scenes) ? json.scenes : [])
     }
     setLoading(false)
   }, [apiKey, baseUrl, configured, de])
@@ -237,6 +243,14 @@ function Widget({ config }: PluginWidgetProps) {
     await callHue({ url: baseUrl, apiKey, action: 'set', target, id: item.id, hex, on: true })
     busyRef.current = false
     setTimeout(() => void refresh(), 400)
+  }
+
+  const recallScene = async (groupId: string, sceneId: string) => {
+    busyRef.current = true
+    const json = await callHue({ url: baseUrl, apiKey, action: 'set', target: 'group', id: groupId, scene: sceneId })
+    busyRef.current = false
+    if (json.error) setError(errorText(json.error, json.detail || '', de))
+    else setTimeout(() => void refresh(), 400)
   }
 
   const shell: CSSProperties = {
@@ -385,6 +399,40 @@ function Widget({ config }: PluginWidgetProps) {
             aria-label={de ? 'Helligkeit' : 'Brightness'}
           />
         ) : null}
+        {view === 'groups' && showScenes
+          ? (() => {
+              const roomScenes = scenes.filter((sc) => sc.group === item.id)
+              if (roomScenes.length === 0) return null
+              return (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: briShown ? 2 : 9 }}>
+                  {roomScenes.map((sc) => (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      onClick={() => void recallScene(item.id, sc.id)}
+                      title={sc.name}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                        border: lit ? '1px solid rgba(255,255,255,.28)' : '1px solid var(--border)',
+                        background: lit ? 'rgba(255,255,255,.16)' : 'var(--surface)',
+                        color: lit ? fg : 'var(--text)',
+                        cursor: 'pointer',
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {sc.name}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()
+          : null}
       </div>
     )
   }
@@ -632,6 +680,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <span>{de ? 'Helligkeits-Slider zeigen' : 'Show brightness slider'}</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={config.showScenes !== false} onChange={(e) => onChange('showScenes', e.target.checked)} />
+          <span>{de ? 'Szenen pro Raum zeigen' : 'Show scenes per room'}</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
           <input type="checkbox" checked={config.showVersion === true} onChange={(e) => onChange('showVersion', e.target.checked)} />
           <span>{de ? 'Versionsnummer im Titel zeigen' : 'Show version number in title'}</span>
         </label>
@@ -702,7 +754,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.15',
+  version: '0.9.16',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
@@ -715,6 +767,7 @@ export const meta: PluginMeta = {
     { key: 'style', label: 'Darstellung', type: 'text', defaultValue: 'cards' },
     { key: 'colorBackground', label: 'Lichtfarbe als Hintergrund', type: 'boolean', defaultValue: true },
     { key: 'showBrightness', label: 'Helligkeits-Slider', type: 'boolean', defaultValue: true },
+    { key: 'showScenes', label: 'Szenen anzeigen', type: 'boolean', defaultValue: true },
     { key: 'showVersion', label: 'Versionsnummer zeigen', type: 'boolean', defaultValue: false },
     { key: 'defaultView', label: 'Standard-Ansicht', type: 'text', defaultValue: 'groups' },
     { key: 'hiddenGroups', label: 'Ausgeblendete Räume', type: 'text', defaultValue: '' },

@@ -2,7 +2,7 @@
   "id": "hue",
   "name": "Philips Hue",
   "description": "Philips-Hue-Lampen und Räume per lokaler Bridge-API: an/aus, Helligkeit, Farbe (echte Lichtfarbe). Karten/Kompakt/Kacheln, Bridge-Koppeln im Plugin. (Beta)",
-  "version": "0.9.15",
+  "version": "0.9.16",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "💡",

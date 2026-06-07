@@ -18,6 +18,8 @@ type ReqBody = {
   bri?: number
   /** Colour as #rrggbb — converted to xy server-side. */
   hex?: string
+  /** Scene id to recall on a group. */
+  scene?: string
 }
 
 type HueLamp = {
@@ -197,6 +199,22 @@ function mapGroups(obj: unknown): HueLamp[] {
   return out.sort((a, b) => a.name.localeCompare(b.name))
 }
 
+type HueScene = { id: string; name: string; group: string }
+
+/** Map Hue v1 scenes — only GroupScenes (room scenes) with a group id. */
+function mapScenes(obj: unknown): HueScene[] {
+  if (!isObject(obj)) return []
+  const out: HueScene[] = []
+  for (const [id, raw] of Object.entries(obj)) {
+    if (!isObject(raw)) continue
+    if (str(raw.type) !== 'GroupScene') continue
+    const group = str(raw.group)
+    if (!group) continue
+    out.push({ id, name: str(raw.name) || `Szene ${id}`, group })
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
 async function handlePost(req: Request): Promise<Response> {
   let body: ReqBody
   try {
@@ -247,6 +265,17 @@ async function handlePost(req: Request): Promise<Response> {
       const target = body.target === 'light' ? 'light' : 'group'
       const id = str(body.id)
       if (!/^[0-9]+$/.test(id)) return Response.json({ error: 'invalid_id' }, { status: 400 })
+      // Szene auf einen Raum anwenden (recall).
+      if (typeof body.scene === 'string' && body.scene) {
+        if (!/^[A-Za-z0-9_-]+$/.test(body.scene)) return Response.json({ error: 'invalid_scene' }, { status: 400 })
+        const r = await hueFetch(`${base}/api/${key}/groups/${id}/action`, { method: 'PUT', body: JSON.stringify({ scene: body.scene }) }, ac.signal)
+        const err = hueError(r.json)
+        if (err) {
+          void logPluginApiFailure('hue', 'scene', err)
+          return Response.json({ error: err }, { status: err === 'auth_failed' ? 401 : 502 })
+        }
+        return Response.json({ ok: true })
+      }
       const payload: Record<string, unknown> = {}
       if (typeof body.on === 'boolean') payload.on = body.on
       if (typeof body.bri === 'number' && Number.isFinite(body.bri)) {
@@ -278,9 +307,10 @@ async function handlePost(req: Request): Promise<Response> {
     }
 
     // Status (default): Gruppen + Lampen.
-    const [groupsRes, lightsRes] = await Promise.all([
+    const [groupsRes, lightsRes, scenesRes] = await Promise.all([
       hueFetch(`${base}/api/${key}/groups`, {}, ac.signal),
       hueFetch(`${base}/api/${key}/lights`, {}, ac.signal),
+      hueFetch(`${base}/api/${key}/scenes`, {}, ac.signal),
     ])
     const err = hueError(groupsRes.json) || hueError(lightsRes.json)
     if (err) {
@@ -294,6 +324,7 @@ async function handlePost(req: Request): Promise<Response> {
     return Response.json({
       groups: mapGroups(groupsRes.json),
       lights: mapLights(lightsRes.json),
+      scenes: mapScenes(scenesRes.json),
     })
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {

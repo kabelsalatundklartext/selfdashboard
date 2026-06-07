@@ -323,6 +323,18 @@ function mapGroups(obj) {
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }
+function mapScenes(obj) {
+  if (!isObject(obj)) return [];
+  const out = [];
+  for (const [id, raw] of Object.entries(obj)) {
+    if (!isObject(raw)) continue;
+    if (str(raw.type) !== "GroupScene") continue;
+    const group = str(raw.group);
+    if (!group) continue;
+    out.push({ id, name: str(raw.name) || `Szene ${id}`, group });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
 async function handlePost(req) {
   let body;
   try {
@@ -365,6 +377,16 @@ async function handlePost(req) {
       const target = body.target === "light" ? "light" : "group";
       const id = str(body.id);
       if (!/^[0-9]+$/.test(id)) return Response.json({ error: "invalid_id" }, { status: 400 });
+      if (typeof body.scene === "string" && body.scene) {
+        if (!/^[A-Za-z0-9_-]+$/.test(body.scene)) return Response.json({ error: "invalid_scene" }, { status: 400 });
+        const r2 = await hueFetch(`${base}/api/${key}/groups/${id}/action`, { method: "PUT", body: JSON.stringify({ scene: body.scene }) }, ac.signal);
+        const err3 = hueError(r2.json);
+        if (err3) {
+          void logPluginApiFailure("hue", "scene", err3);
+          return Response.json({ error: err3 }, { status: err3 === "auth_failed" ? 401 : 502 });
+        }
+        return Response.json({ ok: true });
+      }
       const payload = {};
       if (typeof body.on === "boolean") payload.on = body.on;
       if (typeof body.bri === "number" && Number.isFinite(body.bri)) {
@@ -391,9 +413,10 @@ async function handlePost(req) {
       }
       return Response.json({ ok: true });
     }
-    const [groupsRes, lightsRes] = await Promise.all([
+    const [groupsRes, lightsRes, scenesRes] = await Promise.all([
       hueFetch(`${base}/api/${key}/groups`, {}, ac.signal),
-      hueFetch(`${base}/api/${key}/lights`, {}, ac.signal)
+      hueFetch(`${base}/api/${key}/lights`, {}, ac.signal),
+      hueFetch(`${base}/api/${key}/scenes`, {}, ac.signal)
     ]);
     const err = hueError(groupsRes.json) || hueError(lightsRes.json);
     if (err) {
@@ -406,7 +429,8 @@ async function handlePost(req) {
     }
     return Response.json({
       groups: mapGroups(groupsRes.json),
-      lights: mapLights(lightsRes.json)
+      lights: mapLights(lightsRes.json),
+      scenes: mapScenes(scenesRes.json)
     });
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
