@@ -9,10 +9,9 @@
 # that restart CrowdSec, no chmod needed.
 #
 # Opt-outs / tuning:
-#   PUID / PGID                              — run the app as this uid/gid (default 1001)
-#   SELFDASHBOARD_SKIP_CHOWN=1               — never touch ownership
-#   SELFDASHBOARD_FIX_CROWDSEC_PERMS=0       — don't add read perms on /crowdsec-data
-#   SELFDASHBOARD_CROWDSEC_PERMS_INTERVAL=N  — re-chmod crowdsec data every N s (default 120; 0 = one-shot)
+#   PUID / PGID                          — run the app as this uid/gid (default 1001)
+#   SELFDASHBOARD_SKIP_CHOWN=1           — never touch ownership
+#   SELFDASHBOARD_FIX_CROWDSEC_PERMS=0   — don't add read perms on /crowdsec-data
 set -e
 
 APP_UID="${PUID:-1001}"
@@ -42,23 +41,12 @@ if [ "$(id -u)" = "0" ]; then
     done
   fi
 
-  # CrowdSec DB mount is owned by the CrowdSec container (often root:root 0600).
-  # A one-shot chmod at start loses the race when nightly backups stop/restart
-  # CrowdSec: SelfDashboard may boot before CrowdSec recreates the DB, then the
-  # fresh DB is unreadable again ("unable to open database file"). So we add read
-  # perms once AND, as root, re-apply them periodically in the background — this
-  # survives the nightly recreate regardless of which user CrowdSec runs as.
-  #   SELFDASHBOARD_FIX_CROWDSEC_PERMS=0          — disable entirely
-  #   SELFDASHBOARD_CROWDSEC_PERMS_INTERVAL=0     — one-shot only (no background loop)
+  # CrowdSec DB mount is owned by the CrowdSec container. If SelfDashboard runs
+  # with the same PUID it can read it directly; otherwise add read perms once
+  # (best effort — set matching PUID/PGID for a permanent, backup-proof fix).
   CS_DIR="${CROWDSEC_DATA_DIR:-/crowdsec-data}"
   if [ "${SELFDASHBOARD_FIX_CROWDSEC_PERMS:-1}" = "1" ] && [ -d "$CS_DIR" ]; then
     chmod -R a+rX "$CS_DIR" 2>/dev/null || true
-    CS_INT="${SELFDASHBOARD_CROWDSEC_PERMS_INTERVAL:-120}"
-    if [ "$CS_INT" -gt 0 ] 2>/dev/null; then
-      # Forked before privilege drop → keeps running as root after exec su-exec.
-      ( while sleep "$CS_INT"; do chmod -R a+rX "$CS_DIR" 2>/dev/null || true; done ) &
-      echo "[entrypoint] crowdsec perms: re-chmod a+rX $CS_DIR every ${CS_INT}s (root)"
-    fi
   fi
 
   # Docker socket (optional mount): give the app user the socket's group.
