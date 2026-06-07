@@ -705,6 +705,24 @@ function Widget({ config }: PluginWidgetProps) {
       </div>
     ) : null
 
+  const hasRain = showRainForecast && rainHours.length > 0
+  const rainFill =
+    hasRain ? (
+      <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 'clamp(8px, 1.7cqmin, 9.5px)', color: muted, fontWeight: 600, textAlign: 'center', lineHeight: 1.15, flexShrink: 0 }}>{rainSummary}</span>
+        <div style={{ flex: 1, minHeight: 16, display: 'flex', alignItems: 'flex-end', gap: 2, width: '100%' }}>
+          {rainHours.map((r) => (
+            <div key={r.hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, minWidth: 0, height: '100%' }}>
+              <div style={{ width: '100%', flex: 1, minHeight: 8, display: 'flex', alignItems: 'flex-end', background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: `${Math.max(3, r.prob)}%`, background: r.prob >= 50 ? '#3b82f6' : r.prob >= 20 ? '#60a5fa' : '#93c5fd', opacity: r.prob > 0 ? 1 : 0.3 }} />
+              </div>
+              <span style={{ fontSize: 'clamp(6px, 1.3cqmin, 8px)', color: muted, lineHeight: 1, flexShrink: 0 }}>{r.hour}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null
+
   const nextDaysLabel = (
     <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(8px, 1.9cqmin, 10px)', fontWeight: 600, color: muted, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{tr.nextDays}</p>
   )
@@ -808,9 +826,9 @@ function Widget({ config }: PluginWidgetProps) {
 
   const sidebarLayout = (leftTop: ReactNode, sevenEl: ReactNode, sidebarW: number, centerLeft = false): ReactNode => (
     <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', width: '100%', height: '100%' }}>
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(2px, 0.7cqmin, 5px)', alignItems: centerLeft ? 'center' : 'stretch', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: hasRain ? 'flex-start' : 'center', gap: 'clamp(2px, 0.7cqmin, 5px)', alignItems: centerLeft ? 'center' : 'stretch', overflow: 'hidden' }}>
         {leftTop}
-        {rainEl}
+        {hasRain ? rainFill : null}
         {hourlyEl}
       </div>
       {sideCol(sevenEl, sidebarW)}
@@ -846,9 +864,9 @@ function Widget({ config }: PluginWidgetProps) {
       case 'rainfocus':
         return (
           <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', width: '100%', height: '100%' }}>
-            <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 'clamp(3px, 0.9cqmin, 7px)' }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: hasRain ? 'flex-start' : 'center', gap: 'clamp(3px, 0.9cqmin, 7px)' }}>
               {currentInline}
-              {rainEl}
+              {hasRain ? rainFill : null}
               {hourlyEl}
             </div>
             {sideCol(sevenChipsEl, 132)}
@@ -1007,7 +1025,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.8.2',
+  version: '1.8.3',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
