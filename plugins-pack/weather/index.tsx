@@ -135,6 +135,7 @@ type Period = { label: string; temp: number; code: number; isDay: boolean; prob:
 type SunTimes = { sunrise: string; sunset: string }
 type RainHour = { hour: number; prob: number; mm: number }
 type AirQuality = { aqi: number | null; pm25: number | null }
+type Hour24 = { hour: number; temp: number; code: number; isDay: boolean; prob: number }
 
 const TIMELINE_HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24]
 
@@ -247,6 +248,30 @@ function buildRainForecast(fc: Forecast, count: number): RainHour[] {
   return out
 }
 
+function build24h(fc: Forecast, count: number): Hour24[] {
+  const h = fc.hourly
+  if (!h?.time?.length) return []
+  const temps = h.temperature_2m ?? []
+  const codes = h.weather_code ?? []
+  const days = h.is_day ?? []
+  const probs = h.precipitation_probability ?? []
+  const now = Date.now()
+  const fb = nm(fc.current?.weather_code, 2)
+  const out: Hour24[] = []
+  for (let i = 0; i < h.time.length && out.length < count; i++) {
+    const ms = new Date(String(h.time[i])).getTime()
+    if (!Number.isFinite(ms) || ms < now - 60 * 60 * 1000) continue
+    out.push({
+      hour: new Date(String(h.time[i])).getHours(),
+      temp: nm(temps[i], NaN),
+      code: i < codes.length ? nm(codes[i], fb) : fb,
+      isDay: i < days.length ? nm(days[i], 1) === 1 : true,
+      prob: Math.max(0, Math.min(100, Math.round(nm(probs[i], 0)))),
+    })
+  }
+  return out
+}
+
 function buildAir(fc: Forecast): AirQuality | null {
   const a = fc.air_quality
   if (!a) return null
@@ -279,7 +304,7 @@ function aqiColor(aqi: number): string {
   return '#a21caf'
 }
 
-type Assembled = { current: Current; daily: DailyDay[]; periods: Period[]; sun: SunTimes | null; rain: RainHour[]; air: AirQuality | null }
+type Assembled = { current: Current; daily: DailyDay[]; periods: Period[]; sun: SunTimes | null; rain: RainHour[]; air: AirQuality | null; hours24: Hour24[] }
 function assemble(fc: Forecast, includeDaily: boolean, de: boolean): Assembled {
   if (!fc.current) throw new Error(de ? 'Keine aktuellen Werte' : 'No current values')
   return {
@@ -289,6 +314,7 @@ function assemble(fc: Forecast, includeDaily: boolean, de: boolean): Assembled {
     sun: buildSun(fc),
     rain: buildRainForecast(fc, 12),
     air: buildAir(fc),
+    hours24: build24h(fc, 24),
   }
 }
 
@@ -393,6 +419,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [sun, setSun] = useState<SunTimes | null>(null)
   const [rainHours, setRainHours] = useState<RainHour[]>([])
   const [air, setAir] = useState<AirQuality | null>(null)
+  const [hours24, setHours24] = useState<Hour24[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const keyRef = useRef('')
@@ -415,6 +442,7 @@ function Widget({ config }: PluginWidgetProps) {
         setSun(null)
         setRainHours([])
         setAir(null)
+        setHours24([])
         setError(null)
         setLoading(false)
         return
@@ -431,6 +459,7 @@ function Widget({ config }: PluginWidgetProps) {
         setSun(null)
         setRainHours([])
         setAir(null)
+        setHours24([])
       }
       setLoading(true)
       if (changed || !haveRef.current) setError(null)
@@ -456,6 +485,7 @@ function Widget({ config }: PluginWidgetProps) {
             setSun(null)
         setRainHours([])
         setAir(null)
+        setHours24([])
             setError(de ? 'Ort nicht gefunden.' : 'Location not found.')
             return
           }
@@ -473,6 +503,7 @@ function Widget({ config }: PluginWidgetProps) {
         setSun(a.sun)
         setRainHours(a.rain)
         setAir(a.air)
+        setHours24(a.hours24)
         haveRef.current = true
         setError(null)
       } catch (e) {
@@ -491,6 +522,7 @@ function Widget({ config }: PluginWidgetProps) {
           setSun(null)
         setRainHours([])
         setAir(null)
+        setHours24([])
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -846,6 +878,48 @@ function Widget({ config }: PluginWidgetProps) {
     </div>
   )
 
+  const statsGridEl = (
+    <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px clamp(8px, 2.5cqmin, 18px)', alignContent: 'center', fontSize: 'clamp(9px, 2.1cqmin, 11.5px)', lineHeight: 1.25 }}>
+      {showHumidityWind ? <span><span style={{ color: muted }}>{tr.hum}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span></span> : null}
+      {showHumidityWind ? <span><span style={{ color: muted }}>{tr.wind}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{windSpeed > 0 ? `${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : '—'}</span></span> : null}
+      {showUvGusts ? <span><span style={{ color: muted }}>UV</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{Number.isFinite(uv) ? Math.round(uv) : '—'}</span></span> : null}
+      {showUvGusts ? <span><span style={{ color: muted }}>{de ? 'Böen' : 'Gusts'}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span></span> : null}
+      {showAirQuality && air && air.aqi != null ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: muted }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />{air.aqi} {aqiLabel(air.aqi, de)}</span> : null}
+      {showSun && sun ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: muted }}><Sunrise aria-hidden style={{ width: 12, height: 12, color: '#fbbf24', flexShrink: 0 }} />{fmtTime(sun.sunrise, de)}<Sunset aria-hidden style={{ width: 12, height: 12, color: '#fb923c', flexShrink: 0, marginLeft: 6 }} />{fmtTime(sun.sunset, de)}</span> : null}
+    </div>
+  )
+
+  const headerRow = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5cqmin, 18px)', width: '100%', flexShrink: 0 }}>
+      <div style={{ flexShrink: 0 }}>{currentInline}</div>
+      {statsGridEl}
+    </div>
+  )
+
+  const pills24El: ReactNode =
+    hours24.length > 0 ? (
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
+        {[0, 12].map((off) => (
+          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%' }}>
+            {hours24.slice(off, off + 12).map((x, k) => {
+              const idx = off + k
+              const PI = codeIcon(x.code, x.isDay)
+              const first = idx === 0
+              const ic = x.prob >= 50 ? '#3b82f6' : x.prob >= 20 ? '#60a5fa' : x.prob >= 15 ? '#93c5fd' : codeColor(x.code, x.isDay)
+              return (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '4px 0', borderRadius: 9, minWidth: 0, background: first ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface-2)', border: '1px solid ' + (first ? 'var(--accent)' : 'var(--border)') }}>
+                  <span style={{ fontSize: 'clamp(8px, 1.6cqmin, 10px)', fontWeight: 700, color: first ? 'var(--accent)' : muted, lineHeight: 1 }}>{first ? (de ? 'jetzt' : 'now') : x.hour}</span>
+                  <PI aria-hidden strokeWidth={1.75} style={{ width: 'clamp(12px, 3cqmin, 17px)', height: 'clamp(12px, 3cqmin, 17px)', color: ic, flexShrink: 0 }} />
+                  <span className="tabular-nums" style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{Number.isFinite(x.temp) ? `${Math.round(x.temp)}°` : '—'}</span>
+                  <span style={{ fontSize: 'clamp(7px, 1.5cqmin, 9px)', fontWeight: 600, color: x.prob >= 20 ? '#3b82f6' : 'transparent', lineHeight: 1 }}>{x.prob}%</span>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    ) : null
+
   const layoutEl: ReactNode = (() => {
     switch (layout) {
       case 'bottombar':
@@ -900,6 +974,17 @@ function Widget({ config }: PluginWidgetProps) {
         )
       case 'iconseven':
         return sidebarLayout(<>{currentInline}{statsEl}</>, sevenIconEl, 122)
+      case 'pills24':
+        return (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', width: '100%', height: '100%' }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(3px, 1cqmin, 8px)', overflow: 'hidden' }}>
+              {placeEl}
+              {headerRow}
+              <div style={{ marginTop: 'auto' }}>{pills24El ?? hourlyEl}</div>
+            </div>
+            {sideCol(sevenListEl, 150)}
+          </div>
+        )
       case 'sidebar':
       default:
         return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenListEl, 150)
@@ -978,6 +1063,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Layout</label>
         <select style={inp} value={str(cfg.layout) || 'sidebar'} onChange={(e) => onChange('layout', e.target.value)}>
           <option value="sidebar">{de ? 'Sidebar-Liste' : 'Sidebar list'}</option>
+          <option value="pills24">{de ? '24-Stunden-Pillen' : '24-hour pills'}</option>
           <option value="bottombar">{de ? 'Untere Leiste' : 'Bottom bar'}</option>
           <option value="statgrid">{de ? 'Werte-Kacheln' : 'Stat grid'}</option>
           <option value="rainfocus">{de ? 'Regen-Fokus' : 'Rain focus'}</option>
@@ -1025,7 +1111,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.8.3',
+  version: '1.9.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
