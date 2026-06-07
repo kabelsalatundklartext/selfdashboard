@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   Cloud,
   CloudDrizzle,
@@ -384,6 +384,7 @@ function Widget({ config }: PluginWidgetProps) {
   const showUvGusts = cfgBool(cfg, 'showUvGusts', true)
   const showAirQuality = cfgBool(cfg, 'showAirQuality', true)
   const widthScale = widthPct(cfg) / 100
+  const layout = str(cfg.layout) || 'sidebar'
 
   const [place, setPlace] = useState<string | null>(null)
   const [current, setCurrent] = useState<Current | null>(null)
@@ -510,7 +511,7 @@ function Widget({ config }: PluginWidgetProps) {
     const el = rootRef.current
     if (!el) return
     const measure = () => {
-      const next = el.getBoundingClientRect().width >= SIDE_BY_SIDE && showDaily && daily.length > 0
+      const next = el.getBoundingClientRect().width >= SIDE_BY_SIDE
       setWide((p) => (p === next ? p : next))
     }
     measure()
@@ -583,8 +584,303 @@ function Widget({ config }: PluginWidgetProps) {
   const color = codeColor(code, isDay)
   const shadow = codeShadow(code, isDay)
   const haveDaily = showDaily && daily.length > 0
-  const sideBySide = wide && haveDaily
   const s = widthScale
+
+  const tempIconEl = (tempPx: string, iconPx: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(8px, 2.5cqmin, 16px)', color }} aria-label={label} title={label}>
+      <span className="tabular-nums" style={{ fontSize: tempPx, fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0 }}>{temp != null ? `${Math.round(nm(temp, 0))}°` : '—'}</span>
+      <Icon aria-hidden strokeWidth={1.75} style={{ width: iconPx, height: iconPx, color, filter: shadow, opacity: stale ? 0.55 : 1, flexShrink: 0 }} />
+    </div>
+  )
+
+  const placeEl =
+    place && showPlace ? (
+      <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 600, color: muted, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }} title={place}>{place}</p>
+    ) : null
+
+  const feelsEl =
+    feels != null && temp != null && Math.abs(nm(feels, 0) - nm(temp, 0)) >= 0.5 ? (
+      <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, lineHeight: 1.2 }}>{tr.feels} {Math.round(nm(feels, 0))}°</span>
+    ) : null
+
+  const statsEl =
+    showHumidityWind || showSun || showUvGusts || (showAirQuality && air) ? (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', columnGap: 'clamp(6px, 2cqmin, 12px)', rowGap: 1, flexWrap: 'wrap', fontSize: 'clamp(9px, 2.1cqmin, 11px)', color: muted, width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
+        {showHumidityWind ? <span>{tr.hum} {humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span> : null}
+        {showHumidityWind ? <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : `${tr.wind} —`}</span> : null}
+        {showUvGusts ? <span>UV {Number.isFinite(uv) ? Math.round(uv) : '—'}</span> : null}
+        {showUvGusts ? <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span> : null}
+        {showAirQuality && air && air.aqi != null ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />
+            {air.aqi} {aqiLabel(air.aqi, de)}
+          </span>
+        ) : null}
+        {showAirQuality && air && air.pm25 != null ? <span>PM2.5 {air.pm25}</span> : null}
+        {showSun && sun ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <Sunrise aria-hidden style={{ width: 12, height: 12, color: '#fbbf24', flexShrink: 0 }} />
+            {fmtTime(sun.sunrise, de)}
+          </span>
+        ) : null}
+        {showSun && sun ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+            <Sunset aria-hidden style={{ width: 12, height: 12, color: '#fb923c', flexShrink: 0 }} />
+            {fmtTime(sun.sunset, de)}
+          </span>
+        ) : null}
+      </div>
+    ) : null
+
+  const statsChipsEl = (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5, width: '100%' }}>
+      {([[tr.hum, humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'], [tr.wind, windSpeed > 0 ? `${Math.round(windSpeed)} ${windDir(windDeg, de)}` : '—'], ['UV', Number.isFinite(uv) ? String(Math.round(uv)) : '—'], [de ? 'Böen' : 'Gusts', gusts > 0 ? String(Math.round(gusts)) : '—'], [de ? 'Luft' : 'Air', air && air.aqi != null ? String(air.aqi) : '—'], ['PM2.5', air && air.pm25 != null ? String(air.pm25) : '—']] as [string, string][]).map(([k, v]) => (
+        <div key={k} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 4px', textAlign: 'center' }}>
+          <div style={{ fontSize: 'clamp(8px, 1.8cqmin, 10px)', color: muted }}>{k}</div>
+          <div style={{ fontSize: 'clamp(11px, 2.4cqmin, 13px)', fontWeight: 700, color: 'var(--text)' }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  )
+
+  const statsPillsEl = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
+      {([showHumidityWind ? `${tr.hum} ${humidity != null ? Math.round(nm(humidity, 0)) + '%' : '—'}` : null, showHumidityWind ? `${tr.wind} ${windSpeed > 0 ? Math.round(windSpeed) + ' km/h' : '—'}` : null, showUvGusts ? `UV ${Number.isFinite(uv) ? Math.round(uv) : '—'}` : null, showUvGusts ? `${de ? 'Böen' : 'Gusts'} ${gusts > 0 ? Math.round(gusts) : '—'}` : null, showAirQuality && air && air.aqi != null ? `${de ? 'Luft' : 'Air'} ${air.aqi}` : null, showAirQuality && air && air.pm25 != null ? `PM2.5 ${air.pm25}` : null].filter(Boolean) as string[]).map((t, i) => (
+        <span key={i} style={{ background: 'var(--surface-2)', borderRadius: 999, padding: '4px 11px', fontSize: 'clamp(9px, 2.1cqmin, 11px)', color: 'var(--text)' }}>{t}</span>
+      ))}
+    </div>
+  )
+
+  const currentCentered = (large = false) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px, 0.6cqmin, 4px)', width: '100%' }}>
+      {tempIconEl(large ? 'clamp(2rem, min(14cqmin, 22vw), 3.4rem)' : 'clamp(1.5rem, min(11cqmin, 20vw), 3rem)', large ? 'clamp(38px, min(12cqmin, 16vw), 64px)' : 'clamp(32px, min(10cqmin, 14vw), 60px)')}
+      {feelsEl}
+      <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(11px, 2.6cqmin, 14px)', color: 'var(--text)', fontWeight: 600, lineHeight: 1.25 }}>{label}</p>
+    </div>
+  )
+
+  const currentInline = (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+      {tempIconEl('clamp(1.4rem, 9cqmin, 2.6rem)', 'clamp(28px, 8cqmin, 48px)')}
+      <div style={{ textAlign: 'left', minWidth: 0 }}>
+        <div style={{ fontSize: 'clamp(11px, 2.6cqmin, 14px)', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+        {feels != null && temp != null && Math.abs(nm(feels, 0) - nm(temp, 0)) >= 0.5 ? <div style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted }}>{tr.feels} {Math.round(nm(feels, 0))}°</div> : null}
+      </div>
+    </div>
+  )
+
+  const hourlyEl =
+    showTimeline && periods.length > 0 ? (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${periods.length}, minmax(0, 1fr))`, gap: 'clamp(2px, 0.8cqmin, 6px)', width: '100%', flexShrink: 0 }}>
+        {periods.map((p) => {
+          const PIcon = codeIcon(p.code, p.isDay)
+          const pColor = codeColor(p.code, p.isDay)
+          const t = Number.isFinite(p.temp) ? `${Math.round(p.temp)}°` : '—'
+          return (
+            <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 1px 3px', borderRadius: 7, background: 'color-mix(in srgb, var(--surface) 88%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)', minWidth: 0 }}>
+              <span style={{ fontSize: 'clamp(8px, 1.7cqmin, 10px)', fontWeight: 700, color: muted, lineHeight: 1 }}>{p.label}</span>
+              <PIcon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(12px, 3.2cqmin, 18px)', height: 'clamp(12px, 3.2cqmin, 18px)', color: pColor, filter: codeShadow(p.code, p.isDay), flexShrink: 0 }} />
+              <span className="tabular-nums" style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.05 }}>{t}</span>
+              {showTimelineRain && Number.isFinite(p.prob) ? <span style={{ fontSize: 'clamp(7px, 1.5cqmin, 9px)', fontWeight: 600, color: p.prob >= 50 ? '#3b82f6' : muted, lineHeight: 1 }}>{Math.round(p.prob)}%</span> : null}
+            </div>
+          )
+        })}
+      </div>
+    ) : null
+
+  const rainEl =
+    showRainForecast && rainHours.length > 0 ? (
+      <div style={{ width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 'clamp(8px, 1.9cqmin, 10px)', color: muted, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{rainSummary}</span>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, width: '100%' }}>
+          {rainHours.map((r) => (
+            <div key={r.hour} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0 }}>
+              <div style={{ width: '100%', height: 15, display: 'flex', alignItems: 'flex-end', background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: `${Math.max(3, r.prob)}%`, background: r.prob >= 50 ? '#3b82f6' : r.prob >= 20 ? '#60a5fa' : '#93c5fd', opacity: r.prob > 0 ? 1 : 0.3 }} />
+              </div>
+              <span style={{ fontSize: 'clamp(6px, 1.4cqmin, 8px)', color: muted, lineHeight: 1 }}>{r.hour}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null
+
+  const nextDaysLabel = (
+    <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 600, color: muted, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{tr.nextDays}</p>
+  )
+
+  const wd = (date: string) => new Date(date + 'T12:00:00').toLocaleDateString(de ? 'de-DE' : 'en-GB', { weekday: 'short' })
+  const dm = (date: string) => new Date(date + 'T12:00:00').toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric' })
+
+  const sevenGridEl = (low: boolean, date: boolean): ReactNode =>
+    haveDaily ? (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: `${Math.max(3, Math.round(5 * s))}px`, width: '100%' }}>
+        {daily.map((d) => {
+          const DIcon = codeIcon(d.code, true)
+          return (
+            <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '6px 2px', borderRadius: 9, background: 'color-mix(in srgb, var(--surface) 92%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)', minWidth: 0 }}>
+              <span style={{ fontSize: 'clamp(8px, 1.9cqmin, 11px)', fontWeight: 700, color: muted, textTransform: 'capitalize' }}>{wd(d.date)}</span>
+              {date ? <span style={{ fontSize: 'clamp(7px, 1.6cqmin, 9px)', color: muted }}>{dm(d.date)}</span> : null}
+              <DIcon aria-hidden strokeWidth={1.85} style={{ width: 'clamp(15px, 4cqmin, 22px)', height: 'clamp(15px, 4cqmin, 22px)', color: codeColor(d.code, true), filter: codeShadow(d.code, true), flexShrink: 0 }} />
+              <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.3cqmin, 13px)', fontWeight: 700, color: 'var(--accent)' }}>{Math.round(d.max)}°</span>
+              {low ? <span className="tabular-nums" style={{ fontSize: 'clamp(8px, 1.8cqmin, 11px)', color: muted }}>{Math.round(d.min)}°</span> : null}
+            </div>
+          )
+        })}
+      </div>
+    ) : null
+
+  const sevenListEl: ReactNode = haveDaily ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
+      {daily.map((d) => {
+        const DIcon = codeIcon(d.code, true)
+        return (
+          <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb, var(--surface) 92%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)', borderRadius: 7, padding: '3px 8px' }}>
+            <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, width: 22, textTransform: 'capitalize' }}>{wd(d.date)}</span>
+            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 14, height: 14, color: codeColor(d.code, true), flexShrink: 0 }} />
+            <span style={{ flex: 1 }} />
+            <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', fontWeight: 700, color: 'var(--accent)' }}>{Math.round(d.max)}°</span>
+            <span className="tabular-nums" style={{ fontSize: 'clamp(8px, 1.9cqmin, 11px)', color: muted }}>{Math.round(d.min)}°</span>
+          </div>
+        )
+      })}
+    </div>
+  ) : null
+
+  const sevenBarsEl: ReactNode = haveDaily ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: '100%' }}>
+      {daily.map((d) => {
+        const DIcon = codeIcon(d.code, true)
+        const mx = Math.max(...daily.map((x) => x.max)) || 1
+        return (
+          <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, width: 18, textTransform: 'capitalize' }}>{wd(d.date)}</span>
+            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 13, height: 13, color: codeColor(d.code, true), flexShrink: 0 }} />
+            <div style={{ flex: 1, height: 8, background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 5, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.round((d.max / mx) * 100)}%`, background: codeColor(d.code, true), opacity: 0.8 }} />
+            </div>
+            <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', fontWeight: 700, color: 'var(--accent)', width: 26, textAlign: 'right' }}>{Math.round(d.max)}°</span>
+          </div>
+        )
+      })}
+    </div>
+  ) : null
+
+  const sevenChipsEl: ReactNode = haveDaily ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+      {daily.map((d) => {
+        const DIcon = codeIcon(d.code, true)
+        return (
+          <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb, var(--surface) 90%, var(--background))', borderRadius: 999, padding: '3px 10px' }}>
+            <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, width: 18, textTransform: 'capitalize' }}>{wd(d.date)}</span>
+            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 14, height: 14, color: codeColor(d.code, true), flexShrink: 0 }} />
+            <span style={{ flex: 1 }} />
+            <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', fontWeight: 700, color: 'var(--accent)' }}>{Math.round(d.max)}°</span>
+          </div>
+        )
+      })}
+    </div>
+  ) : null
+
+  const sevenIconEl: ReactNode = haveDaily ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
+      {daily.map((d) => {
+        const DIcon = codeIcon(d.code, true)
+        return (
+          <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '2px 4px' }}>
+            <span style={{ width: 20, fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, textTransform: 'capitalize' }}>{wd(d.date)}</span>
+            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 14, height: 14, color: codeColor(d.code, true), flexShrink: 0 }} />
+            <span style={{ flex: 1 }} />
+            <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', fontWeight: 700, color: 'var(--accent)' }}>{Math.round(d.max)}°</span>
+          </div>
+        )
+      })}
+    </div>
+  ) : null
+
+  const sidebarLayout = (leftTop: ReactNode, sevenEl: ReactNode, sidebarW: number, center = false): ReactNode => (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 14 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(3px, 0.9cqmin, 6px)', justifyContent: center ? 'center' : undefined }}>
+        {leftTop}
+        <div style={{ marginTop: center ? undefined : 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>{rainEl}{hourlyEl}</div>
+      </div>
+      <div style={{ width: sidebarW, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {haveDaily ? nextDaysLabel : null}
+        {sevenEl}
+      </div>
+    </div>
+  )
+
+  const stackedFallback: ReactNode = (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(3px, 1cqmin, 6px)' }}>
+      {placeEl}
+      {statsEl}
+      {currentCentered(false)}
+      {hourlyEl}
+      {rainEl}
+      {sevenGridEl(false, false)}
+    </div>
+  )
+
+  const layoutEl: ReactNode = (() => {
+    switch (layout) {
+      case 'bottombar':
+        return (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              {currentInline}
+              <div style={{ maxWidth: '55%' }}>{statsEl}</div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4 }}>{rainEl}{hourlyEl}</div>
+            {sevenGridEl(false, false)}
+          </div>
+        )
+      case 'statgrid':
+        return sidebarLayout(<>{placeEl}{currentInline}{statsChipsEl}</>, sevenListEl, 170)
+      case 'rainfocus':
+        return (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 14 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1cqmin, 8px)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>{currentInline}<span style={{ flex: 1 }} /></div>
+              {rainEl}
+              <div style={{ marginTop: 'auto' }}>{hourlyEl}</div>
+            </div>
+            <div style={{ width: 132, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>{haveDaily ? nextDaysLabel : null}{sevenChipsEl}</div>
+          </div>
+        )
+      case 'tworows':
+        return (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
+            <div style={{ display: 'flex', gap: 14 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, justifyContent: 'center' }}>{currentInline}{statsEl}</div>
+              <div style={{ width: 286, flexShrink: 0 }}>{sevenGridEl(true, false)}</div>
+            </div>
+            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>{rainEl}{hourlyEl}</div>
+          </div>
+        )
+      case 'sparkline':
+        return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenBarsEl, 190)
+      case 'pills':
+        return sidebarLayout(<div style={{ display: 'flex', flexDirection: 'column', gap: 9, alignItems: 'center' }}>{currentCentered(false)}{statsPillsEl}</div>, sevenChipsEl, 150, true)
+      case 'minimal':
+        return sidebarLayout(<div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>{currentCentered(true)}{statsEl}</div>, sevenListEl, 150, true)
+      case 'fullwidth':
+        return (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(4px, 1.2cqmin, 9px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, flexWrap: 'wrap' }}>{currentInline}{statsEl}</div>
+            <div style={{ flex: 1, display: 'flex', gap: 14, minHeight: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 4 }}>{rainEl}{hourlyEl}</div>
+              <div style={{ width: 252, flexShrink: 0 }}>{sevenGridEl(false, false)}</div>
+            </div>
+          </div>
+        )
+      case 'iconseven':
+        return sidebarLayout(<>{currentInline}{statsEl}</>, sevenIconEl, 122)
+      case 'sidebar':
+      default:
+        return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenListEl, 152)
+    }
+  })()
 
   return (
     <div
@@ -608,141 +904,11 @@ function Widget({ config }: PluginWidgetProps) {
       {error && haveTemp ? (
         <p style={{ margin: 0, flexShrink: 0, fontSize: 'clamp(10px, 2.2cqmin, 11px)', color: '#fb7185', textAlign: 'center', lineHeight: 1.3 }}>{error}</p>
       ) : null}
-      {place && showPlace && !sideBySide ? (
-        <p style={{ margin: 0, fontSize: 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 600, color: muted, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }} title={place}>
-          {place}
-        </p>
-      ) : null}
-
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: sideBySide ? 'row' : 'column', alignItems: sideBySide ? 'stretch' : undefined, justifyContent: sideBySide ? 'flex-start' : 'center', gap: sideBySide ? 'clamp(10px, 2.2cqmin, 20px)' : undefined }}>
-        <div
-          style={{
-            flex: sideBySide ? '0 1 38%' : undefined,
-            maxWidth: sideBySide ? '42%' : undefined,
-            minWidth: sideBySide ? 0 : undefined,
-            minHeight: sideBySide ? 0 : undefined,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: sideBySide ? 'flex-start' : 'center',
-            alignItems: 'center',
-            gap: sideBySide ? 'clamp(2px, 0.7cqmin, 4px)' : 'clamp(2px, 0.9cqmin, 5px)',
-            alignSelf: sideBySide ? 'stretch' : undefined,
-            ...(sideBySide ? { paddingRight: 'clamp(6px, 1.5cqmin, 12px)', borderRight: '1px solid color-mix(in srgb, var(--border) 55%, transparent)' } : {}),
-          }}
-        >
-          {showHumidityWind || showSun || showUvGusts || (showAirQuality && air) ? (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', columnGap: 'clamp(6px, 2cqmin, 12px)', rowGap: 1, flexWrap: 'wrap', fontSize: 'clamp(9px, 2.1cqmin, 11px)', color: muted, width: '100%', flexShrink: 0, lineHeight: 1.2 }}>
-              {showHumidityWind ? <span>{tr.hum} {humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span> : null}
-              {showHumidityWind ? <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : `${tr.wind} —`}</span> : null}
-              {showUvGusts ? <span>UV {Number.isFinite(uv) ? Math.round(uv) : '—'}</span> : null}
-              {showUvGusts ? <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span> : null}
-              {showAirQuality && air && air.aqi != null ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />
-                  {air.aqi} {aqiLabel(air.aqi, de)}
-                </span>
-              ) : null}
-              {showAirQuality && air && air.pm25 != null ? <span>PM2.5 {air.pm25}</span> : null}
-              {showSun && sun ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                  <Sunrise aria-hidden style={{ width: 12, height: 12, color: '#fbbf24', flexShrink: 0 }} />
-                  {fmtTime(sun.sunrise, de)}
-                </span>
-              ) : null}
-              {showSun && sun ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                  <Sunset aria-hidden style={{ width: 12, height: 12, color: '#fb923c', flexShrink: 0 }} />
-                  {fmtTime(sun.sunset, de)}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(2px, 0.6cqmin, 4px)', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(8px, 2.5cqmin, 16px)', flexWrap: 'nowrap', color }} aria-label={label} title={label}>
-              <span className="tabular-nums" style={{ fontSize: 'clamp(1.5rem, min(11cqmin, 20vw), 3rem)', fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1, flexShrink: 0 }}>
-                {temp != null ? `${Math.round(nm(temp, 0))}°` : '—'}
-              </span>
-              <Icon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(32px, min(10cqmin, 14vw), 60px)', height: 'clamp(32px, min(10cqmin, 14vw), 60px)', color, filter: shadow, opacity: stale ? 0.55 : 1, transition: 'opacity 0.2s, color 0.35s ease', flexShrink: 0 }} />
-            </div>
-            {feels != null && temp != null && Math.abs(nm(feels, 0) - nm(temp, 0)) >= 0.5 ? (
-              <span style={{ fontSize: 'clamp(10px, 2.2cqmin, 12px)', color: muted, lineHeight: 1.2 }}>{tr.feels} {Math.round(nm(feels, 0))}°</span>
-            ) : null}
-          </div>
-          <p style={{ margin: 0, textAlign: 'center', fontSize: sideBySide ? 'clamp(10px, 2.2cqmin, 12px)' : 'clamp(11px, 2.6cqmin, 14px)', color: 'var(--text)', fontWeight: 600, lineHeight: 1.25 }}>{label}</p>
-
-          {showTimeline && periods.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${periods.length}, minmax(0, 1fr))`, gap: 'clamp(2px, 0.8cqmin, 6px)', width: '100%', maxWidth: '100%', margin: sideBySide ? 'auto 0 0' : '2px 0 0', flexShrink: 0 }}>
-              {periods.map((p) => {
-                const PIcon = codeIcon(p.code, p.isDay)
-                const pColor = codeColor(p.code, p.isDay)
-                const pLabel = codeLabel(p.code, de)
-                const t = Number.isFinite(p.temp) ? `${Math.round(p.temp)}°` : '—'
-                return (
-                  <div key={p.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 1px 3px', borderRadius: 7, background: 'color-mix(in srgb, var(--surface) 88%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 65%, transparent)', minWidth: 0 }} title={de ? `${p.label} Uhr — ${pLabel}, ${t}` : `${p.label}:00 — ${pLabel}, ${t}`}>
-                    <span style={{ fontSize: 'clamp(8px, 1.7cqmin, 10px)', fontWeight: 700, color: muted, lineHeight: 1 }}>{p.label}</span>
-                    <PIcon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(12px, 3.2cqmin, 18px)', height: 'clamp(12px, 3.2cqmin, 18px)', color: pColor, filter: codeShadow(p.code, p.isDay), flexShrink: 0 }} />
-                    <span className="tabular-nums" style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.05, textAlign: 'center' }}>{t}</span>
-                    {showTimelineRain && Number.isFinite(p.prob) ? (
-                      <span style={{ fontSize: 'clamp(7px, 1.5cqmin, 9px)', fontWeight: 600, color: p.prob >= 50 ? '#3b82f6' : muted, lineHeight: 1 }}>{Math.round(p.prob)}%</span>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          ) : null}
-          {showRainForecast && rainHours.length > 0 ? (
-            <div style={{ width: '100%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, marginTop: sideBySide ? 'auto' : 4 }}>
-              <span style={{ fontSize: 'clamp(8px, 1.9cqmin, 10px)', color: muted, fontWeight: 600, textAlign: 'center', lineHeight: 1.2 }}>{rainSummary}</span>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, width: '100%' }}>
-                {rainHours.map((r) => (
-                  <div key={r.hour} title={de ? `${r.hour} Uhr — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}` : `${r.hour}:00 — ${r.prob}%${r.mm > 0 ? `, ${r.mm} mm` : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0 }}>
-                    <div style={{ width: '100%', height: 15, display: 'flex', alignItems: 'flex-end', background: 'color-mix(in srgb, var(--surface) 80%, transparent)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ width: '100%', height: `${Math.max(3, r.prob)}%`, background: r.prob >= 50 ? '#3b82f6' : r.prob >= 20 ? '#60a5fa' : '#93c5fd', opacity: r.prob > 0 ? 1 : 0.3 }} />
-                    </div>
-                    <span style={{ fontSize: 'clamp(6px, 1.4cqmin, 8px)', color: muted, lineHeight: 1 }}>{r.hour}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {haveDaily ? (
-          <div style={{ flex: sideBySide ? '1 1 0' : undefined, minWidth: sideBySide ? 0 : undefined, minHeight: sideBySide ? 0 : undefined, display: 'flex', flexDirection: 'column', justifyContent: sideBySide ? 'flex-start' : undefined, alignItems: sideBySide ? 'stretch' : undefined, marginTop: sideBySide ? 0 : 'clamp(2px, 0.8cqmin, 6px)' }}>
-            {place && showPlace ? (
-              <p style={{ margin: '0 0 clamp(4px, 1cqmin, 8px)', fontSize: sideBySide ? sc(s, 9, 2.2, 12) : 'clamp(10px, 2.4cqmin, 12px)', fontWeight: 600, color: muted, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0, width: '100%' }} title={place}>
-                {place}
-              </p>
-            ) : null}
-            <p style={{ margin: sideBySide ? '0 0 clamp(4px, 1cqmin, 8px)' : '0 0 6px', textAlign: 'center', fontSize: sideBySide ? sc(s, 10, 2.4, 13) : 'clamp(9px, 2cqmin, 11px)', fontWeight: 600, color: muted, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>{tr.nextDays}</p>
-            <div style={{ flex: sideBySide ? 1 : undefined, minHeight: sideBySide ? 0 : undefined, display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gridTemplateRows: sideBySide ? 'minmax(0, 1fr)' : undefined, gap: sideBySide ? `${Math.max(4, Math.round(7 * s))}px` : `${Math.max(1, Math.round(3 * s))}px`, width: '100%', minWidth: 0, alignContent: sideBySide ? 'stretch' : 'center', alignItems: sideBySide ? 'stretch' : undefined }}>
-              {daily.map((d) => {
-                const DIcon = codeIcon(d.code, true)
-                const dColor = codeColor(d.code, true)
-                const date = new Date(d.date + 'T12:00:00')
-                const wd = date.toLocaleDateString(de ? 'de-DE' : 'en-GB', { weekday: 'short' })
-                const dm = date.toLocaleDateString(de ? 'de-DE' : 'en-GB', { day: 'numeric', month: 'numeric' })
-                const title = `${wd} ${dm} · ${codeLabel(d.code, de)} · ${Math.round(d.max)}° / ${Math.round(d.min)}°`
-                const pad = sideBySide ? `${Math.max(6, Math.round(8 * s))}px ${Math.max(3, Math.round(4 * s))}px ${Math.max(5, Math.round(7 * s))}px` : `${Math.max(3, Math.round(5 * s))}px ${Math.max(1, Math.round(2 * s))}px ${Math.max(2, Math.round(4 * s))}px`
-                const radius = `${Math.max(8, Math.round((sideBySide ? 14 : 8) * s))}px`
-                return (
-                  <div key={d.date} title={title} style={{ minWidth: 0, width: '100%', height: sideBySide ? '100%' : 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: sideBySide ? 'space-evenly' : undefined, gap: sideBySide ? `${Math.max(2, Math.round(3 * s))}px` : `${Math.max(1, Math.round(2 * s))}px`, padding: pad, borderRadius: radius, background: 'color-mix(in srgb, var(--surface) 92%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)', boxSizing: 'border-box' }}>
-                    <span style={{ fontSize: sideBySide ? sc(s, 10, 2.4, 13) : sc(s, 8, 1.8, 10), fontWeight: 700, color: muted, textTransform: 'capitalize', lineHeight: 1.05, textAlign: 'center' }}>{wd}</span>
-                    <span style={{ fontSize: sideBySide ? sc(s, 8, 2, 11) : sc(s, 7, 1.6, 9), color: muted, lineHeight: 1, textAlign: 'center' }}>{dm}</span>
-                    <DIcon aria-hidden strokeWidth={1.85} style={{ width: sideBySide ? sc(s, 20, 5.5, 30) : sc(s, 16, 4.5, 22), height: sideBySide ? sc(s, 20, 5.5, 30) : sc(s, 16, 4.5, 22), color: dColor, filter: codeShadow(d.code, true), flexShrink: 0 }} />
-                    <span className="tabular-nums" style={{ fontSize: sideBySide ? sc(s, 12, 2.8, 16) : sc(s, 9, 2, 11), fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1.05 }}>{Math.round(d.max)}°</span>
-                    <span className="tabular-nums" style={{ fontSize: sideBySide ? sc(s, 10, 2.4, 13) : sc(s, 8, 1.8, 10), fontWeight: 600, color: muted, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{Math.round(d.min)}°</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : null}
-      </div>
+      {wide && haveDaily ? layoutEl : stackedFallback}
     </div>
   )
 }
+
 
 const inp: CSSProperties = {
   background: 'var(--surface)',
@@ -782,6 +948,21 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>{de ? 'Land (ISO, optional)' : 'Country (ISO, optional)'}</label>
         <input style={inp} value={str(cfg.countryCode)} onChange={(e) => onChange('countryCode', e.target.value.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 2))} placeholder={de ? 'z. B. DE' : 'e.g. DE'} maxLength={2} />
       </div>
+      <div>
+        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Layout</label>
+        <select style={inp} value={str(cfg.layout) || 'sidebar'} onChange={(e) => onChange('layout', e.target.value)}>
+          <option value="sidebar">{de ? 'Sidebar-Liste' : 'Sidebar list'}</option>
+          <option value="bottombar">{de ? 'Untere Leiste' : 'Bottom bar'}</option>
+          <option value="statgrid">{de ? 'Werte-Kacheln' : 'Stat grid'}</option>
+          <option value="rainfocus">{de ? 'Regen-Fokus' : 'Rain focus'}</option>
+          <option value="tworows">{de ? 'Zwei Reihen' : 'Two rows'}</option>
+          <option value="sparkline">{de ? 'Temperatur-Balken' : 'Temp bars'}</option>
+          <option value="pills">{de ? 'Pillen' : 'Pills'}</option>
+          <option value="minimal">Minimal</option>
+          <option value="fullwidth">{de ? 'Vollbreite oben' : 'Full-width top'}</option>
+          <option value="iconseven">{de ? 'Icon-7-Tage' : 'Icon 7-day'}</option>
+        </select>
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 600 }}>{de ? 'Anzeige im Widget' : 'Widget display'}</p>
         {check('showHumidityWind', cfgBool(cfg, 'showHumidityWind', true), de ? 'Luftfeuchtigkeit & Wind' : 'Humidity & wind', de ? 'Zeile oben mit Luftfeuchte und Wind (km/h, Himmelsrichtung).' : 'Top row with humidity and wind speed/direction.')}
@@ -818,7 +999,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.7.2',
+  version: '1.8.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -836,6 +1017,7 @@ export const meta: PluginMeta = {
     { key: 'showTimelineRain', label: 'Regen-% im 3h-Verlauf', type: 'boolean', defaultValue: true },
     { key: 'showUvGusts', label: 'UV-Index & Windböen', type: 'boolean', defaultValue: true },
     { key: 'showAirQuality', label: 'Luftqualität (AQI)', type: 'boolean', defaultValue: true },
+    { key: 'layout', label: 'Layout', type: 'text', defaultValue: 'sidebar' },
     { key: 'dailyForecastWidthPct', label: '7-Tage: Kartenbreite (%)', type: 'number', defaultValue: 100 },
   ],
 }
