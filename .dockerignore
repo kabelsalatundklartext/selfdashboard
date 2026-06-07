@@ -18,3 +18,4 @@ plugin-pack/
 # Android-APK — nur Download/Release, nicht ins Docker-Image (~6 MB)
 android/
 *.apk
+

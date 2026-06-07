@@ -283,3 +283,4 @@ Builtin plugin `meta.version` values in the repo (see each `plugins/<id>/index.t
 | Scratchpad | 1.1.1 |
 
 *(Versions ship with the Docker image; bump dates are git history.)*
+

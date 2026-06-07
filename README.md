@@ -897,3 +897,4 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 
 **MIT** — kostenlos nutzbar, veränderbar und weiterzugeben.
 
+
