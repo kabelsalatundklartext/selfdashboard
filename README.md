@@ -114,6 +114,7 @@ flowchart TB
 - **Philips Hue (Beta)** — control lights & rooms in the Hue-app style: per-room toggle, brightness slider, real light colour, colour picker.
 - **Homematic / RaspberryMatic (Beta)** — heating thermostats (target temp + Auto/Manual/Boost), switches, dimmers (on/off + colour), window contacts, sensors, system variables and programs; auto-grouped by CCU room (drag-and-drop sortable, multi-column), devices renamable. JSON-RPC login, no add-on required.
 - **FRITZ! Smart Home (Beta)** — FRITZ!DECT thermostats (target temp), smart plugs (on/off + watt), window contacts and sensors via the AHA-HTTP interface; PBKDF2 SID login.
+- **Bambu Lab Camera (Beta)** — live camera image from Bambu Lab printers: P1/A1 directly (local, port 6000) or any MJPEG/snapshot URL (e.g. X1 via go2rtc); auto-refreshing, access code stored encrypted, LAN-only addresses.
 - **Jellyfin** — active sessions (own widget) · **Selfstream · Emby · Jellyfin** — combined stream list with a configurable title.
 - **8 new integrations (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, plus **Speedtest Tracker**.
 - **Auto-index store** — drop a plugin folder into `plugins-pack/<id>/` and push; `plugins-index.json` regenerates automatically (no manual index editing).
@@ -190,6 +191,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostats, plugs, contacts (AHA) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heating, switches, sensors, rooms (RaspberryMatic) **(Beta)** |
+| <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/bambu-cam/icon.svg" width="22"/> | [Bambu Lab Camera](plugins-pack/bambu-cam/README.md) | Utility | Live printer camera (P1/A1 local or stream URL) **(Beta)** |
 | 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Embed URLs |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="22"/> | [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Active sessions |
 | ✉️ | [Email](plugins-pack/mail/README.md) | Productivity | Navbar IMAP badge |
@@ -554,6 +556,7 @@ flowchart TB
 - **Philips Hue (Beta)** — Lampen & Räume im Hue-App-Stil steuern: Toggle pro Raum, Helligkeits-Slider, echte Lichtfarbe, Farbwähler.
 - **Homematic / RaspberryMatic (Beta)** — Heizungsthermostate (Soll-Temp + Auto/Manuell/Boost), Schalter, Dimmer (an/aus + Farbe), Fensterkontakte, Sensoren, Systemvariablen und Programme; automatisch nach CCU-Raum gruppiert (per Drag-and-Drop sortierbar, mehrspaltig), Geräte umbenennbar. JSON-RPC-Login, kein Addon nötig.
 - **FRITZ! Smart Home (Beta)** — FRITZ!DECT-Thermostate (Soll-Temp), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren über das AHA-HTTP-Interface; PBKDF2-SID-Login.
+- **Bambu Lab Kamera (Beta)** — Live-Kamerabild von Bambu-Lab-Druckern: P1/A1 direkt (lokal, Port 6000) oder beliebige MJPEG-/Snapshot-URL (z. B. X1 via go2rtc); aktualisiert sich automatisch, Zugangscode verschlüsselt, nur LAN-Adressen.
 - **Jellyfin** — aktive Sessions (eigenes Widget) · **Selfstream · Emby · Jellyfin** — kombinierte Stream-Liste mit einstellbarem Titel.
 - **8 neue Integrationen (Beta):** Plex, Proxmox VE, TrueNAS, Home Assistant, OPNsense, UniFi Controller, Nginx Proxy Manager, OpenMediaVault, dazu **Speedtest Tracker**.
 - **Auto-Index-Store** — Plugin-Ordner nach `plugins-pack/<id>/` legen und pushen; `plugins-index.json` wird automatisch neu generiert (kein Hand-Editieren des Index).
@@ -630,6 +633,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostate, Steckdosen, Kontakte (AHA) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heizung, Schalter, Sensoren, Räume (RaspberryMatic) **(Beta)** |
+| <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/bambu-cam/icon.svg" width="22"/> | [Bambu Lab Kamera](plugins-pack/bambu-cam/README.md) | Utility | Live-Druckerkamera (P1/A1 lokal oder Stream-URL) **(Beta)** |
 | 🖼️ | [Iframe](plugins-pack/iframe/README.md) | Utility | Webseite einbetten |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/jellyfin.png" width="22"/> | [Jellyfin](plugins-pack/jellyfin/README.md) | Media | Aktive Sessions |
 | ✉️ | [E-Mail](plugins-pack/mail/README.md) | Productivity | Navbar IMAP-Badge |
