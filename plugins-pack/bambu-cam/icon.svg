@@ -1,0 +1,7 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bambu Lab">
+  <path d="M20 5 L44 5 L57 32 L44 59 L20 59 L7 32 Z" fill="#00AE42"/>
+  <g stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <path d="M32 17 L44 24 L44 38 L32 45 L20 38 L20 24 Z"/>
+    <path d="M32 17 L32 31 M32 31 L20 24 M32 31 L44 24"/>
+  </g>
+</svg>

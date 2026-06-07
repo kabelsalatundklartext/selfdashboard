@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-07T20:24:29.283Z",
+  "generatedAt": "2026-06-07T20:26:34.845Z",
   "plugins": [
     {
       "id": "adguard",
@@ -29,6 +29,7 @@
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🖨️",
+      "iconUrl": "https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/bambu-cam/icon.svg",
       "defaultLayout": {
         "w": 3,
         "h": 4,
