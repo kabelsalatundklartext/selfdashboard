@@ -51,7 +51,20 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.16'
+const HUE_VERSION = '0.9.17'
+
+const HUE_SWATCHES = ['#ffd8a6', '#ffb65c', '#f59e0b', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#3b82f6', '#22d3ee', '#22c55e', '#ffffff']
+
+function PaletteIcon({ color }: { color: string }) {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+      <path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.4-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.9.8-1.6 1.7-1.6H17a4 4 0 0 0 4-4c0-4.4-4-8.5-9-8.5Z" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="8" cy="11" r="1" fill={color} />
+      <circle cx="12" cy="8" r="1" fill={color} />
+      <circle cx="16" cy="11" r="1" fill={color} />
+    </svg>
+  )
+}
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -183,6 +196,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [groups, setGroups] = useState<HueLamp[]>([])
   const [lights, setLights] = useState<HueLamp[]>([])
   const [scenes, setScenes] = useState<HueScene[]>([])
+  const [openPanel, setOpenPanel] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const busyRef = useRef(false)
@@ -303,6 +317,9 @@ function Widget({ config }: PluginWidgetProps) {
     const sub = lit ? `color-mix(in srgb, ${textOn(item.color)} 72%, transparent)` : 'var(--text-muted)'
     const iconColor = item.on ? (lit ? fg : item.color || 'var(--accent)') : 'var(--text-muted)'
     const briShown = item.on && showBri
+    const roomScenes = view === 'groups' && showScenes ? scenes.filter((sc) => sc.group === item.id) : []
+    const hasPanel = (item.hasColor && item.on) || roomScenes.length > 0
+    const panelOpen = openPanel === item.id
     return (
       <div
         key={`${target}-${item.id}`}
@@ -322,25 +339,19 @@ function Widget({ config }: PluginWidgetProps) {
         }}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', alignItems: 'center', gap: 12, width: '100%' }}>
-          {item.hasColor && item.on ? (
-            <label style={{ display: 'inline-flex', cursor: 'pointer', flexShrink: 0 }} title={de ? 'Farbe wählen' : 'Pick colour'}>
-              <input
-                type="color"
-                value={item.color ?? '#ffffff'}
-                onChange={(e) => void setColor(item, e.target.value)}
-                style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}
-              />
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  background: item.color ?? '#fff',
-                  border: '2px solid rgba(255,255,255,.75)',
-                  boxShadow: '0 0 6px ' + (item.color ?? '#fff'),
-                }}
-              />
-            </label>
+          {hasPanel ? (
+            <button
+              type="button"
+              onClick={() => setOpenPanel(panelOpen ? null : item.id)}
+              title={de ? 'Farbe & Szenen' : 'Colour & scenes'}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', flexShrink: 0 }}
+            >
+              {item.hasColor && item.on ? (
+                <span style={{ width: 22, height: 22, borderRadius: '50%', background: item.color ?? '#fff', border: '2px solid ' + (panelOpen ? '#fff' : 'rgba(255,255,255,.75)'), boxShadow: '0 0 6px ' + (item.color ?? '#fff') }} />
+              ) : (
+                <PaletteIcon color={iconColor} />
+              )}
+            </button>
           ) : (
             <RoomIcon d={view === 'groups' ? roomPath(item.roomClass) : ROOM_PATHS.bulb} color={iconColor} size={22} />
           )}
@@ -399,40 +410,36 @@ function Widget({ config }: PluginWidgetProps) {
             aria-label={de ? 'Helligkeit' : 'Brightness'}
           />
         ) : null}
-        {view === 'groups' && showScenes
-          ? (() => {
-              const roomScenes = scenes.filter((sc) => sc.group === item.id)
-              if (roomScenes.length === 0) return null
-              return (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: briShown ? 2 : 9 }}>
+        {panelOpen ? (
+          <div style={{ marginTop: briShown ? 4 : 10, padding: 11, borderRadius: 12, background: lit ? 'rgba(0,0,0,.22)' : 'var(--surface)', border: '1px solid ' + (lit ? 'rgba(255,255,255,.14)' : 'var(--border)'), display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {item.hasColor && item.on ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: sub, marginBottom: 6 }}>{de ? 'Farbe' : 'Colour'}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                  {HUE_SWATCHES.map((c) => (
+                    <button key={c} type="button" onClick={() => void setColor(item, c)} title={c} style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: '2px solid ' + (item.color && item.color.toLowerCase() === c.toLowerCase() ? '#fff' : 'rgba(255,255,255,.45)'), cursor: 'pointer', padding: 0, boxShadow: '0 0 5px ' + c }} />
+                  ))}
+                  <label style={{ display: 'inline-flex', cursor: 'pointer' }} title={de ? 'Eigene Farbe' : 'Custom colour'}>
+                    <input type="color" value={item.color ?? '#ffffff'} onChange={(e) => void setColor(item, e.target.value)} style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }} />
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', border: '2px dashed rgba(255,255,255,.5)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: 1, color: sub }}>+</span>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+            {roomScenes.length > 0 ? (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: sub, marginBottom: 6 }}>{de ? 'Szenen' : 'Scenes'}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {roomScenes.map((sc) => (
-                    <button
-                      key={sc.id}
-                      type="button"
-                      onClick={() => void recallScene(item.id, sc.id)}
-                      title={sc.name}
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '4px 10px',
-                        borderRadius: 999,
-                        border: lit ? '1px solid rgba(255,255,255,.28)' : '1px solid var(--border)',
-                        background: lit ? 'rgba(255,255,255,.16)' : 'var(--surface)',
-                        color: lit ? fg : 'var(--text)',
-                        cursor: 'pointer',
-                        maxWidth: '100%',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <button key={sc.id} type="button" onClick={() => void recallScene(item.id, sc.id)} title={sc.name} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, border: '1px solid ' + (lit ? 'rgba(255,255,255,.28)' : 'var(--border)'), background: lit ? 'rgba(255,255,255,.16)' : 'var(--surface-2)', color: lit ? fg : 'var(--text)', cursor: 'pointer', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {sc.name}
                     </button>
                   ))}
                 </div>
-              )
-            })()
-          : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -754,7 +761,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.16',
+  version: '0.9.17',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',
