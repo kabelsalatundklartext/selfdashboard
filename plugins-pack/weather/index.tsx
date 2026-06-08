@@ -898,16 +898,16 @@ function Widget({ config }: PluginWidgetProps) {
 
   const pills24El: ReactNode =
     hours24.length > 0 ? (
-      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
+      <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' }}>
         {[0, 12].map((off) => (
-          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%' }}>
+          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%', flex: 1, minHeight: 0, maxHeight: 92 }}>
             {hours24.slice(off, off + 12).map((x, k) => {
               const idx = off + k
               const PI = codeIcon(x.code, x.isDay)
               const first = idx === 0
               const ic = x.prob >= 50 ? '#3b82f6' : x.prob >= 20 ? '#60a5fa' : x.prob >= 15 ? '#93c5fd' : codeColor(x.code, x.isDay)
               return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '4px 0', borderRadius: 9, minWidth: 0, background: first ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface-2)', border: '1px solid ' + (first ? 'var(--accent)' : 'var(--border)') }}>
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 1, padding: '4px 0', borderRadius: 9, minWidth: 0, background: first ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface-2)', border: '1px solid ' + (first ? 'var(--accent)' : 'var(--border)') }}>
                   <span style={{ fontSize: 'clamp(8px, 1.6cqmin, 10px)', fontWeight: 700, color: first ? 'var(--accent)' : muted, lineHeight: 1 }}>{first ? (de ? 'jetzt' : 'now') : x.hour}</span>
                   <PI aria-hidden strokeWidth={1.75} style={{ width: 'clamp(12px, 3cqmin, 17px)', height: 'clamp(12px, 3cqmin, 17px)', color: ic, flexShrink: 0 }} />
                   <span className="tabular-nums" style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{Number.isFinite(x.temp) ? `${Math.round(x.temp)}°` : '—'}</span>
@@ -980,7 +980,7 @@ function Widget({ config }: PluginWidgetProps) {
             <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 'clamp(3px, 1cqmin, 8px)', overflow: 'hidden' }}>
               {placeEl}
               {headerRow}
-              <div style={{ marginTop: 'auto' }}>{pills24El ?? hourlyEl}</div>
+              {pills24El ?? hourlyEl}
             </div>
             {sideCol(sevenListEl, 150)}
           </div>
@@ -1111,7 +1111,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.9.0',
+  version: '1.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
