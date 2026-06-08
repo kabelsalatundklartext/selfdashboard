@@ -1,8 +1,8 @@
 {
   "id": "bookmarks",
   "name": "App Bookmarks",
-  "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.",
-  "version": "1.6.2",
+  "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row. Auto-fetches the site favicon when no custom icon is set.",
+  "version": "1.7.0",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "🔖"

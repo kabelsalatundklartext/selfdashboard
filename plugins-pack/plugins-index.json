@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-08T07:49:12.218Z",
+  "generatedAt": "2026-06-08T13:59:09.222Z",
   "plugins": [
     {
       "id": "adguard",
@@ -47,8 +47,8 @@
     {
       "id": "bookmarks",
       "name": "App Bookmarks",
-      "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row.",
-      "version": "1.6.2",
+      "description": "Quick links with groups, custom icons, drag & drop, responsive grid or horizontal row. Auto-fetches the site favicon when no custom icon is set.",
+      "version": "1.7.0",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🔖",
