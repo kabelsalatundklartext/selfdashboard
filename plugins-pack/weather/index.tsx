@@ -879,7 +879,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const statsGridEl = (
-    <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px clamp(8px, 2.5cqmin, 18px)', alignContent: 'center', fontSize: 'clamp(9px, 2.1cqmin, 11.5px)', lineHeight: 1.25 }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(2px, 1cqmin, 6px) clamp(10px, 3cqmin, 24px)', alignContent: 'center', fontSize: 'clamp(10px, 2.6cqmin, 14px)', lineHeight: 1.3 }}>
       {showHumidityWind ? <span><span style={{ color: muted }}>{tr.hum}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span></span> : null}
       {showHumidityWind ? <span><span style={{ color: muted }}>{tr.wind}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{windSpeed > 0 ? `${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : '—'}</span></span> : null}
       {showUvGusts ? <span><span style={{ color: muted }}>UV</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{Number.isFinite(uv) ? Math.round(uv) : '—'}</span></span> : null}
@@ -890,8 +890,15 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const headerRow = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5cqmin, 18px)', width: '100%', flexShrink: 0 }}>
-      <div style={{ flexShrink: 0 }}>{currentInline}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3cqmin, 24px)', width: '100%', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2cqmin, 14px)', flexShrink: 0, color }} aria-label={label} title={label}>
+        <span className="tabular-nums" style={{ fontSize: 'clamp(1.6rem, 9cqmin, 3.2rem)', fontWeight: 800, color: 'var(--accent)', lineHeight: 1, flexShrink: 0 }}>{temp != null ? `${Math.round(nm(temp, 0))}°` : '—'}</span>
+        <Icon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(30px, 8cqmin, 56px)', height: 'clamp(30px, 8cqmin, 56px)', color, filter: shadow, opacity: stale ? 0.55 : 1, flexShrink: 0 }} />
+        <div style={{ textAlign: 'left', minWidth: 0 }}>
+          <div style={{ fontSize: 'clamp(12px, 2.8cqmin, 18px)', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+          {feels != null && temp != null && Math.abs(nm(feels, 0) - nm(temp, 0)) >= 0.5 ? <div style={{ fontSize: 'clamp(10px, 2.2cqmin, 13px)', color: muted }}>{tr.feels} {Math.round(nm(feels, 0))}°</div> : null}
+        </div>
+      </div>
       {statsGridEl}
     </div>
   )
@@ -1111,7 +1118,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.9.1',
+  version: '1.9.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',

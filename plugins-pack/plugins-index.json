@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-08T07:23:55.081Z",
+  "generatedAt": "2026-06-08T07:49:12.218Z",
   "plugins": [
     {
       "id": "adguard",
@@ -611,7 +611,7 @@
       "id": "weather",
       "name": "Weather",
       "description": "Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.",
-      "version": "1.9.1",
+      "version": "1.9.2",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "🌤️",
