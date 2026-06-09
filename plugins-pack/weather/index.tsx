@@ -398,12 +398,13 @@ const SM_COLS = 12
 const SM_UNIT = 26
 const SM_GAP = 4
 const SM_BLOCKS: { id: string; de: string; en: string; def: SmBox }[] = [
-  { id: 'current', de: 'Aktuelles Wetter', en: 'Current weather', def: { x: 0, y: 0, w: 12, h: 3 } },
-  { id: 'stats', de: 'Werte', en: 'Stats', def: { x: 0, y: 3, w: 12, h: 2 } },
-  { id: 'hourly', de: '3-Stunden-Verlauf', en: '3-hour timeline', def: { x: 0, y: 5, w: 12, h: 3 } },
-  { id: 'pills', de: '24-Stunden-Pillen', en: '24-hour pills', def: { x: 0, y: 8, w: 12, h: 5 } },
-  { id: 'seven', de: '7-Tage', en: '7-day', def: { x: 0, y: 13, w: 12, h: 4 } },
-  { id: 'rain', de: 'Regen-Vorschau', en: 'Rain outlook', def: { x: 0, y: 17, w: 12, h: 2 } },
+  { id: 'place', de: 'Ort / Stadtname', en: 'Location', def: { x: 0, y: 0, w: 12, h: 1 } },
+  { id: 'current', de: 'Aktuelles Wetter', en: 'Current weather', def: { x: 0, y: 1, w: 12, h: 3 } },
+  { id: 'stats', de: 'Werte', en: 'Stats', def: { x: 0, y: 4, w: 12, h: 2 } },
+  { id: 'hourly', de: '3-Stunden-Verlauf', en: '3-hour timeline', def: { x: 0, y: 6, w: 12, h: 3 } },
+  { id: 'pills', de: '24-Stunden-Pillen', en: '24-hour pills', def: { x: 0, y: 9, w: 12, h: 5 } },
+  { id: 'seven', de: '7-Tage', en: '7-day', def: { x: 0, y: 14, w: 12, h: 4 } },
+  { id: 'rain', de: 'Regen-Vorschau', en: 'Rain outlook', def: { x: 0, y: 18, w: 12, h: 2 } },
 ]
 function parseSmLayout(raw: string): Record<string, SmBox> {
   try {
@@ -435,7 +436,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const widthScale = widthPct(cfg) / 100
   const layout = str(cfg.layout) || 'sidebar'
   const updatePluginConfig = useDashboardStore((st) => st.updatePluginConfig)
+  const smSevenVertical = cfg.smSevenVertical === true
   const smEnabled: Record<string, boolean> = {
+    place: cfg.smPlace !== false,
     current: cfg.smCurrent !== false,
     stats: cfg.smStats !== false,
     hourly: cfg.smHourly !== false,
@@ -610,6 +613,9 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
       if (instanceId) updatePluginConfig(instanceId, { customLayout: JSON.stringify(prev) })
       return prev
     })
+  }
+  const smToggleSeven = () => {
+    if (instanceId) updatePluginConfig(instanceId, { smSevenVertical: !smSevenVertical })
   }
   useLayoutEffect(() => {
     const el = rootRef.current
@@ -1000,11 +1006,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     ) : null
 
   const smContent: Record<string, ReactNode> = {
+    place: placeEl,
     current: currentCentered(false),
     stats: statsEl,
     hourly: hourlyEl,
     pills: pills24El,
-    seven: sevenGridEl(true, false),
+    seven: smSevenVertical ? sevenListEl : sevenGridEl(true, false),
     rain: rainFill,
   }
   const selfmadeEl: ReactNode = (
@@ -1035,6 +1042,17 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               style={{ gridColumn: `${box.x + 1} / span ${box.w}`, gridRow: `${box.y + 1} / span ${box.h}`, position: 'relative', minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRadius: 8, padding: smEdit ? 3 : 0, boxSizing: 'border-box', border: smEdit ? '1px dashed var(--accent)' : '1px solid transparent', background: smEdit ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', cursor: smEdit ? 'move' : 'default', touchAction: smEdit ? 'none' : 'auto', userSelect: 'none' }}
             >
               <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden', pointerEvents: smEdit ? 'none' : 'auto' }}>{smContent[b.id]}</div>
+              {smEdit && b.id === 'seven' ? (
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={smToggleSeven}
+                  title={de ? 'Waagerecht / senkrecht' : 'Horizontal / vertical'}
+                  style={{ position: 'absolute', left: 3, top: 3, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 5, border: '1px solid var(--accent)', background: 'var(--surface)', color: 'var(--accent)', cursor: 'pointer', zIndex: 2 }}
+                >
+                  {smSevenVertical ? '↕' : '↔'}
+                </button>
+              ) : null}
               {smEdit ? (
                 <div
                   onPointerDown={(e) => smStart(b.id, 'resize', e)}
@@ -1210,6 +1228,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       {str(cfg.layout) === 'selfmade' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 600 }}>{de ? 'Bausteine (für „Selbst gestalten")' : 'Blocks (for "Build your own")'}</p>
+          {check('smPlace', cfgBool(cfg, 'smPlace', true), de ? 'Ort / Stadtname' : 'Location', '')}
           {check('smCurrent', cfgBool(cfg, 'smCurrent', true), de ? 'Aktuelles Wetter' : 'Current weather', '')}
           {check('smStats', cfgBool(cfg, 'smStats', true), de ? 'Werte (Feuchte/Wind/UV/…)' : 'Stats (humidity/wind/UV/…)', '')}
           {check('smHourly', cfgBool(cfg, 'smHourly', true), de ? '3-Stunden-Verlauf' : '3-hour timeline', '')}
@@ -1255,7 +1274,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.10.0',
+  version: '1.10.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -1275,6 +1294,8 @@ export const meta: PluginMeta = {
     { key: 'showAirQuality', label: 'Luftqualität (AQI)', type: 'boolean', defaultValue: true },
     { key: 'layout', label: 'Layout', type: 'text', defaultValue: 'sidebar' },
     { key: 'customLayout', label: 'Selfmade-Layout (JSON)', type: 'text', defaultValue: '' },
+    { key: 'smPlace', label: 'Selfmade: Ort', type: 'boolean', defaultValue: true },
+    { key: 'smSevenVertical', label: 'Selfmade: 7-Tage senkrecht', type: 'boolean', defaultValue: false },
     { key: 'smCurrent', label: 'Selfmade: Aktuelles Wetter', type: 'boolean', defaultValue: true },
     { key: 'smStats', label: 'Selfmade: Werte', type: 'boolean', defaultValue: true },
     { key: 'smHourly', label: 'Selfmade: 3-Stunden-Verlauf', type: 'boolean', defaultValue: true },
