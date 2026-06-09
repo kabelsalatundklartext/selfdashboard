@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   Cloud,
   CloudDrizzle,
@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 function str(v: unknown): string {
@@ -392,9 +393,31 @@ function errorText(e: unknown, de: boolean): string {
     : 'Weather API unreachable (server needs outbound internet to Open-Meteo).'
 }
 
+type SmBox = { x: number; y: number; w: number; h: number }
+const SM_COLS = 12
+const SM_UNIT = 26
+const SM_GAP = 4
+const SM_BLOCKS: { id: string; de: string; en: string; def: SmBox }[] = [
+  { id: 'current', de: 'Aktuelles Wetter', en: 'Current weather', def: { x: 0, y: 0, w: 12, h: 3 } },
+  { id: 'stats', de: 'Werte', en: 'Stats', def: { x: 0, y: 3, w: 12, h: 2 } },
+  { id: 'hourly', de: '3-Stunden-Verlauf', en: '3-hour timeline', def: { x: 0, y: 5, w: 12, h: 3 } },
+  { id: 'pills', de: '24-Stunden-Pillen', en: '24-hour pills', def: { x: 0, y: 8, w: 12, h: 5 } },
+  { id: 'seven', de: '7-Tage', en: '7-day', def: { x: 0, y: 13, w: 12, h: 4 } },
+  { id: 'rain', de: 'Regen-Vorschau', en: 'Rain outlook', def: { x: 0, y: 17, w: 12, h: 2 } },
+]
+function parseSmLayout(raw: string): Record<string, SmBox> {
+  try {
+    const o = JSON.parse(raw || '{}') as unknown
+    if (o && typeof o === 'object' && !Array.isArray(o)) return o as Record<string, SmBox>
+  } catch {
+    /* ignore */
+  }
+  return {}
+}
+
 const SIDE_BY_SIDE = 420
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const cfg = config as Record<string, unknown>
   const name = str(cfg.locationQuery)
@@ -411,6 +434,15 @@ function Widget({ config }: PluginWidgetProps) {
   const showAirQuality = cfgBool(cfg, 'showAirQuality', true)
   const widthScale = widthPct(cfg) / 100
   const layout = str(cfg.layout) || 'sidebar'
+  const updatePluginConfig = useDashboardStore((st) => st.updatePluginConfig)
+  const smEnabled: Record<string, boolean> = {
+    current: cfg.smCurrent !== false,
+    stats: cfg.smStats !== false,
+    hourly: cfg.smHourly !== false,
+    pills: cfg.smPills === true,
+    seven: cfg.smSeven !== false,
+    rain: cfg.smRain === true,
+  }
 
   const [place, setPlace] = useState<string | null>(null)
   const [current, setCurrent] = useState<Current | null>(null)
@@ -539,6 +571,46 @@ function Widget({ config }: PluginWidgetProps) {
 
   const rootRef = useRef<HTMLDivElement>(null)
   const [wide, setWide] = useState(false)
+  const smStored = useMemo(() => parseSmLayout(str(cfg.customLayout)), [cfg.customLayout])
+  const [smLayout, setSmLayout] = useState<Record<string, SmBox>>(smStored)
+  useEffect(() => setSmLayout(smStored), [smStored])
+  const [smEdit, setSmEdit] = useState(false)
+  const smGridRef = useRef<HTMLDivElement>(null)
+  const smDrag = useRef<{ id: string; mode: 'move' | 'resize'; sx: number; sy: number; box: SmBox; colW: number; rowH: number } | null>(null)
+  const smBoxOf = (id: string): SmBox => smLayout[id] || (SM_BLOCKS.find((b) => b.id === id) as { def: SmBox }).def
+  const smStart = (id: string, mode: 'move' | 'resize', e: ReactPointerEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const grid = smGridRef.current
+    const colW = grid ? grid.clientWidth / SM_COLS : 30
+    smDrag.current = { id, mode, sx: e.clientX, sy: e.clientY, box: smBoxOf(id), colW, rowH: SM_UNIT + SM_GAP }
+    try {
+      grid?.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+  const smMove = (e: ReactPointerEvent) => {
+    const d = smDrag.current
+    if (!d) return
+    const cols = Math.round((e.clientX - d.sx) / d.colW)
+    const rows = Math.round((e.clientY - d.sy) / d.rowH)
+    setSmLayout((prev) => {
+      const nb: SmBox =
+        d.mode === 'move'
+          ? { ...d.box, x: Math.max(0, Math.min(SM_COLS - d.box.w, d.box.x + cols)), y: Math.max(0, d.box.y + rows) }
+          : { ...d.box, w: Math.max(1, Math.min(SM_COLS - d.box.x, d.box.w + cols)), h: Math.max(1, d.box.h + rows) }
+      return { ...prev, [d.id]: nb }
+    })
+  }
+  const smEnd = () => {
+    if (!smDrag.current) return
+    smDrag.current = null
+    setSmLayout((prev) => {
+      if (instanceId) updatePluginConfig(instanceId, { customLayout: JSON.stringify(prev) })
+      return prev
+    })
+  }
   useLayoutEffect(() => {
     const el = rootRef.current
     if (!el) return
@@ -927,6 +999,56 @@ function Widget({ config }: PluginWidgetProps) {
       </div>
     ) : null
 
+  const smContent: Record<string, ReactNode> = {
+    current: currentCentered(false),
+    stats: statsEl,
+    hourly: hourlyEl,
+    pills: pills24El,
+    seven: sevenGridEl(true, false),
+    rain: rainFill,
+  }
+  const selfmadeEl: ReactNode = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, width: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0, marginBottom: 2 }}>
+        <button
+          type="button"
+          onClick={() => setSmEdit((v) => !v)}
+          title={de ? 'Anordnen' : 'Arrange'}
+          style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 6, border: '1px solid var(--border)', background: smEdit ? 'var(--accent)' : 'var(--surface-2)', color: smEdit ? '#fff' : 'var(--text-muted)', cursor: 'pointer' }}
+        >
+          {smEdit ? (de ? '✓ Fertig' : '✓ Done') : (de ? '✎ Anordnen' : '✎ Arrange')}
+        </button>
+      </div>
+      <div
+        ref={smGridRef}
+        onPointerMove={smMove}
+        onPointerUp={smEnd}
+        onPointerCancel={smEnd}
+        style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: `repeat(${SM_COLS}, 1fr)`, gridAutoRows: `${SM_UNIT}px`, gap: SM_GAP, overflowY: smEdit ? 'auto' : 'hidden', overflowX: 'hidden', alignContent: 'start' }}
+      >
+        {SM_BLOCKS.filter((b) => smEnabled[b.id]).map((b) => {
+          const box = smBoxOf(b.id)
+          return (
+            <div
+              key={b.id}
+              onPointerDown={smEdit ? (e) => smStart(b.id, 'move', e) : undefined}
+              style={{ gridColumn: `${box.x + 1} / span ${box.w}`, gridRow: `${box.y + 1} / span ${box.h}`, position: 'relative', minWidth: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRadius: 8, padding: smEdit ? 3 : 0, boxSizing: 'border-box', border: smEdit ? '1px dashed var(--accent)' : '1px solid transparent', background: smEdit ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', cursor: smEdit ? 'move' : 'default', touchAction: smEdit ? 'none' : 'auto', userSelect: 'none' }}
+            >
+              <div style={{ minWidth: 0, minHeight: 0, overflow: 'hidden', pointerEvents: smEdit ? 'none' : 'auto' }}>{smContent[b.id]}</div>
+              {smEdit ? (
+                <div
+                  onPointerDown={(e) => smStart(b.id, 'resize', e)}
+                  title={de ? 'Größe ziehen' : 'Resize'}
+                  style={{ position: 'absolute', right: 0, bottom: 0, width: 15, height: 15, cursor: 'nwse-resize', background: 'var(--accent)', borderRadius: '6px 0 5px 0', opacity: 0.85, touchAction: 'none' }}
+                />
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
   const layoutEl: ReactNode = (() => {
     switch (layout) {
       case 'bottombar':
@@ -992,6 +1114,8 @@ function Widget({ config }: PluginWidgetProps) {
             {sideCol(sevenListEl, 150)}
           </div>
         )
+      case 'selfmade':
+        return selfmadeEl
       case 'sidebar':
       default:
         return sidebarLayout(<>{placeEl}{currentInline}{statsEl}</>, sevenListEl, 150)
@@ -1080,8 +1204,21 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           <option value="minimal">Minimal</option>
           <option value="fullwidth">{de ? 'Vollbreite oben' : 'Full-width top'}</option>
           <option value="iconseven">{de ? 'Icon-7-Tage' : 'Icon 7-day'}</option>
+          <option value="selfmade">{de ? 'Selbst gestalten' : 'Build your own'}</option>
         </select>
       </div>
+      {str(cfg.layout) === 'selfmade' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 600 }}>{de ? 'Bausteine (für „Selbst gestalten")' : 'Blocks (for "Build your own")'}</p>
+          {check('smCurrent', cfgBool(cfg, 'smCurrent', true), de ? 'Aktuelles Wetter' : 'Current weather', '')}
+          {check('smStats', cfgBool(cfg, 'smStats', true), de ? 'Werte (Feuchte/Wind/UV/…)' : 'Stats (humidity/wind/UV/…)', '')}
+          {check('smHourly', cfgBool(cfg, 'smHourly', true), de ? '3-Stunden-Verlauf' : '3-hour timeline', '')}
+          {check('smPills', cfgBool(cfg, 'smPills', false), de ? '24-Stunden-Pillen' : '24-hour pills', '')}
+          {check('smSeven', cfgBool(cfg, 'smSeven', true), de ? '7-Tage' : '7-day', '')}
+          {check('smRain', cfgBool(cfg, 'smRain', false), de ? 'Regen-Vorschau' : 'Rain outlook', '')}
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>{de ? 'Danach im Widget auf „✎ Anordnen" tippen und Bausteine verschieben / in der Größe ziehen.' : 'Then tap "✎ Arrange" in the widget to move/resize the blocks.'}</p>
+        </div>
+      ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 600 }}>{de ? 'Anzeige im Widget' : 'Widget display'}</p>
         {check('showHumidityWind', cfgBool(cfg, 'showHumidityWind', true), de ? 'Luftfeuchtigkeit & Wind' : 'Humidity & wind', de ? 'Zeile oben mit Luftfeuchte und Wind (km/h, Himmelsrichtung).' : 'Top row with humidity and wind speed/direction.')}
@@ -1118,7 +1255,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.9.2',
+  version: '1.10.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
@@ -1137,6 +1274,13 @@ export const meta: PluginMeta = {
     { key: 'showUvGusts', label: 'UV-Index & Windböen', type: 'boolean', defaultValue: true },
     { key: 'showAirQuality', label: 'Luftqualität (AQI)', type: 'boolean', defaultValue: true },
     { key: 'layout', label: 'Layout', type: 'text', defaultValue: 'sidebar' },
+    { key: 'customLayout', label: 'Selfmade-Layout (JSON)', type: 'text', defaultValue: '' },
+    { key: 'smCurrent', label: 'Selfmade: Aktuelles Wetter', type: 'boolean', defaultValue: true },
+    { key: 'smStats', label: 'Selfmade: Werte', type: 'boolean', defaultValue: true },
+    { key: 'smHourly', label: 'Selfmade: 3-Stunden-Verlauf', type: 'boolean', defaultValue: true },
+    { key: 'smPills', label: 'Selfmade: 24-Stunden-Pillen', type: 'boolean', defaultValue: false },
+    { key: 'smSeven', label: 'Selfmade: 7-Tage', type: 'boolean', defaultValue: true },
+    { key: 'smRain', label: 'Selfmade: Regen-Vorschau', type: 'boolean', defaultValue: false },
     { key: 'dailyForecastWidthPct', label: '7-Tage: Kartenbreite (%)', type: 'number', defaultValue: 100 },
   ],
 }
