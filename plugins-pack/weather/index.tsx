@@ -970,7 +970,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   )
 
   const statsGridEl = (
-    <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(2px, 1cqmin, 6px) clamp(10px, 3cqmin, 24px)', alignContent: 'center', fontSize: 'clamp(10px, 2.6cqmin, 14px)', lineHeight: 1.3 }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(1px, 0.7cqmin, 4px) clamp(8px, 2.6cqmin, 20px)', alignContent: 'center', fontSize: 'clamp(9px, 2.2cqmin, 12.5px)', lineHeight: 1.2 }}>
       {showHumidityWind ? <span><span style={{ color: muted }}>{tr.hum}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span></span> : null}
       {showHumidityWind ? <span><span style={{ color: muted }}>{tr.wind}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{windSpeed > 0 ? `${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : '—'}</span></span> : null}
       {showUvGusts ? <span><span style={{ color: muted }}>UV</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{Number.isFinite(uv) ? Math.round(uv) : '—'}</span></span> : null}
@@ -981,12 +981,12 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   )
 
   const headerRow = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3cqmin, 24px)', width: '100%', flexShrink: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2cqmin, 14px)', flexShrink: 0, color }} aria-label={label} title={label}>
-        <span className="tabular-nums" style={{ fontSize: 'clamp(1.6rem, 9cqmin, 3.2rem)', fontWeight: 800, color: 'var(--accent)', lineHeight: 1, flexShrink: 0 }}>{temp != null ? `${Math.round(nm(temp, 0))}°` : '—'}</span>
-        <Icon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(30px, 8cqmin, 56px)', height: 'clamp(30px, 8cqmin, 56px)', color, filter: shadow, opacity: stale ? 0.55 : 1, flexShrink: 0 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2.4cqmin, 18px)', width: '100%', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1.6cqmin, 11px)', flexShrink: 0, color }} aria-label={label} title={label}>
+        <span className="tabular-nums" style={{ fontSize: 'clamp(1.4rem, 7cqmin, 2.6rem)', fontWeight: 800, color: 'var(--accent)', lineHeight: 1, flexShrink: 0 }}>{temp != null ? `${Math.round(nm(temp, 0))}°` : '—'}</span>
+        <Icon aria-hidden strokeWidth={1.75} style={{ width: 'clamp(26px, 6.4cqmin, 46px)', height: 'clamp(26px, 6.4cqmin, 46px)', color, filter: shadow, opacity: stale ? 0.55 : 1, flexShrink: 0 }} />
         <div style={{ textAlign: 'left', minWidth: 0 }}>
-          <div style={{ fontSize: 'clamp(12px, 2.8cqmin, 18px)', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
+          <div style={{ fontSize: 'clamp(11px, 2.4cqmin, 16px)', fontWeight: 600, color: 'var(--text)' }}>{label}</div>
           {feels != null && temp != null && Math.abs(nm(feels, 0) - nm(temp, 0)) >= 0.5 ? <div style={{ fontSize: 'clamp(10px, 2.2cqmin, 13px)', color: muted }}>{tr.feels} {Math.round(nm(feels, 0))}°</div> : null}
         </div>
       </div>
@@ -996,9 +996,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
 
   const pills24El: ReactNode =
     hours24.length > 0 ? (
-      <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' }}>
+      <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 3, justifyContent: 'center' }}>
         {[0, 12].map((off) => (
-          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%', flex: 1, minHeight: 54, maxHeight: 86 }}>
+          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%', flex: 1, minHeight: 0, maxHeight: 80 }}>
             {hours24.slice(off, off + 12).map((x, k) => {
               const idx = off + k
               const PI = codeIcon(x.code, x.isDay)
@@ -1006,9 +1006,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
               const ic = x.prob >= 50 ? '#3b82f6' : x.prob >= 20 ? '#60a5fa' : x.prob >= 15 ? '#93c5fd' : codeColor(x.code, x.isDay)
               return (
                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', overflow: 'hidden', gap: 1, padding: '2px 0', borderRadius: 9, minWidth: 0, boxSizing: 'border-box', background: first ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface-2)', border: '1px solid ' + (first ? 'var(--accent)' : 'var(--border)') }}>
-                  <span style={{ fontSize: 'clamp(8px, 1.6cqmin, 10px)', fontWeight: 700, color: first ? 'var(--accent)' : muted, lineHeight: 1 }}>{first ? (de ? 'jetzt' : 'now') : x.hour}</span>
+                  <span style={{ fontSize: 'clamp(7px, 1.5cqmin, 10px)', fontWeight: 700, color: first ? 'var(--accent)' : muted, lineHeight: 1 }}>{first ? (de ? 'jetzt' : 'now') : x.hour}</span>
                   <PI aria-hidden strokeWidth={1.75} style={{ width: 'clamp(11px, 2.8cqmin, 15px)', height: 'clamp(11px, 2.8cqmin, 15px)', color: ic, flexShrink: 0 }} />
-                  <span className="tabular-nums" style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{Number.isFinite(x.temp) ? `${Math.round(x.temp)}°` : '—'}</span>
+                  <span className="tabular-nums" style={{ fontSize: 'clamp(8px, 1.9cqmin, 11px)', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{Number.isFinite(x.temp) ? `${Math.round(x.temp)}°` : '—'}</span>
                   <span style={{ fontSize: 'clamp(7px, 1.5cqmin, 9px)', fontWeight: 600, color: x.prob >= 20 ? '#3b82f6' : 'transparent', lineHeight: 1 }}>{x.prob}%</span>
                 </div>
               )
@@ -1289,7 +1289,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.10.3',
+  version: '1.10.4',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
