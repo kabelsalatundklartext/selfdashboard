@@ -1,76 +1,55 @@
-# Plugin: Selfstream-Emby (`selfstream-emby`)
+# Plugin: Selfstream · Emby · Jellyfin (`selfstream-emby`)
 
-
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 
-
-
 ### Kurzbeschreibung
 
+Zeigt **aktive Wiedergaben** von **Emby**/**Jellyfin** (bzw. Selfstream-Server): Titel, Nutzer, Fortschritt.
 
+### Einrichtung (⚙️)
 
-Kombiniertes Widget: aktive **Selfstream**-IPTV-Sessions und **Emby/Jellyfin**-Wiedergaben in **einer Liste**. Pro Zeile ein Quellen-Icon (Selfstream oder Emby).
+| Feld | Details |
+|------|---------|
+| **Server-URL** | z. B. `http://192.168.1.10:8096` |
+| **API-Key** | Emby/Jellyfin → API-Schlüssel — **verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
 
+### API
 
+`POST /api/plugins/selfstream-emby` — Proxy zu `/Sessions`.
 
-### Installation
+### Fehlerbehebung
 
-
-
-1. Plugin-Store → **Selfstream-Emby** → **Strg+F5**
-
-2. Widget **⚙️**: Selfstream-URL + Admin-Passwort, Emby-URL + API-Key (wie bei den Einzel-Plugins)
-
-
-
-### Abhängigkeiten
-
-
-
-- **Selfstream**-API: `POST /api/plugins/selfstream` (Selfstream-Plugin mit `server.mjs` auf dem Volume empfohlen)
-
-- **Emby**: Browser ruft die Emby-Sessions-API direkt auf (CORS auf der Emby-Instanz beachten)
-
-
-
-### Layout
-
-
-
-Standard **4×3** — passt neben **Uptime Kuma**.
-
-
+| Problem | Lösung |
+|---------|--------|
+| Leer | Läuft etwas? API-Key gültig? |
+| 401 | API-Key prüfen |
 
 ---
 
-
-
 ## English
-
-
 
 ### Summary
 
+Shows **now playing** from **Emby**/**Jellyfin** (or a Selfstream server): title, user, progress.
 
+### Setup (⚙️)
 
-Combined widget: active **Selfstream** IPTV sessions and **Emby/Jellyfin** playback in **one list**, with a source icon per row.
+| Field | Details |
+|-------|---------|
+| **Server URL** | e.g. `http://192.168.1.10:8096` |
+| **API key** | Emby/Jellyfin → API keys — stored **encrypted** |
+| **Refresh** | interval in seconds |
 
+### API
 
+`POST /api/plugins/selfstream-emby` — proxy to `/Sessions`.
 
-### Setup
+### Troubleshooting
 
-
-
-Install from the store, then configure Selfstream URL/password and Emby URL/API key in **⚙️** (same fields as the standalone plugins).
-
-
-
-### Dependencies
-
-
-
-- **Selfstream** API via `/api/plugins/selfstream` (install/update the Selfstream plugin for `server.mjs` on the volume)
-
-- **Emby**: browser calls Emby sessions API directly (check CORS on your Emby server)
-
+| Issue | Fix |
+|-------|-----|
+| Empty | Anything playing? API key valid? |
+| 401 | Check the API key |
