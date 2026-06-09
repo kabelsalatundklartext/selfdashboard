@@ -877,9 +877,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
       {daily.map((d) => {
         const DIcon = codeIcon(d.code, true)
         return (
-          <div key={d.date} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb, var(--surface) 92%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)', borderRadius: 6, padding: '0 8px', minHeight: 0 }}>
-            <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, width: 22, textTransform: 'capitalize' }}>{wd(d.date)}</span>
-            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 14, height: 14, color: codeColor(d.code, true), flexShrink: 0 }} />
+          <div key={d.date} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, background: 'color-mix(in srgb, var(--surface) 92%, var(--background))', border: '1px solid color-mix(in srgb, var(--border) 70%, transparent)', borderRadius: 6, padding: '0 8px', minHeight: 0, overflow: 'hidden' }}>
+            <span style={{ fontSize: 'clamp(9px, 2cqmin, 11px)', fontWeight: 700, color: muted, width: 22, textTransform: 'capitalize', flexShrink: 0 }}>{wd(d.date)}</span>
+            <DIcon aria-hidden strokeWidth={1.85} style={{ width: 13, height: 13, color: codeColor(d.code, true), flexShrink: 0 }} />
             <span style={{ flex: 1 }} />
             <span className="tabular-nums" style={{ fontSize: 'clamp(10px, 2.1cqmin, 12px)', fontWeight: 700, color: 'var(--accent)' }}>{Math.round(d.max)}°</span>
             <span className="tabular-nums" style={{ fontSize: 'clamp(8px, 1.8cqmin, 10px)', color: muted }}>{Math.round(d.min)}°</span>
@@ -941,7 +941,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   ) : null
 
   const sideCol = (sevenEl: ReactNode, w: number) => (
-    <div style={{ width: w, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+    <div style={{ width: w, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
       {haveDaily ? nextDaysLabel : null}
       <div style={{ flex: 1, minHeight: 0 }}>{sevenEl}</div>
     </div>
@@ -998,7 +998,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
     hours24.length > 0 ? (
       <div style={{ width: '100%', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 3, justifyContent: 'center' }}>
         {[0, 12].map((off) => (
-          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%', flex: 1, minHeight: 0, maxHeight: 80 }}>
+          <div key={off} style={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: 3, width: '100%', flex: 1, minHeight: 0, maxHeight: 130 }}>
             {hours24.slice(off, off + 12).map((x, k) => {
               const idx = off + k
               const PI = codeIcon(x.code, x.isDay)
@@ -1289,7 +1289,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.10.4',
+  version: '1.10.5',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
