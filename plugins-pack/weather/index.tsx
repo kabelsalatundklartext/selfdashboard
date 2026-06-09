@@ -418,7 +418,7 @@ function parseSmLayout(raw: string): Record<string, SmBox> {
 
 const SIDE_BY_SIDE = 420
 
-function Widget({ config, instanceId }: PluginWidgetProps) {
+function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const cfg = config as Record<string, unknown>
   const name = str(cfg.locationQuery)
@@ -578,9 +578,22 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const [smLayout, setSmLayout] = useState<Record<string, SmBox>>(smStored)
   useEffect(() => setSmLayout(smStored), [smStored])
   const [smEdit, setSmEdit] = useState(false)
+  useEffect(() => {
+    if (!editMode) setSmEdit(false)
+  }, [editMode])
   const smGridRef = useRef<HTMLDivElement>(null)
   const smDrag = useRef<{ id: string; mode: 'move' | 'resize'; sx: number; sy: number; box: SmBox; colW: number; rowH: number } | null>(null)
-  const smBoxOf = (id: string): SmBox => smLayout[id] || (SM_BLOCKS.find((b) => b.id === id) as { def: SmBox }).def
+  const smDefaults: Record<string, SmBox> = (() => {
+    const out: Record<string, SmBox> = {}
+    let y = 0
+    for (const b of SM_BLOCKS) {
+      if (!smEnabled[b.id]) continue
+      out[b.id] = { x: 0, y, w: 12, h: b.def.h }
+      y += b.def.h
+    }
+    return out
+  })()
+  const smBoxOf = (id: string): SmBox => smLayout[id] || smDefaults[id] || (SM_BLOCKS.find((b) => b.id === id) as { def: SmBox }).def
   const smStart = (id: string, mode: 'move' | 'resize', e: ReactPointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -1016,16 +1029,18 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   }
   const selfmadeEl: ReactNode = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0, marginBottom: 2 }}>
-        <button
-          type="button"
-          onClick={() => setSmEdit((v) => !v)}
-          title={de ? 'Anordnen' : 'Arrange'}
-          style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 6, border: '1px solid var(--border)', background: smEdit ? 'var(--accent)' : 'var(--surface-2)', color: smEdit ? '#fff' : 'var(--text-muted)', cursor: 'pointer' }}
-        >
-          {smEdit ? (de ? '✓ Fertig' : '✓ Done') : (de ? '✎ Anordnen' : '✎ Arrange')}
-        </button>
-      </div>
+      {editMode ? (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', flexShrink: 0, marginBottom: 2 }}>
+          <button
+            type="button"
+            onClick={() => setSmEdit((v) => !v)}
+            title={de ? 'Anordnen' : 'Arrange'}
+            style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 6, border: '1px solid var(--border)', background: smEdit ? 'var(--accent)' : 'var(--surface-2)', color: smEdit ? '#fff' : 'var(--text-muted)', cursor: 'pointer' }}
+          >
+            {smEdit ? (de ? '✓ Fertig' : '✓ Done') : (de ? '✎ Anordnen' : '✎ Arrange')}
+          </button>
+        </div>
+      ) : null}
       <div
         ref={smGridRef}
         onPointerMove={smMove}
@@ -1274,7 +1289,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.10.1',
+  version: '1.10.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',
