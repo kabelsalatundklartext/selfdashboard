@@ -176,13 +176,16 @@ function Widget({ config }: PluginWidgetProps) {
   const embyApiKey = str(config.embyApiKey)
   const jellyfinUrl = normalizeBaseUrl(str(config.jellyfinUrl))
   const jellyfinApiKey = str(config.jellyfinApiKey)
+  const selfstreamEnabled = config.selfstreamEnabled !== false
+  const embyEnabled = config.embyEnabled !== false
+  const jellyfinEnabled = config.jellyfinEnabled !== false
   const refreshMs = Math.max(5, num(config.refreshSeconds) || 10) * 1000
   // Konfigurierbarer Widget-Titel — leer = Kopfzeile ausblenden.
   const widgetTitle = config.title === undefined ? 'Selfstream-Emby' : str(config.title)
 
-  const hasSelfstream = Boolean(selfstreamUrl && selfstreamPassword)
-  const hasEmby = Boolean(embyUrl && embyApiKey)
-  const hasJellyfin = Boolean(jellyfinUrl && jellyfinApiKey)
+  const hasSelfstream = selfstreamEnabled && Boolean(selfstreamUrl && selfstreamPassword)
+  const hasEmby = embyEnabled && Boolean(embyUrl && embyApiKey)
+  const hasJellyfin = jellyfinEnabled && Boolean(jellyfinUrl && jellyfinApiKey)
   const configured = hasSelfstream || hasEmby || hasJellyfin
 
   const refresh = useCallback(async () => {
@@ -450,6 +453,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
           Selfstream
         </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8 }}>
+          <input type="checkbox" checked={config.selfstreamEnabled !== false} onChange={(e) => onChange('selfstreamEnabled', e.target.checked)} />
+          <span>{de ? 'Aktiv' : 'Enabled'}</span>
+        </label>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Basis-URL' : 'Base URL'}</label>
         <input
           style={inp}
@@ -471,6 +478,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
           Emby
         </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8 }}>
+          <input type="checkbox" checked={config.embyEnabled !== false} onChange={(e) => onChange('embyEnabled', e.target.checked)} />
+          <span>{de ? 'Aktiv' : 'Enabled'}</span>
+        </label>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Basis-URL' : 'Base URL'}</label>
         <input
           style={inp}
@@ -490,6 +501,10 @@ function Settings({ config, onChange }: PluginSettingsProps) {
         <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
           Jellyfin
         </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8 }}>
+          <input type="checkbox" checked={config.jellyfinEnabled !== false} onChange={(e) => onChange('jellyfinEnabled', e.target.checked)} />
+          <span>{de ? 'Aktiv' : 'Enabled'}</span>
+        </label>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>{de ? 'Basis-URL' : 'Base URL'}</label>
         <input
           style={inp}
@@ -532,7 +547,7 @@ export const meta: PluginMeta = {
   name: 'Selfstream · Emby · Jellyfin',
   description:
     'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
-  version: '1.2.1',
+  version: '1.3.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',
@@ -546,6 +561,9 @@ export const meta: PluginMeta = {
     { key: 'embyApiKey', label: 'Emby API-Key', type: 'password', defaultValue: '' },
     { key: 'jellyfinUrl', label: 'Jellyfin URL', type: 'text', defaultValue: '' },
     { key: 'jellyfinApiKey', label: 'Jellyfin API-Key', type: 'password', defaultValue: '' },
+    { key: 'selfstreamEnabled', label: 'Selfstream aktiv', type: 'boolean', defaultValue: true },
+    { key: 'embyEnabled', label: 'Emby aktiv', type: 'boolean', defaultValue: true },
+    { key: 'jellyfinEnabled', label: 'Jellyfin aktiv', type: 'boolean', defaultValue: true },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 10 },
   ],
 }

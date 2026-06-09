@@ -2,7 +2,7 @@
   "id": "selfstream-emby",
   "name": "Selfstream · Emby · Jellyfin",
   "description": "Aktive Streams von Selfstream, Emby und Jellyfin in einer gemischten Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "author": "SelfDashboard",
   "category": "media",
   "icon": "📺",
