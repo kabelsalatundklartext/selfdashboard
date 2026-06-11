@@ -177,7 +177,7 @@ type ReqBody = {
 }
 
 /** AdGuard Home API proxy — POST body with url, credentials, optional action=protection. */
-export async function handleAdguardPluginRequest(req: Request, _path: string[]): Promise<Response> {
+export async function handleAdguardPluginRequest(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return NextResponse.json({ error: 'method_not_allowed' }, { status: 405 })
   }
@@ -277,5 +277,5 @@ export async function handleAdguardPluginRequest(req: Request, _path: string[]):
 }
 
 export function adguardServerHandler(ctx: PluginServerContext): Promise<Response> {
-  return handleAdguardPluginRequest(ctx.request, ctx.path)
+  return handleAdguardPluginRequest(ctx.request)
 }

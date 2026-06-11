@@ -10,11 +10,7 @@ import {
   type DashboardStatePersisted,
 } from '@/lib/dashboardStatePayload'
 
-import {
-  clampKioskSessionHours,
-  kioskSessionMaxAgeSec,
-  kioskSessionTtlMs,
-} from '@/lib/kiosk/sessionDuration'
+import { clampKioskSessionHours } from '@/lib/kiosk/sessionDuration'
 
 export const KIOSK_COOKIE = 'sd_kiosk'
 const SETTINGS_KEY = 'kiosk_config'

@@ -15,7 +15,6 @@ import { nowIso } from './store'
 import type {
   Account,
   Calendar,
-  CalendarEvent,
   CalendarStore,
   ICSConfig,
 } from './types'

@@ -15,7 +15,6 @@ import type {
   AccountUpdateBody,
   CalDAVConfig,
   Calendar,
-  CalendarEvent,
   ExpandedEvent,
   ICSConfig,
   ProviderId,

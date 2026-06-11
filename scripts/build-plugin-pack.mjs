@@ -19,7 +19,6 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.join(__dirname, '..')
-const pluginsRoot = path.join(root, 'plugins')
 const pluginPackRoot = resolvePluginPackRoot(root)
 const outDir = path.join(pluginPackRoot, 'staging')
 const packPublishDir = path.join(root, 'plugins-pack')

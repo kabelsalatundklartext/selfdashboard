@@ -1,9 +1,8 @@
 import 'server-only'
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 import { getAuthDb } from '@/lib/auth/db'
 import { hashPassword, verifyPassword } from '@/lib/auth/password'
 import { openSealedSecret, sealSecret } from '@/lib/secretCrypto'
-import { getUserById } from '@/lib/auth/users'
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 const TOTP_STEP_SEC = 30

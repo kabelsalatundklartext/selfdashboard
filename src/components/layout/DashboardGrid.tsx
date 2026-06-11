@@ -170,10 +170,13 @@ export function DashboardGrid() {
           minH: mins.minH,
         }
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- registryVersion intentionally recomputes layout when the plugin registry changes (min sizes load async)
     [plugins, registryVersion]
   )
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- registryVersion intentionally recomputes layout on registry change
   const stackedLayout = useMemo(() => buildStackedLayout(plugins), [plugins, registryVersion])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- registryVersion intentionally recomputes layout on registry change
   const tabletLayout = useMemo(() => buildTabletLayout(plugins), [plugins, registryVersion])
 
   const gridLayout = isPhone ? stackedLayout : isTablet ? tabletLayout : desktopLayout
@@ -251,6 +254,7 @@ export function DashboardGrid() {
         })
       })
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- registryVersion intentionally re-binds the callback on registry change
     [editMode, layoutMode, plugins, registryVersion, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet]
   )
 

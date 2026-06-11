@@ -1,6 +1,5 @@
 import 'server-only'
 import { mkdirSync } from 'fs'
-import { join } from 'path'
 import Database from 'better-sqlite3'
 import { applyEnvPasswordReset } from '@/lib/auth/envReset'
 import { authDbPath, authDir } from '@/lib/auth/paths'

@@ -84,7 +84,6 @@ export function SettingsModal({ open, onClose }: Props) {
   const locale = useDashboardStore((s) => s.locale)
   const setLocale = useDashboardStore((s) => s.setLocale)
   const setTheme = useDashboardStore((s) => s.setTheme)
-  const setTitle = useDashboardStore((s) => s.setTitle)
   const setCustomLogo = useDashboardStore((s) => s.setCustomLogo)
   const setCustomColors = useDashboardStore((s) => s.setCustomColors)
   const resetCustomColors = useDashboardStore((s) => s.resetCustomColors)

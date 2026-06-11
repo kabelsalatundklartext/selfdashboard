@@ -77,12 +77,12 @@ async function webFetch(
   if (q) {
     for (const [k, v] of Object.entries(q)) url.searchParams.set(k, v)
   }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- strip `query` from the fetch init via rest
   const { query: _q, ...rest } = init ?? {}
   return fetch(url.toString(), rest)
 }
 
 async function loginSid(conn: FritzBoxConnection, origin: string, signal: AbortSignal): Promise<string> {
-  const loginUrl = `${origin}${LOGIN_PATH}`
   const r1 = await webFetch(conn, origin, LOGIN_PATH, { signal })
   const t1 = await r1.text()
   if (!r1.ok) throw new Error(`login_http_${r1.status}`)

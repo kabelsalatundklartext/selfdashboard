@@ -4,7 +4,7 @@ import type { PluginManifest, PluginCatalogEntry } from '@/types/pluginManifest'
 import type { PluginCategory } from '@/types'
 import { getCustomPluginsRoot, PLUGIN_SCAN_SKIP_DIRS } from '@/lib/pluginPaths'
 import { getRegisteredPluginServerIds } from '@/lib/pluginServerRegistry'
-import { getCustomServerPluginIds, getCustomWidgetOverrideIds, hasVolumeFile } from '@/lib/pluginVolumeInfo'
+import { getCustomWidgetOverrideIds, hasVolumeFile } from '@/lib/pluginVolumeInfo'
 
 const VALID_CATEGORIES = new Set<PluginCategory>([
   'media',

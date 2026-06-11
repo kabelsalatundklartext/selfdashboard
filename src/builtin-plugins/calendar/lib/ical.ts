@@ -12,7 +12,7 @@
  */
 
 import ICAL from 'ical.js'
-import { RRule, rrulestr } from 'rrule'
+import { rrulestr } from 'rrule'
 import { randomUUID } from 'node:crypto'
 
 import { CalendarEvent, ExpandedEvent } from './types'

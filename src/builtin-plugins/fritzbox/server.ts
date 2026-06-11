@@ -18,7 +18,7 @@ function clampStr(v: unknown, max: number): string {
   return v.trim().slice(0, max)
 }
 
-export async function handleFritzboxPluginRequest(req: Request, _path: string[]): Promise<Response> {
+export async function handleFritzboxPluginRequest(req: Request): Promise<Response> {
   if (req.method !== 'POST') {
     return Response.json({ ok: false, error: 'method_not_allowed' }, { status: 405 })
   }
@@ -99,7 +99,7 @@ export async function handleFritzboxPluginRequest(req: Request, _path: string[])
 }
 
 export function fritzboxServerHandler(ctx: PluginServerContext): Promise<Response> {
-  return handleFritzboxPluginRequest(ctx.request, ctx.path)
+  return handleFritzboxPluginRequest(ctx.request)
 }
 
 export default fritzboxServerHandler

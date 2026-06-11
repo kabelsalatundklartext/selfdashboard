@@ -24,7 +24,6 @@ import {
   formatMailFolderLabel,
 } from '@/lib/mail/types'
 import { reportPluginError } from '@/lib/pluginLog'
-import { mailApiUrl } from '@/lib/mail/clientApi'
 
 type MailStatus = MailAggregateStatus
 

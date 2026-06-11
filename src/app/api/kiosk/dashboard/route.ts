@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
   buildKioskAccess,
-  getKioskConfig,
   loadKioskDashboardBundle,
 } from '@/lib/kiosk/config'
 import { issueKioskToken, applyKioskCookie, kioskAccessGranted } from '@/lib/kiosk/session'

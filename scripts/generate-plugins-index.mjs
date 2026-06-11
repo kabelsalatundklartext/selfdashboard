@@ -43,7 +43,8 @@ for (const name of fs.readdirSync(packRoot, { withFileTypes: true })) {
   const serverPack = ['server.mjs', 'server.js'].find((f) => fs.existsSync(path.join(packDir, f)))
   if (serverPack) files.push(serverPack)
   const hasServer = Boolean(serverPack)
-  const { hasServer: _manifestHasServer, ...meta } = m
+  const meta = { ...m }
+  delete meta.hasServer
   // Lokale Icon-Assets (./icon.png oder /api/plugins/custom-assets/<id>/<file>)
   // → raw-GitHub-URL, damit Store-Karten das Icon schon VOR der Installation
   // laden können (vorher existiert der custom-assets-Pfad noch nicht).

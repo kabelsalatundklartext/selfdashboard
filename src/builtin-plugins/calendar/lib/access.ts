@@ -12,7 +12,6 @@ import type {
   Account,
   AccountSharing,
   Calendar,
-  CalendarEvent,
   CalendarStore,
   SharedCalendarAccess,
   SharedCalendarGrant,

@@ -44,7 +44,6 @@ import type {
   Account,
   Calendar,
   CalDAVConfig,
-  CalendarEvent,
   CalendarStore,
   SyncState,
 } from './types'

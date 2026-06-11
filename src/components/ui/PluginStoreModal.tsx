@@ -650,7 +650,7 @@ export function PluginStoreModal({ open, onClose }: Props) {
       return catalogRows.filter((r) => (isAdmin ? r.inRegistry : true) && !r.onDashboard)
     }
     return catalogRows
-  }, [catalogRows, filterTab])
+  }, [catalogRows, filterTab, isAdmin])
 
   const readyCount = useMemo(
     () => catalogRows.filter((r) => (isAdmin ? r.inRegistry : true) && !r.onDashboard).length,

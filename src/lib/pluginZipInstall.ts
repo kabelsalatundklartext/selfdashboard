@@ -104,7 +104,7 @@ export function installPluginZipBuffer(buffer: Buffer): { installed: string[]; e
       const data = execFileSync('unzip', ['-p', zipPath, entry], { maxBuffer: 32 * 1024 * 1024 })
       fs.writeFileSync(outFile, data)
       installed.add(pluginId)
-    } catch (e) {
+    } catch {
       errors.push(`extract_failed:${entry}`)
     }
   }

@@ -1,15 +1,6 @@
 import type { Dashboard, ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
-import type { NavbarCustomSearchProvider, SearchProviderId } from '@/lib/searchProviders'
-const SEARCH_IDS: SearchProviderId[] = [
-  'google',
-  'duckduckgo',
-  'bing',
-  'brave',
-  'ecosia',
-  'wikipedia-de',
-  'wikipedia-en',
-]
+import type { NavbarCustomSearchProvider } from '@/lib/searchProviders'
 
 /** Shape stored in `/app/data/dashboard.json` and in zustand `partialize` (browser localStorage cache). */
 export type DashboardStatePersisted = {
