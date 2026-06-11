@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/auth/guard'
+import { requireFullAdmin } from '@/lib/auth/guard'
 import { setAllowedPluginIds } from '@/lib/auth/pluginPolicy'
 import { getUserById } from '@/lib/auth/users'
 
@@ -11,7 +11,7 @@ type Body = {
 }
 
 async function saveUserPlugins(req: Request): Promise<Response> {
-  const auth = requireAdmin(req)
+  const auth = requireFullAdmin(req)
   if (auth instanceof NextResponse) return auth
 
   let body: Body

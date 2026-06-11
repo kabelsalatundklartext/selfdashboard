@@ -52,6 +52,15 @@ function migrate(database: Database.Database) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_user_backup_codes_user ON user_backup_codes(user_id);
+
+    -- Persistent failed-login tracking so brute-force lockout survives process
+    -- restarts and is independent of the (spoofable) client IP.
+    CREATE TABLE IF NOT EXISTS login_failures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scope_key TEXT NOT NULL,
+      failed_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_failures_scope ON login_failures(scope_key, failed_at);
   `)
 }
 

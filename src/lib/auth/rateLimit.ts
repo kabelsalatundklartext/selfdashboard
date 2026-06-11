@@ -31,7 +31,15 @@ function cleanup(now: number): void {
   }
 }
 
-export function getClientIp(req: Request): string {
+// X-Forwarded-For / X-Real-IP are client-controlled and only trustworthy when
+// set by a reverse proxy in front of the app. Enable trust explicitly with
+// SELFDASHBOARD_TRUST_PROXY=1. Without it we return null and IP-only limiters
+// are skipped (the persistent per-account login lockout is the real defense),
+// so a spoofed header can neither bypass limits nor share-bucket-DoS others.
+const TRUST_PROXY = process.env.SELFDASHBOARD_TRUST_PROXY === '1'
+
+export function getClientIp(req: Request): string | null {
+  if (!TRUST_PROXY) return null
   const forwarded = req.headers.get('x-forwarded-for')
   if (forwarded) {
     const first = forwarded.split(',')[0]?.trim()
@@ -39,7 +47,7 @@ export function getClientIp(req: Request): string {
   }
   const realIp = req.headers.get('x-real-ip')?.trim()
   if (realIp) return realIp
-  return 'unknown'
+  return null
 }
 
 export type RateLimitResult = { ok: true } | { ok: false; retryAfterSec: number }
@@ -60,7 +68,11 @@ function checkRateLimit(key: string, limit: number, windowMs: number): RateLimit
 }
 
 export function rateLimitLogin(req: Request): RateLimitResult {
-  return checkRateLimit(`login:${getClientIp(req)}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
+  const ip = getClientIp(req)
+  // No trustworthy client IP: skip the IP bucket and rely on the per-username
+  // in-memory limiter plus the persistent per-account lockout (loginThrottle).
+  if (!ip) return { ok: true }
+  return checkRateLimit(`login:${ip}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
 }
 
 // Independent of IP: throttles brute-force against a single account even when
@@ -70,9 +82,11 @@ export function rateLimitLoginUser(username: string): RateLimitResult {
   return checkRateLimit(`login-user:${u}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
 }
 
+// userId is always present here, so the limiter stays effective even without a
+// trustworthy IP; the IP (when trusted) only adds extra key granularity.
 export function rateLimitTotpVerify(req: Request, userId: string): RateLimitResult {
   return checkRateLimit(
-    `totp-verify:${userId}:${getClientIp(req)}`,
+    `totp-verify:${userId}:${getClientIp(req) ?? 'noip'}`,
     TOTP_VERIFY_LIMIT,
     TOTP_VERIFY_WINDOW_MS,
   )
@@ -80,18 +94,32 @@ export function rateLimitTotpVerify(req: Request, userId: string): RateLimitResu
 
 export function rateLimitTotpEnable(req: Request, userId: string): RateLimitResult {
   return checkRateLimit(
-    `totp-enable:${userId}:${getClientIp(req)}`,
+    `totp-enable:${userId}:${getClientIp(req) ?? 'noip'}`,
     TOTP_ENABLE_LIMIT,
     TOTP_ENABLE_WINDOW_MS,
   )
 }
 
+// Account-scoped limiters for sensitive re-auth actions performed within an
+// existing session (current-password is verified there).
+export function rateLimitChangePassword(userId: string): RateLimitResult {
+  return checkRateLimit(`change-password:${userId}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
+}
+
+export function rateLimitTotpDisable(userId: string): RateLimitResult {
+  return checkRateLimit(`totp-disable:${userId}`, LOGIN_LIMIT, LOGIN_WINDOW_MS)
+}
+
 export function rateLimitKioskUnlock(req: Request): RateLimitResult {
-  return checkRateLimit(`kiosk-unlock:${getClientIp(req)}`, KIOSK_UNLOCK_LIMIT, KIOSK_UNLOCK_WINDOW_MS)
+  return checkRateLimit(
+    `kiosk-unlock:${getClientIp(req) ?? 'noip'}`,
+    KIOSK_UNLOCK_LIMIT,
+    KIOSK_UNLOCK_WINDOW_MS,
+  )
 }
 
 export function rateLimitSetup(req: Request): RateLimitResult {
-  return checkRateLimit(`auth-setup:${getClientIp(req)}`, SETUP_LIMIT, SETUP_WINDOW_MS)
+  return checkRateLimit(`auth-setup:${getClientIp(req) ?? 'noip'}`, SETUP_LIMIT, SETUP_WINDOW_MS)
 }
 
 export function rateLimitResponse(retryAfterSec: number): NextResponse {

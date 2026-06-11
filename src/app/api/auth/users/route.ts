@@ -4,14 +4,14 @@ import {
   validateUsername,
 } from '@/lib/auth/password'
 import { getAllowedPluginIds, setAllowedPluginIds } from '@/lib/auth/pluginPolicy'
-import { requireAdmin } from '@/lib/auth/guard'
+import { requireFullAdmin } from '@/lib/auth/guard'
 import { createUser, listUsers } from '@/lib/auth/users'
 import type { UserRole } from '@/lib/auth/types'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const auth = requireAdmin(req)
+  const auth = requireFullAdmin(req)
   if (auth instanceof NextResponse) return auth
   const users = listUsers().map((u) => ({
     ...u,
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = requireAdmin(req)
+  const auth = requireFullAdmin(req)
   if (auth instanceof NextResponse) return auth
   let body: {
     username?: string

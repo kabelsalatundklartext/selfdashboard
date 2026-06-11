@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readSessionIdFromCookieHeader } from '@/lib/auth/cookies'
 import { requireAuth } from '@/lib/auth/guard'
+import { rateLimitChangePassword, rateLimitResponse } from '@/lib/auth/rateLimit'
 import { validatePasswordStrength } from '@/lib/auth/password'
 import { deleteSessionsForUserExcept } from '@/lib/auth/sessions'
 import { updateUserPassword, verifyUserPassword } from '@/lib/auth/users'
@@ -10,6 +11,9 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   const auth = requireAuth(req)
   if (auth instanceof NextResponse) return auth
+
+  const rl = rateLimitChangePassword(auth.userId)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
 
   let body: { currentPassword?: string; newPassword?: string }
   try {

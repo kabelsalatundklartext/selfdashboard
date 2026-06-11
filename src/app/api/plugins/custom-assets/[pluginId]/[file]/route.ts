@@ -50,10 +50,18 @@ export async function GET(
       ? 'private, max-age=31536000, immutable'
       : 'no-store'
 
-  return new NextResponse(body, {
-    headers: {
-      'Content-Type': MIME[ext] ?? 'application/octet-stream',
-      'Cache-Control': cacheControl,
-    },
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': MIME[ext] ?? 'application/octet-stream',
+    'Cache-Control': cacheControl,
+    // Manually-built NextResponse does not inherit next.config.js headers().
+    'X-Content-Type-Options': 'nosniff',
+  }
+  // SVGs are active documents: served inline they can execute embedded script
+  // (stored XSS). Force download and forbid any resource loading/execution.
+  if (ext === '.svg') {
+    headers['Content-Disposition'] = `attachment; filename="${file}"`
+    headers['Content-Security-Policy'] = "default-src 'none'; sandbox"
+  }
+
+  return new NextResponse(body, { headers })
 }

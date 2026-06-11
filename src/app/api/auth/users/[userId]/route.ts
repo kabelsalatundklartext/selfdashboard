@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import {
   validatePasswordStrength,
 } from '@/lib/auth/password'
-import { requireAdmin } from '@/lib/auth/guard'
+import { requireFullAdmin } from '@/lib/auth/guard'
 import { deleteSessionsForUser } from '@/lib/auth/sessions'
 import { deleteUser, getUserById, updateUserPassword, updateUserRole } from '@/lib/auth/users'
 import type { UserRole } from '@/lib/auth/types'
@@ -13,7 +13,7 @@ export async function PATCH(
   req: Request,
   ctx: { params: Promise<{ userId: string }> },
 ) {
-  const auth = requireAdmin(req)
+  const auth = requireFullAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { userId } = await ctx.params
   const target = getUserById(userId)
@@ -61,7 +61,7 @@ export async function DELETE(
   req: Request,
   ctx: { params: Promise<{ userId: string }> },
 ) {
-  const auth = requireAdmin(req)
+  const auth = requireFullAdmin(req)
   if (auth instanceof NextResponse) return auth
   const { userId } = await ctx.params
   if (userId === auth.userId) {

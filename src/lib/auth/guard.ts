@@ -139,6 +139,20 @@ export function requireAdmin(req: Request): AuthContext | NextResponse {
   return auth
 }
 
+/**
+ * Admin AND completed MFA. Use for privileged mutations (user/role/plugin-grant
+ * management) so a stolen session that has not passed the second factor cannot
+ * escalate privileges.
+ */
+export function requireFullAdmin(req: Request): AuthContext | NextResponse {
+  const auth = requireFullAuth(req)
+  if (auth instanceof NextResponse) return auth
+  if (auth.role !== 'admin') {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+  return auth
+}
+
 export function requireRole(req: Request, role: UserRole): AuthContext | NextResponse {
   const auth = requireAuth(req)
   if (auth instanceof NextResponse) return auth

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { login } from '@/lib/auth/service'
 import { rateLimitLogin, rateLimitLoginUser, rateLimitResponse } from '@/lib/auth/rateLimit'
+import { clearLoginFailures, isLoginLocked, recordLoginFailure } from '@/lib/auth/loginThrottle'
 import { applySessionCookie } from '@/lib/auth/sessionResponse'
 import { needsSetup } from '@/lib/auth/users'
 
@@ -27,12 +28,16 @@ export async function POST(req: Request) {
   }
   const rlUser = rateLimitLoginUser(username)
   if (!rlUser.ok) return rateLimitResponse(rlUser.retryAfterSec)
+  // Persistent, restart-resistant, IP-independent account lockout.
+  const lock = isLoginLocked(username)
+  if (lock.locked) return rateLimitResponse(lock.retryAfterSec)
   try {
     const session = await login({
       username,
       password,
       remember: !!body.rememberMe,
     })
+    clearLoginFailures(username)
     const res = NextResponse.json({
       ok: true,
       needsTotp: !session.mfaVerified,
@@ -46,6 +51,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'login_failed'
     if (msg === 'invalid_credentials') {
+      recordLoginFailure(username)
       return NextResponse.json({ error: msg }, { status: 401 })
     }
     return NextResponse.json({ error: msg }, { status: 400 })

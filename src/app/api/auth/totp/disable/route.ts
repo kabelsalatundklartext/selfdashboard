@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireFullAuth } from '@/lib/auth/guard'
+import { rateLimitResponse, rateLimitTotpDisable } from '@/lib/auth/rateLimit'
 import { verifyUserPassword } from '@/lib/auth/users'
 import {
   disableTotpForUser,
@@ -13,6 +14,9 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   const auth = requireFullAuth(req)
   if (auth instanceof NextResponse) return auth
+
+  const rl = rateLimitTotpDisable(auth.userId)
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec)
 
   if (!isTotpEnabledForUser(auth.userId)) {
     return NextResponse.json({ error: 'not_enabled' }, { status: 400 })

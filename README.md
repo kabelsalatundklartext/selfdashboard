@@ -403,9 +403,32 @@ Ideal for a kitchen display, wall tablet, or shared screen on your LAN.
 | `CROWDSEC_GEOIP_PATH` | — | Full path to `GeoLite2-*.mmdb` if not in the data folder (optional) |
 | `CROWDSEC_DB_PATH` | — | Default DB file if widget path is empty (optional) |
 | `CROWDSEC_CONTAINER` | `crowdsec` | Docker container name for optional unban via `cscli` (optional) |
-| `SELFDASHBOARD_SECURE_COOKIES` | off | Set `1` to mark session/kiosk cookies **Secure** (HTTPS only). Default: **off** (HTTP on LAN works). |
+| `SELFDASHBOARD_SECURE_COOKIES` | off | Set `1` to mark session/kiosk cookies **Secure** (HTTPS only). Default: **off** (HTTP on LAN works). **Set this to `1` when exposing the app over HTTPS.** |
 | `SELFDASHBOARD_INSECURE_COOKIES` | — | Set `1` to force non-Secure cookies (same as default on HTTP). |
+| `SELFDASHBOARD_TRUST_PROXY` | off | Set `1` **only** when a reverse proxy in front of the app sets `X-Forwarded-For`/`X-Real-IP`. When off, those (client-spoofable) headers are ignored for rate limiting. Account brute-force protection works regardless (persistent per-account lockout). |
 | `SELFDASHBOARD_AUTH_RESET_PASSWORD` | — | One-shot admin password reset on container start (see **Login & multi-user**) |
+
+---
+
+## Security notes
+
+SelfDashboard is built for a trusted home LAN. A security review (2026-06) hardened the auth and plugin surfaces; the points below matter if you expose the app beyond your LAN.
+
+**Hardened in code:**
+- **Login brute-force:** failed attempts are now counted **persistently per account** in SQLite (10 / 15 min → temporary lockout). This survives restarts and is independent of the client IP, so spoofing `X-Forwarded-For` no longer bypasses it.
+- **Spoofable proxy headers** are ignored unless `SELFDASHBOARD_TRUST_PROXY=1` (set this only behind a real reverse proxy).
+- **Admin actions require completed MFA:** user/role/plugin-grant management is blocked for sessions that have not passed the second factor.
+- **Rate limits** added to *change password* and *disable TOTP*.
+- **Plugin SVG assets** are served with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and a locked-down CSP, preventing stored XSS via uploaded SVGs.
+
+**Operator responsibilities / when exposing publicly:**
+- **Use HTTPS and set `SELFDASHBOARD_SECURE_COOKIES=1`.** The default is off so plain-HTTP LAN setups keep working — but over the internet, session cookies must be Secure.
+- **Plugin code runs with full server privileges.** Uploaded/remote plugin `server.mjs` files execute in the Node process — there is no sandbox. Only install plugins you trust, and treat the admin account as equivalent to shell access.
+- **Docker plugin:** any user with access to the Docker widget can start/stop **any** container. Restrict who gets that widget.
+- **TLS verification** for IMAP/FRITZ! can be disabled per connection — leave it on unless you have a specific reason.
+- Use a **strong admin password** and a fixed `SELFDASHBOARD_SECRET_KEY`.
+
+> Known lower-priority follow-ups (not yet changed): TOTP secrets are stored unencrypted in `auth.db` (protect DB backups), the credential-encryption KDF uses a static salt, and CalDAV lacks DNS-rebinding protection. These are low risk on a trusted LAN.
 
 ---
 
@@ -847,9 +870,32 @@ Für Küchendisplay, Wand-Tablet oder gemeinsamen Bildschirm im LAN.
 | `CROWDSEC_GEOIP_PATH` | — | Voller Pfad zu `GeoLite2-*.mmdb`, falls nicht im Data-Ordner (optional) |
 | `CROWDSEC_DB_PATH` | — | Standard-DB-Datei, wenn im Widget kein Pfad gesetzt ist (optional) |
 | `CROWDSEC_CONTAINER` | `crowdsec` | Docker-Container-Name für optionales Entsperren per `cscli` (optional) |
-| `SELFDASHBOARD_SECURE_COOKIES` | aus | `1` = Session/Kiosk-Cookies nur per **HTTPS**. Standard: **aus** (HTTP im LAN). |
+| `SELFDASHBOARD_SECURE_COOKIES` | aus | `1` = Session/Kiosk-Cookies nur per **HTTPS**. Standard: **aus** (HTTP im LAN). **Bei HTTPS-Betrieb auf `1` setzen.** |
 | `SELFDASHBOARD_INSECURE_COOKIES` | — | `1` = explizit unsichere Cookies (wie Standard bei HTTP). |
+| `SELFDASHBOARD_TRUST_PROXY` | aus | Nur auf `1` setzen, wenn ein Reverse-Proxy davor `X-Forwarded-For`/`X-Real-IP` setzt. Sonst werden diese (vom Client fälschbaren) Header beim Rate-Limiting ignoriert. Der Brute-Force-Schutz pro Konto wirkt unabhängig davon (persistente Konto-Sperre). |
 | `SELFDASHBOARD_AUTH_RESET_PASSWORD` | — | Einmal-Passwort-Reset beim Container-Start (siehe **Login & Mehrbenutzer**) |
+
+---
+
+## Sicherheitshinweise
+
+SelfDashboard ist für ein vertrauenswürdiges Heimnetz gebaut. Ein Security-Review (06/2026) hat die Auth- und Plugin-Flächen gehärtet; die folgenden Punkte sind relevant, sobald du die App über das LAN hinaus erreichbar machst.
+
+**Im Code gehärtet:**
+- **Login-Brute-Force:** Fehlversuche werden jetzt **persistent pro Konto** in SQLite gezählt (10 / 15 Min → temporäre Sperre). Das übersteht Neustarts und ist IP-unabhängig — ein gefälschter `X-Forwarded-For`-Header umgeht es nicht mehr.
+- **Fälschbare Proxy-Header** werden ignoriert, außer `SELFDASHBOARD_TRUST_PROXY=1` ist gesetzt (nur hinter echtem Reverse-Proxy).
+- **Admin-Aktionen erfordern abgeschlossene MFA:** Benutzer-/Rollen-/Plugin-Verwaltung ist für Sessions ohne zweiten Faktor gesperrt.
+- **Rate-Limits** für *Passwort ändern* und *TOTP deaktivieren* ergänzt.
+- **Plugin-SVG-Assets** werden mit `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` und restriktiver CSP ausgeliefert → kein gespeichertes XSS über hochgeladene SVGs.
+
+**Betreiber-Verantwortung / bei öffentlicher Erreichbarkeit:**
+- **HTTPS nutzen und `SELFDASHBOARD_SECURE_COOKIES=1` setzen.** Standard ist aus, damit reine HTTP-LAN-Setups funktionieren — über das Internet müssen Session-Cookies aber Secure sein.
+- **Plugin-Code läuft mit vollen Server-Rechten.** Hochgeladene/Remote-Plugin-`server.mjs`-Dateien werden im Node-Prozess ausgeführt — ohne Sandbox. Installiere nur vertrauenswürdige Plugins und behandle den Admin-Account wie Shell-Zugriff.
+- **Docker-Plugin:** Jeder mit Zugriff auf das Docker-Widget kann **jeden** Container starten/stoppen. Vergib dieses Widget gezielt.
+- **TLS-Prüfung** für IMAP/FRITZ! kann pro Verbindung deaktiviert werden — lass sie an, außer es gibt einen konkreten Grund.
+- Nutze ein **starkes Admin-Passwort** und einen festen `SELFDASHBOARD_SECRET_KEY`.
+
+> Bekannte nachrangige Punkte (noch nicht geändert): TOTP-Secrets liegen unverschlüsselt in `auth.db` (DB-Backups schützen), die KDF der Credential-Verschlüsselung nutzt einen statischen Salt, und CalDAV hat keinen DNS-Rebinding-Schutz. Im vertrauenswürdigen LAN geringes Risiko.
 
 ---
 
