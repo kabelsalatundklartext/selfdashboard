@@ -132,6 +132,9 @@ Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Install & update plugins | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Write & publish plugins | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
 | Plugin architecture | [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) |
+| Plugin distribution model | [docs/PLUGIN_DISTRIBUTION.md](docs/PLUGIN_DISTRIBUTION.md) |
+| Plugins as volume + ZIP | [docs/CUSTOM_PLUGINS_VOLUME.md](docs/CUSTOM_PLUGINS_VOLUME.md) |
+| Plugin performance (dev) | [docs/PLUGIN_PERFORMANCE.md](docs/PLUGIN_PERFORMANCE.md) |
 | Builtin servers in git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
 | Docker image build | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
@@ -596,6 +599,9 @@ API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Installation & Plugin-Updates | [docs/PLUGINS.md](docs/PLUGINS.md) |
 | Plugins entwickeln & veröffentlichen | [docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md) |
 | Plugin-Architektur | [docs/PLUGIN_ARCHITECTURE.md](docs/PLUGIN_ARCHITECTURE.md) |
+| Plugin-Verteilungsmodell | [docs/PLUGIN_DISTRIBUTION.md](docs/PLUGIN_DISTRIBUTION.md) |
+| Plugins als Volume + ZIP | [docs/CUSTOM_PLUGINS_VOLUME.md](docs/CUSTOM_PLUGINS_VOLUME.md) |
+| Plugin-Performance (Dev) | [docs/PLUGIN_PERFORMANCE.md](docs/PLUGIN_PERFORMANCE.md) |
 | Builtin-Server im Git / CI | [docs/PLUGINS_IN_REPO.md](docs/PLUGINS_IN_REPO.md) |
 | Docker-Image bauen | [docs/DOCKER_BUILD.md](docs/DOCKER_BUILD.md) |
 | Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
