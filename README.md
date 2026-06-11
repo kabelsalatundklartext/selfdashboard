@@ -64,6 +64,30 @@ SelfDashboard is a clean, modular, self-hosted home dashboard with a powerful pl
 
 **Plugins are not bundled in the image.** You install them from the **Plugin Store (GitHub)** or **ZIP** into a mounted folder (`/app/plugins/custom`). The Docker image only ships the **core app** (UI, store, shared APIs). Details: **[docs/PLUGINS.md](docs/PLUGINS.md)** · **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
 
+## How it compares
+
+Heimdall, Homarr, Dashy and Homepage are all great projects — SelfDashboard just focuses on something different: **live widgets with real backends, built-in auth, and a kiosk mode**, all configured in the UI.
+
+| | SelfDashboard | Heimdall | Homarr | Homepage |
+|---|---|---|---|---|
+| Widgets with real backend | ✅ plugin system | ⚠️ limited | ⚠️ some | ⚠️ via API/YAML |
+| Configuration | UI, no YAML | UI | UI | YAML files |
+| Login + 2FA + multi-user | ✅ built in | ❌ | ⚠️ partial | ❌ |
+| Kiosk mode | ✅ | ❌ | ❌ | ❌ |
+| Encrypted credentials | ✅ AES-256-GCM | — | — | — |
+
+**A good fit if you want**
+- Live, interactive widgets (Docker control, FRITZ!Box, CrowdSec, calendar, mail) — not just links
+- Multi-user with real auth / 2FA and a wall-tablet kiosk
+- To configure everything in the UI instead of editing config files
+
+**Maybe not for you if**
+- You just want a simple bookmark/start page (Heimdall or Homepage are lighter for that)
+- You can't run a Docker container, or prefer a purely static config-file workflow
+- You need a large, established plugin ecosystem today — SelfDashboard's is younger and still growing
+
+> Note: plugin server code runs with the app's privileges (no sandbox yet) — only install plugins you trust.
+
 ## How SelfDashboard is built
 
 ```mermaid
@@ -530,6 +554,30 @@ Alles ist **Drag & Drop**, **mehrere Dashboards** (z. B. `/dashboard/home`, `/
 SelfDashboard ist ein sauberes, modulares, selbst gehostetes Home-Dashboard mit einem leistungsstarken Plugin-System — als einzelner Docker-Container. Verwalte mehrere Dashboards, passe jedes Detail an und füge Widgets für deine selbst gehosteten Dienste hinzu.
 
 **Plugins stecken nicht im Image.** Installation über **Plugin-Store (GitHub)** oder **ZIP** nach `/app/plugins/custom`. Das Image enthält nur die **Kern-App** (UI, Store, gemeinsame APIs). Details: **[docs/PLUGINS.md](docs/PLUGINS.md)** · **[docs/PLUGIN_DEV.md](docs/PLUGIN_DEV.md)**.
+
+## Vergleich
+
+Heimdall, Homarr, Dashy und Homepage sind alle super Projekte — SelfDashboard setzt einfach auf einen anderen Schwerpunkt: **Live-Widgets mit echtem Backend, eingebaute Auth und einen Kiosk-Modus**, alles in der UI konfiguriert.
+
+| | SelfDashboard | Heimdall | Homarr | Homepage |
+|---|---|---|---|---|
+| Widgets mit echtem Backend | ✅ Plugin-System | ⚠️ begrenzt | ⚠️ einige | ⚠️ via API/YAML |
+| Konfiguration | UI, kein YAML | UI | UI | YAML-Dateien |
+| Login + 2FA + Multi-User | ✅ eingebaut | ❌ | ⚠️ teilweise | ❌ |
+| Kiosk-Modus | ✅ | ❌ | ❌ | ❌ |
+| Verschlüsselte Zugangsdaten | ✅ AES-256-GCM | — | — | — |
+
+**Passt gut, wenn du willst**
+- Live-Widgets, die wirklich was tun (Docker-Steuerung, FritzBox, CrowdSec, Kalender, Mail) — nicht nur Links
+- Mehrbenutzer mit echter Auth / 2FA und einen Kiosk fürs Wand-Tablet
+- Alles in der UI konfigurieren statt Config-Dateien zu editieren
+
+**Vielleicht nichts für dich, wenn**
+- Du nur eine einfache Lesezeichen-/Startseite willst (dafür sind Heimdall oder Homepage schlanker)
+- Du keinen Docker-Container betreiben kannst oder einen rein statischen Config-Datei-Workflow bevorzugst
+- Du heute ein großes, etabliertes Plugin-Ökosystem brauchst — das von SelfDashboard ist jünger und wächst noch
+
+> Hinweis: Plugin-Server-Code läuft mit den Rechten der App (noch keine Sandbox) — installier nur Plugins, denen du vertraust.
 
 ## Aufbau von SelfDashboard
 
