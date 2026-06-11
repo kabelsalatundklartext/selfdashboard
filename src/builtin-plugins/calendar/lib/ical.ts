@@ -140,7 +140,7 @@ export interface ParsedEvent {
 
 export function parseVcalendar(blob: string): ParsedEvent[] {
   const out: ParsedEvent[] = []
-  let jcal: any
+  let jcal: ReturnType<typeof ICAL.parse>
   try {
     jcal = ICAL.parse(blob)
   } catch {

@@ -59,13 +59,14 @@ export function useAuthRole(): 'admin' | 'user' | null {
 }
 
 export function useCanUsePlugin(pluginId: string): boolean {
-  if (isPublicKioskPage()) return true
+  // Hook must run unconditionally (rules-of-hooks); the kiosk shortcut comes after.
   useSyncExternalStore(subscribeAuthProfile, () => {
     const p = getAuthProfileSnapshot()
     if (!p) return ''
     if (p.user.role === 'admin' || p.allowedPlugins === null) return 'all'
     return p.allowedPlugins.includes(pluginId) ? 'yes' : 'no'
   }, () => 'all')
+  if (isPublicKioskPage()) return true
   const p = getAuthProfileSnapshot()
   if (!p) return true
   if (p.user.role === 'admin' || p.allowedPlugins === null) return true

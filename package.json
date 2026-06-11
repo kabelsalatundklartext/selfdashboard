@@ -15,7 +15,8 @@
     "publish:plugin-pack": "npm run build:plugin-pack",
     "auth:reset-password": "node scripts/auth-reset-password.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "overrides": {
     "minimatch": "^9.0.7",
@@ -25,6 +26,9 @@
     "postcss": "^8.5.10",
     "next": {
       "postcss": "^8.5.10"
+    },
+    "@eslint/eslintrc": {
+      "minimatch": "^3.1.2"
     }
   },
   "dependencies": {

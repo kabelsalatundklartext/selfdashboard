@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { useDashboardStore } from '@/lib/store'
 import type { Locale } from '@/lib/i18n'
 import { authT } from '@/lib/authScreenI18n'
@@ -16,7 +17,7 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
     >
       <div className="w-full max-w-md flex flex-col items-center gap-6">
         <div className="w-full flex justify-center">
-          <a
+          <Link
             href="/"
             className="inline-flex justify-center no-underline"
             aria-label="SelfDashboard"
@@ -29,7 +30,7 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
               className="mx-auto"
               style={{ width: 'min(100%, 280px)', height: 'auto', display: 'block' }}
             />
-          </a>
+          </Link>
         </div>
 
         <div

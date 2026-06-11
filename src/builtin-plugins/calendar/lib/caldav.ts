@@ -158,6 +158,8 @@ export type CaldavClientCache = {
   davCalendars: Awaited<ReturnType<Awaited<ReturnType<typeof createDAVClient>>['fetchCalendars']>>
 }
 
+type DavCalendar = CaldavClientCache['davCalendars'][number]
+
 export async function getCaldavClientCache(account: Account): Promise<CaldavClientCache> {
   const client = await buildClient(account)
   const davCalendars = await client.fetchCalendars()
@@ -208,7 +210,7 @@ export async function syncCaldavCalendarPushOnly(
 
 async function pullCaldav(
   client: Awaited<ReturnType<typeof createDAVClient>>,
-  davCal: any,
+  davCal: DavCalendar,
   calendar: Calendar,
   store: CalendarStore,
 ): Promise<SyncResult> {
@@ -217,9 +219,9 @@ async function pullCaldav(
   let objects: Array<{ url: string; etag: string; data: string }>
   try {
     const fetched = await client.fetchCalendarObjects({ calendar: davCal })
-    objects = fetched.map(o => ({ url: o.url, etag: (o as any).etag ?? '', data: o.data ?? '' }))
-  } catch (e: any) {
-    result.errors.push(`fetch objects: ${e?.message ?? e}`)
+    objects = fetched.map(o => ({ url: o.url, etag: (o as { etag?: string }).etag ?? '', data: o.data ?? '' }))
+  } catch (e: unknown) {
+    result.errors.push(`fetch objects: ${e instanceof Error ? e.message : String(e)}`)
     return result
   }
 
@@ -312,8 +314,8 @@ async function pushPendingRemoteDeletes(
       })
       delete ev.pendingRemoteDelete
       result.deleted++
-    } catch (e: any) {
-      const msg = String(e?.message ?? e)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('404')) {
         delete ev.pendingRemoteDelete
         result.deleted++
@@ -327,7 +329,7 @@ async function pushPendingRemoteDeletes(
 
 async function pushCaldav(
   client: Awaited<ReturnType<typeof createDAVClient>>,
-  davCal: any,
+  davCal: DavCalendar,
   calendar: Calendar,
   store: CalendarStore,
 ): Promise<SyncResult> {
@@ -385,7 +387,7 @@ async function pushCaldav(
           calendarObject: { url: ev.remoteHref!, etag: ev.remoteEtag, data: ical },
         })
         ev.icalData = ical
-        ev.remoteEtag = (res as any).etag ?? ev.remoteEtag
+        ev.remoteEtag = (res as { etag?: string }).etag ?? ev.remoteEtag
         ev.syncState = 'synced'
         result.updated++
       } else if (ev.syncState === 'local_deleted') {
@@ -399,14 +401,14 @@ async function pushCaldav(
           await client.deleteCalendarObject({
             calendarObject: { url: ev.remoteHref, etag: ev.remoteEtag, data: '' },
           })
-        } catch (e: any) {
-          if (!String(e?.message ?? '').includes('404')) throw e
+        } catch (e: unknown) {
+          if (!(e instanceof Error ? e.message : String(e)).includes('404')) throw e
         }
         store.events.splice(store.events.indexOf(ev), 1)
         result.deleted++
       }
-    } catch (e: any) {
-      const msg = String(e?.message ?? e)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('412') || msg.includes('Precondition')) {
         ev.syncState = 'conflict'
         result.conflicts++
@@ -427,7 +429,7 @@ export async function testCaldav(account: Account): Promise<{ ok: boolean; calen
   try {
     const cals = await discoverCaldavCalendars(account)
     return { ok: true, calendars: cals }
-  } catch (e: any) {
-    return { ok: false, error: e?.message ?? String(e) }
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }

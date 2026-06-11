@@ -84,8 +84,8 @@ export function installPluginZipBuffer(buffer: Buffer): { installed: string[]; e
   for (const entry of entries) {
     const parts = entry.split('/').filter(Boolean)
     if (parts.length === 0) continue
-    let pluginId = parts[0]!
-    let relParts = parts.slice(1)
+    const pluginId = parts[0]!
+    const relParts = parts.slice(1)
     if (pluginRoots.size === 0 && parts[0] === 'plugin.json') {
       errors.push('single_plugin_zip_needs_folder_<id>/plugin.json')
       continue

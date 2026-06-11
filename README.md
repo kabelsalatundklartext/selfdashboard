@@ -137,7 +137,6 @@ Full API/plugin notes: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Per-plugin setup (EN/DE) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Recent API/plugin changes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Error log | [docs/LOGGING.md](docs/LOGGING.md) |
-| Unraid forum (update posts) | [docs/UNRAID_FORUM.md](docs/UNRAID_FORUM.md) |
 
 ## Features
 
@@ -285,8 +284,6 @@ SelfDashboard requires login. On first start (no users yet) you are redirected t
 | **Forgot password (no email)** | Env reset: `SELFDASHBOARD_AUTH_RESET_PASSWORD` → restart (see below) |
 | **Backup** | Back up all of **`/app/data`** (at least `auth/` + `users/`) |
 | **Dev only** | `SELFDASHBOARD_AUTH_DISABLED=1` disables auth (never in production) |
-
-Details & test checklist: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
 
 ### Admin locked out (forgot password)
 
@@ -604,7 +601,6 @@ API-/Plugin-Details: **[docs/CHANGELOG.md](docs/CHANGELOG.md)**.
 | Pro-Plugin-Anleitung (DE/EN) | [docs/plugins/README.md](docs/plugins/README.md) |
 | Aktuelle API-/Plugin-Änderungen | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
 | Fehlerprotokoll | [docs/LOGGING.md](docs/LOGGING.md) |
-| Unraid-Forum (Update-Posts) | [docs/UNRAID_FORUM.md](docs/UNRAID_FORUM.md) |
 
 ## Features
 
@@ -754,8 +750,6 @@ Ein Login ist nötig. Beim ersten Start (noch kein Benutzer) → **`/setup`** (A
 | **Passwort vergessen (ohne E-Mail)** | Env-Reset: `SELFDASHBOARD_AUTH_RESET_PASSWORD` → Restart (siehe unten) |
 | **Backup** | Gesamtes **`/app/data`** sichern (mindestens `auth/` + `users/`) |
 | **Nur Dev** | `SELFDASHBOARD_AUTH_DISABLED=1` schaltet Auth aus (nicht in Production) |
-
-Details & Test-Checkliste: **[docs/AUTH-ROADMAP.md](docs/AUTH-ROADMAP.md)** · **[docs/UNRAID_AUTH_CHECKLIST.md](docs/UNRAID_AUTH_CHECKLIST.md)**
 
 ### Admin ausgesperrt (Passwort vergessen)
 

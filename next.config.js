@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS build config (loaded by Next.js, not bundled) */
 const fs = require('fs')
 const path = require('path')
 
