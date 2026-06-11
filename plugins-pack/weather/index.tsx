@@ -388,6 +388,13 @@ function errorText(e: unknown, de: boolean): string {
       : 'Timeout — Open-Meteo did not respond. Wait a moment or reload.'
   }
   if (msg.includes('geocode_empty') || msg.includes('missing_name')) return de ? 'Ort nicht gefunden.' : 'Location not found.'
+  // Upstream 5xx (e.g. forecast_http_502): Open-Meteo itself is failing, not a
+  // local connectivity problem — say so instead of blaming the server's internet.
+  if (/_http_5\d\d/.test(msg) || msg.includes('bad gateway')) {
+    return de
+      ? 'Open-Meteo ist gerade gestört (Serverfehler beim Wetterdienst, nicht an deinem Server). Bitte später erneut.'
+      : 'Open-Meteo is currently having issues (error on the weather service, not your server). Try again later.'
+  }
   return de
     ? 'Wetter-API nicht erreichbar (Server braucht Internet zu Open-Meteo).'
     : 'Weather API unreachable (server needs outbound internet to Open-Meteo).'
