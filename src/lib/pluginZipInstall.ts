@@ -4,6 +4,10 @@ import { execFileSync } from 'child_process'
 import { getCustomPluginsRoot } from '@/lib/pluginPaths'
 import { customPluginDir } from '@/lib/pluginVolumeInfo'
 
+// Upper bound on zip entries to defend against zip-bomb / resource-exhaustion
+// uploads (a valid multi-plugin pack stays well below this).
+const MAX_ZIP_ENTRIES = 2000
+
 const ALLOWED_FILES = new Set([
   'plugin.json',
   'widget.js',
@@ -47,6 +51,11 @@ export function installPluginZipBuffer(buffer: Buffer): { installed: string[]; e
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
+
+  if (entries.length > MAX_ZIP_ENTRIES) {
+    fs.rmSync(tmp, { recursive: true, force: true })
+    return { installed: [], errors: ['zip_too_many_entries'] }
+  }
 
   const installed = new Set<string>()
   const errors: string[] = []

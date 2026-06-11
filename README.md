@@ -419,16 +419,18 @@ SelfDashboard is built for a trusted home LAN. A security review (2026-06) harde
 - **Spoofable proxy headers** are ignored unless `SELFDASHBOARD_TRUST_PROXY=1` (set this only behind a real reverse proxy).
 - **Admin actions require completed MFA:** user/role/plugin-grant management is blocked for sessions that have not passed the second factor.
 - **Rate limits** added to *change password* and *disable TOTP*.
+- **TOTP secrets are encrypted at rest** (AES-256-GCM via `SELFDASHBOARD_SECRET_KEY`), so a leaked `auth.db` alone cannot mint valid 2FA codes. Existing enrollments are upgraded transparently.
+- **Docker container actions** (start/stop/restart) now require an admin with completed MFA — read-only listing stays available to widget users.
+- **Plugin pack extraction** validates every zip entry against path traversal (zip-slip) and enforces entry-count limits; uploads have a hard entry cap.
 - **Plugin SVG assets** are served with `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and a locked-down CSP, preventing stored XSS via uploaded SVGs.
 
 **Operator responsibilities / when exposing publicly:**
 - **Use HTTPS and set `SELFDASHBOARD_SECURE_COOKIES=1`.** The default is off so plain-HTTP LAN setups keep working — but over the internet, session cookies must be Secure.
 - **Plugin code runs with full server privileges.** Uploaded/remote plugin `server.mjs` files execute in the Node process — there is no sandbox. Only install plugins you trust, and treat the admin account as equivalent to shell access.
-- **Docker plugin:** any user with access to the Docker widget can start/stop **any** container. Restrict who gets that widget.
 - **TLS verification** for IMAP/FRITZ! can be disabled per connection — leave it on unless you have a specific reason.
 - Use a **strong admin password** and a fixed `SELFDASHBOARD_SECRET_KEY`.
 
-> Known lower-priority follow-ups (not yet changed): TOTP secrets are stored unencrypted in `auth.db` (protect DB backups), the credential-encryption KDF uses a static salt, and CalDAV lacks DNS-rebinding protection. These are low risk on a trusted LAN.
+> Known lower-priority follow-ups (not yet changed): the credential-encryption KDF uses a static salt, and CalDAV lacks DNS-rebinding protection (IMAP/FRITZ! already resolve and check the target IP). These are low risk on a trusted LAN.
 
 ---
 
@@ -886,16 +888,18 @@ SelfDashboard ist für ein vertrauenswürdiges Heimnetz gebaut. Ein Security-Rev
 - **Fälschbare Proxy-Header** werden ignoriert, außer `SELFDASHBOARD_TRUST_PROXY=1` ist gesetzt (nur hinter echtem Reverse-Proxy).
 - **Admin-Aktionen erfordern abgeschlossene MFA:** Benutzer-/Rollen-/Plugin-Verwaltung ist für Sessions ohne zweiten Faktor gesperrt.
 - **Rate-Limits** für *Passwort ändern* und *TOTP deaktivieren* ergänzt.
+- **TOTP-Secrets werden verschlüsselt gespeichert** (AES-256-GCM via `SELFDASHBOARD_SECRET_KEY`) — eine geleakte `auth.db` allein erlaubt keine gültigen 2FA-Codes mehr. Bestehende Enrollments werden transparent migriert.
+- **Docker-Container-Aktionen** (Start/Stopp/Neustart) erfordern jetzt einen Admin mit abgeschlossener MFA — die reine Liste bleibt für Widget-Nutzer sichtbar.
+- **Plugin-Pack-Extraktion** prüft jeden Zip-Eintrag gegen Path-Traversal (Zip-Slip) und begrenzt die Eintragszahl; Uploads haben ein hartes Limit.
 - **Plugin-SVG-Assets** werden mit `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` und restriktiver CSP ausgeliefert → kein gespeichertes XSS über hochgeladene SVGs.
 
 **Betreiber-Verantwortung / bei öffentlicher Erreichbarkeit:**
 - **HTTPS nutzen und `SELFDASHBOARD_SECURE_COOKIES=1` setzen.** Standard ist aus, damit reine HTTP-LAN-Setups funktionieren — über das Internet müssen Session-Cookies aber Secure sein.
 - **Plugin-Code läuft mit vollen Server-Rechten.** Hochgeladene/Remote-Plugin-`server.mjs`-Dateien werden im Node-Prozess ausgeführt — ohne Sandbox. Installiere nur vertrauenswürdige Plugins und behandle den Admin-Account wie Shell-Zugriff.
-- **Docker-Plugin:** Jeder mit Zugriff auf das Docker-Widget kann **jeden** Container starten/stoppen. Vergib dieses Widget gezielt.
 - **TLS-Prüfung** für IMAP/FRITZ! kann pro Verbindung deaktiviert werden — lass sie an, außer es gibt einen konkreten Grund.
 - Nutze ein **starkes Admin-Passwort** und einen festen `SELFDASHBOARD_SECRET_KEY`.
 
-> Bekannte nachrangige Punkte (noch nicht geändert): TOTP-Secrets liegen unverschlüsselt in `auth.db` (DB-Backups schützen), die KDF der Credential-Verschlüsselung nutzt einen statischen Salt, und CalDAV hat keinen DNS-Rebinding-Schutz. Im vertrauenswürdigen LAN geringes Risiko.
+> Bekannte nachrangige Punkte (noch nicht geändert): Die KDF der Credential-Verschlüsselung nutzt einen statischen Salt, und CalDAV hat keinen DNS-Rebinding-Schutz (IMAP/FRITZ! lösen die Ziel-IP bereits auf und prüfen sie). Im vertrauenswürdigen LAN geringes Risiko.
 
 ---
 

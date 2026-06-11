@@ -2,6 +2,7 @@ import 'server-only'
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { getAuthDb } from '@/lib/auth/db'
 import { hashPassword, verifyPassword } from '@/lib/auth/password'
+import { openSealedSecret, sealSecret } from '@/lib/secretCrypto'
 import { getUserById } from '@/lib/auth/users'
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
@@ -129,13 +130,18 @@ export function isTotpEnabledForUser(userId: string): boolean {
 export function getTotpSecretForUser(userId: string): string | null {
   const row = getUserTotpRow(userId)
   if (!row?.totp_secret || row.totp_enabled !== 1) return null
-  return row.totp_secret
+  // openSealedSecret returns sealed values decrypted and legacy plaintext
+  // (pre-encryption enrollments) unchanged, so this is backward compatible.
+  const secret = openSealedSecret(row.totp_secret)
+  return secret || null
 }
 
 export function enableTotpForUser(userId: string, secret: string, consumedStep = 0): void {
+  // Encrypt the TOTP secret at rest so a leaked auth.db cannot be used to mint
+  // valid codes (defense against backup/volume theft).
   getAuthDb()
     .prepare('UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_last_step = ? WHERE id = ?')
-    .run(secret, Math.max(0, consumedStep), userId)
+    .run(sealSecret(secret), Math.max(0, consumedStep), userId)
 }
 
 export function disableTotpForUser(userId: string): void {

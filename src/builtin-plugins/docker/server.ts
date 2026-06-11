@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server'
+import { requireFullAdmin } from '@/lib/auth/guard'
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
 import { createPluginServerCache } from '@/lib/pluginServerCache'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
@@ -94,6 +96,12 @@ async function handleListGet(req: Request): Promise<Response> {
 }
 
 async function handleActionPost(req: Request): Promise<Response> {
+  // Starting/stopping/restarting containers is a privileged action: any user
+  // with the Docker widget could otherwise stop the dashboard itself or other
+  // services. Require an admin who has completed MFA (kiosk sessions excluded).
+  const auth = requireFullAdmin(req)
+  if (auth instanceof NextResponse) return auth
+
   let parsed: { id: string; action: 'start' | 'stop' | 'restart' }
   try {
     const raw = await req.text()
