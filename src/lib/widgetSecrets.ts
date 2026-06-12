@@ -25,6 +25,7 @@ const SEALED_PLUGIN_CONFIG_KEYS: Record<string, readonly string[]> = {
   opnsense: ['apiSecret'],
   unifi: ['password'],
   npm: ['password'],
+  zoraxy: ['password'],
   openmediavault: ['password'],
   homematic: ['password'],
   'fritz-smarthome': ['password'],
