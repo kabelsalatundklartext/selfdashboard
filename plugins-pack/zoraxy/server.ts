@@ -11,7 +11,7 @@ type ReqBody = {
   url?: string
   username?: string
   password?: string
-  uptime?: boolean
+  want?: string[]
 }
 
 export type ZoraxyHostsPayload = {
@@ -22,6 +22,35 @@ export type ZoraxyHostsPayload = {
   uptimeOnline?: number
   uptimeOffline?: number
   uptimeMonitored?: number
+  requests?: number
+  valid?: number
+  blocked?: number
+  redirects?: number
+  streams?: number
+  blacklist?: number
+  whitelist?: number
+}
+
+function n(v: unknown): number {
+  const x = typeof v === 'number' ? v : Number(String(v ?? ''))
+  return Number.isFinite(x) ? x : 0
+}
+
+/** Count entries in a list endpoint: flat array → length; grouped object → sum of array values. */
+function countList(v: unknown): number | undefined {
+  if (Array.isArray(v)) return v.length
+  if (isObject(v)) {
+    let total = 0
+    let sawArray = false
+    for (const val of Object.values(v)) {
+      if (Array.isArray(val)) {
+        total += val.length
+        sawArray = true
+      }
+    }
+    return sawArray ? total : Object.keys(v).length
+  }
+  return undefined
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -80,6 +109,27 @@ async function readBody(res: Response): Promise<{ ok: boolean; status: number; t
     json = null
   }
   return { ok: res.ok, status: res.status, text, json }
+}
+
+/** Best-effort authenticated GET (CSRF-free). Returns parsed JSON or null on any failure. */
+async function safeGet(
+  base: string,
+  path: string,
+  jar: Map<string, string>,
+  signal: AbortSignal,
+): Promise<unknown> {
+  try {
+    const res = await fetchWithSsrfGuard(`${base}${path}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json', Cookie: cookieHeader(jar) },
+      cache: 'no-store',
+      signal,
+    })
+    const b = await readBody(res)
+    return res.ok ? b.json : null
+  } catch {
+    return null
+  }
 }
 
 /** A utm/log value is a history array (or an object wrapping one); return its newest record. */
@@ -234,28 +284,45 @@ async function handlePost(req: Request): Promise<Response> {
     }
 
     const payload = summarizeHosts(list.json)
+    const want = Array.isArray(body.want) ? body.want : []
 
-    // 3) Uptime (optional, best-effort): GET /api/utm/log ist CSRF-frei
-    if (body.uptime === true) {
-      try {
-        const upRes = await fetchWithSsrfGuard(
-          `${base}/api/utm/log`,
-          {
-            method: 'GET',
-            headers: { Accept: 'application/json', Cookie: cookieHeader(jar) },
-            cache: 'no-store',
-            signal: ac.signal,
-          },
-        )
-        const up = await readBody(upRes)
-        if (upRes.ok) {
-          const u = summarizeUptime(up.json)
+    // 3) Optionale Statistik-Endpunkte (alle GET = CSRF-frei), nur wenn angefragt
+    const jobs: Promise<void>[] = []
+    if (want.includes('uptime')) {
+      jobs.push(
+        safeGet(base, '/api/utm/log', jar, ac.signal).then((j) => {
+          const u = summarizeUptime(j)
           if (u) Object.assign(payload, u)
-        }
-      } catch {
-        // Uptime ist optional — Fehler hier ignorieren
-      }
+        }),
+      )
     }
+    if (want.includes('stats')) {
+      jobs.push(
+        safeGet(base, '/api/stats/summary', jar, ac.signal).then((j) => {
+          if (isObject(j)) {
+            payload.requests = n(j.TotalRequest)
+            payload.valid = n(j.ValidRequest)
+            payload.blocked = n(j.ErrorRequest)
+          }
+        }),
+      )
+    }
+    const countEndpoints: Array<[string, string, keyof ZoraxyHostsPayload]> = [
+      ['redirects', '/api/redirect/list', 'redirects'],
+      ['streams', '/api/streamprox/config/list', 'streams'],
+      ['blacklist', '/api/blacklist/list', 'blacklist'],
+      ['whitelist', '/api/whitelist/list', 'whitelist'],
+    ]
+    for (const [group, path, field] of countEndpoints) {
+      if (!want.includes(group)) continue
+      jobs.push(
+        safeGet(base, path, jar, ac.signal).then((j) => {
+          const c = countList(j)
+          if (c !== undefined) payload[field] = c
+        }),
+      )
+    }
+    if (jobs.length) await Promise.allSettled(jobs)
 
     return Response.json(payload)
   } catch (e) {

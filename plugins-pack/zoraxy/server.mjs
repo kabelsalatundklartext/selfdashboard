@@ -184,6 +184,25 @@ async function fetchWithSsrfGuard(urlStr, init, maxRedirects = 5) {
 // plugins-pack/zoraxy/server.ts
 var dynamic = "force-dynamic";
 var FETCH_TIMEOUT_MS = 12e3;
+function n(v) {
+  const x = typeof v === "number" ? v : Number(String(v ?? ""));
+  return Number.isFinite(x) ? x : 0;
+}
+function countList(v) {
+  if (Array.isArray(v)) return v.length;
+  if (isObject(v)) {
+    let total = 0;
+    let sawArray = false;
+    for (const val of Object.values(v)) {
+      if (Array.isArray(val)) {
+        total += val.length;
+        sawArray = true;
+      }
+    }
+    return sawArray ? total : Object.keys(v).length;
+  }
+  return void 0;
+}
 function isObject(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -231,6 +250,20 @@ async function readBody(res) {
     json = null;
   }
   return { ok: res.ok, status: res.status, text, json };
+}
+async function safeGet(base, path, jar, signal) {
+  try {
+    const res = await fetchWithSsrfGuard(`${base}${path}`, {
+      method: "GET",
+      headers: { Accept: "application/json", Cookie: cookieHeader(jar) },
+      cache: "no-store",
+      signal
+    });
+    const b = await readBody(res);
+    return res.ok ? b.json : null;
+  } catch {
+    return null;
+  }
 }
 function lastRecord(v) {
   let arr = v;
@@ -366,25 +399,43 @@ async function handlePost(req) {
       );
     }
     const payload = summarizeHosts(list.json);
-    if (body.uptime === true) {
-      try {
-        const upRes = await fetchWithSsrfGuard(
-          `${base}/api/utm/log`,
-          {
-            method: "GET",
-            headers: { Accept: "application/json", Cookie: cookieHeader(jar) },
-            cache: "no-store",
-            signal: ac.signal
-          }
-        );
-        const up = await readBody(upRes);
-        if (upRes.ok) {
-          const u = summarizeUptime(up.json);
+    const want = Array.isArray(body.want) ? body.want : [];
+    const jobs = [];
+    if (want.includes("uptime")) {
+      jobs.push(
+        safeGet(base, "/api/utm/log", jar, ac.signal).then((j) => {
+          const u = summarizeUptime(j);
           if (u) Object.assign(payload, u);
-        }
-      } catch {
-      }
+        })
+      );
     }
+    if (want.includes("stats")) {
+      jobs.push(
+        safeGet(base, "/api/stats/summary", jar, ac.signal).then((j) => {
+          if (isObject(j)) {
+            payload.requests = n(j.TotalRequest);
+            payload.valid = n(j.ValidRequest);
+            payload.blocked = n(j.ErrorRequest);
+          }
+        })
+      );
+    }
+    const countEndpoints = [
+      ["redirects", "/api/redirect/list", "redirects"],
+      ["streams", "/api/streamprox/config/list", "streams"],
+      ["blacklist", "/api/blacklist/list", "blacklist"],
+      ["whitelist", "/api/whitelist/list", "whitelist"]
+    ];
+    for (const [group, path, field] of countEndpoints) {
+      if (!want.includes(group)) continue;
+      jobs.push(
+        safeGet(base, path, jar, ac.signal).then((j) => {
+          const c = countList(j);
+          if (c !== void 0) payload[field] = c;
+        })
+      );
+    }
+    if (jobs.length) await Promise.allSettled(jobs);
     return Response.json(payload);
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {

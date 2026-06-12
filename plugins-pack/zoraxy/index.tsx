@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-type ZoraxyHosts = {
+type ZoraxyData = {
   total?: number
   active?: number
   disabled?: number
@@ -12,9 +12,55 @@ type ZoraxyHosts = {
   uptimeOnline?: number
   uptimeOffline?: number
   uptimeMonitored?: number
+  requests?: number
+  valid?: number
+  blocked?: number
+  redirects?: number
+  streams?: number
+  blacklist?: number
+  whitelist?: number
   error?: string
   detail?: string
 }
+
+type TileKey =
+  | 'hosts'
+  | 'active'
+  | 'disabled'
+  | 'upstreams'
+  | 'online'
+  | 'offline'
+  | 'requests'
+  | 'valid'
+  | 'blocked'
+  | 'redirects'
+  | 'streams'
+  | 'blacklist'
+  | 'whitelist'
+
+type TileDef = { key: TileKey; de: string; en: string; group: string; color?: string; danger?: boolean }
+
+/** Every tile the widget can show. `group` decides which Zoraxy endpoint must be fetched. */
+const TILES: TileDef[] = [
+  { key: 'hosts', de: 'Hosts', en: 'Hosts', group: 'hosts', color: 'var(--accent)' },
+  { key: 'active', de: 'Aktiv', en: 'Active', group: 'hosts', color: '#22c55e' },
+  { key: 'disabled', de: 'Inaktiv', en: 'Disabled', group: 'hosts' },
+  { key: 'upstreams', de: 'Upstreams', en: 'Upstreams', group: 'hosts' },
+  { key: 'online', de: 'Online', en: 'Online', group: 'uptime', color: '#22c55e' },
+  { key: 'offline', de: 'Offline', en: 'Offline', group: 'uptime', danger: true },
+  { key: 'requests', de: 'Requests', en: 'Requests', group: 'stats', color: 'var(--accent)' },
+  { key: 'valid', de: 'Gültig', en: 'Valid', group: 'stats', color: '#22c55e' },
+  { key: 'blocked', de: 'Geblockt', en: 'Blocked', group: 'stats', danger: true },
+  { key: 'redirects', de: 'Redirects', en: 'Redirects', group: 'redirects' },
+  { key: 'streams', de: 'Streams', en: 'Streams', group: 'streams' },
+  { key: 'blacklist', de: 'Blacklist', en: 'Blacklist', group: 'blacklist' },
+  { key: 'whitelist', de: 'Whitelist', en: 'Whitelist', group: 'whitelist' },
+]
+
+const TILE_KEYS = TILES.map((t) => t.key) as string[]
+const TILE_BY_KEY = new Map(TILES.map((t) => [t.key, t]))
+/** Hidden by default — the user enables these via the settings checkboxes. */
+const DEFAULT_HIDDEN = ['valid', 'redirects', 'streams', 'blacklist', 'whitelist']
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -25,6 +71,67 @@ function num(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0
   const n = Number(String(v))
   return Number.isFinite(n) ? n : 0
+}
+
+function strList(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+}
+
+/** Full tile order with any newly-added tiles appended, so saved configs stay forward-compatible. */
+function effectiveOrder(config: Record<string, unknown>): string[] {
+  const saved = strList(config.tileOrder).filter((k) => TILE_KEYS.includes(k))
+  const rest = TILE_KEYS.filter((k) => !saved.includes(k))
+  return [...saved, ...rest]
+}
+
+function hiddenSet(config: Record<string, unknown>): Set<string> {
+  const h = Array.isArray(config.tilesHidden) ? strList(config.tilesHidden) : DEFAULT_HIDDEN
+  return new Set(h.filter((k) => TILE_KEYS.includes(k)))
+}
+
+function visibleKeys(config: Record<string, unknown>): string[] {
+  const hidden = hiddenSet(config)
+  return effectiveOrder(config).filter((k) => !hidden.has(k))
+}
+
+function wantGroups(config: Record<string, unknown>): string[] {
+  const groups = visibleKeys(config)
+    .map((k) => TILE_BY_KEY.get(k as TileKey)?.group)
+    .filter((g): g is string => Boolean(g) && g !== 'hosts')
+  return Array.from(new Set(groups))
+}
+
+function tileValue(key: string, data: ZoraxyData): number | undefined {
+  switch (key) {
+    case 'hosts':
+      return data.total
+    case 'active':
+      return data.active
+    case 'disabled':
+      return data.disabled
+    case 'upstreams':
+      return data.upstreams
+    case 'online':
+      return data.uptimeOnline
+    case 'offline':
+      return data.uptimeOffline
+    case 'requests':
+      return data.requests
+    case 'valid':
+      return data.valid
+    case 'blocked':
+      return data.blocked
+    case 'redirects':
+      return data.redirects
+    case 'streams':
+      return data.streams
+    case 'blacklist':
+      return data.blacklist
+    case 'whitelist':
+      return data.whitelist
+    default:
+      return undefined
+  }
 }
 
 function errorText(code: string, detail: string, de: boolean): string {
@@ -88,7 +195,7 @@ function Tile({ label, value, color }: { label: string; value: number | undefine
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
-  const [data, setData] = useState<ZoraxyHosts | null>(null)
+  const [data, setData] = useState<ZoraxyData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -97,8 +204,11 @@ function Widget({ config }: PluginWidgetProps) {
   const password = str(config.password)
   const refreshMs = Math.max(15, num(config.refreshSeconds) || 60) * 1000
   const title = config.title === undefined ? 'Zoraxy' : str(config.title)
-  const showUptime = config.showUptime !== false
   const configured = Boolean(baseUrl) && Boolean(username) && Boolean(password)
+
+  const visible = visibleKeys(config)
+  const want = wantGroups(config)
+  const wantKey = want.join(',')
 
   const refresh = useCallback(async () => {
     if (!configured) {
@@ -109,10 +219,10 @@ function Widget({ config }: PluginWidgetProps) {
       const res = await fetch('/api/plugins/zoraxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: baseUrl, username, password, uptime: showUptime }),
+        body: JSON.stringify({ url: baseUrl, username, password, want: wantKey ? wantKey.split(',') : [] }),
         cache: 'no-store',
       })
-      const json = (await res.json().catch(() => ({}))) as ZoraxyHosts
+      const json = (await res.json().catch(() => ({}))) as ZoraxyData
       if (!res.ok || json.error) {
         setError(errorText(json.error || `HTTP ${res.status}`, json.detail || '', de))
         return
@@ -124,7 +234,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       setLoading(false)
     }
-  }, [baseUrl, configured, de, username, password, showUptime])
+  }, [baseUrl, configured, de, username, password, wantKey])
 
   useEffect(() => {
     setLoading(true)
@@ -200,20 +310,13 @@ function Widget({ config }: PluginWidgetProps) {
             alignContent: 'flex-start',
           }}
         >
-          <Tile label={de ? 'Hosts' : 'Hosts'} value={data.total} color="var(--accent)" />
-          <Tile label={de ? 'Aktiv' : 'Active'} value={data.active} color="#22c55e" />
-          <Tile label={de ? 'Inaktiv' : 'Disabled'} value={data.disabled} />
-          <Tile label={de ? 'Upstreams' : 'Upstreams'} value={data.upstreams} />
-          {showUptime && data.uptimeMonitored ? (
-            <>
-              <Tile label="Online" value={data.uptimeOnline} color="#22c55e" />
-              <Tile
-                label="Offline"
-                value={data.uptimeOffline}
-                color={(data.uptimeOffline ?? 0) > 0 ? '#ef4444' : undefined}
-              />
-            </>
-          ) : null}
+          {visible.map((key) => {
+            const def = TILE_BY_KEY.get(key as TileKey)
+            if (!def) return null
+            const value = tileValue(key, data)
+            const color = def.danger && (value ?? 0) > 0 ? '#ef4444' : def.color
+            return <Tile key={key} label={de ? def.de : def.en} value={value} color={color} />
+          })}
         </div>
       ) : null}
 
@@ -233,6 +336,73 @@ const inp: CSSProperties = {
   color: 'var(--text)',
   fontSize: 13,
   boxSizing: 'border-box',
+}
+
+function TileOrderEditor({ config, onChange }: PluginSettingsProps) {
+  const { de } = usePluginLocale()
+  const [drag, setDrag] = useState<string | null>(null)
+  const order = effectiveOrder(config)
+  const hidden = hiddenSet(config)
+
+  const move = (from: string, to: string) => {
+    if (from === to) return
+    const next = order.slice()
+    const fi = next.indexOf(from)
+    const ti = next.indexOf(to)
+    if (fi < 0 || ti < 0) return
+    next.splice(fi, 1)
+    next.splice(ti, 0, from)
+    onChange('tileOrder', next)
+  }
+
+  const toggle = (key: string) => {
+    const next = new Set(hidden)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    onChange('tilesHidden', Array.from(next))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 12 }}>
+        {de ? 'Kacheln (ziehen = sortieren, Haken = anzeigen)' : 'Tiles (drag to reorder, check to show)'}
+      </label>
+      {order.map((key) => {
+        const def = TILE_BY_KEY.get(key as TileKey)
+        if (!def) return null
+        return (
+          <div
+            key={key}
+            draggable
+            onDragStart={() => setDrag(key)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (drag) move(drag, key)
+              setDrag(null)
+            }}
+            onDragEnd={() => setDrag(null)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 8px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              cursor: 'grab',
+              opacity: drag === key ? 0.45 : 1,
+            }}
+          >
+            <span aria-hidden style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}>
+              ⠿
+            </span>
+            <input type="checkbox" checked={!hidden.has(key)} onChange={() => toggle(key)} />
+            <span style={{ fontSize: 13 }}>{de ? def.de : def.en}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
@@ -293,14 +463,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           onChange={(e) => onChange('refreshSeconds', Math.max(15, num(e.target.value) || 60))}
         />
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={config.showUptime !== false}
-          onChange={(e) => onChange('showUptime', e.target.checked)}
-        />
-        {de ? 'Uptime-Status anzeigen (Online/Offline)' : 'Show uptime status (online/offline)'}
-      </label>
+      <TileOrderEditor config={config} onChange={onChange} />
     </div>
   )
 }
@@ -309,8 +472,8 @@ export const meta: PluginMeta = {
   id: 'zoraxy',
   name: 'Zoraxy',
   description:
-    'Proxy-Host-Übersicht aus Zoraxy: Hosts gesamt, aktiv/inaktiv und aktive Upstreams (Login per Benutzer + Passwort, serverseitig). (Beta)',
-  version: '0.9.3',
+    'Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)',
+  version: '0.9.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -322,7 +485,6 @@ export const meta: PluginMeta = {
     { key: 'username', label: 'Benutzer', type: 'text', defaultValue: '' },
     { key: 'password', label: 'Passwort', type: 'password', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 60 },
-    { key: 'showUptime', label: 'Uptime anzeigen', type: 'boolean', defaultValue: true },
   ],
 }
 
