@@ -36,8 +36,8 @@ function normalizeBase(raw: string): string {
   return u.toString().replace(/\/+$/, '')
 }
 
-/** Collect Set-Cookie name=value pairs from the login response (drop attributes). */
-function extractCookies(res: Response): string {
+/** Accumulate Set-Cookie name=value pairs into a jar (later values override). */
+function collectCookies(jar: Map<string, string>, res: Response): void {
   const headers = res.headers as Headers & { getSetCookie?: () => string[] }
   let raw: string[] = []
   if (typeof headers.getSetCookie === 'function') {
@@ -46,10 +46,25 @@ function extractCookies(res: Response): string {
     const single = res.headers.get('set-cookie')
     if (single) raw = [single]
   }
-  const pairs = raw
-    .map((c) => c.split(';', 1)[0]?.trim())
-    .filter((c): c is string => Boolean(c))
-  return pairs.join('; ')
+  for (const c of raw) {
+    const pair = c.split(';', 1)[0]?.trim()
+    if (!pair) continue
+    const eq = pair.indexOf('=')
+    if (eq <= 0) continue
+    jar.set(pair.slice(0, eq), pair.slice(eq + 1))
+  }
+}
+
+function cookieHeader(jar: Map<string, string>): string {
+  return Array.from(jar, ([k, v]) => `${k}=${v}`).join('; ')
+}
+
+/** Pull the gorilla/csrf token from <meta name="zoraxy.csrf.Token" content="…">. */
+function extractCsrfToken(html: string): string {
+  const m =
+    html.match(/name=["']zoraxy\.csrf\.Token["'][^>]*content=["']([^"']+)["']/i) ||
+    html.match(/content=["']([^"']+)["'][^>]*name=["']zoraxy\.csrf\.Token["']/i)
+  return m ? m[1] : ''
 }
 
 async function readBody(res: Response): Promise<{ ok: boolean; status: number; text: string; json: unknown }> {
@@ -105,21 +120,37 @@ async function handlePost(req: Request): Promise<Response> {
   const ac = new AbortController()
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
 
+  const jar = new Map<string, string>()
+
   try {
-    // 1) Login: POST /api/auth/login (form) → Session-Cookie, Body "OK"
+    // 0) CSRF: GET Login-Seite → gorilla/csrf-Cookie + Token aus <meta zoraxy.csrf.Token>
+    const pageRes = await fetchWithSsrfGuard(
+      `${base}/login.html`,
+      { method: 'GET', headers: { Accept: 'text/html' }, cache: 'no-store', signal: ac.signal },
+    )
+    collectCookies(jar, pageRes)
+    const csrfToken = extractCsrfToken(await pageRes.text())
+
+    // 1) Login: POST /api/auth/login (form + X-CSRF-Token) → Session-Cookie, Body "OK"
+    const loginHeaders: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+    }
+    if (csrfToken) loginHeaders['X-CSRF-Token'] = csrfToken
+    const jarBefore = cookieHeader(jar)
+    if (jarBefore) loginHeaders.Cookie = jarBefore
+
     const loginRes = await fetchWithSsrfGuard(
       `${base}/api/auth/login`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-        },
+        headers: loginHeaders,
         body: new URLSearchParams({ username, password, rmbme: 'true' }).toString(),
         cache: 'no-store',
         signal: ac.signal,
       },
     )
+    collectCookies(jar, loginRes)
     const login = await readBody(loginRes)
     const loginErr = isObject(login.json) && typeof login.json.error === 'string' ? login.json.error : ''
     if (loginErr) {
@@ -129,29 +160,23 @@ async function handlePost(req: Request): Promise<Response> {
         { status: 401 },
       )
     }
-    const cookie = extractCookies(loginRes)
-    if (!login.ok || !cookie) {
-      void logPluginApiFailure('zoraxy', 'auth', 'no_session', { status: login.status })
+    if (!login.ok) {
+      void logPluginApiFailure('zoraxy', 'auth', 'no_session', { status: login.status, hadToken: Boolean(csrfToken) })
       return Response.json(
         {
           error: 'auth_failed',
-          detail: `Keine Session erhalten (HTTP ${login.status}). URL prüfen — erwartet wird die Zoraxy-Admin-URL (Standard-Port 8000).`,
+          detail: `Login fehlgeschlagen (HTTP ${login.status}${csrfToken ? '' : ', kein CSRF-Token gefunden'}).`,
         },
-        { status: 502 },
+        { status: login.status === 403 ? 403 : 502 },
       )
     }
 
-    // 2) Host-Liste: POST /api/proxy/list (form type=host) mit Session-Cookie
+    // 2) Host-Liste: GET /api/proxy/list?type=host (GET ist vom CSRF-Schutz ausgenommen)
     const listRes = await fetchWithSsrfGuard(
-      `${base}/api/proxy/list`,
+      `${base}/api/proxy/list?type=host`,
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-          Cookie: cookie,
-        },
-        body: 'type=host',
+        method: 'GET',
+        headers: { Accept: 'application/json', Cookie: cookieHeader(jar) },
         cache: 'no-store',
         signal: ac.signal,
       },

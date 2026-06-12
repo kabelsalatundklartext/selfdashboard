@@ -288,7 +288,7 @@ export const meta: PluginMeta = {
   name: 'Zoraxy',
   description:
     'Proxy-Host-Übersicht aus Zoraxy: Hosts gesamt, aktiv/inaktiv und aktive Upstreams (Login per Benutzer + Passwort, serverseitig). (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',

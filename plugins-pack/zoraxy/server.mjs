@@ -198,7 +198,7 @@ function normalizeBase(raw) {
   u.hash = "";
   return u.toString().replace(/\/+$/, "");
 }
-function extractCookies(res) {
+function collectCookies(jar, res) {
   const headers = res.headers;
   let raw = [];
   if (typeof headers.getSetCookie === "function") {
@@ -207,8 +207,20 @@ function extractCookies(res) {
     const single = res.headers.get("set-cookie");
     if (single) raw = [single];
   }
-  const pairs = raw.map((c) => c.split(";", 1)[0]?.trim()).filter((c) => Boolean(c));
-  return pairs.join("; ");
+  for (const c of raw) {
+    const pair = c.split(";", 1)[0]?.trim();
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    if (eq <= 0) continue;
+    jar.set(pair.slice(0, eq), pair.slice(eq + 1));
+  }
+}
+function cookieHeader(jar) {
+  return Array.from(jar, ([k, v]) => `${k}=${v}`).join("; ");
+}
+function extractCsrfToken(html) {
+  const m = html.match(/name=["']zoraxy\.csrf\.Token["'][^>]*content=["']([^"']+)["']/i) || html.match(/content=["']([^"']+)["'][^>]*name=["']zoraxy\.csrf\.Token["']/i);
+  return m ? m[1] : "";
 }
 async function readBody(res) {
   const text = await res.text();
@@ -258,20 +270,32 @@ async function handlePost(req) {
   }
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  const jar = /* @__PURE__ */ new Map();
   try {
+    const pageRes = await fetchWithSsrfGuard(
+      `${base}/login.html`,
+      { method: "GET", headers: { Accept: "text/html" }, cache: "no-store", signal: ac.signal }
+    );
+    collectCookies(jar, pageRes);
+    const csrfToken = extractCsrfToken(await pageRes.text());
+    const loginHeaders = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json"
+    };
+    if (csrfToken) loginHeaders["X-CSRF-Token"] = csrfToken;
+    const jarBefore = cookieHeader(jar);
+    if (jarBefore) loginHeaders.Cookie = jarBefore;
     const loginRes = await fetchWithSsrfGuard(
       `${base}/api/auth/login`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json"
-        },
+        headers: loginHeaders,
         body: new URLSearchParams({ username, password, rmbme: "true" }).toString(),
         cache: "no-store",
         signal: ac.signal
       }
     );
+    collectCookies(jar, loginRes);
     const login = await readBody(loginRes);
     const loginErr = isObject(login.json) && typeof login.json.error === "string" ? login.json.error : "";
     if (loginErr) {
@@ -281,27 +305,21 @@ async function handlePost(req) {
         { status: 401 }
       );
     }
-    const cookie = extractCookies(loginRes);
-    if (!login.ok || !cookie) {
-      void logPluginApiFailure("zoraxy", "auth", "no_session", { status: login.status });
+    if (!login.ok) {
+      void logPluginApiFailure("zoraxy", "auth", "no_session", { status: login.status, hadToken: Boolean(csrfToken) });
       return Response.json(
         {
           error: "auth_failed",
-          detail: `Keine Session erhalten (HTTP ${login.status}). URL pr\xFCfen \u2014 erwartet wird die Zoraxy-Admin-URL (Standard-Port 8000).`
+          detail: `Login fehlgeschlagen (HTTP ${login.status}${csrfToken ? "" : ", kein CSRF-Token gefunden"}).`
         },
-        { status: 502 }
+        { status: login.status === 403 ? 403 : 502 }
       );
     }
     const listRes = await fetchWithSsrfGuard(
-      `${base}/api/proxy/list`,
+      `${base}/api/proxy/list?type=host`,
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-          Cookie: cookie
-        },
-        body: "type=host",
+        method: "GET",
+        headers: { Accept: "application/json", Cookie: cookieHeader(jar) },
         cache: "no-store",
         signal: ac.signal
       }
