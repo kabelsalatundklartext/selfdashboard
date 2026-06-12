@@ -9,6 +9,9 @@ type ZoraxyHosts = {
   active?: number
   disabled?: number
   upstreams?: number
+  uptimeOnline?: number
+  uptimeOffline?: number
+  uptimeMonitored?: number
   error?: string
   detail?: string
 }
@@ -94,6 +97,7 @@ function Widget({ config }: PluginWidgetProps) {
   const password = str(config.password)
   const refreshMs = Math.max(15, num(config.refreshSeconds) || 60) * 1000
   const title = config.title === undefined ? 'Zoraxy' : str(config.title)
+  const showUptime = config.showUptime !== false
   const configured = Boolean(baseUrl) && Boolean(username) && Boolean(password)
 
   const refresh = useCallback(async () => {
@@ -105,7 +109,7 @@ function Widget({ config }: PluginWidgetProps) {
       const res = await fetch('/api/plugins/zoraxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: baseUrl, username, password }),
+        body: JSON.stringify({ url: baseUrl, username, password, uptime: showUptime }),
         cache: 'no-store',
       })
       const json = (await res.json().catch(() => ({}))) as ZoraxyHosts
@@ -120,7 +124,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       setLoading(false)
     }
-  }, [baseUrl, configured, de, username, password])
+  }, [baseUrl, configured, de, username, password, showUptime])
 
   useEffect(() => {
     setLoading(true)
@@ -200,6 +204,16 @@ function Widget({ config }: PluginWidgetProps) {
           <Tile label={de ? 'Aktiv' : 'Active'} value={data.active} color="#22c55e" />
           <Tile label={de ? 'Inaktiv' : 'Disabled'} value={data.disabled} />
           <Tile label={de ? 'Upstreams' : 'Upstreams'} value={data.upstreams} />
+          {showUptime && data.uptimeMonitored ? (
+            <>
+              <Tile label="Online" value={data.uptimeOnline} color="#22c55e" />
+              <Tile
+                label="Offline"
+                value={data.uptimeOffline}
+                color={(data.uptimeOffline ?? 0) > 0 ? '#ef4444' : undefined}
+              />
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -279,6 +293,14 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           onChange={(e) => onChange('refreshSeconds', Math.max(15, num(e.target.value) || 60))}
         />
       </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={config.showUptime !== false}
+          onChange={(e) => onChange('showUptime', e.target.checked)}
+        />
+        {de ? 'Uptime-Status anzeigen (Online/Offline)' : 'Show uptime status (online/offline)'}
+      </label>
     </div>
   )
 }
@@ -288,7 +310,7 @@ export const meta: PluginMeta = {
   name: 'Zoraxy',
   description:
     'Proxy-Host-Übersicht aus Zoraxy: Hosts gesamt, aktiv/inaktiv und aktive Upstreams (Login per Benutzer + Passwort, serverseitig). (Beta)',
-  version: '0.9.2',
+  version: '0.9.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
@@ -300,6 +322,7 @@ export const meta: PluginMeta = {
     { key: 'username', label: 'Benutzer', type: 'text', defaultValue: '' },
     { key: 'password', label: 'Passwort', type: 'password', defaultValue: '' },
     { key: 'refreshSeconds', label: 'Aktualisieren (Sek.)', type: 'number', defaultValue: 60 },
+    { key: 'showUptime', label: 'Uptime anzeigen', type: 'boolean', defaultValue: true },
   ],
 }
 

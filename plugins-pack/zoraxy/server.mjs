@@ -232,6 +232,31 @@ async function readBody(res) {
   }
   return { ok: res.ok, status: res.status, text, json };
 }
+function lastRecord(v) {
+  let arr = v;
+  if (isObject(v)) arr = v.Records ?? v.records ?? v.Logs ?? v.logs ?? v;
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const last = arr[arr.length - 1];
+  return isObject(last) ? last : null;
+}
+function summarizeUptime(data) {
+  let values;
+  if (Array.isArray(data)) values = data;
+  else if (isObject(data)) values = Object.values(data);
+  else return null;
+  let online = 0;
+  let offline = 0;
+  let monitored = 0;
+  for (const v of values) {
+    const rec = lastRecord(v);
+    if (!rec) continue;
+    monitored++;
+    if (rec.Online === true) online++;
+    else offline++;
+  }
+  if (monitored === 0) return null;
+  return { uptimeOnline: online, uptimeOffline: offline, uptimeMonitored: monitored };
+}
 function summarizeHosts(list) {
   let active = 0;
   let disabled = 0;
@@ -340,7 +365,27 @@ async function handlePost(req) {
         { status: 502 }
       );
     }
-    return Response.json(summarizeHosts(list.json));
+    const payload = summarizeHosts(list.json);
+    if (body.uptime === true) {
+      try {
+        const upRes = await fetchWithSsrfGuard(
+          `${base}/api/utm/log`,
+          {
+            method: "GET",
+            headers: { Accept: "application/json", Cookie: cookieHeader(jar) },
+            cache: "no-store",
+            signal: ac.signal
+          }
+        );
+        const up = await readBody(upRes);
+        if (upRes.ok) {
+          const u = summarizeUptime(up.json);
+          if (u) Object.assign(payload, u);
+        }
+      } catch {
+      }
+    }
+    return Response.json(payload);
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
       void logPluginApiFailure("zoraxy", "request", `blocked_url:${e.message}`);

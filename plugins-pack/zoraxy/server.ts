@@ -11,6 +11,7 @@ type ReqBody = {
   url?: string
   username?: string
   password?: string
+  uptime?: boolean
 }
 
 export type ZoraxyHostsPayload = {
@@ -18,6 +19,9 @@ export type ZoraxyHostsPayload = {
   active: number
   disabled: number
   upstreams: number
+  uptimeOnline?: number
+  uptimeOffline?: number
+  uptimeMonitored?: number
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -76,6 +80,37 @@ async function readBody(res: Response): Promise<{ ok: boolean; status: number; t
     json = null
   }
   return { ok: res.ok, status: res.status, text, json }
+}
+
+/** A utm/log value is a history array (or an object wrapping one); return its newest record. */
+function lastRecord(v: unknown): Record<string, unknown> | null {
+  let arr: unknown = v
+  if (isObject(v)) arr = v.Records ?? v.records ?? v.Logs ?? v.logs ?? v
+  if (!Array.isArray(arr) || arr.length === 0) return null
+  const last = arr[arr.length - 1]
+  return isObject(last) ? last : null
+}
+
+/** Count online/offline targets from GET /api/utm/log. Returns null if nothing monitored. */
+function summarizeUptime(
+  data: unknown,
+): { uptimeOnline: number; uptimeOffline: number; uptimeMonitored: number } | null {
+  let values: unknown[]
+  if (Array.isArray(data)) values = data
+  else if (isObject(data)) values = Object.values(data)
+  else return null
+  let online = 0
+  let offline = 0
+  let monitored = 0
+  for (const v of values) {
+    const rec = lastRecord(v)
+    if (!rec) continue
+    monitored++
+    if (rec.Online === true) online++
+    else offline++
+  }
+  if (monitored === 0) return null
+  return { uptimeOnline: online, uptimeOffline: offline, uptimeMonitored: monitored }
 }
 
 function summarizeHosts(list: unknown[]): ZoraxyHostsPayload {
@@ -198,7 +233,31 @@ async function handlePost(req: Request): Promise<Response> {
       )
     }
 
-    return Response.json(summarizeHosts(list.json))
+    const payload = summarizeHosts(list.json)
+
+    // 3) Uptime (optional, best-effort): GET /api/utm/log ist CSRF-frei
+    if (body.uptime === true) {
+      try {
+        const upRes = await fetchWithSsrfGuard(
+          `${base}/api/utm/log`,
+          {
+            method: 'GET',
+            headers: { Accept: 'application/json', Cookie: cookieHeader(jar) },
+            cache: 'no-store',
+            signal: ac.signal,
+          },
+        )
+        const up = await readBody(upRes)
+        if (upRes.ok) {
+          const u = summarizeUptime(up.json)
+          if (u) Object.assign(payload, u)
+        }
+      } catch {
+        // Uptime ist optional — Fehler hier ignorieren
+      }
+    }
+
+    return Response.json(payload)
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
       void logPluginApiFailure('zoraxy', 'request', `blocked_url:${e.message}`)
