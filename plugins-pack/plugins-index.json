@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-12T22:51:09.675Z",
+  "generatedAt": "2026-06-12T23:11:34.715Z",
   "plugins": [
     {
       "id": "adguard",
@@ -626,7 +626,7 @@
       "id": "zoraxy",
       "name": "Zoraxy",
       "description": "Proxy-Host-Übersicht aus Zoraxy: Hosts gesamt, aktiv/inaktiv und aktive Upstreams (Login per Benutzer + Passwort, serverseitig). (Beta)",
-      "version": "0.9.0",
+      "version": "0.9.1",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🛡️",

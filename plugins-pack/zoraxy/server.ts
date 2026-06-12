@@ -115,7 +115,7 @@ async function handlePost(req: Request): Promise<Response> {
           'Content-Type': 'application/x-www-form-urlencoded',
           Accept: 'application/json',
         },
-        body: new URLSearchParams({ username, password }).toString(),
+        body: new URLSearchParams({ username, password, rmbme: 'true' }).toString(),
         cache: 'no-store',
         signal: ac.signal,
       },
@@ -123,9 +123,9 @@ async function handlePost(req: Request): Promise<Response> {
     const login = await readBody(loginRes)
     const loginErr = isObject(login.json) && typeof login.json.error === 'string' ? login.json.error : ''
     if (loginErr) {
-      void logPluginApiFailure('zoraxy', 'auth', 'auth_failed', { status: login.status })
+      void logPluginApiFailure('zoraxy', 'auth', 'auth_failed', { status: login.status, reason: loginErr })
       return Response.json(
-        { error: 'auth_failed', detail: 'Benutzer/Passwort prüfen — gleicher Login wie die Zoraxy-Web-UI.' },
+        { error: 'auth_failed', detail: `Zoraxy: "${loginErr}" (HTTP ${login.status})` },
         { status: 401 },
       )
     }

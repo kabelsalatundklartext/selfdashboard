@@ -37,7 +37,7 @@ function errorText(code: string, detail: string, de: boolean): string {
   }
   const pair = map[code]
   const base = pair ? pair[de ? 0 : 1] : code
-  return detail && !pair ? `${base}: ${detail}` : base
+  return detail ? `${base} — ${detail}` : base
 }
 
 function Tile({ label, value, color }: { label: string; value: number | undefined; color?: string }) {
@@ -288,7 +288,7 @@ export const meta: PluginMeta = {
   name: 'Zoraxy',
   description:
     'Proxy-Host-Übersicht aus Zoraxy: Hosts gesamt, aktiv/inaktiv und aktive Upstreams (Login per Benutzer + Passwort, serverseitig). (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',
