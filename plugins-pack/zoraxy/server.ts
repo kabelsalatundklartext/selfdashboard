@@ -29,6 +29,8 @@ export type ZoraxyHostsPayload = {
   streams?: number
   blacklist?: number
   whitelist?: number
+  rxBits?: number
+  txBits?: number
 }
 
 function n(v: unknown): number {
@@ -303,6 +305,16 @@ async function handlePost(req: Request): Promise<Response> {
             payload.requests = n(j.TotalRequest)
             payload.valid = n(j.ValidRequest)
             payload.blocked = n(j.ErrorRequest)
+          }
+        }),
+      )
+    }
+    if (want.includes('traffic')) {
+      jobs.push(
+        safeGet(base, '/api/stats/netstat', jar, ac.signal).then((j) => {
+          if (isObject(j)) {
+            payload.rxBits = n(j.RX)
+            payload.txBits = n(j.TX)
           }
         }),
       )

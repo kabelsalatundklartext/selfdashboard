@@ -1,6 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react'
+import {
+  Activity,
+  Ban,
+  Cable,
+  CheckCircle2,
+  Download,
+  ListChecks,
+  PowerOff,
+  Server,
+  Share2,
+  ShieldAlert,
+  ShieldCheck,
+  Upload,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -19,9 +35,13 @@ type ZoraxyData = {
   streams?: number
   blacklist?: number
   whitelist?: number
+  rxBits?: number
+  txBits?: number
   error?: string
   detail?: string
 }
+
+type IconType = ComponentType<{ size?: number | string; color?: string; strokeWidth?: number }>
 
 type TileKey =
   | 'hosts'
@@ -33,34 +53,52 @@ type TileKey =
   | 'requests'
   | 'valid'
   | 'blocked'
+  | 'down'
+  | 'up'
   | 'redirects'
   | 'streams'
   | 'blacklist'
   | 'whitelist'
 
-type TileDef = { key: TileKey; de: string; en: string; group: string; color?: string; danger?: boolean }
+type TileDef = {
+  key: TileKey
+  de: string
+  en: string
+  group: string
+  color: string
+  Icon: IconType
+  danger?: boolean
+  good?: boolean
+}
 
 /** Every tile the widget can show. `group` decides which Zoraxy endpoint must be fetched. */
 const TILES: TileDef[] = [
-  { key: 'hosts', de: 'Hosts', en: 'Hosts', group: 'hosts', color: 'var(--accent)' },
-  { key: 'active', de: 'Aktiv', en: 'Active', group: 'hosts', color: '#22c55e' },
-  { key: 'disabled', de: 'Inaktiv', en: 'Disabled', group: 'hosts' },
-  { key: 'upstreams', de: 'Upstreams', en: 'Upstreams', group: 'hosts' },
-  { key: 'online', de: 'Online', en: 'Online', group: 'uptime', color: '#22c55e' },
-  { key: 'offline', de: 'Offline', en: 'Offline', group: 'uptime', danger: true },
-  { key: 'requests', de: 'Requests', en: 'Requests', group: 'stats', color: 'var(--accent)' },
-  { key: 'valid', de: 'Gültig', en: 'Valid', group: 'stats', color: '#22c55e' },
-  { key: 'blocked', de: 'Geblockt', en: 'Blocked', group: 'stats', danger: true },
-  { key: 'redirects', de: 'Redirects', en: 'Redirects', group: 'redirects' },
-  { key: 'streams', de: 'Streams', en: 'Streams', group: 'streams' },
-  { key: 'blacklist', de: 'Blacklist', en: 'Blacklist', group: 'blacklist' },
-  { key: 'whitelist', de: 'Whitelist', en: 'Whitelist', group: 'whitelist' },
+  { key: 'hosts', de: 'Hosts', en: 'Hosts', group: 'hosts', color: '#6366f1', Icon: Server },
+  { key: 'active', de: 'Aktiv', en: 'Active', group: 'hosts', color: '#22c55e', Icon: CheckCircle2, good: true },
+  { key: 'disabled', de: 'Inaktiv', en: 'Disabled', group: 'hosts', color: '#94a3b8', Icon: PowerOff },
+  { key: 'upstreams', de: 'Upstreams', en: 'Upstreams', group: 'hosts', color: '#6366f1', Icon: Share2 },
+  { key: 'online', de: 'Online', en: 'Online', group: 'uptime', color: '#22c55e', Icon: Wifi, good: true },
+  { key: 'offline', de: 'Offline', en: 'Offline', group: 'uptime', color: '#ef4444', Icon: WifiOff, danger: true },
+  { key: 'requests', de: 'Requests', en: 'Requests', group: 'stats', color: '#3b82f6', Icon: Activity },
+  { key: 'valid', de: 'Gültig', en: 'Valid', group: 'stats', color: '#22c55e', Icon: ShieldCheck, good: true },
+  { key: 'blocked', de: 'Geblockt', en: 'Blocked', group: 'stats', color: '#ef4444', Icon: ShieldAlert, danger: true },
+  { key: 'down', de: 'Download', en: 'Download', group: 'traffic', color: '#06b6d4', Icon: Download },
+  { key: 'up', de: 'Upload', en: 'Upload', group: 'traffic', color: '#a855f7', Icon: Upload },
+  { key: 'redirects', de: 'Redirects', en: 'Redirects', group: 'redirects', color: '#14b8a6', Icon: Share2 },
+  { key: 'streams', de: 'Streams', en: 'Streams', group: 'streams', color: '#8b5cf6', Icon: Cable },
+  { key: 'blacklist', de: 'Blacklist', en: 'Blacklist', group: 'blacklist', color: '#ef4444', Icon: Ban },
+  { key: 'whitelist', de: 'Whitelist', en: 'Whitelist', group: 'whitelist', color: '#22c55e', Icon: ListChecks, good: true },
 ]
 
 const TILE_KEYS = TILES.map((t) => t.key) as string[]
 const TILE_BY_KEY = new Map(TILES.map((t) => [t.key, t]))
 /** Hidden by default — the user enables these via the settings checkboxes. */
 const DEFAULT_HIDDEN = ['valid', 'redirects', 'streams', 'blacklist', 'whitelist']
+
+const TILE_CSS = `
+.zx-tile{transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease}
+.zx-tile:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--zx-accent) 55%,var(--border));box-shadow:0 6px 16px -8px var(--zx-accent)}
+`
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -77,7 +115,19 @@ function strList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
 
-/** Full tile order with any newly-added tiles appended, so saved configs stay forward-compatible. */
+/** bytes/s → human readable (B/s, KB/s, MB/s, GB/s). */
+function fmtRate(bytesPerSec: number): string {
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let v = bytesPerSec
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${i === 0 || v >= 100 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}
+
+/** Full tile order with newly-added tiles appended, so saved configs stay forward-compatible. */
 function effectiveOrder(config: Record<string, unknown>): string[] {
   const saved = strList(config.tileOrder).filter((k) => TILE_KEYS.includes(k))
   const rest = TILE_KEYS.filter((k) => !saved.includes(k))
@@ -101,7 +151,7 @@ function wantGroups(config: Record<string, unknown>): string[] {
   return Array.from(new Set(groups))
 }
 
-function tileValue(key: string, data: ZoraxyData): number | undefined {
+function numericValue(key: string, data: ZoraxyData): number | undefined {
   switch (key) {
     case 'hosts':
       return data.total
@@ -150,44 +200,76 @@ function errorText(code: string, detail: string, de: boolean): string {
   return detail ? `${base} — ${detail}` : base
 }
 
-function Tile({ label, value, color }: { label: string; value: number | undefined; color?: string }) {
+function Tile({
+  def,
+  text,
+  valueColor,
+}: {
+  def: TileDef
+  text: string
+  valueColor: string
+}) {
+  const Icon = def.Icon
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        minWidth: 0,
-        padding: '6px 8px',
-        borderRadius: 8,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-      }}
+      className="zx-tile"
+      style={
+        {
+          '--zx-accent': def.color,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          minWidth: 0,
+          padding: '8px 10px',
+          borderRadius: 10,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+        } as CSSProperties
+      }
     >
       <span
         style={{
-          fontSize: 'clamp(7px, 2cqmin, 9px)',
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.07em',
-          color: 'var(--text-muted)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: '0 0 auto',
+          width: 26,
+          height: 26,
+          borderRadius: 7,
+          color: def.color,
+          background: `color-mix(in srgb, ${def.color} 16%, transparent)`,
         }}
       >
-        {label}
+        {Icon ? <Icon size={15} strokeWidth={2.2} /> : null}
       </span>
-      <span
-        style={{
-          fontSize: 'clamp(15px, 7cqmin, 26px)',
-          fontWeight: 800,
-          lineHeight: 1.05,
-          color: color ?? 'var(--text)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {value != null ? value : '—'}
+      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.1 }}>
+        <span
+          style={{
+            fontSize: 'clamp(15px, 6.5cqmin, 24px)',
+            fontWeight: 800,
+            color: valueColor,
+            fontVariantNumeric: 'tabular-nums',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {text}
+        </span>
+        <span
+          style={{
+            fontSize: 'clamp(7px, 2cqmin, 9px)',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.07em',
+            color: 'var(--text-muted)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {def.de}
+        </span>
       </span>
     </div>
   )
@@ -196,8 +278,10 @@ function Tile({ label, value, color }: { label: string; value: number | undefine
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const [data, setData] = useState<ZoraxyData | null>(null)
+  const [traffic, setTraffic] = useState<{ down: number; up: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const lastSample = useRef<{ rx: number; tx: number; t: number } | null>(null)
 
   const baseUrl = str(config.baseUrl)
   const username = str(config.username)
@@ -207,8 +291,7 @@ function Widget({ config }: PluginWidgetProps) {
   const configured = Boolean(baseUrl) && Boolean(username) && Boolean(password)
 
   const visible = visibleKeys(config)
-  const want = wantGroups(config)
-  const wantKey = want.join(',')
+  const wantKey = wantGroups(config).join(',')
 
   const refresh = useCallback(async () => {
     if (!configured) {
@@ -226,6 +309,20 @@ function Widget({ config }: PluginWidgetProps) {
       if (!res.ok || json.error) {
         setError(errorText(json.error || `HTTP ${res.status}`, json.detail || '', de))
         return
+      }
+      if (json.rxBits != null && json.txBits != null) {
+        const t = performance.now()
+        const prev = lastSample.current
+        if (prev) {
+          const dt = (t - prev.t) / 1000
+          if (dt > 0) {
+            setTraffic({
+              down: Math.max(0, (json.rxBits - prev.rx) / 8 / dt),
+              up: Math.max(0, (json.txBits - prev.tx) / 8 / dt),
+            })
+          }
+        }
+        lastSample.current = { rx: json.rxBits, tx: json.txBits, t }
       }
       setData(json)
       setError(null)
@@ -273,9 +370,9 @@ function Widget({ config }: PluginWidgetProps) {
   if (loading && !data && !error) {
     return (
       <div style={shell}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="skeleton" style={{ height: 36, borderRadius: 8 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 7 }}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 44, borderRadius: 10 }} />
           ))}
         </div>
       </div>
@@ -284,6 +381,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   return (
     <div style={shell}>
+      <style>{TILE_CSS}</style>
       {title ? (
         <p
           style={{
@@ -303,8 +401,8 @@ function Widget({ config }: PluginWidgetProps) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(70px, 1fr))',
-            gap: 6,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+            gap: 7,
             flex: 1,
             minHeight: 0,
             alignContent: 'flex-start',
@@ -313,9 +411,18 @@ function Widget({ config }: PluginWidgetProps) {
           {visible.map((key) => {
             const def = TILE_BY_KEY.get(key as TileKey)
             if (!def) return null
-            const value = tileValue(key, data)
-            const color = def.danger && (value ?? 0) > 0 ? '#ef4444' : def.color
-            return <Tile key={key} label={de ? def.de : def.en} value={value} color={color} />
+            let text = '—'
+            let value: number | undefined
+            if (key === 'down') text = traffic ? fmtRate(traffic.down) : '—'
+            else if (key === 'up') text = traffic ? fmtRate(traffic.up) : '—'
+            else {
+              value = numericValue(key, data)
+              text = value != null ? value.toLocaleString(de ? 'de-DE' : 'en-US') : '—'
+            }
+            let valueColor = 'var(--text)'
+            if (value != null && def.danger && value > 0) valueColor = '#ef4444'
+            else if (value != null && def.good && value > 0) valueColor = '#22c55e'
+            return <Tile key={key} def={{ ...def, de: de ? def.de : def.en }} text={text} valueColor={valueColor} />
           })}
         </div>
       ) : null}
@@ -370,6 +477,7 @@ function TileOrderEditor({ config, onChange }: PluginSettingsProps) {
       {order.map((key) => {
         const def = TILE_BY_KEY.get(key as TileKey)
         if (!def) return null
+        const Icon = def.Icon
         return (
           <div
             key={key}
@@ -397,6 +505,9 @@ function TileOrderEditor({ config, onChange }: PluginSettingsProps) {
               ⠿
             </span>
             <input type="checkbox" checked={!hidden.has(key)} onChange={() => toggle(key)} />
+            <span style={{ display: 'flex', alignItems: 'center', color: def.color }}>
+              {Icon ? <Icon size={14} strokeWidth={2.2} /> : null}
+            </span>
             <span style={{ fontSize: 13 }}>{de ? def.de : def.en}</span>
           </div>
         )
@@ -472,8 +583,8 @@ export const meta: PluginMeta = {
   id: 'zoraxy',
   name: 'Zoraxy',
   description:
-    'Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)',
-  version: '0.9.4',
+    'Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Traffic, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)',
+  version: '0.9.5',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',

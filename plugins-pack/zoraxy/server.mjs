@@ -420,6 +420,16 @@ async function handlePost(req) {
         })
       );
     }
+    if (want.includes("traffic")) {
+      jobs.push(
+        safeGet(base, "/api/stats/netstat", jar, ac.signal).then((j) => {
+          if (isObject(j)) {
+            payload.rxBits = n(j.RX);
+            payload.txBits = n(j.TX);
+          }
+        })
+      );
+    }
     const countEndpoints = [
       ["redirects", "/api/redirect/list", "redirects"],
       ["streams", "/api/streamprox/config/list", "streams"],

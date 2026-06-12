@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-12T23:47:40.668Z",
+  "generatedAt": "2026-06-12T23:58:49.104Z",
   "plugins": [
     {
       "id": "adguard",
@@ -625,8 +625,8 @@
     {
       "id": "zoraxy",
       "name": "Zoraxy",
-      "description": "Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)",
-      "version": "0.9.4",
+      "description": "Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Traffic, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)",
+      "version": "0.9.5",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🛡️",
