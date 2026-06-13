@@ -420,6 +420,7 @@ function Widget({ config }: PluginWidgetProps) {
   const password = str(config.password)
   const refreshMs = Math.max(15, num(config.refreshSeconds) || 60) * 1000
   const title = config.title === undefined ? 'Zoraxy' : str(config.title)
+  const showTitle = config.showTitle !== false
   const configured = Boolean(baseUrl) && Boolean(username) && Boolean(password)
 
   const visible = visibleKeys(config)
@@ -527,7 +528,7 @@ function Widget({ config }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <style>{TILE_CSS}</style>
-      {title ? (
+      {showTitle && title ? (
         <p
           style={{
             margin: 0,
@@ -676,14 +677,20 @@ function TileOrderEditor({ config, onChange }: PluginSettingsProps) {
 
 function Settings({ config, onChange }: PluginSettingsProps) {
   const { de } = usePluginLocale()
+  const showTitle = config.showTitle !== false
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
-          {de ? 'Widget-Titel (leer = ausblenden)' : 'Widget title (empty = hidden)'}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={showTitle} onChange={(e) => onChange('showTitle', e.target.checked)} />
+          {de ? 'Titel oben anzeigen' : 'Show title at top'}
+        </label>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4, opacity: showTitle ? 1 : 0.5 }}>
+          {de ? 'Titel-Text (umbenennen)' : 'Title text (rename)'}
         </label>
         <input
-          style={inp}
+          style={{ ...inp, opacity: showTitle ? 1 : 0.5 }}
+          disabled={!showTitle}
           value={config.title === undefined ? 'Zoraxy' : str(config.title)}
           placeholder="Zoraxy"
           onChange={(e) => onChange('title', e.target.value)}
@@ -749,6 +756,7 @@ export const meta: PluginMeta = {
   iconUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/zoraxy.png',
   defaultLayout: { w: 3, h: 2, minW: 2, minH: 2 },
   configSchema: [
+    { key: 'showTitle', label: 'Titel anzeigen', type: 'boolean', defaultValue: true },
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Zoraxy' },
     { key: 'baseUrl', label: 'Zoraxy URL', type: 'text', defaultValue: '' },
     { key: 'username', label: 'Benutzer', type: 'text', defaultValue: '' },
