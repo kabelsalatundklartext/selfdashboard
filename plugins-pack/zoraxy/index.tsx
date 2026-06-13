@@ -93,7 +93,7 @@ const TILES: TileDef[] = [
 const TILE_KEYS = TILES.map((t) => t.key) as string[]
 const TILE_BY_KEY = new Map(TILES.map((t) => [t.key, t]))
 /** Hidden by default — the user enables these via the settings checkboxes. */
-const DEFAULT_HIDDEN = ['valid', 'redirects', 'streams', 'blacklist', 'whitelist']
+const DEFAULT_HIDDEN = ['redirects', 'streams', 'blacklist', 'whitelist']
 
 const TILE_CSS = `
 .zx-tile{transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease}
@@ -200,6 +200,135 @@ function errorText(code: string, detail: string, de: boolean): string {
   return detail ? `${base} — ${detail}` : base
 }
 
+/** Tiny trend line for the requests hero. Builds up as the widget polls over time. */
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const W = 100
+  const H = 30
+  if (values.length < 2) {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 30, display: 'block' }} aria-hidden>
+        <line x1={0} y1={H / 2} x2={W} y2={H / 2} style={{ stroke: 'var(--border)', strokeWidth: 1.5 }} strokeDasharray="3 4" />
+      </svg>
+    )
+  }
+  const max = Math.max(...values)
+  const min = Math.min(...values)
+  const span = max - min || 1
+  const step = W / (values.length - 1)
+  const coords = values.map((v, i) => {
+    const x = i * step
+    const y = H - 3 - ((v - min) / span) * (H - 6)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  const line = coords.join(' ')
+  const area = `0,${H} ${line} ${W},${H}`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 30, display: 'block' }} aria-hidden>
+      <polygon points={area} style={{ fill: color, fillOpacity: 0.14 }} />
+      <polyline
+        points={line}
+        style={{ fill: 'none', stroke: color, strokeWidth: 2 }}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  )
+}
+
+/** Hero block: large requests count + trend sparkline + valid/blocked summary. */
+function RequestsHero({
+  requests,
+  valid,
+  blocked,
+  spark,
+  de,
+  showValid,
+  showBlocked,
+}: {
+  requests?: number
+  valid?: number
+  blocked?: number
+  spark: number[]
+  de: boolean
+  showValid: boolean
+  showBlocked: boolean
+}) {
+  const loc = de ? 'de-DE' : 'en-US'
+  const fmt = (n?: number) => (n != null ? n.toLocaleString(loc) : '—')
+  const legend: CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    fontSize: 'clamp(10px, 2.6cqmin, 12px)',
+    color: 'var(--text-muted)',
+    whiteSpace: 'nowrap',
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3,
+        padding: '9px 12px',
+        borderRadius: 12,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: 'clamp(8px, 2.2cqmin, 10px)',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.07em',
+          color: 'var(--text-muted)',
+        }}
+      >
+        {de ? 'Requests' : 'Requests'}
+      </span>
+      <span
+        style={{
+          fontSize: 'clamp(22px, 9.5cqmin, 34px)',
+          fontWeight: 800,
+          lineHeight: 1.04,
+          color: 'var(--text)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {fmt(requests)}
+      </span>
+      <Sparkline values={spark} color="var(--accent)" />
+      {showValid || showBlocked ? (
+        <div style={{ display: 'flex', gap: 14, marginTop: 3, flexWrap: 'wrap' }}>
+          {showValid ? (
+            <span style={legend}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
+              <b style={{ color: '#22c55e', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(valid)}</b>
+              {de ? 'gültig' : 'valid'}
+            </span>
+          ) : null}
+          {showBlocked ? (
+            <span style={legend}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444' }} />
+              <b
+                style={{
+                  color: (blocked ?? 0) > 0 ? '#ef4444' : 'var(--text)',
+                  fontWeight: 700,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {fmt(blocked)}
+              </b>
+              {de ? 'geblockt' : 'blocked'}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function Tile({
   def,
   text,
@@ -281,7 +410,10 @@ function Widget({ config }: PluginWidgetProps) {
   const [traffic, setTraffic] = useState<{ down: number; up: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [spark, setSpark] = useState<number[]>([])
   const lastSample = useRef<{ rx: number; tx: number; t: number } | null>(null)
+  const reqHist = useRef<number[]>([])
+  const prevReq = useRef<number | null>(null)
 
   const baseUrl = str(config.baseUrl)
   const username = str(config.username)
@@ -323,6 +455,14 @@ function Widget({ config }: PluginWidgetProps) {
           }
         }
         lastSample.current = { rx: json.rxBits, tx: json.txBits, t }
+      }
+      if (typeof json.requests === 'number') {
+        const prev = prevReq.current
+        if (prev != null) {
+          reqHist.current = [...reqHist.current, Math.max(0, json.requests - prev)].slice(-40)
+          setSpark(reqHist.current)
+        }
+        prevReq.current = json.requests
       }
       setData(json)
       setError(null)
@@ -367,6 +507,11 @@ function Widget({ config }: PluginWidgetProps) {
     )
   }
 
+  const showHero = visible.includes('requests')
+  const gridKeys = showHero
+    ? visible.filter((k) => k !== 'requests' && k !== 'valid' && k !== 'blocked')
+    : visible
+
   if (loading && !data && !error) {
     return (
       <div style={shell}>
@@ -398,32 +543,45 @@ function Widget({ config }: PluginWidgetProps) {
       ) : null}
 
       {data ? (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
-            gap: 7,
-            flex: 1,
-            minHeight: 0,
-            alignContent: 'flex-start',
-          }}
-        >
-          {visible.map((key) => {
-            const def = TILE_BY_KEY.get(key as TileKey)
-            if (!def) return null
-            let text = '—'
-            let value: number | undefined
-            if (key === 'down') text = traffic ? fmtRate(traffic.down) : '—'
-            else if (key === 'up') text = traffic ? fmtRate(traffic.up) : '—'
-            else {
-              value = numericValue(key, data)
-              text = value != null ? value.toLocaleString(de ? 'de-DE' : 'en-US') : '—'
-            }
-            let valueColor = 'var(--text)'
-            if (value != null && def.danger && value > 0) valueColor = '#ef4444'
-            else if (value != null && def.good && value > 0) valueColor = '#22c55e'
-            return <Tile key={key} def={{ ...def, de: de ? def.de : def.en }} text={text} valueColor={valueColor} />
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+          {showHero ? (
+            <RequestsHero
+              requests={data.requests}
+              valid={data.valid}
+              blocked={data.blocked}
+              spark={spark}
+              de={de}
+              showValid={visible.includes('valid')}
+              showBlocked={visible.includes('blocked')}
+            />
+          ) : null}
+          {gridKeys.length ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+                gap: 7,
+                alignContent: 'flex-start',
+              }}
+            >
+              {gridKeys.map((key) => {
+                const def = TILE_BY_KEY.get(key as TileKey)
+                if (!def) return null
+                let text = '—'
+                let value: number | undefined
+                if (key === 'down') text = traffic ? fmtRate(traffic.down) : '—'
+                else if (key === 'up') text = traffic ? fmtRate(traffic.up) : '—'
+                else {
+                  value = numericValue(key, data)
+                  text = value != null ? value.toLocaleString(de ? 'de-DE' : 'en-US') : '—'
+                }
+                let valueColor = 'var(--text)'
+                if (value != null && def.danger && value > 0) valueColor = '#ef4444'
+                else if (value != null && def.good && value > 0) valueColor = '#22c55e'
+                return <Tile key={key} def={{ ...def, de: de ? def.de : def.en }} text={text} valueColor={valueColor} />
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
