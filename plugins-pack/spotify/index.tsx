@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { Music2, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -57,6 +56,58 @@ async function postSpotify(payload: Record<string, unknown>): Promise<Record<str
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
   if (!res.ok && !json.error) json.error = `HTTP ${res.status}`
   return json
+}
+
+// ---------------------------------------------------------------------------
+// Inline SVG icons — self-contained so the widget never depends on the host's
+// curated lucide icon set (those names are not all exposed to plugins).
+// ---------------------------------------------------------------------------
+
+type IconProps = { size?: number; color?: string }
+
+function IconMusic({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+      <path d="M9 18V5l12-2v13" />
+    </svg>
+  )
+}
+
+function IconPlay({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden>
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+
+function IconPause({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  )
+}
+
+function IconPrev({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden>
+      <rect x="5" y="5" width="2.5" height="14" rx="0.5" />
+      <path d="M20 5v14l-10-7z" />
+    </svg>
+  )
+}
+
+function IconNext({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden>
+      <rect x="16.5" y="5" width="2.5" height="14" rx="0.5" />
+      <path d="M4 5v14l10-7z" />
+    </svg>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -155,7 +206,7 @@ function Widget({ config }: PluginWidgetProps) {
   if (!clientId) {
     return (
       <div style={centered}>
-        <Music2 size={26} color={SPOTIFY_GREEN} />
+        <IconMusic size={26} color={SPOTIFY_GREEN} />
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
           {de
             ? 'Client ID in den Einstellungen eintragen und mit Spotify verbinden.'
@@ -178,7 +229,7 @@ function Widget({ config }: PluginWidgetProps) {
   if (state && !state.connected) {
     return (
       <div style={centered}>
-        <Music2 size={26} color={SPOTIFY_GREEN} />
+        <IconMusic size={26} color={SPOTIFY_GREEN} />
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
           {de ? 'Nicht verbunden — in den Einstellungen mit Spotify verbinden.' : 'Not connected — connect in settings.'}
         </p>
@@ -253,7 +304,7 @@ function Widget({ config }: PluginWidgetProps) {
                 flex: '0 0 auto',
               }}
             >
-              <Music2 size={24} color={SPOTIFY_GREEN} />
+              <IconMusic size={24} color={SPOTIFY_GREEN} />
             </div>
           )}
           <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
@@ -306,7 +357,7 @@ function Widget({ config }: PluginWidgetProps) {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
         <ControlButton onClick={() => void sendCommand('previous')} disabled={!premium || busy} title={de ? 'Zurück' : 'Previous'}>
-          <SkipBack size={20} />
+          <IconPrev size={20} />
         </ControlButton>
         <ControlButton
           primary
@@ -314,10 +365,10 @@ function Widget({ config }: PluginWidgetProps) {
           disabled={!premium || busy}
           title={playing ? 'Pause' : de ? 'Abspielen' : 'Play'}
         >
-          {playing ? <Pause size={22} /> : <Play size={22} />}
+          {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
         </ControlButton>
         <ControlButton onClick={() => void sendCommand('next')} disabled={!premium || busy} title={de ? 'Weiter' : 'Next'}>
-          <SkipForward size={20} />
+          <IconNext size={20} />
         </ControlButton>
       </div>
 
@@ -622,7 +673,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',
