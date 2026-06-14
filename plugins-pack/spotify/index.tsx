@@ -41,6 +41,33 @@ function fmtTime(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+/** Human-readable text for a failed state/connection response. */
+function connErrorText(code: string | undefined, de: boolean): string {
+  switch (code) {
+    case 'reauth_required':
+    case 'not_connected':
+      return de
+        ? 'Verbindung abgelaufen — bitte neu verbinden (Trennen → Verbinden).'
+        : 'Connection expired — please reconnect (Disconnect → Connect).'
+    case 'refresh_failed':
+      return de
+        ? 'Token-Erneuerung fehlgeschlagen — bitte neu verbinden.'
+        : 'Token refresh failed — please reconnect.'
+    case 'secret_unreadable':
+      return de
+        ? 'Client Secret nicht lesbar — Secret neu eintragen und verbinden.'
+        : 'Client secret unreadable — re-enter it and reconnect.'
+    case 'api_error':
+      return de ? 'Spotify-API-Fehler.' : 'Spotify API error.'
+    case 'network_error':
+      return de ? 'Netzwerkfehler.' : 'Network error.'
+    default:
+      return de
+        ? 'Nicht verbunden — in den Einstellungen mit Spotify verbinden.'
+        : 'Not connected — connect in settings.'
+  }
+}
+
 function redirectUriFor(): string {
   if (typeof window === 'undefined') return ''
   return `${window.location.origin}/api/plugins/spotify/callback`
@@ -237,7 +264,7 @@ function Widget({ config }: PluginWidgetProps) {
       <div style={centered}>
         <IconMusic size={26} color={SPOTIFY_GREEN} />
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
-          {de ? 'Nicht verbunden — in den Einstellungen mit Spotify verbinden.' : 'Not connected — connect in settings.'}
+          {connErrorText(state.error, de)}
         </p>
       </div>
     )
@@ -678,7 +705,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.2',
+  version: '0.9.3',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',
