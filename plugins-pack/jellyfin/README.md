@@ -1,26 +1,55 @@
-# Jellyfin
+# Plugin: Jellyfin (`jellyfin`)
 
-Aktive Wiedergaben vom Jellyfin-Server — Nutzer, Titel, Fortschritt, Pause.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. Jellyfin → **Administration → API-Schlüssel** → neuen Key anlegen.
-2. Widget-Einstellungen: **Basis-URL** (z. B. `http://192.168.1.21:8096`) + **API-Key** eintragen.
-3. Optional: **Widget-Titel** anpassen (leer = Kopfzeile ausblenden).
+### Kurzbeschreibung
 
-Der Browser ruft Jellyfin direkt über die Sessions-API auf (`/Sessions`,
-Emby-kompatibler `X-Emby-Token`-Header). Bei HTTPS-Dashboard ggf.
-Mixed-Content/CORS beachten (Jellyfin hinter denselben Reverse-Proxy legen).
+Zeigt **aktive Wiedergaben (Now Playing)** und Sitzungen deines **Jellyfin**-Servers: Titel, Nutzer, Fortschritt.
+
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Server-URL** | z. B. `http://192.168.1.10:8096` |
+| **API-Key** | Jellyfin → Dashboard → API-Schlüssel — **verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/jellyfin` — Proxy zu `/Sessions`.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Leer | Läuft gerade etwas? API-Key gültig? |
+| 401 | API-Key prüfen |
 
 ---
 
-# Jellyfin (English)
+## English
 
-Active playback sessions from your Jellyfin server — user, title, progress, pause.
+### Summary
 
-1. Jellyfin → **Dashboard → API Keys** → create a key.
-2. Widget settings: enter **base URL** (e.g. `http://192.168.1.21:8096`) + **API key**.
-3. Optional: change the **widget title** (empty = hide the header line).
+Shows **now playing** and sessions on your **Jellyfin** server: title, user, progress.
 
-The browser calls the Jellyfin Sessions API directly. On HTTPS dashboards mind
-mixed content/CORS (put Jellyfin behind the same reverse proxy).
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **Server URL** | e.g. `http://192.168.1.10:8096` |
+| **API key** | Jellyfin → Dashboard → API keys — stored **encrypted** |
+| **Refresh** | interval in seconds |
+
+### API
+
+`POST /api/plugins/jellyfin` — proxy to `/Sessions`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Empty | Is anything playing? API key valid? |
+| 401 | Check the API key |

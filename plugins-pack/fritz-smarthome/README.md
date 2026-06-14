@@ -1,28 +1,71 @@
-# FRITZ! Smart Home — Beta
+# Plugin: FRITZ! Smart Home (`fritz-smarthome`)
 
-Steuert und zeigt **FRITZ! Smart-Home-Geräte** (FRITZ!DECT) über das **AHA-HTTP-Interface** der FRITZ!Box (`/webservices/homeautoswitch.lua`). Anmeldung per FRITZ!Box-Benutzer + Passwort (SID-Login, serverseitig).
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Was es kann
+## Deutsch
 
-- **Heizthermostate** (z. B. FRITZ!DECT 301/302, Comet DECT): Ist-Temperatur, Fenster-offen, Akku-Warnung + **Soll-Temperatur per − / +** (8–28 °C).
-- **Steckdosen** (FRITZ!DECT 200/210): **an/aus** + aktuelle **Leistung (W)**.
-- **Fensterkontakte**: „Offen / Zu" mit Icon.
-- **Sensoren**: Temperatur und Luftfeuchte.
-- Einzelne Geräte aus-/einblendbar.
+### Kurzbeschreibung
 
-## Einrichtung
+**FRITZ!DECT-Smart-Home** über das **AHA-HTTP-Interface**: Heizkörper-Thermostate (Soll-Temp, Aus/An), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren (Temperatur/Luftfeuchte). **(Beta)**
 
-1. **FRITZ!Box-Benutzer mit Smart-Home-Recht** (empfohlen ein eigener nur fürs Dashboard): FRITZ!Box → *System → FRITZ!Box-Benutzer*.
-2. Im Widget unter *Einstellungen* eintragen:
-   - **FRITZ!Box-Adresse** — z. B. `fritz.box` oder die IP (`192.168.178.1`)
-   - **Benutzer** (optional, je nach FRITZ!OS) und **Passwort**
-3. Auf **Neu laden** klicken — die Smart-Home-Geräte erscheinen. Per Häkchen ein-/ausblenden.
+### Einrichtung (⚙️)
 
-Login per **PBKDF2-Challenge-Response** (Fallback MD5 für ältere FRITZ!OS). Das Passwort wird **verschlüsselt** gespeichert (`SELFDASHBOARD_SECRET_KEY`), Zugriff nur serverseitig (SSRF-geschützt).
+| Feld | Details |
+|------|---------|
+| **FRITZ!Box-URL** | z. B. `http://fritz.box` oder IP |
+| **Benutzer / Passwort** | eigener Box-Benutzer mit Recht **Smart-Home**; ab FRITZ!OS 7.24 ist der Benutzername Pflicht |
+| **Aktualisieren** | Intervall in Sek. |
 
-## Hinweise (Beta)
+Passwort wird **verschlüsselt** gespeichert. Login per **PBKDF2-Challenge** (SID).
 
-- Soll-Temperatur in 0,5-°C-Schritten; FRITZ-intern als Halb-Grad-Wert (16–56), 253 = Aus, 254 = An.
-- Erkennung über die `getdevicelistinfos`-Datenpunkte (`hkr`, `switch`, `alert`, `temperature`).
+### Bedienung
 
-API: `POST /api/plugins/fritz-smarthome` (Aktionen `state`, `set`).
+- Thermostat: −/+ setzt Soll-Temp; unter Minimum = Aus (Frostschutz)
+- Steckdose: an/aus, aktueller Verbrauch in Watt
+- Kontakte/Sensoren: Status, Messwerte
+
+### API
+
+`POST /api/plugins/fritz-smarthome` — `action: state|set`.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Login abgelehnt | Benutzer/Passwort, Smart-Home-Recht prüfen |
+| Keine Geräte | DECT-Geräte an der Box angemeldet? |
+
+---
+
+## English
+
+### Summary
+
+**FRITZ!DECT smart home** via the **AHA-HTTP interface**: radiator thermostats (target temp, off/on), smart plugs (on/off + watts), window contacts and sensors (temperature/humidity). **(Beta)**
+
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **FRITZ!Box URL** | e.g. `http://fritz.box` or IP |
+| **User / password** | dedicated box user with **Smart Home** permission; FRITZ!OS 7.24+ requires the username |
+| **Refresh** | interval in seconds |
+
+Password stored **encrypted**. Login via **PBKDF2 challenge** (SID).
+
+### Controls
+
+- Thermostat: −/+ sets target; below minimum = off (frost protection)
+- Plug: on/off, current power in watts
+- Contacts/sensors: state, readings
+
+### API
+
+`POST /api/plugins/fritz-smarthome` — `action: state|set`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Login rejected | Check user/password and Smart Home permission |
+| No devices | DECT devices paired with the box? |

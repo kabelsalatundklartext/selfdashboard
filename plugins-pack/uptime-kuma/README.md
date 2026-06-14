@@ -1,126 +1,57 @@
 # Plugin: Uptime Kuma (`uptime-kuma`)
 
-
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
 ## Deutsch
 
-
-
 ### Kurzbeschreibung
 
+Zeigt den Status deiner **Uptime-Kuma**-Monitore: hoch/runter, Anzahl und optional Antwortzeiten — über eine **Status-Seite**.
 
+### Einrichtung (⚙️)
 
-**Uptime Kuma** Status-Page als kompakte Liste — Monitor-Name, Gruppe und Status (OK / Down / Pending / Wartung). Down-Monitore stehen oben. Ab 6 Monitoren: **2 Spalten**.
-
-
-
-### Installation
-
-
-
-1. Plugin-Store → **Uptime Kuma** installieren oder aktualisieren → **Strg+F5**
-
-2. In Uptime Kuma eine **Status Page** anlegen und Monitore zuweisen
-
-3. Widget **⚙️**: Basis-URL + Slug der Status Page
-
-
-
-### Einrichtung (Widget ⚙️)
-
-
-
-| Feld | Hinweis |
-
+| Feld | Details |
 |------|---------|
+| **Status-Seiten-URL** | z. B. `http://192.168.1.4:3001/status/<slug>` |
+| **Aktualisieren** | Intervall in Sek. |
 
-| **Basis-URL** | `http://IP:3001` (ohne `/dashboard`) |
-
-| **Status-Page-Slug** | Slug aus der Status-Page-URL, z. B. `uptime` für `/status/uptime` |
-
-| **Aktualisieren** | Standard 30 Sekunden |
-
-| **Gruppenname** | Optional Gruppe neben dem Monitor-Namen |
-
-
+Tipp: In Uptime Kuma eine **Status-Seite** anlegen und deren Slug verwenden (liefert JSON unter `/api/status-page/<slug>`).
 
 ### API
 
+`POST /api/plugins/uptime-kuma` — liest die Status-Seiten-JSON (Heartbeats/Monitore).
 
+### Fehlerbehebung
 
-- Widget → `POST /api/plugins/uptime-kuma`
-
-- Server (Volume `server.mjs`) → `GET {url}/api/status-page/{slug}` + `GET …/heartbeat/{slug}` (öffentliche Status-Page, kein API-Key)
-
-
-
-### Layout
-
-
-
-Standard **4×3** — gleiche Größe wie **Selfstream-Emby**, damit beide Widgets nebeneinander passen.
-
-
-
-### Voraussetzungen
-
-
-
-- Uptime Kuma mit mindestens einer **öffentlichen Status Page**
-
-- Kuma vom SelfDashboard-Container aus erreichbar (LAN/IP)
-
-
+| Problem | Lösung |
+|---------|--------|
+| Leer | Status-Seite veröffentlicht? Slug korrekt? |
+| Erreichbarkeit | URL im LAN, Firewall |
 
 ---
 
-
-
 ## English
-
-
 
 ### Summary
 
+Shows the status of your **Uptime Kuma** monitors: up/down, counts and optionally response times — via a **status page**.
 
+### Setup (⚙️)
 
-**Uptime Kuma** status page as a compact list — monitor name, group, and status (up / down / pending / maintenance). Down monitors are listed first. **Two columns** from 6 monitors upward.
+| Field | Details |
+|-------|---------|
+| **Status page URL** | e.g. `http://192.168.1.4:3001/status/<slug>` |
+| **Refresh** | interval in seconds |
 
-
-
-### Setup
-
-
-
-| Field | Notes |
-
-|-------|-------|
-
-| **Base URL** | `http://IP:3001` (no `/dashboard`) |
-
-| **Status page slug** | From the status page URL, e.g. `uptime` for `/status/uptime` |
-
-| **Refresh** | Default 30 seconds |
-
-| **Group name** | Optionally show the group beside each monitor |
-
-
+Tip: create a **status page** in Uptime Kuma and use its slug (JSON under `/api/status-page/<slug>`).
 
 ### API
 
+`POST /api/plugins/uptime-kuma` — reads the status-page JSON (heartbeats/monitors).
 
+### Troubleshooting
 
-- Widget → `POST /api/plugins/uptime-kuma`
-
-- Server (`server.mjs` from store) → public status-page JSON + heartbeat (no API key)
-
-
-
-### Requirements
-
-
-
-- At least one **public status page** in Uptime Kuma
-
-- Kuma reachable from the SelfDashboard container
-
+| Issue | Fix |
+|-------|-----|
+| Empty | Status page published? Slug correct? |
+| Reachability | URL on LAN, firewall |

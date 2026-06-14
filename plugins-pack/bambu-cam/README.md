@@ -1,17 +1,81 @@
-# Bambu Lab Kamera (Beta)
+# Plugin: Bambu Lab Kamera (`bambu-cam`)
 
-Live-Kamerabild von Bambu-Lab-Druckern direkt im Dashboard.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Modi
-- **P1 / A1 (lokal):** Verbindet sich direkt zum Drucker (Port 6000, TLS) mit `bblp` + Zugangscode und holt das JPEG-Kamerabild. Aktualisiert sich automatisch (1–2 s, einstellbar), flickerfrei.
-- **Stream-URL:** Beliebige MJPEG- oder Snapshot-URL (z. B. X1 via go2rtc/OctoEverywhere). Wird vom Plugin geproxyt und angezeigt.
+## Deutsch
 
-## Einrichtung
-- Am Drucker **„LAN Mode Liveview"** aktivieren (Cloud-Betrieb möglich, LAN-Only/Entwicklermodus nicht zwingend).
-- **IP** und **Zugangscode** unter Einstellungen → Netzwerk/LAN ablesen.
-- Im Widget Quelle wählen, IP + Zugangscode (wird verschlüsselt gespeichert) eintragen.
+### Kurzbeschreibung
 
-## Sicherheit
-Nur LAN-Adressen erlaubt (10.x, 172.16–31.x, 192.168.x); öffentliche Ziele und Cloud-Metadaten werden blockiert.
+**Live-Kamerabild** von Bambu-Lab-Druckern im Dashboard — als Bild, das sich automatisch aktualisiert. Zwei Quellen: **P1/A1 lokal** (Port 6000) oder eine beliebige **MJPEG-/Snapshot-URL** (z. B. X1 via go2rtc).
 
-> Hinweis: Auf aktueller A1/X1-Firmware ist die Kamera teils RTSP (Port 322). Dann den **Stream-URL-Modus** mit einem Re-Streamer (go2rtc) nutzen.
+### Voraussetzungen
+
+| Punkt | Details |
+|-------|---------|
+| **LAN Mode Liveview** | Am Drucker aktivieren (Cloud-Betrieb möglich, LAN-Only/Entwicklermodus nicht zwingend) |
+| **IP + Zugangscode** | Drucker → Einstellungen → Netzwerk/LAN |
+| **Netz** | Nur LAN-Adressen (10.x, 172.16–31.x, 192.168.x) |
+
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Quelle** | `P1/A1 (lokal)` oder `Stream-URL` |
+| **Drucker-IP / Zugangscode** | bei P1/A1 — Code wird **verschlüsselt** gespeichert |
+| **Stream-URL** | bei X1 & Co.: MJPEG/Snapshot, optional „MJPEG-Dauerstream" |
+| **Intervall / Bild-Modus** | Snapshot alle 1–30 s · `contain`/`cover` |
+
+### Hinweis X1
+
+Auf aktueller A1/X1-Firmware ist die Kamera teils **RTSP (Port 322)** — dann einen Re-Streamer (go2rtc/OctoEverywhere) nutzen und dessen MJPEG-/Snapshot-URL im **Stream-URL-Modus** eintragen.
+
+### API
+
+`GET /api/plugins/bambu-cam?action=snapshot|proxy` — liefert `image/jpeg` bzw. proxyt die Stream-URL.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Kein Bild | „LAN Mode Liveview" an? IP/Zugangscode korrekt? |
+| X1 schwarz | RTSP — go2rtc + Stream-URL-Modus |
+
+---
+
+## English
+
+### Summary
+
+**Live camera image** from Bambu Lab printers, auto-refreshing. Two sources: **P1/A1 local** (port 6000) or any **MJPEG/snapshot URL** (e.g. X1 via go2rtc).
+
+### Requirements
+
+| Item | Details |
+|------|---------|
+| **LAN Mode Liveview** | Enable on the printer (cloud mode is fine; LAN-only/developer not required) |
+| **IP + access code** | Printer → Settings → Network/LAN |
+| **Network** | LAN addresses only (10.x, 172.16–31.x, 192.168.x) |
+
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **Source** | `P1/A1 (local)` or `Stream URL` |
+| **Printer IP / access code** | for P1/A1 — code stored **encrypted** |
+| **Stream URL** | for X1 etc.: MJPEG/snapshot, optional "continuous MJPEG" |
+| **Interval / fit** | snapshot every 1–30 s · `contain`/`cover` |
+
+### X1 note
+
+Current A1/X1 firmware often exposes the camera as **RTSP (port 322)** — use a re-streamer (go2rtc/OctoEverywhere) and paste its MJPEG/snapshot URL in **Stream URL mode**.
+
+### API
+
+`GET /api/plugins/bambu-cam?action=snapshot|proxy` — returns `image/jpeg` or proxies the stream URL.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| No image | "LAN Mode Liveview" on? IP/access code correct? |
+| X1 black | RTSP — use go2rtc + Stream URL mode |

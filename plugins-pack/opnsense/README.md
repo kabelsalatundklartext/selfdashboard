@@ -1,45 +1,55 @@
-# OPNsense
+# Plugin: OPNsense (`opnsense`)
 
-Zeigt den Status einer [OPNsense](https://opnsense.org/)-Firewall:
-Produktname + Version, Update-Status (Badge „Update verfügbar" / „Aktuell")
-und die Gateways mit Up/Down-Punkt und Latenz.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. **API-Schlüssel erzeugen:** OPNsense → **System → Zugang → Benutzer** →
-   Benutzer öffnen → Abschnitt **API-Schlüssel** → „+" klicken.
-   OPNsense lädt eine Datei mit `key` und `secret` herunter — das Secret wird nur einmal angezeigt.
-2. Widget-Einstellungen: **Basis-URL** (z. B. `https://192.168.1.1`), **API-Key** und
-   **API-Secret** eintragen.
-3. OPNsense nutzt meist HTTPS mit selbstsigniertem Zertifikat — die Option
-   **„Selbstsigniertes Zertifikat erlauben"** ist daher standardmäßig aktiviert.
-   Bei gültigem Zertifikat (z. B. Let's Encrypt) kann sie deaktiviert werden.
-4. Optional: Widget-Titel anpassen (leer = ausblenden), Aktualisierungsintervall (Standard 60 s).
+### Kurzbeschreibung
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/opnsense`) mit SSRF-Schutz;
-das API-Secret wird verschlüsselt gespeichert. Verwendete Endpunkte:
-`/api/core/firmware/status` (Version + Updates) und `/api/routes/gateway/status` (Gateways, optional).
+Überblick deiner **OPNsense**-Firewall: Systemstatus, WAN/Gateway, Durchsatz. **(Beta)**
 
-> Beta-Hinweis: Bei abweichenden API-Antworten bitte Issue mit
-> OPNsense-Version + Antwort-JSON melden.
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Basis-URL** | z. B. `https://192.168.1.1` |
+| **API-Key / API-Secret** | OPNsense → System → Zugriff → Benutzer → API — **Secret verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/opnsense` — Proxy zur OPNsense-API (Key/Secret).
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| 401 | API-Key/Secret prüfen |
+| TLS | Selbstsigniertes Zertifikat akzeptiert? |
 
 ---
 
-# OPNsense (English)
+## English
 
-Shows the status of an OPNsense firewall: product name + version, update status
-(badge "Update available" / "Up to date") and gateways with up/down dot and latency.
+### Summary
 
-1. **Create an API key:** OPNsense → **System → Access → Users** →
-   open the user → **API keys** section → click "+".
-   OPNsense downloads a file with `key` and `secret` — the secret is shown only once.
-2. Widget settings: enter **base URL** (e.g. `https://192.168.1.1`), **API key** and **API secret**.
-3. OPNsense usually runs HTTPS with a self-signed certificate — the option
-   **"Allow self-signed certificate"** is enabled by default.
-   Disable it if you use a valid certificate (e.g. Let's Encrypt).
-4. Optional: widget title (empty = hidden), refresh interval (default 60 s).
+Overview of your **OPNsense** firewall: system status, WAN/gateway, throughput. **(Beta)**
 
-Requests run server-side with SSRF protection; the API secret is stored encrypted.
-Endpoints used: `/api/core/firmware/status` and `/api/routes/gateway/status` (optional).
+### Setup (⚙️)
 
-> Beta note: please report issues with your OPNsense version + response JSON.
+| Field | Details |
+|-------|---------|
+| **Base URL** | e.g. `https://192.168.1.1` |
+| **API key / secret** | OPNsense → System → Access → Users → API — **secret stored encrypted** |
+| **Refresh** | interval in seconds |
+
+### API
+
+`POST /api/plugins/opnsense` — proxy to the OPNsense API (key/secret).
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| 401 | Check API key/secret |
+| TLS | Self-signed cert accepted? |

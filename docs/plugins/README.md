@@ -7,6 +7,7 @@ Each plugin has a **README with German and English** sections:
 | Plugin | Doc |
 |--------|-----|
 | [AdGuard Home](adguard/README.md) | `adguard` |
+| [Amazon Alexa](alexa/README.md) | `alexa` |
 | [Apple Music](apple-music/README.md) | `apple-music` |
 | [Bambu Lab Kamera](bambu-cam/README.md) | `bambu-cam` |
 | [Bookmarks](bookmarks/README.md) | `bookmarks` |
@@ -19,6 +20,7 @@ Each plugin has a **README with German and English** sections:
 | [FRITZ! Energy](fritz-energy/README.md) | `fritz-energy` |
 | [FRITZ! Smart Home](fritz-smarthome/README.md) | `fritz-smarthome` |
 | [FRITZ!Box](fritzbox/README.md) | `fritzbox` |
+| [Google Home / Nest](google-home/README.md) | `google-home` |
 | [Home Assistant](home-assistant/README.md) | `home-assistant` |
 | [Homematic / RaspberryMatic](homematic/README.md) | `homematic` |
 | [Iframe](iframe/README.md) | `iframe` |

@@ -318,6 +318,7 @@ async function bundleServer(pluginId, destDir) {
       'node-fetch',
       'axios',
       'graphql-ws',
+      'alexa-remote2',
     ],
     loader: { '.ts': 'ts' },
     logLevel: 'warning',

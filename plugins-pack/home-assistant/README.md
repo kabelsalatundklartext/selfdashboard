@@ -1,42 +1,85 @@
-# Home Assistant
+# Plugin: Home Assistant (`home-assistant`)
 
-Zeigt ausgewählte [Home-Assistant](https://www.home-assistant.io/)-Entitäten
-(Sensoren, Schalter, …) als kompakte Liste: Name links, aktueller Zustand + Einheit rechts.
-`on` wird grün, `off` gedimmt und `unavailable` rot dargestellt.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. **Token anlegen:** Home Assistant → **Profil → Sicherheit → Long-Lived Access Tokens**
-   → „Token erstellen“. Den Token sicher kopieren (er wird nur einmal angezeigt).
-2. **Entity-IDs finden:** Home Assistant → **Entwicklerwerkzeuge → Zustände** —
-   dort stehen alle IDs im Format `domain.objekt_id`
-   (z. B. `sensor.temperatur_wohnzimmer`, `switch.steckdose`).
-3. Widget-Einstellungen: **Basis-URL** (z. B. `http://192.168.1.80:8123`), **Token**
-   und die **Entity-IDs** (Komma- oder Zeilen-getrennt, max. 25) eintragen.
-4. Optional: Widget-Titel anpassen (leer = ausblenden), Aktualisierungsintervall (Standard 30 s).
+### Kurzbeschreibung
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/home-assistant`, REST-API `/api/states/<entity_id>`)
-mit SSRF-Schutz; der Token wird verschlüsselt gespeichert.
+Zeigt **ausgewählte Home-Assistant-Entitäten** (Sensoren, Schalter, Lichter …) mit Zustand/Wert. **(Beta)**
 
-> Beta-Hinweis: Bitte Probleme (z. B. unerwartete Zustände/Attribute) als Issue mit
-> Home-Assistant-Version + Antwort-JSON melden.
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Basis-URL** | z. B. `http://homeassistant.local:8123` |
+| **Long-Lived Access Token** | HA → Profil → Sicherheit → Token erstellen |
+| **Entitäten** | Entity-IDs auswählen/eintragen |
+
+Token wird **verschlüsselt** gespeichert.
+
+### Bosch Smart Home über dieses Plugin
+
+Für **Bosch Smart Home** gibt es bewusst **kein eigenes Plugin**: Der Bosch Smart Home Controller (SHC) spricht lokal nur über **mTLS mit Client-Zertifikat** (einmaliges Pairing per Knopfdruck am Controller). Das passt nicht in das Token-/Passwort-Modell der übrigen Plugins.
+
+Der saubere Weg ist die **offizielle Bosch-SHC-Integration in Home Assistant**:
+
+1. In Home Assistant → **Einstellungen → Geräte & Dienste → Integration hinzufügen → „Bosch Smart Home"**.
+2. Controller-IP eintragen und **am SHC den Pairing-Knopf** drücken (HA übernimmt das Zertifikat-Handling).
+3. Bosch-Geräte (Thermostate, Tür-/Fensterkontakte, Zwischenstecker, Bewegungsmelder …) erscheinen danach als normale HA-Entitäten.
+4. Im SelfDashboard dieses **Home-Assistant-Plugin** hinzufügen und die Bosch-Entitäten (`climate.*`, `binary_sensor.*`, `switch.*`, `sensor.*`) auswählen.
+
+→ Bosch läuft so vollständig, ohne neuen Code und ohne SSRF-/Zertifikats-Sonderfälle.
+
+### API
+
+`POST /api/plugins/home-assistant` — Proxy zur HA-REST-API (`/api/states`).
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| 401 | Token gültig? |
+| Leer | Entity-IDs korrekt geschrieben? |
 
 ---
 
-# Home Assistant (English)
+## English
 
-Shows selected Home Assistant entities (sensors, switches, …) as a compact list:
-name on the left, current state + unit on the right.
-`on` is shown green, `off` dimmed, `unavailable` red.
+### Summary
 
-1. **Create a token:** Home Assistant → **Profile → Security → Long-Lived Access Tokens**
-   → "Create token" (shown only once — copy it).
-2. **Find entity IDs:** Home Assistant → **Developer Tools → States** —
-   IDs use the format `domain.object_id` (e.g. `sensor.living_room_temperature`).
-3. Widget settings: enter **base URL** (e.g. `http://192.168.1.80:8123`), **token**
-   and the **entity IDs** (comma- or line-separated, max. 25).
-4. Optional: widget title (empty = hidden), refresh interval (default 30 s).
+Shows **selected Home Assistant entities** (sensors, switches, lights …) with state/value. **(Beta)**
 
-Requests run server-side with SSRF protection; the token is stored encrypted.
+### Setup (⚙️)
 
-> Beta note: please report issues with your Home Assistant version + response JSON.
+| Field | Details |
+|-------|---------|
+| **Base URL** | e.g. `http://homeassistant.local:8123` |
+| **Long-lived access token** | HA → Profile → Security → create token |
+| **Entities** | pick/enter entity IDs |
+
+Token stored **encrypted**.
+
+### Bosch Smart Home via this plugin
+
+There is deliberately **no dedicated Bosch plugin**: the Bosch Smart Home Controller (SHC) only speaks locally over **mTLS with a client certificate** (one-time pairing by pressing the button on the controller). That does not fit the token/password model of the other plugins.
+
+The clean path is the **official Bosch SHC integration in Home Assistant**:
+
+1. In Home Assistant → **Settings → Devices & Services → Add Integration → "Bosch Smart Home"**.
+2. Enter the controller IP and **press the pairing button on the SHC** (HA handles the certificate).
+3. Bosch devices (thermostats, door/window contacts, plugs, motion sensors …) then appear as normal HA entities.
+4. Add this **Home Assistant plugin** in SelfDashboard and pick the Bosch entities (`climate.*`, `binary_sensor.*`, `switch.*`, `sensor.*`).
+
+→ Bosch works fully this way — no new code, no SSRF/certificate special cases.
+
+### API
+
+`POST /api/plugins/home-assistant` — proxy to the HA REST API (`/api/states`).
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| 401 | Token valid? |
+| Empty | Entity IDs spelled correctly? |

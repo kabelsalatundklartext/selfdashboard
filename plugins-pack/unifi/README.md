@@ -1,48 +1,57 @@
-# UniFi Controller
+# Plugin: UniFi Controller (`unifi`)
 
-Zeigt den Netzwerkstatus aus dem UniFi-Controller: Subsysteme **WLAN / LAN / WAN**
-mit Status-Ampel, Anzahl Geräte (APs, Switches, Gateways) und verbundenen Clients.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. Im Controller einen **eigenen lokalen Benutzer** anlegen (UniFi OS → Admins bzw.
-   Legacy: Settings → Admins) — am besten **nur mit Lese-Rechten** auf die
-   Netzwerk-Anwendung. **Keinen Ubiquiti-Cloud-Account mit 2FA** verwenden,
-   der Login läuft direkt gegen den Controller.
-2. Widget-Einstellungen: **Controller-URL** (z. B. `https://192.168.1.1` für UDM,
-   `https://controller:8443` für Legacy), **Benutzername**, **Passwort**, ggf. **Site**
-   (interner Name, Standard `default`).
-3. Bei selbstsigniertem Zertifikat die Checkbox **„Selbstsigniertes Zertifikat erlauben“**
-   aktiviert lassen (Standard).
+### Kurzbeschreibung
 
-**UDM/UniFi OS vs. Legacy-Controller wird automatisch erkannt** — der Login wird
-zuerst gegen `/api/auth/login` (UniFi OS) versucht, bei 404 gegen `/api/login` (Legacy).
+Überblick deines **UniFi**-Netzwerks: verbundene Clients, Geräte (APs/Switches) und Durchsatz. **(Beta)**
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/unifi`) mit SSRF-Schutz;
-das Passwort wird verschlüsselt gespeichert.
+### Einrichtung (⚙️)
 
-> **Beta-Hinweis:** Getestet gegen UniFi OS (UDM) und Legacy-Controller; bei
-> abweichendem Verhalten bitte Issue mit Controller-Version melden.
+| Feld | Details |
+|------|---------|
+| **Controller-URL** | z. B. `https://192.168.1.2:8443` (oder UDM) |
+| **Benutzer / Passwort** | lokaler UniFi-Benutzer — **verschlüsselt** gespeichert |
+| **Site** | meist `default` |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/unifi` — Login + `/api/s/<site>/stat/sta` & `/stat/device`.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Login-Fehler | lokaler Benutzer (kein Cloud-Login), 2FA aus |
+| TLS | Selbstsigniertes Zertifikat akzeptiert? |
 
 ---
 
-# UniFi Controller (English)
+## English
 
-Shows network status from your UniFi controller: **WLAN / LAN / WAN** subsystems
-with status light, device count (APs, switches, gateways) and connected clients.
+### Summary
 
-1. Create a **dedicated local user** in the controller (UniFi OS → Admins or
-   legacy: Settings → Admins), preferably **read-only** on the Network application.
-   **Do not use a Ubiquiti cloud account with 2FA** — login goes directly to the controller.
-2. Widget settings: **controller URL** (e.g. `https://192.168.1.1` for UDM,
-   `https://controller:8443` for legacy), **username**, **password**, optionally **site**
-   (internal name, default `default`).
-3. Keep **"Allow self-signed certificate"** enabled for self-signed certs (default).
+Overview of your **UniFi** network: connected clients, devices (APs/switches) and throughput. **(Beta)**
 
-**UDM/UniFi OS vs. legacy controllers are detected automatically** — login is tried
-against `/api/auth/login` (UniFi OS) first, falling back to `/api/login` (legacy) on 404.
+### Setup (⚙️)
 
-Requests run server-side with SSRF protection; the password is stored encrypted.
+| Field | Details |
+|-------|---------|
+| **Controller URL** | e.g. `https://192.168.1.2:8443` (or UDM) |
+| **User / password** | local UniFi user — stored **encrypted** |
+| **Site** | usually `default` |
+| **Refresh** | interval in seconds |
 
-> **Beta note:** Tested against UniFi OS (UDM) and legacy controllers; please file
-> an issue with your controller version if something behaves differently.
+### API
+
+`POST /api/plugins/unifi` — login + `/api/s/<site>/stat/sta` & `/stat/device`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Login error | Use a local user (not cloud login), 2FA off |
+| TLS | Self-signed cert accepted? |

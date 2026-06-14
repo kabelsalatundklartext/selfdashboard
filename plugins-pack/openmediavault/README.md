@@ -1,44 +1,55 @@
-# OpenMediaVault
+# Plugin: OpenMediaVault (`openmediavault`)
 
-Zeigt Systeminfos aus [OpenMediaVault](https://www.openmediavault.org/):
-**Hostname, Version, Uptime, CPU- und RAM-Last, Load Average** — per OMV-RPC
-(`/rpc.php`, `session.login` + `system.getInformation`).
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. Das Plugin nutzt den **Web-UI-Login** von OMV — also `admin` oder ein
-   eigener Benutzer mit Zugriff auf die Web-Oberfläche.
-2. Widget-Einstellungen: **Basis-URL** (z. B. `http://192.168.1.90`),
-   **Benutzername** (Standard `admin`) und **Passwort** eintragen.
-3. Bei HTTPS mit selbstsigniertem Zertifikat die Checkbox
-   **„Selbstsigniertes Zertifikat erlauben“** aktiviert lassen (Standard).
+### Kurzbeschreibung
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/openmediavault`) mit SSRF-Schutz;
-das Passwort wird verschlüsselt gespeichert.
+Status deines **OpenMediaVault (OMV)** NAS: System-Infos, Dienste und Dateisysteme/Belegung. **(Beta)**
 
-> **Beta-Hinweis:** Die Felder der RPC-Antwort (`system.getInformation`)
-> **variieren je OMV-Version** — das Plugin parst sie defensiv und blendet
-> fehlende Werte aus. Wenn CPU/RAM/Uptime bei dir leer bleiben:
-> bitte Feedback/Issue **mit OMV-Version** (und gern dem Antwort-JSON) melden.
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Basis-URL** | z. B. `http://192.168.1.6` |
+| **Benutzer / Passwort** | OMV-Admin — **verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/openmediavault` — OMV-RPC (Login + Dienste/Dateisysteme).
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Login-Fehler | Benutzer/Passwort, Erreichbarkeit |
+| HTTPS | Selbstsigniertes Zertifikat? im LAN oft HTTP |
 
 ---
 
-# OpenMediaVault (English)
+## English
 
-Shows system info from OpenMediaVault: **hostname, version, uptime, CPU and RAM
-usage, load average** — via the OMV RPC (`/rpc.php`, `session.login` +
-`system.getInformation`).
+### Summary
 
-1. The plugin uses the **web UI login** — `admin` or a dedicated user with
-   web interface access.
-2. Widget settings: enter **base URL** (e.g. `http://192.168.1.90`),
-   **username** (default `admin`) and **password**.
-3. Keep **"Allow self-signed certificate"** enabled for HTTPS with
-   self-signed certs (default).
+Status of your **OpenMediaVault (OMV)** NAS: system info, services and filesystems/usage. **(Beta)**
 
-Requests run server-side with SSRF protection; the password is stored encrypted.
+### Setup (⚙️)
 
-> **Beta note:** The fields returned by `system.getInformation` **vary between
-> OMV versions** — the plugin parses them defensively and hides missing values.
-> If CPU/RAM/uptime stay empty for you, please file feedback/an issue
-> **including your OMV version** (response JSON appreciated).
+| Field | Details |
+|-------|---------|
+| **Base URL** | e.g. `http://192.168.1.6` |
+| **User / password** | OMV admin — stored **encrypted** |
+| **Refresh** | interval in seconds |
+
+### API
+
+`POST /api/plugins/openmediavault` — OMV RPC (login + services/filesystems).
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Login error | Check user/password and reachability |
+| HTTPS | Self-signed cert? HTTP on LAN often works |

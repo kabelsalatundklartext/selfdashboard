@@ -1,39 +1,55 @@
-# Nginx Proxy Manager
+# Plugin: Nginx Proxy Manager (`npm`)
 
-Zeigt die Host-Statistik aus [Nginx Proxy Manager](https://nginxproxymanager.com/):
-**Proxy Hosts**, **Redirections**, **Streams** und **404 Hosts** als kompakte Kacheln.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. Widget-Einstellungen: **Basis-URL** der NPM-Admin-Oberfläche eintragen
-   (z. B. `http://192.168.1.50:81` — Standard-Port 81, HTTP genügt).
-2. **E-Mail** und **Passwort** eintragen — **dieselben Zugangsdaten wie der
-   Login in der NPM-Web-UI**. Ein eigener (eingeschränkter) NPM-Benutzer reicht.
-3. Optional: Widget-Titel anpassen (leer = ausblenden), Aktualisierungsintervall (Standard 60 s).
+### Kurzbeschreibung
 
-Login (`POST /api/tokens`) und Abfrage (`GET /api/reports/hosts`) laufen **serverseitig**
-(`/api/plugins/npm`) mit SSRF-Schutz; das Passwort wird verschlüsselt gespeichert und
-verlässt den Server nicht.
+Zeigt die **Proxy-Hosts** deines **Nginx Proxy Manager**: Anzahl, Online/Offline-Status und SSL. **(Beta)**
 
-> **Beta-Hinweis:** Getestet mit NPM v2.x. Bei abweichenden API-Antworten bitte Issue
-> mit NPM-Version + Antwort-JSON melden.
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Basis-URL** | z. B. `http://192.168.1.5:81` |
+| **Benutzer / Passwort** | NPM-Login — **verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/npm` — Login holt Token, liest `/api/nginx/proxy-hosts`.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| 401 | Zugangsdaten prüfen |
+| Leer | Proxy-Hosts angelegt? |
 
 ---
 
-# Nginx Proxy Manager (English)
+## English
 
-Shows host statistics from Nginx Proxy Manager: **proxy hosts**, **redirections**,
-**streams** and **404 hosts** as compact tiles.
+### Summary
 
-1. Widget settings: enter the **base URL** of the NPM admin UI
-   (e.g. `http://192.168.1.50:81` — default port 81, plain HTTP is fine).
-2. Enter **email** and **password** — **the same credentials you use to log in to the
-   NPM web UI**. A dedicated (restricted) NPM user works too.
-3. Optional: widget title (empty = hidden), refresh interval (default 60 s).
+Shows the **proxy hosts** of your **Nginx Proxy Manager**: count, online/offline status and SSL. **(Beta)**
 
-Login (`POST /api/tokens`) and the report request (`GET /api/reports/hosts`) run
-server-side (`/api/plugins/npm`) with SSRF protection; the password is stored encrypted
-and never leaves the server.
+### Setup (⚙️)
 
-> **Beta:** tested against NPM v2.x. If responses differ, please open an issue with
-> your NPM version + response JSON.
+| Field | Details |
+|-------|---------|
+| **Base URL** | e.g. `http://192.168.1.5:81` |
+| **User / password** | NPM login — stored **encrypted** |
+| **Refresh** | interval in seconds |
+
+### API
+
+`POST /api/plugins/npm` — login fetches a token, reads `/api/nginx/proxy-hosts`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| 401 | Check credentials |
+| Empty | Any proxy hosts configured? |

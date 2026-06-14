@@ -1,37 +1,63 @@
-# Philips Hue
+# Plugin: Philips Hue (`hue`)
 
-Steuert Philips-Hue-Lampen und Räume über die **lokale Bridge-API** — kein
-Philips-Cloud-Account nötig. An/aus schalten, Helligkeit per Schieberegler,
-Umschalter zwischen **Räumen** und einzelnen **Lampen**.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. **Bridge-IP** herausfinden (Hue-App → Einstellungen → Bridge, oder Router-Geräteliste).
-2. Im Widget → Einstellungen die **Bridge-IP** eintragen (z. B. `192.168.1.50`).
-3. Den **runden Knopf** auf der Hue Bridge drücken.
-4. Innerhalb von 30 Sekunden auf **„🔗 Bridge koppeln"** klicken — der API-Key
-   wird automatisch erzeugt und **verschlüsselt** gespeichert.
+### Kurzbeschreibung
 
-Optional: Standard-Ansicht (Räume/Lampen), Aktualisierungsintervall, Widget-Titel.
+Steuert **Philips-Hue**-Lampen und -Räume über die **lokale Bridge-API**: an/aus, Helligkeit, **echte Lichtfarbe** und **Szenen**. Ansichten Karten/Kompakt/Kacheln, Räume/Lampen umschaltbar. **(Beta)**
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/hue`) mit SSRF-Schutz; gesteuert
-wird über die Hue-v1-API (`/api/<key>/groups` bzw. `/lights`).
+### Einrichtung (⚙️)
 
-> Beta-Hinweis: getestet gegen die lokale Hue-v1-Bridge-API. Bei Problemen bitte
-> Bridge-Modell/Firmware angeben.
+| Feld | Details |
+|------|---------|
+| **Bridge-IP** | lokale IP der Hue-Bridge |
+| **Koppeln** | Knopf auf der Bridge drücken, dann im Plugin koppeln → API-Key (**verschlüsselt** gespeichert) |
+| **Darstellung** | Karten / Kompakt / Kacheln; Farbe-als-Hintergrund, Versionsnummer, ausgeblendete Räume/Lampen |
+
+### Farbe & Szenen
+
+Pro Raum öffnet ein **Paletten-Button** ein Panel mit **Farb-Voreinstellungen + eigener Farbe + Szenen** (Raum-Szenen aus der Hue-App). Standardmäßig zugeklappt.
+
+### API
+
+`POST /api/plugins/hue` — `action: state|set|pair` (v1-Bridge-API: groups/lights/scenes).
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| Koppeln scheitert | Bridge-Knopf drücken, innerhalb 30 s erneut |
+| Keine Szenen | in der Hue-App Raum-Szenen anlegen |
 
 ---
 
-# Philips Hue (English)
+## English
 
-Control Philips Hue lights and rooms via the **local bridge API** — no Philips
-cloud account needed. Toggle on/off, brightness slider, switch between **rooms**
-and individual **lights**.
+### Summary
 
-1. Find the **bridge IP** (Hue app → Settings → Bridge, or your router).
-2. Widget settings → enter the **bridge IP**.
-3. Press the **round button** on the Hue Bridge.
-4. Click **“🔗 Pair bridge”** within 30 seconds — the API key is created and
-   stored encrypted.
+Controls **Philips Hue** lights and rooms via the **local bridge API**: on/off, brightness, **true light colour** and **scenes**. Cards/compact/tiles views, rooms/lights toggle. **(Beta)**
 
-Requests run server-side with SSRF protection via the Hue v1 API.
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **Bridge IP** | local IP of the Hue bridge |
+| **Pair** | press the bridge button, then pair in the plugin → API key (stored **encrypted**) |
+| **Display** | cards / compact / tiles; colour-as-background, version, hidden rooms/lights |
+
+### Colour & scenes
+
+Per room a **palette button** opens a panel with **colour presets + custom colour + scenes** (room scenes from the Hue app). Collapsed by default.
+
+### API
+
+`POST /api/plugins/hue` — `action: state|set|pair` (v1 bridge API: groups/lights/scenes).
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Pairing fails | Press the bridge button, retry within 30 s |
+| No scenes | Create room scenes in the Hue app |

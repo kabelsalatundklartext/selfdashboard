@@ -216,6 +216,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | 📈 | [FRITZ! WAN](plugins-pack/fritzbox/README.md) | Network | Throughput chart |
 | ⚡ | [FRITZ! Energy](plugins-pack/fritz-energy/README.md) | Network | Smart plug kWh |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostats, plugs, contacts (AHA) **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/google-home.png" width="22"/> | [Google Home / Nest](plugins-pack/google-home/README.md) | Utility | Nest thermostats, sensors, device status (SDM API) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Selected entities **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heating, switches, sensors, rooms (RaspberryMatic) **(Beta)** |
 | <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/bambu-cam/icon.svg" width="22"/> | [Bambu Lab Camera](plugins-pack/bambu-cam/README.md) | Utility | Live printer camera (P1/A1 local or stream URL) **(Beta)** |
@@ -709,6 +710,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | 📈 | [FRITZ! Internet](plugins-pack/fritzbox/README.md) | Netzwerk | WAN-Durchsatz-Kurve |
 | ⚡ | [FRITZ! Energie](plugins-pack/fritz-energy/README.md) | Netzwerk | Steckdose kWh/W |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/fritzbox.png" width="22"/> | [FRITZ! Smart Home](plugins-pack/fritz-smarthome/README.md) | Utility | Thermostate, Steckdosen, Kontakte (AHA) **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/google-home.png" width="22"/> | [Google Home / Nest](plugins-pack/google-home/README.md) | Utility | Nest-Thermostate, Sensoren, Gerätestatus (SDM-API) **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/home-assistant.png" width="22"/> | [Home Assistant](plugins-pack/home-assistant/README.md) | Utility | Ausgewählte Entitäten **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/raspberrymatic.png" width="22"/> | [Homematic](plugins-pack/homematic/README.md) | Utility | Heizung, Schalter, Sensoren, Räume (RaspberryMatic) **(Beta)** |
 | <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/bambu-cam/icon.svg" width="22"/> | [Bambu Lab Kamera](plugins-pack/bambu-cam/README.md) | Utility | Live-Druckerkamera (P1/A1 lokal oder Stream-URL) **(Beta)** |

@@ -1,30 +1,55 @@
-# Speedtest Tracker
+# Plugin: Speedtest Tracker (`speedtest-tracker`)
 
-Zeigt den letzten Speedtest aus [Speedtest Tracker](https://docs.speedtest-tracker.dev/):
-Download, Upload, Ping, Zeitpunkt und Test-Server.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Setup
+## Deutsch
 
-1. Speedtest Tracker → **Einstellungen → API Tokens** → Token erstellen (bei neueren Versionen Pflicht).
-2. Widget-Einstellungen: **Basis-URL** (z. B. `http://192.168.1.30:8765`) + **API-Token** eintragen.
-3. Optional: Widget-Titel anpassen, Aktualisierungsintervall (Standard 5 Min — Speedtests laufen ja nicht sekündlich).
+### Kurzbeschreibung
 
-Die Abfrage läuft **serverseitig** (`/api/plugins/speedtest-tracker`) mit SSRF-Schutz;
-der Token wird verschlüsselt gespeichert. Unterstützt werden die API-Pfade
-`/api/v1/results/latest` (aktuelle Versionen) und `/api/speedtest/latest` (ältere).
+Zeigt die letzten Ergebnisse von **Speedtest Tracker**: Download/Upload (Mbit/s), Ping und einen kleinen Verlauf.
 
-> Beta-Hinweis: Bei abweichenden API-Antworten bitte Issue mit
-> Speedtest-Tracker-Version + Antwort-JSON melden.
+### Einrichtung (⚙️)
+
+| Feld | Details |
+|------|---------|
+| **Basis-URL** | z. B. `http://192.168.1.7` |
+| **API-Token** | Speedtest Tracker → Profil → API-Token — **verschlüsselt** gespeichert |
+| **Aktualisieren** | Intervall in Sek. |
+
+### API
+
+`POST /api/plugins/speedtest-tracker` — Proxy zu `/api/v1/results`.
+
+### Fehlerbehebung
+
+| Problem | Lösung |
+|---------|--------|
+| 401 | Token gültig? |
+| Leer | schon ein Test gelaufen? |
 
 ---
 
-# Speedtest Tracker (English)
+## English
 
-Shows the latest result from Speedtest Tracker: download, upload, ping, timestamp, test server.
+### Summary
 
-1. Speedtest Tracker → **Settings → API Tokens** → create a token (required on newer versions).
-2. Widget settings: enter **base URL** + **API token**.
-3. Optional: widget title, refresh interval (default 5 min).
+Shows the latest **Speedtest Tracker** results: download/upload (Mbit/s), ping and a small history.
 
-Requests run server-side with SSRF protection; the token is stored encrypted.
-Supported endpoints: `/api/v1/results/latest` (current) and `/api/speedtest/latest` (legacy).
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **Base URL** | e.g. `http://192.168.1.7` |
+| **API token** | Speedtest Tracker → Profile → API token — stored **encrypted** |
+| **Refresh** | interval in seconds |
+
+### API
+
+`POST /api/plugins/speedtest-tracker` — proxy to `/api/v1/results`.
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| 401 | Token valid? |
+| Empty | Has a test run yet? |

@@ -1,38 +1,61 @@
-# Homematic (RaspberryMatic) — Beta
+# Plugin: Homematic / RaspberryMatic (`homematic`)
 
-Steuert und zeigt Homematic-/RaspberryMatic-Geräte über die **eingebaute JSON-RPC-API** der CCU (`/api/homematic.cgi`). Anmeldung per CCU-Benutzer + Passwort — kein zusätzliches Addon nötig, und nicht jeder im Netz kann zugreifen.
+[← Plugin index](README.md) · [Main catalog](../../README.md#plugins)
 
-## Was es kann
+## Deutsch
 
-- **Heizung steuern:** Thermostate mit Ist-Temperatur, Fensterstatus, Ventil-% und **Soll-Temperatur per − / +**, dazu **Auto / Manuell / Boost** (HmIP über `CONTROL_MODE` + `BOOST_MODE`).
-- **Schalten & dimmen:** Schaltaktoren (an/aus), Dimmer (Helligkeits-Slider **+ An/Aus**) und **RGBW-Farbe** (Farbwähler, HUE+SATURATION zusammen via `putParamset`).
-- **Fensterkontakte:** „Offen / Zu" mit Icon (offenes vs. geschlossenes Fenster), statt eines Schalters.
-- **Sensoren anzeigen:** Temperatur, Luftfeuchte, Helligkeit, Leistung usw.
-- **Systemvariablen** mit Wert/Einheit und **Programme** per Knopfdruck starten.
+### Kurzbeschreibung
 
-## Räume & Layout
+Steuert **Homematic / RaspberryMatic** per **JSON-RPC**: Heizungsthermostate (Soll-Temp + Auto/Manuell/Boost), Schalter, Dimmer (an/aus + Farbe), Fensterkontakte, Sensoren, Systemvariablen und Programme. Automatische Gruppierung **nach CCU-Raum** (per Drag-and-Drop sortierbar, mehrspaltig), Geräte umbenennbar. **(Beta)**
 
-- **Automatische Räume:** Geräte werden nach deinen **RaspberryMatic-Räumen** (`Room.getAll`) gruppiert — kein manuelles Sortieren.
-- **„Alle Geräte übernehmen (nach Raum)"** in den Einstellungen: ein Klick, und alle Geräte sind pro Raum drin.
-- **Räume per Drag-and-Drop sortieren** im Bearbeiten-Modus des Dashboards.
-- **Spalten-Layout:** Räume 1 / 2 / 3 / Auto nebeneinander.
-- **Geräte umbenennen:** eigene Namen pro Gerät (überleben „Alle Geräte übernehmen").
+### Einrichtung (⚙️)
 
-## Einrichtung
+| Feld | Details |
+|------|---------|
+| **CCU-Adresse** | IP/Host der CCU/RaspberryMatic |
+| **Benutzer / Passwort** | CCU-Login — **verschlüsselt** gespeichert |
+| **Geräte / Variablen / Programme** | im Plugin auswählen |
+| **Spalten / Bearbeiten** | mehrspaltig; im Bearbeitungsmodus Räume per Drag-and-Drop sortieren |
 
-1. **Eigenen Benutzer anlegen (empfohlen):** In RaspberryMatic unter *Einstellungen → Benutzerverwaltung* einen eigenen, eingeschränkten Benutzer nur fürs Dashboard erstellen.
-2. Im Widget unter *Einstellungen* eintragen:
-   - **CCU-Adresse** — IP oder Hostname der RaspberryMatic (z. B. `192.168.1.40`)
-   - **Benutzer** und **Passwort**
-3. Auf **Neu laden** klicken — das Widget lädt alle Geräte/Kanäle (nach Raum gruppiert), Systemvariablen und Programme.
-4. Per Häkchen auswählen oder **„Alle Geräte übernehmen"**. Mit dem Filter schnell suchen.
+Werte kommen von der CCU als Strings und werden serverseitig korrekt typisiert (z. B. HUE = integer).
 
-Das Passwort wird **verschlüsselt** gespeichert (`SELFDASHBOARD_SECRET_KEY`). Der Zugriff erfolgt ausschließlich serverseitig (SSRF-geschützt).
+### API
 
-## Hinweise (Beta)
+`POST /api/plugins/homematic` — `action: list|state|set` (Session.login → Device/Interface/Room/SysVar/Program).
 
-- Erkennung über die Datenpunkte: Soll-Temperatur → Thermostat; `LEVEL` → Dimmer; schaltbares `STATE` → Schalter; Kontakt-Gerätetypen (SWDM, SCI …) → Fensterstatus.
-- Auto/Manuell ist für **HmIP** umgesetzt; klassische HM-CC-RT-DN nutzen `AUTO_MODE`/`MANU_MODE`.
-- Werte werden je Abfrage über `Interface.getParamset` gelesen; bei sehr vielen Kanälen entsprechend mehr Anfragen — Aktualisierungsintervall ggf. erhöhen.
+### Fehlerbehebung
 
-API: `POST /api/plugins/homematic` (Aktionen `list`, `state`, `set` mit `kind` = `device` / `multi` / `program`).
+| Problem | Lösung |
+|---------|--------|
+| Login-Fehler | CCU-Benutzer/Passwort, Erreichbarkeit |
+| Keine Räume | Geräte in der CCU einem Raum zugewiesen? |
+
+---
+
+## English
+
+### Summary
+
+Controls **Homematic / RaspberryMatic** via **JSON-RPC**: heating thermostats (target temp + Auto/Manual/Boost), switches, dimmers (on/off + colour), window contacts, sensors, system variables and programs. Auto-grouped **by CCU room** (drag-and-drop sortable, multi-column), devices renamable. **(Beta)**
+
+### Setup (⚙️)
+
+| Field | Details |
+|-------|---------|
+| **CCU address** | IP/host of the CCU/RaspberryMatic |
+| **User / password** | CCU login — stored **encrypted** |
+| **Devices / variables / programs** | pick inside the plugin |
+| **Columns / edit** | multi-column; sort rooms via drag-and-drop in edit mode |
+
+The CCU returns values as strings; the server coerces types correctly (e.g. HUE = integer).
+
+### API
+
+`POST /api/plugins/homematic` — `action: list|state|set` (Session.login → Device/Interface/Room/SysVar/Program).
+
+### Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| Login error | Check CCU user/password and reachability |
+| No rooms | Devices assigned to a room in the CCU? |
