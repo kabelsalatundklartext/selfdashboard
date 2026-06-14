@@ -124,6 +124,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [state, setState] = useState<PlayerState | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [controlMsg, setControlMsg] = useState<string | null>(null)
   // Locally interpolated progress so the bar moves smoothly between polls.
   const [localProgress, setLocalProgress] = useState(0)
   const progressBase = useRef<{ at: number; ms: number; playing: boolean }>({ at: 0, ms: 0, playing: false })
@@ -174,7 +175,12 @@ function Widget({ config }: PluginWidgetProps) {
         setState((s) => (s ? { ...s, playing: command === 'play' } : s))
       }
       try {
-        await postSpotify({ action: 'control', clientId, command })
+        const json = await postSpotify({ action: 'control', clientId, command })
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err === 'forbidden') setControlMsg(de ? 'Steuerung erfordert Spotify Premium.' : 'Control requires Spotify Premium.')
+        else if (err === 'no_active_device') setControlMsg(de ? 'Kein aktives Gerät — starte die Wiedergabe zuerst in Spotify.' : 'No active device — start playback in Spotify first.')
+        else if (err) setControlMsg(de ? 'Aktion fehlgeschlagen.' : 'Action failed.')
+        else setControlMsg(null)
       } catch {
         /* surfaced on next poll */
       } finally {
@@ -184,7 +190,7 @@ function Widget({ config }: PluginWidgetProps) {
         }, 350)
       }
     },
-    [clientId, busy, refresh],
+    [clientId, busy, refresh, de],
   )
 
   const shell: CSSProperties = {
@@ -242,7 +248,6 @@ function Widget({ config }: PluginWidgetProps) {
   const progress = Math.min(localProgress, duration || localProgress)
   const pct = duration > 0 ? Math.min(100, (progress / duration) * 100) : 0
   const playing = state?.playing === true
-  const premium = state?.premium === true
 
   return (
     <div style={shell}>
@@ -356,25 +361,25 @@ function Widget({ config }: PluginWidgetProps) {
       ) : null}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
-        <ControlButton onClick={() => void sendCommand('previous')} disabled={!premium || busy} title={de ? 'Zurück' : 'Previous'}>
+        <ControlButton onClick={() => void sendCommand('previous')} disabled={busy} title={de ? 'Zurück' : 'Previous'}>
           <IconPrev size={20} />
         </ControlButton>
         <ControlButton
           primary
           onClick={() => void sendCommand(playing ? 'pause' : 'play')}
-          disabled={!premium || busy}
+          disabled={busy}
           title={playing ? 'Pause' : de ? 'Abspielen' : 'Play'}
         >
           {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
         </ControlButton>
-        <ControlButton onClick={() => void sendCommand('next')} disabled={!premium || busy} title={de ? 'Weiter' : 'Next'}>
+        <ControlButton onClick={() => void sendCommand('next')} disabled={busy} title={de ? 'Weiter' : 'Next'}>
           <IconNext size={20} />
         </ControlButton>
       </div>
 
-      {!premium ? (
+      {controlMsg ? (
         <p style={{ margin: 0, fontSize: 9.5, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>
-          {de ? 'Steuerung erfordert Spotify Premium.' : 'Playback control requires Spotify Premium.'}
+          {controlMsg}
         </p>
       ) : null}
     </div>
@@ -673,7 +678,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

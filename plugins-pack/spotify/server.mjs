@@ -386,19 +386,26 @@ async function handleState(body, signal) {
   const record = await readStore(key);
   if (!record?.refreshToken) return jsonResponse({ connected: false });
   const token = await ensureAccessToken(key, record, signal);
-  const res = await spotifyApi(token, "/me/player?additional_types=track,episode", "GET", signal);
-  if (res.status === 204 || res.json == null) {
-    return jsonResponse({
-      connected: true,
-      playing: false,
-      hasTrack: false,
-      premium: record.product === "premium",
-      product: record.product
-    });
+  const player = await spotifyApi(token, "/me/player?additional_types=track,episode", "GET", signal);
+  if (player.status === 401) throw new Error("reauth_required");
+  if (player.status !== 204 && player.status >= 400) {
+    return jsonResponse({ error: "api_error", status: player.status }, 502);
   }
-  if (res.status === 401) throw new Error("reauth_required");
-  if (res.status >= 400) return jsonResponse({ error: "api_error", status: res.status }, 502);
-  return jsonResponse(normalizePlayer(res.json, record.product));
+  if (player.status !== 204 && isObj(player.json) && player.json.item != null) {
+    return jsonResponse(normalizePlayer(player.json, record.product));
+  }
+  const cur = await spotifyApi(token, "/me/player/currently-playing?additional_types=track,episode", "GET", signal);
+  if (cur.status === 401) throw new Error("reauth_required");
+  if (cur.status !== 204 && isObj(cur.json) && cur.json.item != null) {
+    return jsonResponse(normalizePlayer(cur.json, record.product));
+  }
+  return jsonResponse({
+    connected: true,
+    playing: false,
+    hasTrack: false,
+    premium: record.product === "premium",
+    product: record.product
+  });
 }
 var CONTROL_ROUTES = {
   play: { method: "PUT", path: "/me/player/play" },

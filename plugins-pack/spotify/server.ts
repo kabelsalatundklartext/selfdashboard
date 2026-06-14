@@ -320,20 +320,33 @@ async function handleState(body: ReqBody, signal: AbortSignal): Promise<Response
   if (!record?.refreshToken) return jsonResponse({ connected: false })
 
   const token = await ensureAccessToken(key, record, signal)
-  const res = await spotifyApi(token, '/me/player?additional_types=track,episode', 'GET', signal)
-  if (res.status === 204 || res.json == null) {
-    // Nothing is playing on any active device.
-    return jsonResponse({
-      connected: true,
-      playing: false,
-      hasTrack: false,
-      premium: record.product === 'premium',
-      product: record.product,
-    } satisfies NowPlaying)
+
+  // Full player state (incl. device, shuffle, repeat).
+  const player = await spotifyApi(token, '/me/player?additional_types=track,episode', 'GET', signal)
+  if (player.status === 401) throw new Error('reauth_required')
+  if (player.status !== 204 && player.status >= 400) {
+    return jsonResponse({ error: 'api_error', status: player.status }, 502)
   }
-  if (res.status === 401) throw new Error('reauth_required')
-  if (res.status >= 400) return jsonResponse({ error: 'api_error', status: res.status }, 502)
-  return jsonResponse(normalizePlayer(res.json, record.product))
+  if (player.status !== 204 && isObj(player.json) && player.json.item != null) {
+    return jsonResponse(normalizePlayer(player.json, record.product))
+  }
+
+  // /me/player returns 204 for some sessions (notably the web player) even
+  // while playing — fall back to the more lenient currently-playing endpoint.
+  const cur = await spotifyApi(token, '/me/player/currently-playing?additional_types=track,episode', 'GET', signal)
+  if (cur.status === 401) throw new Error('reauth_required')
+  if (cur.status !== 204 && isObj(cur.json) && cur.json.item != null) {
+    return jsonResponse(normalizePlayer(cur.json, record.product))
+  }
+
+  // Genuinely nothing playing on any device.
+  return jsonResponse({
+    connected: true,
+    playing: false,
+    hasTrack: false,
+    premium: record.product === 'premium',
+    product: record.product,
+  } satisfies NowPlaying)
 }
 
 const CONTROL_ROUTES: Record<string, { method: 'PUT' | 'POST'; path: string }> = {
