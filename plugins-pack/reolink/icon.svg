@@ -1,0 +1,9 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Reolink">
+  <rect x="3" y="3" width="58" height="58" rx="14" fill="#1763ff"/>
+  <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="12" y="22" width="28" height="22" rx="4"/>
+    <path d="M40 29 L53 23 L53 43 L40 37 Z"/>
+  </g>
+  <circle cx="22" cy="33" r="5.5" fill="#ffffff"/>
+  <circle cx="22" cy="33" r="2.4" fill="#1763ff"/>
+</svg>

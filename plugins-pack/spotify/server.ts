@@ -442,16 +442,21 @@ async function handlePost(req: Request): Promise<Response> {
 // OAuth callback (GET /api/plugins/spotify/callback)
 // ---------------------------------------------------------------------------
 
+/** Escape any value interpolated into the callback HTML page (reflected XSS guard). */
+function esc(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 function htmlPage(title: string, message: string, ok: boolean): Response {
   const color = ok ? '#1db954' : '#ef4444'
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title></head>
+<title>${esc(title)}</title></head>
 <body style="margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh">
 <div style="text-align:center;max-width:420px;padding:32px">
 <div style="font-size:48px;margin-bottom:16px">${ok ? '✅' : '⚠️'}</div>
-<h1 style="font-size:20px;margin:0 0 8px;color:${color}">${title}</h1>
-<p style="font-size:14px;line-height:1.5;color:#b3b3b3;margin:0">${message}</p>
+<h1 style="font-size:20px;margin:0 0 8px;color:${color}">${esc(title)}</h1>
+<p style="font-size:14px;line-height:1.5;color:#b3b3b3;margin:0">${esc(message)}</p>
 </div>
 <script>setTimeout(function(){try{window.close()}catch(e){}},${ok ? 1500 : 4000})</script>
 </body></html>`

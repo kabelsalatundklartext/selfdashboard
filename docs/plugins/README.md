@@ -32,6 +32,7 @@ Each plugin has a **README with German and English** sections:
 | [Pi-hole](pihole/README.md) | `pihole` |
 | [Plex](plex/README.md) | `plex` |
 | [Proxmox VE](proxmox/README.md) | `proxmox` |
+| [Reolink Kamera](reolink/README.md) | `reolink` |
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
 | [Selfstream](selfstream/README.md) | `selfstream` |
 | [Selfstream · Emby · Jellyfin](selfstream-emby/README.md) | `selfstream-emby` |
