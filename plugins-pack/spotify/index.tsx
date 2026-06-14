@@ -20,6 +20,7 @@ type PlayerState = {
   premium?: boolean
   product?: string
   error?: string
+  detail?: string
 }
 
 function str(v: unknown): string {
@@ -42,7 +43,7 @@ function fmtTime(ms: number): string {
 }
 
 /** Human-readable text for a failed state/connection response. */
-function connErrorText(code: string | undefined, de: boolean): string {
+function connErrorText(code: string | undefined, de: boolean, detail?: string): string {
   switch (code) {
     case 'reauth_required':
     case 'not_connected':
@@ -58,7 +59,7 @@ function connErrorText(code: string | undefined, de: boolean): string {
         ? 'Client Secret nicht lesbar — Secret neu eintragen und verbinden.'
         : 'Client secret unreadable — re-enter it and reconnect.'
     case 'api_error':
-      return de ? 'Spotify-API-Fehler.' : 'Spotify API error.'
+      return `${de ? 'Spotify-API-Fehler' : 'Spotify API error'}${detail ? `: ${detail}` : '.'}`
     case 'network_error':
       return de ? 'Netzwerkfehler.' : 'Network error.'
     default:
@@ -264,7 +265,7 @@ function Widget({ config }: PluginWidgetProps) {
       <div style={centered}>
         <IconMusic size={26} color={SPOTIFY_GREEN} />
         <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
-          {connErrorText(state.error, de)}
+          {connErrorText(state.error, de, state.detail)}
         </p>
       </div>
     )
@@ -705,7 +706,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.3',
+  version: '0.9.4',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

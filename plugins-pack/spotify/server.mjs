@@ -303,6 +303,15 @@ async function spotifyApi(token, path, method, signal) {
 function isObj(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
+function spotifyErrorDetail(json, text) {
+  if (isObj(json) && isObj(json.error)) {
+    const e = json.error;
+    const msg = typeof e.message === "string" ? e.message : "";
+    const reason = typeof e.reason === "string" ? e.reason : "";
+    return [reason, msg].filter(Boolean).join(" \u2014 ") || text.slice(0, 200);
+  }
+  return text.slice(0, 200);
+}
 function pickImage(images) {
   if (!Array.isArray(images)) return void 0;
   const urls = images.filter(isObj).map((i) => typeof i.url === "string" ? i.url : "").filter(Boolean);
@@ -389,7 +398,9 @@ async function handleState(body, signal) {
   const player = await spotifyApi(token, "/me/player?additional_types=track,episode", "GET", signal);
   if (player.status === 401) throw new Error("reauth_required");
   if (player.status !== 204 && player.status >= 400) {
-    return jsonResponse({ error: "api_error", status: player.status }, 502);
+    const detail = spotifyErrorDetail(player.json, player.text);
+    void logPluginApiFailure("spotify", "state", "api_error", { status: player.status, detail });
+    return jsonResponse({ error: "api_error", status: player.status, detail }, 502);
   }
   if (player.status !== 204 && isObj(player.json) && player.json.item != null) {
     return jsonResponse(normalizePlayer(player.json, record.product));
@@ -427,7 +438,11 @@ async function handleControl(body, signal) {
   if (res.status === 401) throw new Error("reauth_required");
   if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
   if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);
-  if (res.status >= 400) return jsonResponse({ error: "api_error", status: res.status }, 502);
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "control", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
   return jsonResponse({ ok: true });
 }
 async function handlePost(req) {
