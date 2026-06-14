@@ -7,6 +7,7 @@ Each plugin has a **README with German and English** sections:
 | Plugin | Doc |
 |--------|-----|
 | [AdGuard Home](adguard/README.md) | `adguard` |
+| [Apple Music](apple-music/README.md) | `apple-music` |
 | [Bambu Lab Kamera](bambu-cam/README.md) | `bambu-cam` |
 | [Bookmarks](bookmarks/README.md) | `bookmarks` |
 | [Calendar](calendar/README.md) | `calendar` |
@@ -32,6 +33,7 @@ Each plugin has a **README with German and English** sections:
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
 | [Selfstream](selfstream/README.md) | `selfstream` |
 | [Selfstream · Emby · Jellyfin](selfstream-emby/README.md) | `selfstream-emby` |
+| [Spotify](spotify/README.md) | `spotify` |
 | [Speedtest Tracker](speedtest-tracker/README.md) | `speedtest-tracker` |
 | [TrueNAS](truenas/README.md) | `truenas` |
 | [UniFi Controller](unifi/README.md) | `unifi` |

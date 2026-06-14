@@ -206,6 +206,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | | Plugin | Category | Description |
 |---|--------|----------|-------------|
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/adguard-home.png" width="22"/> | [AdGuard Home](plugins-pack/adguard/README.md) | Network | DNS stats, protection toggle |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apple-music.png" width="22"/> | [Apple Music](plugins-pack/apple-music/README.md) | Media | In-browser player **(Beta)** |
 | 🔖 | [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Quick links with groups |
 | 📅 | [Calendar](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS |
 | 🕐 | [Clock](plugins-pack/clock/README.md) | Utility | Time, date, timezone |
@@ -231,6 +232,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | 📝 | [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Now playing + controls **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** |
@@ -697,6 +699,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | | Plugin | Kategorie | Kurzbeschreibung |
 |---|--------|-----------|------------------|
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/adguard-home.png" width="22"/> | [AdGuard Home](plugins-pack/adguard/README.md) | Netzwerk | DNS-Statistik, Schutz umschalten |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apple-music.png" width="22"/> | [Apple Music](plugins-pack/apple-music/README.md) | Media | Player im Browser **(Beta)** |
 | 🔖 | [Bookmarks](plugins-pack/bookmarks/README.md) | Utility | Schnelllinks mit Gruppen |
 | 📅 | [Kalender](plugins-pack/calendar/README.md) | Productivity | CalDAV + ICS |
 | 🕐 | [Uhr](plugins-pack/clock/README.md) | Utility | Zeit, Datum, Zeitzone |
@@ -722,6 +725,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | 📝 | [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Aktueller Titel + Steuerung **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** |

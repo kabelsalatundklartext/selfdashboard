@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-14T14:57:19.801Z",
+  "generatedAt": "2026-06-14T17:33:38.738Z",
   "plugins": [
     {
       "id": "adguard",
@@ -14,6 +14,28 @@
       "category": "network",
       "icon": "🛡️",
       "iconUrl": "/plugin-logos/adguard.png",
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
+    },
+    {
+      "id": "apple-music",
+      "name": "Apple Music",
+      "description": "Apple-Music-Player im Dashboard: anmelden, Playlist/Album/Station starten, Now-Playing mit Cover und Play/Pause/Skip. Läuft per MusicKit im Browser; erfordert MusicKit-Key (Apple Developer) und ein Apple-Music-Abo.",
+      "version": "0.9.0",
+      "author": "SelfDashboard",
+      "category": "media",
+      "icon": "🍎",
+      "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/apple-music.png",
+      "defaultLayout": {
+        "w": 3,
+        "h": 2,
+        "minW": 2,
+        "minH": 2
+      },
       "files": [
         "plugin.json",
         "widget.js",
