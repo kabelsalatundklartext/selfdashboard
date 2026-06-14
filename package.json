@@ -32,6 +32,7 @@
     }
   },
   "dependencies": {
+    "alexa-remote2": "^8.0.4",
     "autoprefixer": "^10.4.19",
     "axios": "^1.7.2",
     "better-sqlite3": "^11.10.0",
