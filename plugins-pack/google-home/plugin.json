@@ -1,0 +1,17 @@
+{
+  "id": "google-home",
+  "name": "Google Home / Nest",
+  "description": "Google-Nest-Geräte im Dashboard über die offizielle Smart Device Management (SDM) API: Thermostate (Ist-/Soll-Temperatur, Modus, +/-), Sensoren (Temperatur, Luftfeuchte) und Online-Status von Kameras, Türklingeln und Displays. Verbindung per OAuth (Google Cloud + Device Access). (Beta)",
+  "version": "0.9.0",
+  "author": "SelfDashboard",
+  "category": "utility",
+  "icon": "🏠",
+  "iconUrl": "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/google-home.png",
+  "defaultLayout": {
+    "w": 3,
+    "h": 4,
+    "minW": 2,
+    "minH": 2
+  },
+  "hasServer": true
+}
