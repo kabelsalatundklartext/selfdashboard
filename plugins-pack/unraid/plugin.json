@@ -1,8 +1,8 @@
 {
   "id": "unraid",
   "name": "Unraid",
-  "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, optional Netzwerk-Durchsatz (RX/TX, API 4.35+). RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
-  "version": "1.6.0",
+  "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, optional Netzwerk-Durchsatz (RX/TX, Interface-Auswahl, API 4.35+). RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
+  "version": "1.7.0",
   "author": "SelfDashboard",
   "category": "system",
   "icon": "🖥️",

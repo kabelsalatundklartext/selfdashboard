@@ -29,7 +29,9 @@ Zeigt RX/TX-Durchsatz und Auslastung pro Interface. Im Widget **⚙️** unter �
 
 - Erfordert **Unraid API 4.35.0+** (PR [unraid/api#2003](https://github.com/unraid/api/pull/2003)).
 - Standardmäßig **aus** — ältere API-Versionen bleiben unberührt (die Netzwerk-Felder werden nur abgefragt, wenn aktiviert).
-- `lo` und `veth*`-Interfaces werden ausgeblendet.
+- **Interface-Auswahl:** In den Einstellungen werden deine Interfaces als Checkbox-Liste geladen — abgewählte werden ausgeblendet.
+- Pro Interface: **↓ RX** / **↑ TX** Durchsatz; Auslastungsbalken nur bei Interfaces mit Link-Speed.
+- `lo` und `veth*`-Interfaces werden generell ausgeblendet.
 - Version prüfen: `unraid-api version`.
 
 ### Voraussetzungen
@@ -77,7 +79,9 @@ Shows RX/TX throughput and utilization per interface. Enable in the widget **⚙
 
 - Requires **Unraid API 4.35.0+** (PR [unraid/api#2003](https://github.com/unraid/api/pull/2003)).
 - **Off** by default — older API versions are unaffected (network fields are only queried when enabled).
-- `lo` and `veth*` interfaces are hidden.
+- **Interface selection:** settings load your interfaces as a checkbox list — unchecked ones are hidden.
+- Per interface: **↓ RX** / **↑ TX** throughput; utilization bar only for interfaces with a link speed.
+- `lo` and `veth*` interfaces are always hidden.
 - Check version: `unraid-api version`.
 
 ### Requirements
