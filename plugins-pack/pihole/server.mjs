@@ -346,7 +346,11 @@ async function handlePiholePost(req) {
       const blocking2 = isObject(br.json) && typeof br.json.blocking === "boolean" ? br.json.blocking : body.blocking;
       return Response.json({ ok: true, blocking: blocking2 });
     }
-    const summaryRes = await apiRequest(base, password, totp, "api/stats/summary", "GET", null, ac.signal);
+    await getSession(base, password, totp, ac.signal);
+    const [summaryRes, blockingRes] = await Promise.all([
+      apiRequest(base, password, totp, "api/stats/summary", "GET", null, ac.signal),
+      apiRequest(base, password, totp, "api/dns/blocking", "GET", null, ac.signal)
+    ]);
     if (!summaryRes.ok) {
       const detail = piHoleErrorDetail(summaryRes.json, summaryRes.text.slice(0, 240));
       const st = summaryRes.status === 401 || summaryRes.status === 403 ? summaryRes.status : 502;
@@ -358,7 +362,6 @@ async function handlePiholePost(req) {
         { status: st }
       );
     }
-    const blockingRes = await apiRequest(base, password, totp, "api/dns/blocking", "GET", null, ac.signal);
     let blocking = null;
     if (blockingRes.ok && isObject(blockingRes.json) && typeof blockingRes.json.blocking === "boolean") {
       blocking = blockingRes.json.blocking;

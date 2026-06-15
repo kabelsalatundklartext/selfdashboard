@@ -27,6 +27,23 @@ const REGIONS: Record<string, { amazonPage: string; serviceHost: string }> = {
 const PORT_MIN = 1024
 const PORT_MAX = 65535
 
+/**
+ * Proxy-Host muss der Dashboard-Server im LAN sein. Öffentliche IPv4 werden abgelehnt,
+ * damit ein zweiter Nutzer den Login-Proxy nicht auf ein fremdes Ziel umlenken kann.
+ * Hostnamen (z. B. dashboard.home) bleiben erlaubt — sie zeigen ohnehin nur ins LAN.
+ */
+function isAllowedProxyHost(h: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h)
+  if (!m) return true
+  const o = m.slice(1).map(Number)
+  if (o.some((x) => x > 255)) return false
+  if (o[0] === 10) return true
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true
+  if (o[0] === 192 && o[1] === 168) return true
+  if (o[0] === 127) return true
+  return false
+}
+
 type ReqBody = {
   action?: string
   region?: string
@@ -47,7 +64,7 @@ function resolveConfig(body: ReqBody): AlexaConfig | null {
   const region = REGIONS[String(body.region ?? 'de')] ?? REGIONS.de
   const host = String(body.host ?? '').trim()
   const port = Number(body.port)
-  if (!host || !/^[a-zA-Z0-9.\-:]+$/.test(host)) return null
+  if (!host || !/^[a-zA-Z0-9.\-:]+$/.test(host) || !isAllowedProxyHost(host)) return null
   if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) return null
   return { host, port, amazonPage: region.amazonPage, serviceHost: region.serviceHost }
 }

@@ -286,8 +286,34 @@ export async function getPlayer(serial: string): Promise<PlayerLite> {
 
 const PLAYER_COMMANDS = new Set(['play', 'pause', 'next', 'previous', 'forward', 'rewind'])
 
+/** Serials der dem Konto gehörenden Echo-Geräte — gegen IDOR/Enumeration auf der Amazon-API. */
+async function ownedDeviceSerials(alexa: Alexa): Promise<Set<string>> {
+  const body = await call<{ devices?: unknown[] }>((cb) => alexa.getDevices(cb))
+  const raw = Array.isArray(body?.devices) ? body.devices : []
+  return new Set(
+    raw
+      .filter(isObj)
+      .map((d) => (typeof d.serialNumber === 'string' ? d.serialNumber : ''))
+      .filter(Boolean),
+  )
+}
+
+/** IDs der dem Konto gehörenden Smart-Home-Entitäten — gegen IDOR/Enumeration. */
+async function ownedSmarthomeIds(alexa: Alexa): Promise<Set<string>> {
+  const body = await call<unknown>((cb) => alexa.getSmarthomeEntities(cb))
+  const raw = Array.isArray(body) ? body : isObj(body) && Array.isArray(body.entities) ? body.entities : []
+  return new Set(
+    (raw as unknown[])
+      .filter(isObj)
+      .map((e) => (typeof e.id === 'string' ? e.id : typeof e.applianceId === 'string' ? e.applianceId : ''))
+      .filter(Boolean),
+  )
+}
+
 export async function control(serial: string, command: string, value?: number): Promise<void> {
   return withLive('control', async (alexa) => {
+    // Serial muss zu einem eigenen Gerät gehören, sonst beliebige Probes gegen Amazons API.
+    if (!(await ownedDeviceSerials(alexa)).has(serial)) throw new Error('no_device')
     if (command === 'volume') {
       const vol = Math.max(0, Math.min(100, Math.round(value ?? 0)))
       await call((cb) => alexa.sendCommand(serial, 'volume', vol, cb))
@@ -316,6 +342,8 @@ export async function listSmarthome(): Promise<SmarthomeLite[]> {
 
 export async function toggleSmarthome(id: string, on: boolean): Promise<void> {
   return withLive('smarthome-toggle', async (alexa) => {
+    // Entity muss zum Konto gehören, sonst beliebige Appliance-IDs gegen Amazon schaltbar.
+    if (!(await ownedSmarthomeIds(alexa)).has(id)) throw new Error('no_device')
     await call((cb) => alexa.executeSmarthomeDeviceAction([id], [on ? 'turnOn' : 'turnOff'], 'APPLIANCE', cb))
   })
 }

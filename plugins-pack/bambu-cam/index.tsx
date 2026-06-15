@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-const BAMBU_VERSION = '0.9.1'
+const BAMBU_VERSION = '0.9.2'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -34,6 +35,7 @@ function Widget({ config }: PluginWidgetProps) {
       : `/api/plugins/bambu-cam?action=proxy&url=${encodeURIComponent(streamUrl)}`
   // MJPEG = kontinuierlicher Stream (einmal setzen); sonst Snapshot-Refresh.
   const continuous = source === 'url' && urlMjpeg
+  const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
 
   const [src, setSrc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +52,7 @@ function Widget({ config }: PluginWidgetProps) {
       setSrc(base)
       return
     }
+    if (!active) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | null = null
     const tick = () => {
@@ -74,7 +77,7 @@ function Widget({ config }: PluginWidgetProps) {
       alive = false
       if (timer) clearTimeout(timer)
     }
-  }, [base, configured, continuous, refreshMs, de])
+  }, [base, configured, continuous, refreshMs, de, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -105,7 +108,7 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   return (
-    <div style={shell}>
+    <div ref={shellRef} style={shell}>
       {src ? (
         <img
           src={src}

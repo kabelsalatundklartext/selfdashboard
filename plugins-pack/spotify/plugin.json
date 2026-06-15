@@ -2,7 +2,7 @@
   "id": "spotify",
   "name": "Spotify",
   "description": "Zeigt den aktuell laufenden Spotify-Titel (Cover, Künstler, Fortschritt) und steuert die Wiedergabe (Play/Pause/Skip). Verbindung per OAuth, Steuerung erfordert Spotify Premium.",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "author": "SelfDashboard",
   "category": "media",
   "icon": "🎵",

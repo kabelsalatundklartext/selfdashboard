@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const SPOTIFY_GREEN = '#1db954'
@@ -156,6 +157,7 @@ function Widget({ config }: PluginWidgetProps) {
   // Locally interpolated progress so the bar moves smoothly between polls.
   const [localProgress, setLocalProgress] = useState(0)
   const progressBase = useRef<{ at: number; ms: number; playing: boolean }>({ at: 0, ms: 0, playing: false })
+  const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
 
   const refresh = useCallback(async () => {
     if (!clientId) {
@@ -177,11 +179,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [clientId])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   // Smooth progress ticking (1s) without hammering the API.
   useEffect(() => {
@@ -278,7 +281,7 @@ function Widget({ config }: PluginWidgetProps) {
   const playing = state?.playing === true
 
   return (
-    <div style={shell}>
+    <div ref={shellRef} style={shell}>
       {showTitle && title ? (
         <p
           style={{
@@ -706,7 +709,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.4',
+  version: '0.9.5',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

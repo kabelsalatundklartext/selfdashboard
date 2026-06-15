@@ -1,4 +1,5 @@
 import { logPluginApiFailure } from '../_shared/log'
+import { createPluginServerCache } from '../_shared/plugin-server-cache'
 import { openSealedSecret } from '../_shared/secret-crypto'
 import { fetchCheckedJson } from '../_shared/insecure-fetch'
 import { UnsafeOutboundUrlError } from '../_shared/ssrf'
@@ -7,6 +8,12 @@ import type { PluginServerContext } from '../_shared/plugin-server-types'
 export const dynamic = 'force-dynamic'
 
 const FETCH_TIMEOUT_MS = 12_000
+
+// Cluster-Ressourcen ändern sich nur langsam — kurzes Server-Caching spart Polls gegen die Proxmox-API.
+const resourcesCache = createPluginServerCache({
+  ttlMs: Math.max(0, Number(process.env.PROXMOX_CACHE_MS) || 15_000),
+  maxEntries: 4,
+})
 
 type ReqBody = {
   url?: string
@@ -121,6 +128,10 @@ async function handlePost(req: Request): Promise<Response> {
   }
   const insecureTls = body.insecureTls !== false
 
+  const cacheKey = `${base} ${apiToken} ${insecureTls ? 1 : 0}`
+  const hit = resourcesCache.get(cacheKey)
+  if (hit) return Response.json(hit)
+
   const ac = new AbortController()
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
 
@@ -157,7 +168,9 @@ async function handlePost(req: Request): Promise<Response> {
       )
     }
 
-    return Response.json(normalizeResources(r.json))
+    const payload = normalizeResources(r.json)
+    resourcesCache.set(cacheKey, payload)
+    return Response.json(payload)
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
       void logPluginApiFailure('proxmox', 'request', `blocked_url:${e.message}`)

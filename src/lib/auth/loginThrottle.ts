@@ -12,6 +12,30 @@ function scopeKey(username: string): string {
   return `user:${username.trim().toLowerCase().slice(0, 64) || 'unknown'}`
 }
 
+// Prepared Statements einmal pro DB-Verbindung cachen — login_failures wird auf jedem Login-Pfad
+// angefasst; better-sqlite3 cached prepare() nicht selbst, jedes Mal neu zu kompilieren ist Verschwendung.
+let cachedDb: ReturnType<typeof getAuthDb> | null = null
+let cachedStmts: ReturnType<typeof buildStmts> | null = null
+
+function buildStmts(db: ReturnType<typeof getAuthDb>) {
+  return {
+    prune: db.prepare('DELETE FROM login_failures WHERE scope_key = ? AND failed_at < ?'),
+    recent: db.prepare(
+      'SELECT failed_at FROM login_failures WHERE scope_key = ? AND failed_at >= ? ORDER BY failed_at ASC',
+    ),
+    insert: db.prepare('INSERT INTO login_failures (scope_key, failed_at) VALUES (?, ?)'),
+    clear: db.prepare('DELETE FROM login_failures WHERE scope_key = ?'),
+  }
+}
+
+function stmts(): ReturnType<typeof buildStmts> {
+  const db = getAuthDb()
+  if (cachedStmts && cachedDb === db) return cachedStmts
+  cachedDb = db
+  cachedStmts = buildStmts(db)
+  return cachedStmts
+}
+
 export type LoginLock = { locked: false } | { locked: true; retryAfterSec: number }
 
 /**
@@ -19,18 +43,14 @@ export type LoginLock = { locked: false } | { locked: true; retryAfterSec: numbe
  * failed login attempts. Also prunes failures older than the window.
  */
 export function isLoginLocked(username: string): LoginLock {
-  const db = getAuthDb()
   const key = scopeKey(username)
   const now = Date.now()
   const since = now - WINDOW_MS
 
-  db.prepare('DELETE FROM login_failures WHERE scope_key = ? AND failed_at < ?').run(key, since)
+  const s = stmts()
+  s.prune.run(key, since)
 
-  const rows = db
-    .prepare(
-      'SELECT failed_at FROM login_failures WHERE scope_key = ? AND failed_at >= ? ORDER BY failed_at ASC',
-    )
-    .all(key, since) as Array<{ failed_at: number }>
+  const rows = s.recent.all(key, since) as Array<{ failed_at: number }>
 
   if (rows.length < MAX_FAILURES) return { locked: false }
   const oldest = rows[0]!.failed_at
@@ -40,15 +60,10 @@ export function isLoginLocked(username: string): LoginLock {
 
 /** Record one failed login attempt for the given username. */
 export function recordLoginFailure(username: string): void {
-  const db = getAuthDb()
-  db.prepare('INSERT INTO login_failures (scope_key, failed_at) VALUES (?, ?)').run(
-    scopeKey(username),
-    Date.now(),
-  )
+  stmts().insert.run(scopeKey(username), Date.now())
 }
 
 /** Clear all recorded failures for a username (call on successful login). */
 export function clearLoginFailures(username: string): void {
-  const db = getAuthDb()
-  db.prepare('DELETE FROM login_failures WHERE scope_key = ?').run(scopeKey(username))
+  stmts().clear.run(scopeKey(username))
 }

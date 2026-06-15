@@ -228,7 +228,13 @@ async function handlePiholePost(req: Request): Promise<Response> {
       return Response.json({ ok: true, blocking })
     }
 
-    const summaryRes = await apiRequest(base, password, totp, 'api/stats/summary', 'GET', null, ac.signal)
+    // Session einmal aufbauen, dann die beiden unabhängigen GETs parallel — spart eine Roundtrip-Latenz
+    // und vermeidet den doppelten Login-Race, wenn beide gleichzeitig eine fehlende Session feststellen.
+    await getSession(base, password, totp, ac.signal)
+    const [summaryRes, blockingRes] = await Promise.all([
+      apiRequest(base, password, totp, 'api/stats/summary', 'GET', null, ac.signal),
+      apiRequest(base, password, totp, 'api/dns/blocking', 'GET', null, ac.signal),
+    ])
     if (!summaryRes.ok) {
       const detail = piHoleErrorDetail(summaryRes.json, summaryRes.text.slice(0, 240))
       const st =
@@ -242,7 +248,6 @@ async function handlePiholePost(req: Request): Promise<Response> {
       )
     }
 
-    const blockingRes = await apiRequest(base, password, totp, 'api/dns/blocking', 'GET', null, ac.signal)
     let blocking: boolean | null = null
     if (blockingRes.ok && isObject(blockingRes.json) && typeof blockingRes.json.blocking === 'boolean') {
       blocking = blockingRes.json.blocking

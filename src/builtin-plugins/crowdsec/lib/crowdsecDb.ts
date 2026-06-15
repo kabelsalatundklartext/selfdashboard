@@ -150,7 +150,7 @@ function decisionUntilClause(alias = 'd'): string {
   return `(${untilSec} IS NOT NULL AND ${untilSec} > CAST(strftime('%s', 'now') AS INTEGER))`
 }
 
-function decisionSchemaMeta(db: Database.Database): {
+type DecisionSchemaMeta = {
   hasTable: boolean
   linkCol: 'alert_decisions' | 'alert_id' | null
   hasUntil: boolean
@@ -158,7 +158,38 @@ function decisionSchemaMeta(db: Database.Database): {
   hasScope: boolean
   hasSimulated: boolean
   hasOrigin: boolean
-} {
+}
+
+// PRAGMA table_info / sqlite_master sind pro DB-Verbindung konstant (das CrowdSec-Schema ändert sich
+// zur Laufzeit nicht) → einmal pro Verbindung cachen, statt bei jedem Query erneut zu scannen.
+const columnNameCache = new WeakMap<Database.Database, Map<string, Set<string>>>()
+
+function tableColumnNames(db: Database.Database, table: 'alerts' | 'decisions'): Set<string> {
+  let perDb = columnNameCache.get(db)
+  if (!perDb) {
+    perDb = new Map()
+    columnNameCache.set(db, perDb)
+  }
+  let names = perDb.get(table)
+  if (!names) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+    names = new Set(cols.map((c) => c.name))
+    perDb.set(table, names)
+  }
+  return names
+}
+
+const decisionMetaCache = new WeakMap<Database.Database, DecisionSchemaMeta>()
+
+function decisionSchemaMeta(db: Database.Database): DecisionSchemaMeta {
+  const cached = decisionMetaCache.get(db)
+  if (cached) return cached
+  const result = computeDecisionSchemaMeta(db)
+  decisionMetaCache.set(db, result)
+  return result
+}
+
+function computeDecisionSchemaMeta(db: Database.Database): DecisionSchemaMeta {
   const decisionTables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'")
     .all() as { name: string }[]
@@ -173,8 +204,7 @@ function decisionSchemaMeta(db: Database.Database): {
       hasOrigin: false,
     }
   }
-  const dCols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
-  const dNames = new Set(dCols.map((c) => c.name))
+  const dNames = tableColumnNames(db, 'decisions')
   const linkCol = dNames.has('alert_decisions')
     ? 'alert_decisions'
     : dNames.has('alert_id')
@@ -270,8 +300,7 @@ function loadActiveBanFeed(db: Database.Database, geoip: GeoipLookup): CrowdsecF
   const meta = decisionSchemaMeta(db)
   if (!meta.hasTable || !meta.hasValue) return []
 
-  const cols = db.prepare('PRAGMA table_info(decisions)').all() as { name: string }[]
-  const names = new Set(cols.map((c) => c.name))
+  const names = tableColumnNames(db, 'decisions')
   const scenarioExpr = names.has('scenario') ? 'd.scenario' : "''"
   const createdExpr = names.has('created_at')
     ? 'd.created_at'
@@ -331,8 +360,7 @@ function createdAtUnixSecExpr(alias = 'a'): string {
 }
 
 function countAlertsSince(db: Database.Database, cutoffUnix: number): number {
-  const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
-  const names = new Set(cols.map((c) => c.name))
+  const names = tableColumnNames(db, 'alerts')
   if (!names.has('created_at')) return 0
   const base =
     "a.scenario IS NOT NULL AND TRIM(a.scenario) != '' AND TRIM(a.scenario) != 'unknown'"
@@ -397,8 +425,7 @@ function countriesFromRows(rows: AlertRow[], geoip: GeoipLookup): CrowdsecCountr
 
 /** Fast GROUP BY on country column; avoids scanning the full alerts table. */
 function loadCountriesFromDatabase(db: Database.Database, geoip: GeoipLookup): CrowdsecCountryStat[] {
-  const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
-  const names = new Set(cols.map((c) => c.name))
+  const names = tableColumnNames(db, 'alerts')
   const countryCol = names.has('source_country')
     ? 'a.source_country'
     : names.has('country')
@@ -433,8 +460,7 @@ function buildAlertsSql(
   opts: BuildAlertsSqlOpts = {},
 ): { sql: string; params: number[] } {
   const includeEvents = opts.includeEvents !== false
-  const cols = db.prepare('PRAGMA table_info(alerts)').all() as { name: string }[]
-  const names = new Set(cols.map((c) => c.name))
+  const names = tableColumnNames(db, 'alerts')
 
   const ipParts: string[] = []
   if (names.has('source_ip')) ipParts.push('a.source_ip')

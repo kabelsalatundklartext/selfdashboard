@@ -224,8 +224,9 @@ async function handlePost(req: Request): Promise<Response> {
       void logPluginApiFailure('apple-music', action, msg)
       return jsonResponse({ error: msg }, msg === 'secret_unreadable' ? 401 : 400)
     }
+    // Interne Fehlertexte (Crypto/Pfade/Stacktraces) nur serverseitig loggen, NICHT an den Client geben.
     void logPluginApiFailure('apple-music', action, msg)
-    return jsonResponse({ error: 'server_error', detail: msg }, 500)
+    return jsonResponse({ error: 'server_error' }, 500)
   }
 }
 

@@ -672,7 +672,7 @@ export const meta: PluginMeta = {
   name: 'Amazon Alexa',
   description:
     'Echo-Wiedergabe & Lautstärke (inkl. Amazon Music auf dem Echo), Alexa-Smart-Home schalten und Routinen auslösen. Login per Amazon-Konto über lokalen Proxy (inoffizielle API, Beta).',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🔵',

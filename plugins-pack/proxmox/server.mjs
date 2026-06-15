@@ -4,6 +4,42 @@ async function logPluginApiFailure(pluginId, operation, message, detail) {
   console.error(`[SelfDashboard][${pluginId}] ${operation}: ${message}${extra}`);
 }
 
+// plugins-pack/_shared/plugin-server-cache.ts
+function createPluginServerCache(options) {
+  const maxEntries = Math.max(1, options.maxEntries ?? 32);
+  const ttlMs = Math.max(0, options.ttlMs);
+  const cache = /* @__PURE__ */ new Map();
+  function evictIfNeeded() {
+    while (cache.size >= maxEntries) {
+      const first = cache.keys().next().value;
+      if (!first) break;
+      cache.delete(first);
+    }
+  }
+  return {
+    get(key) {
+      const entry = cache.get(key);
+      if (!entry) return null;
+      if (Date.now() > entry.expires) {
+        cache.delete(key);
+        return null;
+      }
+      return entry.data;
+    },
+    set(key, data) {
+      if (ttlMs <= 0) return;
+      evictIfNeeded();
+      cache.set(key, { expires: Date.now() + ttlMs, data });
+    },
+    delete(key) {
+      cache.delete(key);
+    },
+    clear() {
+      cache.clear();
+    }
+  };
+}
+
 // plugins-pack/_shared/secret-crypto.ts
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
@@ -199,6 +235,10 @@ async function fetchCheckedJson(url, init = {}, opts = {}) {
 // plugins-pack/proxmox/server.ts
 var dynamic = "force-dynamic";
 var FETCH_TIMEOUT_MS = 12e3;
+var resourcesCache = createPluginServerCache({
+  ttlMs: Math.max(0, Number(process.env.PROXMOX_CACHE_MS) || 15e3),
+  maxEntries: 4
+});
 function num(v) {
   if (v == null || v === "") return null;
   const n = typeof v === "number" ? v : Number(String(v));
@@ -279,6 +319,9 @@ async function handlePost(req) {
     );
   }
   const insecureTls = body.insecureTls !== false;
+  const cacheKey = `${base} ${apiToken} ${insecureTls ? 1 : 0}`;
+  const hit = resourcesCache.get(cacheKey);
+  if (hit) return Response.json(hit);
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -311,7 +354,9 @@ async function handlePost(req) {
         { status: 502 }
       );
     }
-    return Response.json(normalizeResources(r.json));
+    const payload = normalizeResources(r.json);
+    resourcesCache.set(cacheKey, payload);
+    return Response.json(payload);
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
       void logPluginApiFailure("proxmox", "request", `blocked_url:${e.message}`);

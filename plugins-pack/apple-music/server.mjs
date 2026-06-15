@@ -227,7 +227,7 @@ async function handlePost(req) {
       return jsonResponse({ error: msg }, msg === "secret_unreadable" ? 401 : 400);
     }
     void logPluginApiFailure("apple-music", action, msg);
-    return jsonResponse({ error: "server_error", detail: msg }, 500);
+    return jsonResponse({ error: "server_error" }, 500);
   }
 }
 function appleMusicServerHandler(ctx) {

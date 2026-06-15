@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
-const REOLINK_VERSION = '0.9.0'
+const REOLINK_VERSION = '0.9.1'
 
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
@@ -138,18 +139,44 @@ function Widget({ config }: PluginWidgetProps) {
   const ptzSpeed = Math.max(1, Math.min(64, num(config.ptzSpeed) || 32))
 
   const configured = Boolean(host && username && password)
+  const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
 
-  const snapBase =
-    `${ENDPOINT}?action=snapshot&host=${encodeURIComponent(host)}&user=${encodeURIComponent(username)}` +
-    `&pw=${encodeURIComponent(password)}&channel=${channel}&secure=${secure ? 1 : 0}&insecure=${insecure ? 1 : 0}` +
-    (num(config.port) ? `&port=${num(config.port)}` : '')
-
+  const [snapTok, setSnapTok] = useState<string | null>(null)
   const [src, setSrc] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loadedOnce, setLoadedOnce] = useState(false)
   const [status, setStatus] = useState<StatusData | null>(null)
 
-  // Snapshot-Polling (wie bambu-cam)
+  // Kurzlebigen, verschlüsselten Snapshot-Token holen (kein Credential in der Bild-URL) und vor Ablauf erneuern.
+  useEffect(() => {
+    if (!configured) {
+      setSnapTok(null)
+      return
+    }
+    let alive = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const fetchToken = async () => {
+      try {
+        const data = await callApi('snap-token', config as Record<string, unknown>)
+        if (!alive) return
+        if (typeof data?.token === 'string') {
+          setSnapTok(data.token)
+          const ttl = typeof data.ttlMs === 'number' ? data.ttlMs : 600_000
+          timer = setTimeout(fetchToken, Math.max(30_000, ttl * 0.8))
+        }
+      } catch {
+        if (alive) timer = setTimeout(fetchToken, 30_000)
+      }
+    }
+    void fetchToken()
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configured, host, username, password, channel, secure, insecure])
+
+  // Snapshot-Polling (wie bambu-cam) — pausiert im Hintergrund-Tab / außerhalb des Viewports.
   useEffect(() => {
     if (!configured) {
       setSrc(null)
@@ -157,10 +184,11 @@ function Widget({ config }: PluginWidgetProps) {
       setLoadedOnce(false)
       return
     }
+    if (!snapTok || !active) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | null = null
     const tick = () => {
-      const u = `${snapBase}&t=${Date.now()}`
+      const u = `${ENDPOINT}?action=snapshot&tok=${encodeURIComponent(snapTok)}&cb=${Date.now()}`
       const img = new Image()
       img.onload = () => {
         if (!alive) return
@@ -181,7 +209,7 @@ function Widget({ config }: PluginWidgetProps) {
       alive = false
       if (timer) clearTimeout(timer)
     }
-  }, [snapBase, configured, refreshMs, de])
+  }, [snapTok, active, configured, refreshMs, de])
 
   // Status-Polling (AI/Motion/Kanäle) — etwas langsamer als das Bild
   useEffect(() => {
@@ -189,6 +217,7 @@ function Widget({ config }: PluginWidgetProps) {
       setStatus(null)
       return
     }
+    if (!active) return
     let alive = true
     let timer: ReturnType<typeof setTimeout> | null = null
     const statusMs = Math.max(refreshMs, 4000)
@@ -207,7 +236,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (timer) clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapBase, configured, showBadges, refreshMs])
+  }, [active, configured, showBadges, refreshMs])
 
   const ptz = useCallback(
     (op: string) => {
@@ -260,7 +289,7 @@ function Widget({ config }: PluginWidgetProps) {
   }
 
   return (
-    <div style={shell}>
+    <div ref={shellRef} style={shell}>
       {src ? (
         <img src={src} alt={title || 'Reolink'} style={{ width: '100%', height: '100%', objectFit: fit, display: 'block' }} />
       ) : null}

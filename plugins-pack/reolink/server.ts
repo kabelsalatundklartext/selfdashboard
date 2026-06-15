@@ -2,7 +2,7 @@ import http from 'node:http'
 import https from 'node:https'
 import { createHmac } from 'node:crypto'
 import { logPluginApiFailure } from '../_shared/log'
-import { openSealedSecret } from '../_shared/secret-crypto'
+import { openSealedSecret, sealSecret } from '../_shared/secret-crypto'
 import type { PluginServerContext } from '../_shared/plugin-server-types'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +12,10 @@ const MAX_BODY = 8 * 1024 * 1024
 /** Token früher als das Lease-Ende erneuern, um Race-Conditions zu vermeiden. */
 const TOKEN_MARGIN_MS = 60_000
 const DEFAULT_LEASE_S = 3600
+/** Lebensdauer des signierten Snapshot-Tokens (begrenzt Replay aus Logs/History). */
+const SNAP_TOKEN_TTL_MS = 10 * 60 * 1000
+/** Obergrenze für den In-Memory-Token-Cache → kein unbegrenztes Wachsen bei Credential-Wechseln. */
+const MAX_TOKEN_CACHE = 16
 
 /** Erlaubte PTZ-Operationen (Whitelist — verhindert beliebige Kamera-Kommandos). */
 const PTZ_OPS = new Set([
@@ -32,7 +36,10 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
-/** Nur private LAN-IPv4 erlauben — blockt Cloud-Metadaten & öffentliche Ziele (wie bambu-cam). */
+/**
+ * Nur private LAN-IPv4 erlauben — blockt Cloud-Metadaten & öffentliche Ziele (wie bambu-cam).
+ * Alles außer RFC-1918-IPv4 (IPv6, Hostnamen, ::ffff:-gemappt) wird bewusst per Regex abgelehnt.
+ */
 function isPrivateHost(h: string): boolean {
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h.trim())
   if (!m) return false
@@ -176,6 +183,11 @@ async function getToken(t: Transport, user: string, pass: string, forceNew: bool
   const cached = tokenCache.get(key)
   if (!forceNew && cached && cached.expires > Date.now()) return cached.token
   const fresh = await login(t, user, pass)
+  // Ältesten Eintrag verdrängen, falls das Cache-Limit erreicht ist (Credential-Wechsel hinterlässt sonst Leichen).
+  if (tokenCache.size >= MAX_TOKEN_CACHE) {
+    const oldest = tokenCache.keys().next().value
+    if (oldest) tokenCache.delete(oldest)
+  }
   tokenCache.set(key, fresh)
   return fresh.token
 }
@@ -287,6 +299,9 @@ type ReqBody = {
   presetId?: number | string
 }
 
+/** Inhalt des verschlüsselten Snapshot-Tokens — ersetzt Credentials in der GET-URL. */
+type SnapToken = { h: string; u: string; p: string; c: number; s: boolean; i: boolean; pt: number; exp: number }
+
 function buildTransport(host: string, port: unknown, secure: boolean, insecure: boolean): Transport {
   return { host, port: parsePort(port, secure), secure, insecure }
 }
@@ -338,6 +353,21 @@ async function handlePost(req: Request): Promise<Response> {
   const action = String(body.action ?? 'status')
 
   try {
+    if (action === 'snap-token') {
+      // Opaker, verschlüsselter Token mit Ablauf — ersetzt das versiegelte Passwort in der Snapshot-GET-URL.
+      const payload: SnapToken = {
+        h: host,
+        u: user,
+        p: pass,
+        c: channel,
+        s: t.secure,
+        i: t.insecure,
+        pt: t.port,
+        exp: Date.now() + SNAP_TOKEN_TTL_MS,
+      }
+      return Response.json({ token: sealSecret(JSON.stringify(payload)), ttlMs: SNAP_TOKEN_TTL_MS })
+    }
+
     if (action === 'status') {
       let model = ''
       let name = ''
@@ -403,21 +433,33 @@ async function handleGet(req: Request): Promise<Response> {
   if (sp.get('action') !== 'snapshot') {
     return Response.json({ error: 'invalid_action' }, { status: 400 })
   }
-  const host = (sp.get('host') || '').trim()
+  // Credentials kommen nicht mehr (versiegelt) in der URL, sondern in einem verschlüsselten,
+  // kurzlebigen Token (per POST `snap-token` geholt) → kein Credential in Access-Logs/History.
+  const raw = openSealedSecret(sp.get('tok') || '')
+  let tok: SnapToken | null = null
+  try {
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null
+    if (isObject(parsed)) tok = parsed as SnapToken
+  } catch {
+    tok = null
+  }
+  if (!tok || typeof tok.exp !== 'number' || tok.exp < Date.now()) {
+    return Response.json({ error: 'token_expired' }, { status: 401 })
+  }
+  const host = String(tok.h || '').trim()
   if (!isPrivateHost(host)) return Response.json({ error: 'invalid_host' }, { status: 400 })
-  const user = (sp.get('user') || '').trim()
-  const pass = openSealedSecret(sp.get('pw') || '')
+  const user = String(tok.u || '').trim()
+  const pass = String(tok.p || '')
   if (!user || !pass) return Response.json({ error: 'missing_credentials' }, { status: 400 })
-  const secure = sp.get('secure') === '1'
-  const t = buildTransport(host, sp.get('port'), secure, sp.get('insecure') !== '0')
-  const channel = Math.max(0, Math.min(63, num(sp.get('channel'))))
+  const t = buildTransport(host, tok.pt, tok.s === true, tok.i !== false)
+  const channel = Math.max(0, Math.min(63, num(tok.c)))
   try {
     const jpeg = await snapshot(t, user, pass, channel)
     return new Response(new Uint8Array(jpeg), {
       headers: {
         'Content-Type': 'image/jpeg',
         'Cache-Control': 'no-store, max-age=0',
-        // Versiegeltes Credential steckt in der Snapshot-URL → nie als Referer weitergeben.
+        // Token steckt im Query → nie als Referer weitergeben.
         'Referrer-Policy': 'no-referrer',
       },
     })

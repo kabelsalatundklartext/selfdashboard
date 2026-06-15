@@ -2,7 +2,7 @@
   "id": "alexa",
   "name": "Amazon Alexa",
   "description": "Steuert Echo-Geräte (Wiedergabe & Lautstärke, inkl. Amazon Music auf dem Echo), schaltet Alexa-Smart-Home-Geräte und löst Routinen aus. Verbindung per Amazon-Login über einen lokalen Proxy (inoffizielle Alexa-Cloud-API, Beta).",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": "SelfDashboard",
   "category": "media",
   "icon": "🔵",

@@ -56,6 +56,15 @@ var SEALED_SECRET_PREFIX = "sdsec1:";
 function isSealedSecret(value) {
   return typeof value === "string" && value.startsWith(SEALED_SECRET_PREFIX);
 }
+function sealSecret(plaintext) {
+  if (!plaintext) return "";
+  const key = loadOrCreateKey();
+  const iv = randomBytes(IV_LEN);
+  const cipher = createCipheriv(ALGO, key, iv);
+  const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return SEALED_SECRET_PREFIX + Buffer.concat([iv, tag, enc]).toString("base64");
+}
 function openSealedSecret(value) {
   if (!isSealedSecret(value)) return value;
   try {
@@ -78,6 +87,8 @@ var TIMEOUT_MS = 1e4;
 var MAX_BODY = 8 * 1024 * 1024;
 var TOKEN_MARGIN_MS = 6e4;
 var DEFAULT_LEASE_S = 3600;
+var SNAP_TOKEN_TTL_MS = 10 * 60 * 1e3;
+var MAX_TOKEN_CACHE = 16;
 var PTZ_OPS = /* @__PURE__ */ new Set([
   "Left",
   "Right",
@@ -226,6 +237,10 @@ async function getToken(t, user, pass, forceNew) {
   const cached = tokenCache.get(key);
   if (!forceNew && cached && cached.expires > Date.now()) return cached.token;
   const fresh = await login(t, user, pass);
+  if (tokenCache.size >= MAX_TOKEN_CACHE) {
+    const oldest = tokenCache.keys().next().value;
+    if (oldest) tokenCache.delete(oldest);
+  }
   tokenCache.set(key, fresh);
   return fresh.token;
 }
@@ -347,6 +362,19 @@ async function handlePost(req) {
   const channel = Math.max(0, Math.min(63, num(body.channel)));
   const action = String(body.action ?? "status");
   try {
+    if (action === "snap-token") {
+      const payload = {
+        h: host,
+        u: user,
+        p: pass,
+        c: channel,
+        s: t.secure,
+        i: t.insecure,
+        pt: t.port,
+        exp: Date.now() + SNAP_TOKEN_TTL_MS
+      };
+      return Response.json({ token: sealSecret(JSON.stringify(payload)), ttlMs: SNAP_TOKEN_TTL_MS });
+    }
     if (action === "status") {
       let model = "";
       let name = "";
@@ -402,21 +430,31 @@ async function handleGet(req) {
   if (sp.get("action") !== "snapshot") {
     return Response.json({ error: "invalid_action" }, { status: 400 });
   }
-  const host = (sp.get("host") || "").trim();
+  const raw = openSealedSecret(sp.get("tok") || "");
+  let tok = null;
+  try {
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (isObject(parsed)) tok = parsed;
+  } catch {
+    tok = null;
+  }
+  if (!tok || typeof tok.exp !== "number" || tok.exp < Date.now()) {
+    return Response.json({ error: "token_expired" }, { status: 401 });
+  }
+  const host = String(tok.h || "").trim();
   if (!isPrivateHost(host)) return Response.json({ error: "invalid_host" }, { status: 400 });
-  const user = (sp.get("user") || "").trim();
-  const pass = openSealedSecret(sp.get("pw") || "");
+  const user = String(tok.u || "").trim();
+  const pass = String(tok.p || "");
   if (!user || !pass) return Response.json({ error: "missing_credentials" }, { status: 400 });
-  const secure = sp.get("secure") === "1";
-  const t = buildTransport(host, sp.get("port"), secure, sp.get("insecure") !== "0");
-  const channel = Math.max(0, Math.min(63, num(sp.get("channel"))));
+  const t = buildTransport(host, tok.pt, tok.s === true, tok.i !== false);
+  const channel = Math.max(0, Math.min(63, num(tok.c)));
   try {
     const jpeg = await snapshot(t, user, pass, channel);
     return new Response(new Uint8Array(jpeg), {
       headers: {
         "Content-Type": "image/jpeg",
         "Cache-Control": "no-store, max-age=0",
-        // Versiegeltes Credential steckt in der Snapshot-URL → nie als Referer weitergeben.
+        // Token steckt im Query → nie als Referer weitergeben.
         "Referrer-Policy": "no-referrer"
       }
     });

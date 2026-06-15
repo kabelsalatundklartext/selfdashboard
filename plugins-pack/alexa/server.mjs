@@ -333,8 +333,23 @@ async function getPlayer(serial) {
   });
 }
 var PLAYER_COMMANDS = /* @__PURE__ */ new Set(["play", "pause", "next", "previous", "forward", "rewind"]);
+async function ownedDeviceSerials(alexa) {
+  const body = await call((cb) => alexa.getDevices(cb));
+  const raw = Array.isArray(body?.devices) ? body.devices : [];
+  return new Set(
+    raw.filter(isObj).map((d) => typeof d.serialNumber === "string" ? d.serialNumber : "").filter(Boolean)
+  );
+}
+async function ownedSmarthomeIds(alexa) {
+  const body = await call((cb) => alexa.getSmarthomeEntities(cb));
+  const raw = Array.isArray(body) ? body : isObj(body) && Array.isArray(body.entities) ? body.entities : [];
+  return new Set(
+    raw.filter(isObj).map((e) => typeof e.id === "string" ? e.id : typeof e.applianceId === "string" ? e.applianceId : "").filter(Boolean)
+  );
+}
 async function control(serial, command, value) {
   return withLive("control", async (alexa) => {
+    if (!(await ownedDeviceSerials(alexa)).has(serial)) throw new Error("no_device");
     if (command === "volume") {
       const vol = Math.max(0, Math.min(100, Math.round(value ?? 0)));
       await call((cb) => alexa.sendCommand(serial, "volume", vol, cb));
@@ -356,6 +371,7 @@ async function listSmarthome() {
 }
 async function toggleSmarthome(id, on) {
   return withLive("smarthome-toggle", async (alexa) => {
+    if (!(await ownedSmarthomeIds(alexa)).has(id)) throw new Error("no_device");
     await call((cb) => alexa.executeSmarthomeDeviceAction([id], [on ? "turnOn" : "turnOff"], "APPLIANCE", cb));
   });
 }
@@ -406,6 +422,17 @@ var REGIONS = {
 };
 var PORT_MIN = 1024;
 var PORT_MAX = 65535;
+function isAllowedProxyHost(h) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return true;
+  const o = m.slice(1).map(Number);
+  if (o.some((x) => x > 255)) return false;
+  if (o[0] === 10) return true;
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true;
+  if (o[0] === 192 && o[1] === 168) return true;
+  if (o[0] === 127) return true;
+  return false;
+}
 function jsonResponse(data, status = 200) {
   return Response.json(data, { status });
 }
@@ -413,7 +440,7 @@ function resolveConfig(body) {
   const region = REGIONS[String(body.region ?? "de")] ?? REGIONS.de;
   const host = String(body.host ?? "").trim();
   const port = Number(body.port);
-  if (!host || !/^[a-zA-Z0-9.\-:]+$/.test(host)) return null;
+  if (!host || !/^[a-zA-Z0-9.\-:]+$/.test(host) || !isAllowedProxyHost(host)) return null;
   if (!Number.isInteger(port) || port < PORT_MIN || port > PORT_MAX) return null;
   return { host, port, amazonPage: region.amazonPage, serviceHost: region.serviceHost };
 }

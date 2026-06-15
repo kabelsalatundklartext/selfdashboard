@@ -47,8 +47,14 @@ const CLIENT_ONLY_PLUGIN_IDS = [
   'selfstream-emby',
 ] as const
 
+// Schema-Migration + Prepared Statement nur einmal pro DB-Verbindung cachen — getAllowedPluginIds
+// läuft auf jedem Plugin-API-Request; CREATE IF NOT EXISTS und prepare() jedes Mal ist Verschwendung.
+const migratedDbs = new WeakSet<ReturnType<typeof getAuthDb>>()
+
 function migratePluginGrantsTable() {
-  getAuthDb().exec(`
+  const db = getAuthDb()
+  if (migratedDbs.has(db)) return
+  db.exec(`
     CREATE TABLE IF NOT EXISTS user_allowed_plugins (
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
@@ -56,6 +62,21 @@ function migratePluginGrantsTable() {
     );
     CREATE INDEX IF NOT EXISTS idx_user_allowed_plugins_user ON user_allowed_plugins(user_id);
   `)
+  migratedDbs.add(db)
+}
+
+function buildAllowedPluginsStmt(db: ReturnType<typeof getAuthDb>) {
+  return db.prepare('SELECT plugin_id FROM user_allowed_plugins WHERE user_id = ? ORDER BY plugin_id')
+}
+let allowedPluginsStmt: ReturnType<typeof buildAllowedPluginsStmt> | null = null
+let allowedPluginsStmtDb: ReturnType<typeof getAuthDb> | null = null
+
+function getAllowedPluginsStmt(): ReturnType<typeof buildAllowedPluginsStmt> {
+  const db = getAuthDb()
+  if (allowedPluginsStmt && allowedPluginsStmtDb === db) return allowedPluginsStmt
+  allowedPluginsStmtDb = db
+  allowedPluginsStmt = buildAllowedPluginsStmt(db)
+  return allowedPluginsStmt
 }
 
 export function ensurePluginGrantsSchema() {
@@ -74,9 +95,7 @@ export function listKnownPluginIds(): string[] {
 export function getAllowedPluginIds(userId: string, role: UserRole): string[] | null {
   if (isAuthDisabled() || role === 'admin') return null
   ensurePluginGrantsSchema()
-  const rows = getAuthDb()
-    .prepare('SELECT plugin_id FROM user_allowed_plugins WHERE user_id = ? ORDER BY plugin_id')
-    .all(userId) as { plugin_id: string }[]
+  const rows = getAllowedPluginsStmt().all(userId) as { plugin_id: string }[]
   return rows.map((r) => r.plugin_id)
 }
 
