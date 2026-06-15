@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-15T13:42:00.339Z",
+  "generatedAt": "2026-06-15T14:22:58.308Z",
   "plugins": [
     {
       "id": "adguard",
@@ -671,8 +671,8 @@
     {
       "id": "unraid",
       "name": "Unraid",
-      "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks. RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
-      "version": "1.5.5",
+      "description": "System-Übersicht per Unraid GraphQL API (7.2+): CPU, RAM, Array, Cache/Pool-Disks, optional Netzwerk-Durchsatz (RX/TX, API 4.35+). RAM-Anzeige umschaltbar (used / 1−verfügbar / API-%); Darstellung an Theme-Textfarben angeglichen.",
+      "version": "1.6.0",
       "author": "SelfDashboard",
       "category": "system",
       "icon": "🖥️",

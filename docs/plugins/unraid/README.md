@@ -23,9 +23,18 @@
 | **RAM-Modus** | Belegt / verfügbar / API-% |
 | **Intervall** | Sekunden |
 
+### Netzwerk-Auslastung (optional)
+
+Zeigt RX/TX-Durchsatz und Auslastung pro Interface. Im Widget **⚙️** unter „🌐 Netzwerk" aktivieren.
+
+- Erfordert **Unraid API 4.35.0+** (PR [unraid/api#2003](https://github.com/unraid/api/pull/2003)).
+- Standardmäßig **aus** — ältere API-Versionen bleiben unberührt (die Netzwerk-Felder werden nur abgefragt, wenn aktiviert).
+- `lo` und `veth*`-Interfaces werden ausgeblendet.
+- Version prüfen: `unraid-api version`.
+
 ### Voraussetzungen
 
-- Unraid **7.2+**  
+- Unraid **7.2+** (Netzwerk-Auslastung: API **4.35.0+**)  
 - API vom Container aus erreichbar  
 - **Kein** Docker-Socket nötig (anders als **Unraid Docker**)
 
@@ -62,9 +71,18 @@ GraphQL-Fehler → Key, API aktiv? HTTPS im LAN testen.
 | **RAM mode** | Used / available / API % |
 | **Interval** | Seconds |
 
+### Network utilization (optional)
+
+Shows RX/TX throughput and utilization per interface. Enable in the widget **⚙️** under "🌐 Network".
+
+- Requires **Unraid API 4.35.0+** (PR [unraid/api#2003](https://github.com/unraid/api/pull/2003)).
+- **Off** by default — older API versions are unaffected (network fields are only queried when enabled).
+- `lo` and `veth*` interfaces are hidden.
+- Check version: `unraid-api version`.
+
 ### Requirements
 
-- Unraid **7.2+**  
+- Unraid **7.2+** (network utilization: API **4.35.0+**)  
 - API reachable from container  
 - **No** Docker socket (unlike **Unraid Docker** plugin)
 
