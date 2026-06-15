@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type JellyfinSession = {
@@ -77,6 +78,7 @@ function activeSessions(sessions: JellyfinSession[]): JellyfinSession[] {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [sessions, setSessions] = useState<JellyfinSession[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -107,9 +109,10 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     setLoading(true)
     void refresh()
+    if (!active) return
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -339,7 +342,7 @@ export const meta: PluginMeta = {
   name: 'Jellyfin',
   description:
     'Aktive Wiedergaben vom Jellyfin-Server: Nutzer, Titel, Fortschritt, Pause (Sessions-API, Basis-URL + API-Key).',
-  version: '1.0.1',
+  version: '1.0.2',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🪼',

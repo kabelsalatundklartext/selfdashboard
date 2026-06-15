@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const ALEXA_CYAN = '#00caff'
@@ -96,6 +97,7 @@ const TABS: { key: TabKey; de: string; en: string }[] = [
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const title = config.title === undefined ? 'Alexa' : str(config.title)
   const showTitle = config.showTitle !== false
   const refreshMs = Math.max(5, num(config.refreshSeconds) || 15) * 1000
@@ -174,10 +176,11 @@ function Widget({ config }: PluginWidgetProps) {
 
   useEffect(() => {
     if (!status?.connected || tab !== 'devices' || !serial) return
+    if (!active) return
     void loadPlayer()
     const t = setInterval(() => void loadPlayer(), refreshMs)
     return () => clearInterval(t)
-  }, [status?.connected, tab, serial, refreshMs, loadPlayer])
+  }, [status?.connected, tab, serial, refreshMs, loadPlayer, active])
 
   const sendControl = useCallback(
     async (command: string, value?: number) => {

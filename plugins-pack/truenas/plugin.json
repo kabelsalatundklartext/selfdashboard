@@ -2,7 +2,7 @@
   "id": "truenas",
   "name": "TrueNAS",
   "description": "TrueNAS-Systeminfo und Pool-Status per REST-API-Key. (Beta)",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": "SelfDashboard",
   "category": "storage",
   "icon": "💾",

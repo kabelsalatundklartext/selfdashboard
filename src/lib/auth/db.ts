@@ -75,6 +75,10 @@ export function getAuthDb(): Database.Database {
   const path = authDbPath()
   db = new Database(path)
   db.pragma('journal_mode = WAL')
+  // synchronous=NORMAL ist unter WAL sicher und beschleunigt Schreibvorgänge; busy_timeout
+  // verhindert "database is locked"-Fehler, wenn mehrere Geräte/Requests gleichzeitig zugreifen.
+  db.pragma('synchronous = NORMAL')
+  db.pragma('busy_timeout = 5000')
   db.pragma('foreign_keys = ON')
   migrate(db)
   applyEnvPasswordReset()

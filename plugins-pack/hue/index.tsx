@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type HueLamp = {
@@ -51,7 +52,7 @@ type StateResponse = {
 
 type Style = 'cards' | 'compact' | 'tiles'
 
-const HUE_VERSION = '0.9.17'
+const HUE_VERSION = '0.9.18'
 
 const HUE_SWATCHES = ['#ffd8a6', '#ffb65c', '#f59e0b', '#ef4444', '#ec4899', '#a855f7', '#6366f1', '#3b82f6', '#22d3ee', '#22c55e', '#ffffff']
 
@@ -189,6 +190,7 @@ function Widget({ config }: PluginWidgetProps) {
   const configured = Boolean(baseUrl && apiKey)
   const hiddenGroups = parseIdSet(config.hiddenGroups)
   const hiddenLights = parseIdSet(config.hiddenLights)
+  const { active } = usePollingActive()
 
   const [view, setView] = useState<'groups' | 'lights'>(
     config.defaultView === 'lights' ? 'lights' : 'groups',
@@ -218,11 +220,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [apiKey, baseUrl, configured, de])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const hidden = view === 'groups' ? hiddenGroups : hiddenLights
   const items = (view === 'groups' ? groups : lights).filter((it) => !hidden.has(it.id))
@@ -761,7 +764,7 @@ export const meta: PluginMeta = {
   name: 'Philips Hue',
   description:
     'Philips-Hue-Lampen und Räume per lokaler Bridge-API steuern: an/aus, Helligkeit, Farbe. Karten/Kompakt/Kacheln, Hue-App-Stil.',
-  version: '0.9.17',
+  version: '0.9.18',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '💡',

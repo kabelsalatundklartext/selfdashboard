@@ -2,7 +2,7 @@
   "id": "fritz-smarthome",
   "name": "FRITZ! Smart Home",
   "description": "FRITZ! Smart Home über das AHA-HTTP-Interface: Heizthermostate (Soll-Temp), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren. (Beta)",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "🏠",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type MonitorStatus = 'up' | 'down' | 'pending' | 'maintenance'
@@ -102,6 +103,7 @@ async function fetchMonitors(url: string, slug: string): Promise<DashboardPayloa
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [rows, setRows] = useState<MonitorRow[]>([])
   const [counts, setCounts] = useState({ up: 0, down: 0, pending: 0, maintenance: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -154,9 +156,10 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     setLoading(true)
     void refresh()
+    if (!active) return
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -456,7 +459,7 @@ export const meta: PluginMeta = {
   name: 'Uptime Kuma',
   description:
     'Öffentliche Status-Page als kompakte Monitor-Liste — passt neben Selfstream-Emby. Probleme (Down) zuerst.',
-  version: '1.0.7',
+  version: '1.0.8',
   author: 'SelfDashboard',
   category: 'network',
   icon: '💚',

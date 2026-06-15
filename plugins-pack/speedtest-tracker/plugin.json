@@ -2,7 +2,7 @@
   "id": "speedtest-tracker",
   "name": "Speedtest Tracker",
   "description": "Letzter Speedtest aus Speedtest Tracker: Download, Upload, Ping + Zeitpunkt. API-Token aus den Speedtest-Tracker-Einstellungen (Bearer). Widget-Titel anpassbar.",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": "SelfDashboard",
   "category": "network",
   "icon": "🚀",

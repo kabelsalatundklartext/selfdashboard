@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -335,6 +336,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const title = config.title === undefined ? 'Homematic' : str(config.title)
   const refreshMs = Math.max(10, num(config.refreshSeconds) || 30) * 1000
   const configured = Boolean(baseUrl && username && password)
+  const { active } = usePollingActive()
 
   const channels = parseArr<ChannelCfg>(config.channels)
   const sysvarSel = parseArr<RefCfg>(config.sysvars)
@@ -395,11 +397,12 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   }, [baseUrl, username, password, configured, de, str(config.channels)])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const setDevice = async (ch: ChannelCfg, valueKey: string, valueType: string, value: unknown) => {
     busyRef.current = true
@@ -939,7 +942,7 @@ export const meta: PluginMeta = {
   name: 'Homematic',
   description:
     'Homematic / RaspberryMatic per JSON-RPC (Login): Heizung (Soll-Temp), Geräte schalten/dimmen, Sensoren & Systemvariablen anzeigen, Programme starten. (Beta)',
-  version: '0.9.11',
+  version: '0.9.12',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

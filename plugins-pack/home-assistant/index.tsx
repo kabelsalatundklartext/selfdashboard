@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type HaEntity = {
@@ -64,6 +65,7 @@ function stateStyle(state: string): CSSProperties {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [entities, setEntities] = useState<HaEntity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -107,9 +109,10 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     setLoading(true)
     void refresh()
+    if (!active) return
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -324,7 +327,7 @@ export const meta: PluginMeta = {
   id: 'home-assistant',
   name: 'Home Assistant',
   description: 'Ausgewählte Home-Assistant-Entitäten (Sensoren, Schalter …) per Long-Lived Token. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

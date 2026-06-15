@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type ProxmoxNode = {
@@ -157,6 +158,7 @@ function NodeRow({ node, de }: { node: ProxmoxNode; de: boolean }) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [data, setData] = useState<ProxmoxData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -195,11 +197,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [apiToken, baseUrl, configured, de, insecureTls])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',

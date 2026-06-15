@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -443,6 +444,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const widthScale = widthPct(cfg) / 100
   const layout = str(cfg.layout) || 'sidebar'
   const updatePluginConfig = useDashboardStore((st) => st.updatePluginConfig)
+  const { active } = usePollingActive()
   const smSevenVertical = cfg.smSevenVertical === true
   const smEnabled: Record<string, boolean> = {
     place: cfg.smPlace !== false,
@@ -570,6 +572,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
         if (!cancelled) setLoading(false)
       }
     }
+    if (!active) return
     void run()
     const id = window.setInterval(() => void run(), refreshMin * 60_000)
     return () => {
@@ -577,7 +580,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
       ac.abort()
       window.clearInterval(id)
     }
-  }, [name, country, refreshMin, de, showDaily, showAirQuality])
+  }, [name, country, refreshMin, de, showDaily, showAirQuality, active])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const [wide, setWide] = useState(false)
@@ -1296,7 +1299,7 @@ export const meta: PluginMeta = {
   name: 'Weather',
   description:
     'Stadt oder PLZ — aktuelles Wetter mit 3-Stunden-Verlauf (0, 3, 6 … 21, 24) und optional 7-Tage-Vorschau. Open-Meteo, kein API-Key. API: /api/plugins/weather/resolve.',
-  version: '1.10.5',
+  version: '1.10.7',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🌤️',

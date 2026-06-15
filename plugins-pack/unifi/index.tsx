@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type UnifiSubsystem = {
@@ -109,6 +110,7 @@ function SubsystemCell({ sub, de }: { sub: UnifiSubsystem; de: boolean }) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [data, setData] = useState<UnifiData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -151,9 +153,10 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     setLoading(true)
     void refresh()
+    if (!active) return
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -343,7 +346,7 @@ export const meta: PluginMeta = {
   name: 'UniFi Controller',
   description:
     'UniFi-Netzwerkstatus: WLAN/LAN/WAN, APs, Switches, Clients (Controller-Login, serverseitig). (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📶',

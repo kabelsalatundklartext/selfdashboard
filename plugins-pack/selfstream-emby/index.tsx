@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type Source = 'selfstream' | 'emby' | 'jellyfin'
@@ -166,6 +167,7 @@ function SourceIcon({ source }: { source: Source }) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [rows, setRows] = useState<StreamRow[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -254,11 +256,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [configured, de, embyApiKey, embyUrl, hasEmby, hasJellyfin, hasSelfstream, jellyfinApiKey, jellyfinUrl, selfstreamPassword, selfstreamUrl])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -547,7 +550,7 @@ export const meta: PluginMeta = {
   name: 'Selfstream · Emby · Jellyfin',
   description:
     'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
-  version: '1.3.0',
+  version: '1.3.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',

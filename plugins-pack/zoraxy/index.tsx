@@ -18,6 +18,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type ZoraxyData = {
@@ -406,6 +407,7 @@ function Tile({
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [data, setData] = useState<ZoraxyData | null>(null)
   const [traffic, setTraffic] = useState<{ down: number; up: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -475,11 +477,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [baseUrl, configured, de, username, password, wantKey])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -749,7 +752,7 @@ export const meta: PluginMeta = {
   name: 'Zoraxy',
   description:
     'Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Traffic, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)',
-  version: '0.9.6',
+  version: '0.9.7',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🛡️',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type TrueNasPool = {
@@ -109,6 +110,7 @@ function PoolRow({ pool }: { pool: TrueNasPool }) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const [data, setData] = useState<TrueNasData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -149,9 +151,10 @@ function Widget({ config }: PluginWidgetProps) {
   useEffect(() => {
     setLoading(true)
     void refresh()
+    if (!active) return
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -344,7 +347,7 @@ export const meta: PluginMeta = {
   id: 'truenas',
   name: 'TrueNAS',
   description: 'TrueNAS-Systeminfo und Pool-Status per REST-API-Key. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'storage',
   icon: '💾',

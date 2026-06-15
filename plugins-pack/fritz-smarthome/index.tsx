@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 type FritzDevice = {
@@ -115,6 +116,7 @@ function Widget({ config }: PluginWidgetProps) {
   const refreshMs = Math.max(10, num(config.refreshSeconds) || 30) * 1000
   const configured = Boolean(baseUrl && password)
   const hidden = parseIdSet(config.hidden)
+  const { active } = usePollingActive()
 
   const [devices, setDevices] = useState<FritzDevice[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -136,11 +138,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [baseUrl, username, password, configured, de])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const apply = (ain: string, patch: Partial<FritzDevice>) =>
     setDevices((prev) => prev.map((d) => (d.ain === ain ? { ...d, ...patch } : d)))
@@ -401,7 +404,7 @@ export const meta: PluginMeta = {
   name: 'FRITZ! Smart Home',
   description:
     'FRITZ! Smart Home über das AHA-HTTP-Interface: Heizthermostate (Soll-Temp), Steckdosen (an/aus + Watt), Fensterkontakte und Sensoren. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',

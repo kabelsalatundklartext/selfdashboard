@@ -2,7 +2,7 @@
   "id": "opnsense",
   "name": "OPNsense",
   "description": "OPNsense-Status: Version, Update-Status und Gateways per API-Key/-Secret. (Beta)",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "author": "SelfDashboard",
   "category": "security",
   "icon": "🧱",

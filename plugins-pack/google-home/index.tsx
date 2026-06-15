@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const GOOGLE_BLUE = '#4285f4'
@@ -158,6 +159,7 @@ function deviceIcon(type: string, size: number, color: string) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { active } = usePollingActive()
   const projectId = str(config.projectId)
   const clientId = str(config.clientId)
   const refreshMs = Math.max(10, num(config.refreshSeconds) || 30) * 1000
@@ -187,11 +189,12 @@ function Widget({ config }: PluginWidgetProps) {
   }, [configured, projectId, clientId])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void refresh()
     const t = setInterval(() => void refresh(), refreshMs)
     return () => clearInterval(t)
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, active])
 
   const sendCommand = useCallback(
     async (device: Device, command: string, params: Record<string, unknown>) => {
@@ -756,7 +759,7 @@ export const meta: PluginMeta = {
   name: 'Google Home / Nest',
   description:
     'Google-Nest-Geräte über die offizielle Smart Device Management (SDM) API: Thermostate (Ist-/Soll-Temperatur, Modus, +/-), Sensoren (Temperatur, Luftfeuchte) und Online-Status von Kameras, Türklingeln und Displays. Verbindung per OAuth. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '🏠',
