@@ -116,6 +116,45 @@ const STATE_COLORS: Record<TrackState, string> = {
   unknown: 'var(--text-muted)',
 }
 
+// --- Display density --------------------------------------------------------
+// Three user-selectable levels of detail per shipment, so many shipments still
+// fit. 'comfortable' = full card; 'compact' drops subline/eta; 'mini' = one
+// dense line (icon + name + status only).
+type Density = 'comfortable' | 'compact' | 'mini'
+const DENSITIES: Density[] = ['comfortable', 'compact', 'mini']
+
+type DensityStyle = {
+  pad: string
+  iconSize: number
+  rowGap: number
+  showSubline: boolean
+  showEvent: boolean
+  showEta: boolean
+  showLink: boolean
+}
+
+const DENSITY_STYLE: Record<Density, DensityStyle> = {
+  comfortable: { pad: '8px 10px', iconSize: 20, rowGap: 6, showSubline: true, showEvent: true, showEta: true, showLink: true },
+  compact: { pad: '6px 9px', iconSize: 17, rowGap: 5, showSubline: false, showEvent: true, showEta: false, showLink: true },
+  mini: { pad: '5px 9px', iconSize: 15, rowGap: 4, showSubline: false, showEvent: false, showEta: false, showLink: false },
+}
+
+function parseDensity(v: unknown): Density {
+  const s = typeof v === 'string' ? v : ''
+  return (DENSITIES as string[]).includes(s) ? (s as Density) : 'comfortable'
+}
+
+function densityLabel(d: Density, de: boolean): string {
+  switch (d) {
+    case 'compact':
+      return de ? 'Kompakt' : 'Compact'
+    case 'mini':
+      return de ? 'Minimal' : 'Minimal'
+    default:
+      return de ? 'Komfortabel' : 'Comfortable'
+  }
+}
+
 function newId(): string {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -319,6 +358,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const hideDelivered = cfg.hideDelivered === true
   const showTitle = cfg.showTitle !== false
   const title = cfg.title === undefined ? (de ? 'Pakete' : 'Parcels') : str(cfg.title)
+  const density = parseDensity(cfg.density)
 
   const [entries, setEntries] = useState<Record<string, Entry>>({})
   const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
@@ -456,7 +496,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         </p>
       ) : null}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto', minHeight: 0, flex: 1 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: DENSITY_STYLE[density].rowGap, overflowY: 'auto', minHeight: 0, flex: 1 }}>
         {visible.length === 0 ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
@@ -470,6 +510,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
               shipment={s}
               entry={entries[s.id]}
               de={de}
+              density={density}
               onRemove={canEdit ? () => removeShipment(s.id) : undefined}
             />
           ))
@@ -489,13 +530,16 @@ function ShipmentRow({
   shipment,
   entry,
   de,
+  density,
   onRemove,
 }: {
   shipment: Shipment
   entry: Entry | undefined
   de: boolean
+  density: Density
   onRemove?: () => void
 }) {
+  const d = DENSITY_STYLE[density]
   const result = entry?.kind === 'ok' ? entry.result : null
   const state: TrackState = result?.state ?? 'unknown'
   const notFound = result != null && !result.found
@@ -525,17 +569,17 @@ function ShipmentRow({
     <div
       style={{
         display: 'flex',
-        gap: 10,
-        padding: '8px 10px',
+        gap: density === 'mini' ? 8 : 10,
+        padding: d.pad,
         borderRadius: 10,
         background: 'var(--surface)',
         border: '1px solid var(--border)',
         borderLeft: `3px solid ${neutral ? 'var(--border)' : accent}`,
-        alignItems: 'flex-start',
+        alignItems: density === 'mini' ? 'center' : 'flex-start',
       }}
     >
-      <div style={{ flexShrink: 0, marginTop: 1, color: neutral ? 'var(--text-muted)' : accent }}>
-        <StateIcon state={neutral ? 'unknown' : state} size={20} color="currentColor" />
+      <div style={{ flexShrink: 0, marginTop: density === 'mini' ? 0 : 1, color: neutral ? 'var(--text-muted)' : accent }}>
+        <StateIcon state={neutral ? 'unknown' : state} size={d.iconSize} color="currentColor" />
       </div>
 
       <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -557,7 +601,7 @@ function ShipmentRow({
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: cColor, flexShrink: 0 }} title={carrierLabel(detectedCarrier)} />
         </div>
 
-        {subline ? (
+        {d.showSubline && subline ? (
           <span
             style={{
               fontSize: 'clamp(9px, 2.3cqmin, 10.5px)',
@@ -584,20 +628,20 @@ function ShipmentRow({
           {statusLine}
         </span>
 
-        {last && (last.location || last.date) ? (
+        {d.showEvent && last && (last.location || last.date) ? (
           <span style={{ fontSize: 'clamp(9px, 2.2cqmin, 10.5px)', color: 'var(--text-muted)', lineHeight: 1.3 }}>
             {[last.location, fmtDate(last.date, de)].filter(Boolean).join(' · ')}
           </span>
         ) : null}
 
-        {eta && state !== 'delivered' ? (
+        {d.showEta && eta && state !== 'delivered' ? (
           <span style={{ fontSize: 'clamp(9px, 2.2cqmin, 10.5px)', color: 'var(--text)', opacity: 0.85 }}>
             {de ? 'Voraussichtlich: ' : 'Expected: '}
             {fmtDate(eta, de)}
           </span>
         ) : null}
 
-        {trackUrl ? (
+        {d.showLink && trackUrl ? (
           <a
             href={trackUrl}
             target="_blank"
@@ -872,6 +916,20 @@ function Settings({ config, onChange }: PluginSettingsProps) {
           {de ? 'Zugestellte ausblenden' : 'Hide delivered'}
         </label>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
+          {de ? 'Darstellung' : 'Display density'}
+        </label>
+        <select
+          style={{ ...inp, cursor: 'pointer', marginBottom: 12 }}
+          value={parseDensity(cfg.density)}
+          onChange={(e) => onChange('density', e.target.value)}
+        >
+          {DENSITIES.map((dn) => (
+            <option key={dn} value={dn}>
+              {densityLabel(dn, de)}
+            </option>
+          ))}
+        </select>
+        <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>
           {de ? 'Aktualisieren (Min.)' : 'Refresh (minutes)'}
         </label>
         <input
@@ -906,17 +964,18 @@ export const meta: PluginMeta = {
   id: 'parcel',
   name: 'Paketverfolgung',
   description:
-    'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete im Blick mit Status, letztem Scan und voraussichtlicher Zustellung. (DPD experimentell, GLS nicht verfügbar.)',
+    'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete mit Status, letztem Scan, voraussichtlicher Zustellung und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '0.2.2',
+  version: '1.0.0',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
     { key: 'showTitle', label: 'Titel anzeigen', type: 'boolean', defaultValue: true },
     { key: 'title', label: 'Widget-Titel', type: 'text', defaultValue: 'Pakete' },
     { key: 'hideDelivered', label: 'Zugestellte ausblenden', type: 'boolean', defaultValue: false },
+    { key: 'density', label: 'Darstellung', type: 'text', defaultValue: 'comfortable' },
     { key: 'refreshMinutes', label: 'Aktualisieren (Min.)', type: 'number', defaultValue: 30 },
   ],
 }
