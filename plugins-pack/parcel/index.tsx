@@ -565,8 +565,29 @@ function ShipmentRow({
   else if (notFound) statusLine = de ? 'Keine Daten (Nummer/Anbieter prüfen)' : 'No data (check number/carrier)'
   else statusLine = result?.status || stateLabel(state, de)
 
+  // In minimal mode the explicit carrier link is hidden, so the whole row
+  // becomes the click target that opens the carrier's tracking page.
+  const clickable = density === 'mini' && Boolean(trackUrl)
+  const openCarrier = () => {
+    if (trackUrl) window.open(trackUrl, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <div
+      onClick={clickable ? openCarrier : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                openCarrier()
+              }
+            }
+          : undefined
+      }
+      role={clickable ? 'link' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      title={clickable ? (de ? 'Beim Anbieter ansehen' : 'View on carrier site') : undefined}
       style={{
         display: 'flex',
         gap: density === 'mini' ? 8 : 10,
@@ -576,6 +597,7 @@ function ShipmentRow({
         border: '1px solid var(--border)',
         borderLeft: `3px solid ${neutral ? 'var(--border)' : accent}`,
         alignItems: density === 'mini' ? 'center' : 'flex-start',
+        cursor: clickable ? 'pointer' : 'default',
       }}
     >
       <div style={{ flexShrink: 0, marginTop: density === 'mini' ? 0 : 1, color: neutral ? 'var(--text-muted)' : accent }}>
@@ -669,7 +691,10 @@ function ShipmentRow({
       {onRemove ? (
         <button
           type="button"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove?.()
+          }}
           title={de ? 'Entfernen' : 'Remove'}
           aria-label={de ? 'Entfernen' : 'Remove'}
           style={{
@@ -968,7 +993,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.0',
+  version: '1.0.1',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
