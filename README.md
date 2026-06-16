@@ -226,6 +226,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Network | Proxy hosts overview **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | System info via RPC **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Network | Version, gateways **(Beta)** |
+| 📦 | [Parcel Tracking](plugins-pack/parcel/README.md) | Utility | DHL / Hermes / DPD tracking, no API key |
 | <img src="plugins-pack/hue/icon.svg" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lights & rooms control **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Network | Pi-hole v6 stats |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Active sessions **(Beta)** |
@@ -234,7 +235,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | 📝 | [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Now playing + controls **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Now playing, controls, seek, volume, search & device picker |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Network | Latest down/up/ping **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + pool status **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Network | WLAN/LAN/WAN status **(Beta)** |
@@ -721,6 +722,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/nginx-proxy-manager.png" width="22"/> | [Nginx Proxy Manager](plugins-pack/npm/README.md) | Netzwerk | Proxy-Hosts-Übersicht **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/openmediavault.png" width="22"/> | [OpenMediaVault](plugins-pack/openmediavault/README.md) | Storage | Systeminfo per RPC **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/opnsense.png" width="22"/> | [OPNsense](plugins-pack/opnsense/README.md) | Netzwerk | Version, Gateways **(Beta)** |
+| 📦 | [Paketverfolgung](plugins-pack/parcel/README.md) | Utility | Sendungsverfolgung DHL / Hermes / DPD, ohne API-Key |
 | <img src="plugins-pack/hue/icon.svg" width="22"/> | [Philips Hue](plugins-pack/hue/README.md) | Utility | Lampen & Räume steuern **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/pi-hole.png" width="22"/> | [Pi-hole](plugins-pack/pihole/README.md) | Netzwerk | DNS-Statistik v6 |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/plex.png" width="22"/> | [Plex](plugins-pack/plex/README.md) | Media | Aktive Sessions **(Beta)** |
@@ -729,7 +731,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | 📝 | [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste |
-| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Aktueller Titel + Steuerung **(Beta)** |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Aktueller Titel, Steuerung, Seek, Lautstärke, Suche & Gerätewahl |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/speedtest-tracker.png" width="22"/> | [Speedtest Tracker](plugins-pack/speedtest-tracker/README.md) | Netzwerk | Letzter Down/Up/Ping **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/truenas.png" width="22"/> | [TrueNAS](plugins-pack/truenas/README.md) | Storage | System + Pool-Status **(Beta)** |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unifi.png" width="22"/> | [UniFi Controller](plugins-pack/unifi/README.md) | Netzwerk | WLAN/LAN/WAN-Status **(Beta)** |

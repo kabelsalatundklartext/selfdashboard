@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-16T10:15:20.807Z",
+  "generatedAt": "2026-06-16T10:28:58.609Z",
   "plugins": [
     {
       "id": "adguard",
@@ -627,7 +627,7 @@
       "id": "spotify",
       "name": "Spotify",
       "description": "Zeigt den aktuell laufenden Spotify-Titel (Cover, Künstler, Fortschritt), steuert die Wiedergabe (Play/Pause/Skip), spult vor/zurück, regelt Lautstärke & Stummschaltung, sucht nach Liedern & Playlists (eigene Playlists direkt sichtbar) und wählt das Wiedergabe-Gerät. Verbindung per OAuth, Steuerung/Abspielen erfordert Spotify Premium.",
-      "version": "0.14.0",
+      "version": "1.0.0",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "🎵",
