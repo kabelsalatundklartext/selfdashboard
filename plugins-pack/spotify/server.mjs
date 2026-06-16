@@ -639,7 +639,10 @@ async function handleTransfer(body, signal) {
   const record = await readStore(key);
   if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
   const token = await ensureAccessToken(key, record, signal);
-  const res = await spotifyApi(token, "/me/player", "PUT", signal, { device_ids: [deviceId] });
+  let res = await spotifyApi(token, "/me/player", "PUT", signal, { device_ids: [deviceId], play: true });
+  if (res.status === 404) {
+    res = await spotifyApi(token, "/me/player", "PUT", signal, { device_ids: [deviceId] });
+  }
   if (res.status === 401) throw new Error("reauth_required");
   if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
   if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);

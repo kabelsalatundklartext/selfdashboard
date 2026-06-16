@@ -1466,7 +1466,7 @@ export const meta: PluginMeta = {
   name: 'Spotify',
   description:
     'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip, Vor-/Zurückspulen über die Fortschrittsleiste, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl. Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
-  version: '0.13.0',
+  version: '0.13.1',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

@@ -661,8 +661,15 @@ async function handleTransfer(body: ReqBody, signal: AbortSignal): Promise<Respo
   if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
 
   const token = await ensureAccessToken(key, record, signal)
-  // device_ids transfers the session; omitting `play` keeps the current play state.
-  const res = await spotifyApi(token, '/me/player', 'PUT', signal, { device_ids: [deviceId] })
+  // device_ids transfers the session to the target (waking a Spotify Connect
+  // speaker/AVR if needed); play:true resumes playback there so "send to box"
+  // actually starts sound instead of silently switching an idle session.
+  let res = await spotifyApi(token, '/me/player', 'PUT', signal, { device_ids: [deviceId], play: true })
+  // 404 here means there was nothing to resume (cold start). Fall back to a plain
+  // transfer so the device still becomes active and a later track plays on it.
+  if (res.status === 404) {
+    res = await spotifyApi(token, '/me/player', 'PUT', signal, { device_ids: [deviceId] })
+  }
   if (res.status === 401) throw new Error('reauth_required')
   if (res.status === 403) return jsonResponse({ error: 'forbidden', detail: 'premium_required' }, 403)
   if (res.status === 404) return jsonResponse({ error: 'no_active_device' }, 404)
