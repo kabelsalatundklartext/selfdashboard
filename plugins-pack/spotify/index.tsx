@@ -20,6 +20,8 @@ type PlayerState = {
   deviceName?: string
   premium?: boolean
   product?: string
+  volumePercent?: number
+  supportsVolume?: boolean
   error?: string
   detail?: string
 }
@@ -201,6 +203,26 @@ function IconRefresh({ size = 24, color = 'currentColor' }: IconProps) {
   )
 }
 
+function IconVolume({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  )
+}
+
+function IconVolumeMute({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="m22 9-6 6" />
+      <path d="m16 9 6 6" />
+    </svg>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Widget
 // ---------------------------------------------------------------------------
@@ -312,6 +334,27 @@ function Widget({ config }: PluginWidgetProps) {
       }
     },
     [clientId, deviceId, state, refresh, de],
+  )
+
+  const setVolume = useCallback(
+    async (volumePercent: number) => {
+      if (!clientId) return
+      try {
+        const payload: Record<string, unknown> = { action: 'volume', clientId, volumePercent }
+        if (deviceId) payload.deviceId = deviceId
+        const json = await postSpotify(payload)
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err === 'forbidden') setControlMsg(de ? 'Steuerung erfordert Spotify Premium.' : 'Control requires Spotify Premium.')
+        else if (err === 'no_active_device') setControlMsg(de ? 'Kein aktives Gerät — starte die Wiedergabe zuerst in Spotify.' : 'No active device — start playback in Spotify first.')
+        else if (err) setControlMsg(de ? 'Lautstärke nicht änderbar (Gerät unterstützt das evtl. nicht).' : 'Volume change failed (device may not support it).')
+        else setControlMsg(null)
+      } catch {
+        /* surfaced on next poll */
+      } finally {
+        setTimeout(() => void refresh(), 400)
+      }
+    },
+    [clientId, deviceId, refresh, de],
   )
 
   const shell: CSSProperties = {
@@ -518,6 +561,15 @@ function Widget({ config }: PluginWidgetProps) {
           <IconNext size={20} />
         </ControlButton>
       </div>
+
+      {hasTrack ? (
+        <VolumeControl
+          volume={typeof state?.volumePercent === 'number' ? state.volumePercent : null}
+          supported={state?.supportsVolume !== false}
+          de={de}
+          onSet={(v) => void setVolume(v)}
+        />
+      ) : null}
 
       {controlMsg ? (
         <p style={{ margin: 0, fontSize: 9.5, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>
@@ -728,6 +780,170 @@ function SeekBar({
         <span>{fmtTime(shownProgress)}</span>
         <span>{fmtTime(duration)}</span>
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Volume control — mute toggle + click/drag slider (louder / quieter)
+// ---------------------------------------------------------------------------
+
+function VolumeControl({
+  volume,
+  supported,
+  de,
+  onSet,
+}: {
+  volume: number | null
+  supported: boolean
+  de: boolean
+  onSet: (volumePercent: number) => void
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  // Optimistic override so the slider reacts instantly before the next poll.
+  const [override, setOverride] = useState<number | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const lastNonZero = useRef(50)
+
+  // Clear the optimistic value once the server-reported volume updates.
+  useEffect(() => {
+    setOverride(null)
+  }, [volume])
+
+  useEffect(() => {
+    if (volume != null && volume > 0) lastNonZero.current = volume
+  }, [volume])
+
+  const display = override ?? volume ?? 0
+
+  const ratioFromClientX = useCallback((clientX: number): number | null => {
+    const el = trackRef.current
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0) return null
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  }, [])
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!supported) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      setDragging(true)
+      const r = ratioFromClientX(e.clientX)
+      if (r != null) setOverride(Math.round(r * 100))
+    },
+    [supported, ratioFromClientX],
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging) return
+      const r = ratioFromClientX(e.clientX)
+      if (r != null) setOverride(Math.round(r * 100))
+    },
+    [dragging, ratioFromClientX],
+  )
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!dragging) return
+      const r = ratioFromClientX(e.clientX)
+      const v = Math.round((r != null ? r : display / 100) * 100)
+      setDragging(false)
+      setOverride(v)
+      if (v > 0) lastNonZero.current = v
+      onSet(v)
+    },
+    [dragging, display, onSet, ratioFromClientX],
+  )
+
+  const toggleMute = useCallback(() => {
+    if (!supported) return
+    if (display > 0) {
+      lastNonZero.current = display
+      setOverride(0)
+      onSet(0)
+    } else {
+      const v = lastNonZero.current || 50
+      setOverride(v)
+      onSet(v)
+    }
+  }, [supported, display, onSet])
+
+  const muted = display === 0
+  const tint = supported ? 'var(--text-muted)' : 'var(--border)'
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: supported ? 1 : 0.5 }}>
+      <button
+        type="button"
+        onClick={toggleMute}
+        disabled={!supported}
+        title={
+          !supported
+            ? de
+              ? 'Gerät unterstützt keine Lautstärkeregelung'
+              : 'Device does not support volume control'
+            : muted
+              ? de
+                ? 'Ton an'
+                : 'Unmute'
+              : de
+                ? 'Stumm'
+                : 'Mute'
+        }
+        aria-label={muted ? (de ? 'Ton an' : 'Unmute') : de ? 'Stumm' : 'Mute'}
+        style={{
+          width: 24,
+          height: 24,
+          flex: '0 0 auto',
+          border: 'none',
+          background: 'transparent',
+          color: tint,
+          cursor: supported ? 'pointer' : 'default',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {muted ? <IconVolumeMute size={16} /> : <IconVolume size={16} />}
+      </button>
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        role="slider"
+        aria-label={de ? 'Lautstärke' : 'Volume'}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(display)}
+        style={{
+          position: 'relative',
+          flex: 1,
+          minWidth: 0,
+          height: 14,
+          display: 'flex',
+          alignItems: 'center',
+          cursor: supported ? 'pointer' : 'default',
+          touchAction: 'none',
+        }}
+      >
+        <div style={{ position: 'relative', width: '100%', height: 4, borderRadius: 2, background: 'var(--border)' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${display}%`,
+              background: supported ? SPOTIFY_GREEN : 'var(--text-muted)',
+              borderRadius: 2,
+              transition: dragging ? 'none' : 'width .15s ease',
+            }}
+          />
+        </div>
+      </div>
+      <span style={{ flex: '0 0 auto', fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', minWidth: 26, textAlign: 'right' }}>
+        {Math.round(display)}%
+      </span>
     </div>
   )
 }
@@ -1465,8 +1681,8 @@ export const meta: PluginMeta = {
   id: 'spotify',
   name: 'Spotify',
   description:
-    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip, Vor-/Zurückspulen über die Fortschrittsleiste, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl. Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
-  version: '0.13.1',
+    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip, Vor-/Zurückspulen, Lautstärke & Stummschaltung, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl. Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
+  version: '0.14.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

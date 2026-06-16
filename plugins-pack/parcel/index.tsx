@@ -93,6 +93,22 @@ function carrierColor(c: string): string {
   }
 }
 
+/** Deep-link to the carrier's own tracking page with the number prefilled, so
+ * the user can open the full official history. null when carrier is unknown. */
+function carrierTrackingUrl(carrier: string, number: string): string | null {
+  const n = encodeURIComponent(number)
+  switch (carrier) {
+    case 'dhl':
+      return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${n}`
+    case 'dpd':
+      return `https://tracking.dpd.de/status/de_DE/parcel/${n}`
+    case 'hermes':
+      return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${n}`
+    default:
+      return null
+  }
+}
+
 const STATE_COLORS: Record<TrackState, string> = {
   delivered: '#22c55e',
   transit: 'var(--accent)',
@@ -217,6 +233,16 @@ function IconPlus({ size = 18, color = 'currentColor' }: IconProps) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </svg>
+  )
+}
+
+function IconExternal({ size = 12, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
     </svg>
   )
 }
@@ -487,6 +513,7 @@ function ShipmentRow({
 
   const last = result?.lastEvent
   const eta = result?.eta
+  const trackUrl = carrierTrackingUrl(detectedCarrier, shipment.number)
 
   let statusLine = ''
   if (isLoading) statusLine = de ? 'Wird geladen…' : 'Loading…'
@@ -568,6 +595,30 @@ function ShipmentRow({
             {de ? 'Voraussichtlich: ' : 'Expected: '}
             {fmtDate(eta, de)}
           </span>
+        ) : null}
+
+        {trackUrl ? (
+          <a
+            href={trackUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={de ? 'Vollen Verlauf beim Anbieter ansehen' : 'View full history on carrier site'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              width: 'fit-content',
+              marginTop: 4,
+              fontSize: 'clamp(9px, 2.2cqmin, 10.5px)',
+              fontWeight: 600,
+              color: 'var(--accent)',
+              textDecoration: 'none',
+            }}
+          >
+            {de ? 'Beim Anbieter ansehen' : 'View on carrier'}
+            <IconExternal size={11} />
+          </a>
         ) : null}
       </div>
 
@@ -859,7 +910,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '0.2.1',
+  version: '0.2.2',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },

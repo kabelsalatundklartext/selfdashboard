@@ -330,7 +330,11 @@ function normalizePlayer(json, product) {
   base.progressMs = typeof json.progress_ms === "number" ? json.progress_ms : void 0;
   base.shuffle = json.shuffle_state === true;
   base.repeat = typeof json.repeat_state === "string" ? json.repeat_state : void 0;
-  if (device && typeof device.name === "string") base.deviceName = device.name;
+  if (device) {
+    if (typeof device.name === "string") base.deviceName = device.name;
+    if (typeof device.volume_percent === "number") base.volumePercent = device.volume_percent;
+    base.supportsVolume = device.supports_volume !== false;
+  }
   if (item) {
     base.hasTrack = true;
     if (typeof item.name === "string") base.title = item.name;
@@ -473,6 +477,32 @@ async function handleSeek(body, signal) {
   if (res.status >= 400) {
     const detail = spotifyErrorDetail(res.json, res.text);
     void logPluginApiFailure("spotify", "seek", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ ok: true });
+}
+async function handleVolume(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  const volumePercent = Number(body.volumePercent);
+  const deviceId = String(body.deviceId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  if (!Number.isFinite(volumePercent) || volumePercent < 0 || volumePercent > 100) {
+    return jsonResponse({ error: "invalid_volume" }, 400);
+  }
+  if (deviceId && !isDeviceId(deviceId)) return jsonResponse({ error: "invalid_device" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const vol = Math.round(volumePercent);
+  const path = `/me/player/volume?volume_percent=${vol}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ""}`;
+  const res = await spotifyApi(token, path, "PUT", signal);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
+  if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "volume", "api_error", { status: res.status, detail });
     return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
   }
   return jsonResponse({ ok: true });
@@ -675,6 +705,8 @@ async function handlePost(req) {
         return await handleControl(body, ac.signal);
       case "seek":
         return await handleSeek(body, ac.signal);
+      case "volume":
+        return await handleVolume(body, ac.signal);
       case "search":
         return await handleSearch(body, ac.signal);
       case "my-playlists":

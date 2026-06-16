@@ -223,6 +223,10 @@ type NowPlaying = {
   trackUrl?: string
   product?: string
   premium: boolean
+  /** active device volume 0-100 */
+  volumePercent?: number
+  /** whether the active device accepts volume changes */
+  supportsVolume?: boolean
 }
 
 function pickImage(images: unknown): string | undefined {
@@ -243,7 +247,13 @@ function normalizePlayer(json: unknown, product: string | undefined): NowPlaying
   base.progressMs = typeof json.progress_ms === 'number' ? json.progress_ms : undefined
   base.shuffle = json.shuffle_state === true
   base.repeat = typeof json.repeat_state === 'string' ? json.repeat_state : undefined
-  if (device && typeof device.name === 'string') base.deviceName = device.name
+  if (device) {
+    if (typeof device.name === 'string') base.deviceName = device.name
+    if (typeof device.volume_percent === 'number') base.volumePercent = device.volume_percent
+    // Older payloads omit supports_volume; treat missing as "supported" to avoid
+    // hiding the control on devices that actually accept volume changes.
+    base.supportsVolume = device.supports_volume !== false
+  }
 
   if (item) {
     base.hasTrack = true
@@ -286,6 +296,8 @@ type ReqBody = {
   deviceId?: string
   /** absolute playback position in ms (action: 'seek') */
   positionMs?: number
+  /** target volume 0-100 (action: 'volume') */
+  volumePercent?: number
 }
 
 /** Upper bound for a seek target (24h) — defensive guard against bad input. */
@@ -440,6 +452,35 @@ async function handleSeek(body: ReqBody, signal: AbortSignal): Promise<Response>
   if (res.status >= 400) {
     const detail = spotifyErrorDetail(res.json, res.text)
     void logPluginApiFailure('spotify', 'seek', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  return jsonResponse({ ok: true })
+}
+
+async function handleVolume(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  const volumePercent = Number(body.volumePercent)
+  const deviceId = String(body.deviceId ?? '').trim()
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  if (!Number.isFinite(volumePercent) || volumePercent < 0 || volumePercent > 100) {
+    return jsonResponse({ error: 'invalid_volume' }, 400)
+  }
+  if (deviceId && !isDeviceId(deviceId)) return jsonResponse({ error: 'invalid_device' }, 400)
+
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  const vol = Math.round(volumePercent)
+  const path = `/me/player/volume?volume_percent=${vol}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`
+  const res = await spotifyApi(token, path, 'PUT', signal)
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status === 403) return jsonResponse({ error: 'forbidden', detail: 'premium_required' }, 403)
+  if (res.status === 404) return jsonResponse({ error: 'no_active_device' }, 404)
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'volume', 'api_error', { status: res.status, detail })
     return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
   }
   return jsonResponse({ ok: true })
@@ -704,6 +745,8 @@ async function handlePost(req: Request): Promise<Response> {
         return await handleControl(body, ac.signal)
       case 'seek':
         return await handleSeek(body, ac.signal)
+      case 'volume':
+        return await handleVolume(body, ac.signal)
       case 'search':
         return await handleSearch(body, ac.signal)
       case 'my-playlists':
