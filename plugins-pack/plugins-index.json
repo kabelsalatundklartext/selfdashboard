@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-16T11:07:56.106Z",
+  "generatedAt": "2026-06-16T13:30:24.238Z",
   "plugins": [
     {
       "id": "adguard",
@@ -451,7 +451,7 @@
       "id": "parcel",
       "name": "Paketverfolgung",
       "description": "Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete mit Status, letztem Scan, voraussichtlicher Zustellung und Direktlink zum Anbieter. Drei Dichtestufen. API: /api/plugins/parcel/track.",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "📦",

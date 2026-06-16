@@ -80,17 +80,37 @@ function carrierLabel(c: string): string {
   }
 }
 
-function carrierColor(c: string): string {
-  switch (c) {
-    case 'dhl':
-      return '#fecc00'
-    case 'hermes':
-      return '#0098d4'
-    case 'dpd':
-      return '#dc0032'
-    default:
-      return 'var(--text-muted)'
-  }
+// Brand chips in the carriers' real colours — DHL yellow/red, DPD red, Hermes blue.
+const CARRIER_BRAND: Record<string, { bg: string; fg: string; text: string }> = {
+  dhl: { bg: '#ffcc00', fg: '#d40511', text: 'DHL' },
+  dpd: { bg: '#dc0032', fg: '#ffffff', text: 'DPD' },
+  hermes: { bg: '#0a3d91', fg: '#ffffff', text: 'Hermes' },
+}
+
+/** Small inline brand chip; null for unknown/auto-undetected carriers. */
+function CarrierBadge({ carrier }: { carrier: string }) {
+  const b = CARRIER_BRAND[carrier]
+  if (!b) return null
+  return (
+    <span
+      title={carrierLabel(carrier)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '1px 5px',
+        borderRadius: 4,
+        background: b.bg,
+        color: b.fg,
+        fontSize: 'clamp(7px, 1.9cqmin, 9px)',
+        fontWeight: 800,
+        letterSpacing: '0.02em',
+        lineHeight: 1.45,
+        flexShrink: 0,
+      }}
+    >
+      {b.text}
+    </span>
+  )
 }
 
 /** Deep-link to the carrier's own tracking page with the number prefilled, so
@@ -548,10 +568,9 @@ function ShipmentRow({
 
   const detectedCarrier = result?.carrier || shipment.carrier
   const accent = STATE_COLORS[state]
-  const cColor = carrierColor(detectedCarrier)
   const neutral = notFound || isError
 
-  const headline = shipment.name || `${carrierLabel(detectedCarrier)} ${shipment.number}`
+  const headline = shipment.name || shipment.number
   // Without a custom name the number is already the headline — skip the subline.
   const subline = shipment.name ? `${carrierLabel(detectedCarrier)} · ${shipment.number}` : ''
 
@@ -620,7 +639,7 @@ function ShipmentRow({
           >
             {headline}
           </span>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: cColor, flexShrink: 0 }} title={carrierLabel(detectedCarrier)} />
+          <CarrierBadge carrier={detectedCarrier} />
         </div>
 
         {d.showSubline && subline ? (
@@ -993,7 +1012,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.1',
+  version: '1.0.2',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
