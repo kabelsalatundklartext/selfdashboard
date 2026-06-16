@@ -235,10 +235,10 @@ function sensorText(values: Record<string, unknown> | undefined): string | null 
   return parts.join(' · ') || null
 }
 
-function sysvarText(sv: { value: unknown; unit: string }): string {
+function sysvarText(sv: { value: unknown; unit: string }, de: boolean): string {
   const v = sv.value
-  if (v === true || v === 'true') return 'An'
-  if (v === false || v === 'false') return 'Aus'
+  if (v === true || v === 'true') return de ? 'An' : 'On'
+  if (v === false || v === 'false') return de ? 'Aus' : 'Off'
   const n = Number(v)
   if (Number.isFinite(n)) return `${round(n, 1)}${sv.unit ? ' ' + sv.unit : ''}`.trim()
   return str(v) || '—'
@@ -665,7 +665,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
             {selSysvars.map((s) => (
               <div key={s.id} style={card}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={s.name}>{s.name}</div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{sysvarText(s)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{sysvarText(s, de)}</span>
               </div>
             ))}
           </div>

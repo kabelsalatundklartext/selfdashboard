@@ -286,7 +286,7 @@ function RequestsHero({
           color: 'var(--text-muted)',
         }}
       >
-        {de ? 'Requests' : 'Requests'}
+        {de ? 'Anfragen' : 'Requests'}
       </span>
       <span
         style={{
