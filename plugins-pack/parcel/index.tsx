@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { usePollingActive } from '@/hooks/usePollingActive'
+import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -118,17 +119,17 @@ function parseShipments(raw: unknown): Shipment[] {
     }
   }
   if (!Array.isArray(arr)) return []
+  // Keep entries with an empty number too — a freshly added shipment starts
+  // blank and must survive the config round-trip so it can be filled in.
   return arr
     .slice(0, MAX_SHIPMENTS)
     .map((s): Shipment | null => {
       if (typeof s !== 'object' || s === null) return null
       const o = s as Record<string, unknown>
-      const number = str(o.number).replace(/\s+/g, '')
-      if (!number) return null
       const carrier = str(o.carrier).toLowerCase()
       return {
         id: str(o.id) || newId(),
-        number,
+        number: str(o.number).replace(/\s+/g, ''),
         carrier: isCarrier(carrier) ? carrier : 'auto',
         name: str(o.name),
       }
@@ -280,10 +281,14 @@ function errorText(code: string, de: boolean): string {
 // Widget
 // ---------------------------------------------------------------------------
 
-function Widget({ config }: PluginWidgetProps) {
+function Widget({ config, instanceId }: PluginWidgetProps) {
   const { de } = usePluginLocale()
   const cfg = config as Record<string, unknown>
-  const shipments = useMemo(() => parseShipments(cfg.shipments), [cfg.shipments])
+  const updatePluginConfig = useDashboardStore((st) => st.updatePluginConfig)
+  // allShipments keeps blank entries (for editing); shipments is the trackable subset.
+  const allShipments = useMemo(() => parseShipments(cfg.shipments), [cfg.shipments])
+  const shipments = useMemo(() => allShipments.filter((s) => s.number), [allShipments])
+  const canEdit = Boolean(instanceId)
   const refreshMin = clampRefresh(cfg.refreshMinutes)
   const hideDelivered = cfg.hideDelivered === true
   const showTitle = cfg.showTitle !== false
@@ -291,6 +296,29 @@ function Widget({ config }: PluginWidgetProps) {
 
   const [entries, setEntries] = useState<Record<string, Entry>>({})
   const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
+
+  const writeShipments = useCallback(
+    (list: Shipment[]) => {
+      if (instanceId) updatePluginConfig(instanceId, { shipments: JSON.stringify(list) })
+    },
+    [instanceId, updatePluginConfig],
+  )
+
+  const addInline = useCallback(
+    (rawNumber: string, carrier: Carrier) => {
+      const n = rawNumber.replace(/\s+/g, '')
+      if (!n || allShipments.length >= MAX_SHIPMENTS) return
+      writeShipments([...allShipments, { id: newId(), number: n, carrier, name: '' }])
+    },
+    [allShipments, writeShipments],
+  )
+
+  const removeShipment = useCallback(
+    (id: string) => {
+      writeShipments(allShipments.filter((s) => s.id !== id))
+    },
+    [allShipments, writeShipments],
+  )
 
   // Stable signature so the effect only re-subscribes when shipments change.
   const sig = useMemo(() => shipments.map((s) => `${s.id}|${s.carrier}|${s.number}`).join(','), [shipments])
@@ -356,13 +384,22 @@ function Widget({ config }: PluginWidgetProps) {
 
   if (shipments.length === 0) {
     return (
-      <div ref={shellRef} style={{ ...shell, alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+      <div ref={shellRef} style={{ ...shell, alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12 }}>
         <IconPackage size={30} color="var(--text-muted)" />
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 }}>
-          {de
-            ? 'Noch keine Sendungen. In den Einstellungen Sendungsnummer und Anbieter hinzufügen.'
-            : 'No shipments yet. Add a tracking number and carrier in settings.'}
-        </p>
+        {canEdit ? (
+          <div style={{ width: '100%', maxWidth: 320 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.45 }}>
+              {de ? 'Sendungsnummer hinzufügen:' : 'Add a tracking number:'}
+            </p>
+            <AddForm onAdd={addInline} de={de} />
+          </div>
+        ) : (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+            {de
+              ? 'Noch keine Sendungen. In den Einstellungen hinzufügen.'
+              : 'No shipments yet. Add one in settings.'}
+          </p>
+        )}
       </div>
     )
   }
@@ -401,14 +438,38 @@ function Widget({ config }: PluginWidgetProps) {
             </p>
           </div>
         ) : (
-          visible.map((s) => <ShipmentRow key={s.id} shipment={s} entry={entries[s.id]} de={de} />)
+          visible.map((s) => (
+            <ShipmentRow
+              key={s.id}
+              shipment={s}
+              entry={entries[s.id]}
+              de={de}
+              onRemove={canEdit ? () => removeShipment(s.id) : undefined}
+            />
+          ))
         )}
       </div>
+
+      {canEdit && allShipments.length < MAX_SHIPMENTS ? (
+        <div style={{ flexShrink: 0 }}>
+          <AddForm onAdd={addInline} de={de} compact />
+        </div>
+      ) : null}
     </div>
   )
 }
 
-function ShipmentRow({ shipment, entry, de }: { shipment: Shipment; entry: Entry | undefined; de: boolean }) {
+function ShipmentRow({
+  shipment,
+  entry,
+  de,
+  onRemove,
+}: {
+  shipment: Shipment
+  entry: Entry | undefined
+  de: boolean
+  onRemove?: () => void
+}) {
   const result = entry?.kind === 'ok' ? entry.result : null
   const state: TrackState = result?.state ?? 'unknown'
   const notFound = result != null && !result.found
@@ -506,6 +567,29 @@ function ShipmentRow({ shipment, entry, de }: { shipment: Shipment; entry: Entry
           </span>
         ) : null}
       </div>
+
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          title={de ? 'Entfernen' : 'Remove'}
+          aria-label={de ? 'Entfernen' : 'Remove'}
+          style={{
+            flexShrink: 0,
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: 2,
+            marginTop: -2,
+            marginRight: -2,
+            lineHeight: 0,
+            opacity: 0.6,
+          }}
+        >
+          <IconTrash size={14} />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -523,6 +607,69 @@ const inp: CSSProperties = {
   color: 'var(--text)',
   fontSize: 13,
   boxSizing: 'border-box',
+}
+
+/** Inline add row used directly inside the widget (number + carrier + add). */
+function AddForm({
+  onAdd,
+  de,
+  compact,
+}: {
+  onAdd: (number: string, carrier: Carrier) => void
+  de: boolean
+  compact?: boolean
+}) {
+  const [number, setNumber] = useState('')
+  const [carrier, setCarrier] = useState<Carrier>('auto')
+  const ready = number.trim().length > 0
+  const submit = () => {
+    if (!ready) return
+    onAdd(number, carrier)
+    setNumber('')
+  }
+  const field: CSSProperties = { ...inp, fontSize: compact ? 12 : 13, padding: compact ? '5px 8px' : '6px 10px' }
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <input
+        style={{ ...field, flex: 1, minWidth: 0 }}
+        value={number}
+        placeholder={de ? 'Sendungsnummer' : 'Tracking number'}
+        onChange={(e) => setNumber(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit()
+        }}
+      />
+      <select
+        style={{ ...field, width: 'auto', cursor: 'pointer' }}
+        value={carrier}
+        onChange={(e) => setCarrier(isCarrier(e.target.value) ? e.target.value : 'auto')}
+      >
+        {CARRIERS.map((c) => (
+          <option key={c} value={c}>
+            {carrierLabel(c)}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!ready}
+        title={de ? 'Hinzufügen' : 'Add'}
+        aria-label={de ? 'Hinzufügen' : 'Add'}
+        style={{
+          ...field,
+          width: 'auto',
+          cursor: ready ? 'pointer' : 'not-allowed',
+          display: 'flex',
+          alignItems: 'center',
+          opacity: ready ? 1 : 0.5,
+          color: 'var(--accent)',
+        }}
+      >
+        <IconPlus size={16} />
+      </button>
+    </div>
+  )
 }
 
 function Settings({ config, onChange }: PluginSettingsProps) {
@@ -706,10 +853,10 @@ export const meta: PluginMeta = {
   name: 'Paketverfolgung',
   description:
     'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete im Blick mit Status, letztem Scan und voraussichtlicher Zustellung. (DPD experimentell, GLS nicht verfügbar.)',
-  version: '0.1.0',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
+  version: '0.2.0',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },

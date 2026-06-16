@@ -166,10 +166,14 @@ async function spotifyApi(
   path: string,
   method: 'GET' | 'POST' | 'PUT',
   signal: AbortSignal,
+  body?: unknown,
 ): Promise<{ status: number; json: unknown; text: string }> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
   const res = await fetchWithSsrfGuard(`${API}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: 'no-store',
     signal,
   })
@@ -271,7 +275,20 @@ type ReqBody = {
   clientSecret?: string
   redirectUri?: string
   command?: string
+  /** search query (action: 'search') */
+  query?: string
+  /** spotify uri to play (action: 'play-uri') */
+  uri?: string
+  /** 'track' | 'playlist' — selects uris[] vs context_uri */
+  kind?: string
+  /** target device id (action: 'transfer', or optional on 'play-uri') */
+  deviceId?: string
 }
+
+/** Max search query length we forward to Spotify (defensive bound). */
+const MAX_QUERY_LEN = 120
+/** Number of results requested per result type. */
+const SEARCH_LIMIT = 8
 
 function jsonResponse(data: unknown, status = 200): Response {
   return Response.json(data as Record<string, unknown>, { status })
@@ -393,6 +410,208 @@ async function handleControl(body: ReqBody, signal: AbortSignal): Promise<Respon
   return jsonResponse({ ok: true })
 }
 
+// ---------------------------------------------------------------------------
+// Search + play-by-uri
+// ---------------------------------------------------------------------------
+
+type SearchResult = {
+  kind: 'track' | 'playlist'
+  uri: string
+  title: string
+  subtitle: string
+  imageUrl?: string
+}
+
+function normalizeTrack(item: unknown): SearchResult | null {
+  if (!isObj(item) || typeof item.uri !== 'string' || typeof item.name !== 'string') return null
+  const artists = Array.isArray(item.artists) ? item.artists : []
+  const subtitle = artists
+    .filter(isObj)
+    .map((a) => (typeof a.name === 'string' ? a.name : ''))
+    .filter(Boolean)
+    .join(', ')
+  const album = isObj(item.album) ? item.album : null
+  return {
+    kind: 'track',
+    uri: item.uri,
+    title: item.name,
+    subtitle,
+    imageUrl: album ? pickImage(album.images) : undefined,
+  }
+}
+
+function normalizePlaylist(item: unknown): SearchResult | null {
+  // Spotify search occasionally returns null entries in playlists.items.
+  if (!isObj(item) || typeof item.uri !== 'string' || typeof item.name !== 'string') return null
+  const owner = isObj(item.owner) ? item.owner : null
+  const ownerName = owner && typeof owner.display_name === 'string' ? owner.display_name : ''
+  const total =
+    isObj(item.tracks) && typeof item.tracks.total === 'number' ? item.tracks.total : undefined
+  const parts = [ownerName, total != null ? `${total} Tracks` : ''].filter(Boolean)
+  return {
+    kind: 'playlist',
+    uri: item.uri,
+    title: item.name,
+    subtitle: parts.join(' · ') || 'Playlist',
+    imageUrl: pickImage(item.images),
+  }
+}
+
+function normalizeSearch(json: unknown): SearchResult[] {
+  if (!isObj(json)) return []
+  const out: SearchResult[] = []
+  const tracks = isObj(json.tracks) && Array.isArray(json.tracks.items) ? json.tracks.items : []
+  const playlists = isObj(json.playlists) && Array.isArray(json.playlists.items) ? json.playlists.items : []
+  for (const t of tracks) {
+    const r = normalizeTrack(t)
+    if (r) out.push(r)
+  }
+  for (const p of playlists) {
+    const r = normalizePlaylist(p)
+    if (r) out.push(r)
+  }
+  return out
+}
+
+async function handleSearch(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  const query = String(body.query ?? '').trim().slice(0, MAX_QUERY_LEN)
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  if (!query) return jsonResponse({ results: [] })
+
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  const qs = new URLSearchParams({
+    q: query,
+    type: 'track,playlist',
+    limit: String(SEARCH_LIMIT),
+  }).toString()
+  const res = await spotifyApi(token, `/search?${qs}`, 'GET', signal)
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'search', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  return jsonResponse({ results: normalizeSearch(res.json) })
+}
+
+/** Basic shape check for a Spotify URI we are about to play. */
+function isSpotifyUri(uri: string, kind: string): boolean {
+  if (kind === 'track') return /^spotify:track:[A-Za-z0-9]+$/.test(uri)
+  if (kind === 'playlist') return /^spotify:playlist:[A-Za-z0-9]+$/.test(uri)
+  return false
+}
+
+/** Spotify device ids are opaque alphanumeric tokens; bound the length defensively. */
+function isDeviceId(id: string): boolean {
+  return /^[A-Za-z0-9]{1,128}$/.test(id)
+}
+
+async function handlePlayUri(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  const uri = String(body.uri ?? '').trim()
+  const kind = String(body.kind ?? '').trim()
+  const deviceId = String(body.deviceId ?? '').trim()
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  if (!isSpotifyUri(uri, kind)) return jsonResponse({ error: 'invalid_uri' }, 400)
+  if (deviceId && !isDeviceId(deviceId)) return jsonResponse({ error: 'invalid_device' }, 400)
+
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  // Tracks play via uris[]; playlists/albums via context_uri.
+  const payload = kind === 'playlist' ? { context_uri: uri } : { uris: [uri] }
+  const path = deviceId ? `/me/player/play?device_id=${encodeURIComponent(deviceId)}` : '/me/player/play'
+  const res = await spotifyApi(token, path, 'PUT', signal, payload)
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status === 403) return jsonResponse({ error: 'forbidden', detail: 'premium_required' }, 403)
+  if (res.status === 404) return jsonResponse({ error: 'no_active_device' }, 404)
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'play-uri', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  return jsonResponse({ ok: true })
+}
+
+// ---------------------------------------------------------------------------
+// Devices — list available targets and transfer playback
+// ---------------------------------------------------------------------------
+
+type DeviceInfo = {
+  id: string
+  name: string
+  type: string
+  isActive: boolean
+  isRestricted: boolean
+  volumePercent?: number
+}
+
+function normalizeDevices(json: unknown): DeviceInfo[] {
+  if (!isObj(json) || !Array.isArray(json.devices)) return []
+  const out: DeviceInfo[] = []
+  for (const d of json.devices) {
+    if (!isObj(d) || typeof d.id !== 'string' || typeof d.name !== 'string') continue
+    out.push({
+      id: d.id,
+      name: d.name,
+      type: typeof d.type === 'string' ? d.type : '',
+      isActive: d.is_active === true,
+      isRestricted: d.is_restricted === true,
+      volumePercent: typeof d.volume_percent === 'number' ? d.volume_percent : undefined,
+    })
+  }
+  return out
+}
+
+async function handleDevices(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  const res = await spotifyApi(token, '/me/player/devices', 'GET', signal)
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'devices', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  return jsonResponse({ devices: normalizeDevices(res.json) })
+}
+
+async function handleTransfer(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  const deviceId = String(body.deviceId ?? '').trim()
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  if (!isDeviceId(deviceId)) return jsonResponse({ error: 'invalid_device' }, 400)
+
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  // device_ids transfers the session; omitting `play` keeps the current play state.
+  const res = await spotifyApi(token, '/me/player', 'PUT', signal, { device_ids: [deviceId] })
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status === 403) return jsonResponse({ error: 'forbidden', detail: 'premium_required' }, 403)
+  if (res.status === 404) return jsonResponse({ error: 'no_active_device' }, 404)
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'transfer', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  return jsonResponse({ ok: true })
+}
+
 async function handlePost(req: Request): Promise<Response> {
   let body: ReqBody
   try {
@@ -414,6 +633,14 @@ async function handlePost(req: Request): Promise<Response> {
         return await handleDisconnect(body)
       case 'control':
         return await handleControl(body, ac.signal)
+      case 'search':
+        return await handleSearch(body, ac.signal)
+      case 'play-uri':
+        return await handlePlayUri(body, ac.signal)
+      case 'devices':
+        return await handleDevices(body, ac.signal)
+      case 'transfer':
+        return await handleTransfer(body, ac.signal)
       case 'state':
       case 'now-playing':
         return await handleState(body, ac.signal)

@@ -24,6 +24,23 @@ type PlayerState = {
   detail?: string
 }
 
+type SearchItem = {
+  kind: 'track' | 'playlist'
+  uri: string
+  title: string
+  subtitle: string
+  imageUrl?: string
+}
+
+type DeviceItem = {
+  id: string
+  name: string
+  type: string
+  isActive: boolean
+  isRestricted: boolean
+  volumePercent?: number
+}
+
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : ''
 }
@@ -139,6 +156,51 @@ function IconNext({ size = 24, color = 'currentColor' }: IconProps) {
   )
 }
 
+function IconSearch({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  )
+}
+
+function IconClose({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  )
+}
+
+function IconList({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+    </svg>
+  )
+}
+
+function IconDevices({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="2" y="4" width="14" height="11" rx="1.5" />
+      <path d="M7 19h6" />
+      <path d="M9.5 15v4" />
+      <rect x="18" y="9" width="4" height="11" rx="1" />
+    </svg>
+  )
+}
+
+function IconRefresh({ size = 24, color = 'currentColor' }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Widget
 // ---------------------------------------------------------------------------
@@ -154,6 +216,10 @@ function Widget({ config }: PluginWidgetProps) {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [controlMsg, setControlMsg] = useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [deviceOpen, setDeviceOpen] = useState(false)
+  // Preferred playback target chosen via the device picker; search results play here.
+  const [deviceId, setDeviceId] = useState<string | null>(null)
   // Locally interpolated progress so the bar moves smoothly between polls.
   const [localProgress, setLocalProgress] = useState(0)
   const progressBase = useRef<{ at: number; ms: number; playing: boolean }>({ at: 0, ms: 0, playing: false })
@@ -225,6 +291,7 @@ function Widget({ config }: PluginWidgetProps) {
   )
 
   const shell: CSSProperties = {
+    position: 'relative',
     height: '100%',
     width: '100%',
     minWidth: 0,
@@ -280,8 +347,44 @@ function Widget({ config }: PluginWidgetProps) {
   const pct = duration > 0 ? Math.min(100, (progress / duration) * 100) : 0
   const playing = state?.playing === true
 
+  const cornerBtn = (offsetRight: number): CSSProperties => ({
+    position: 'absolute',
+    top: 8,
+    right: offsetRight,
+    zIndex: 2,
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--text-muted)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  })
+
   return (
     <div ref={shellRef} style={shell}>
+      <button
+        type="button"
+        onClick={() => setSearchOpen(true)}
+        title={de ? 'Suchen' : 'Search'}
+        aria-label={de ? 'Suchen' : 'Search'}
+        style={cornerBtn(10)}
+      >
+        <IconSearch size={16} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setDeviceOpen(true)}
+        title={de ? 'Gerät wählen' : 'Choose device'}
+        aria-label={de ? 'Gerät wählen' : 'Choose device'}
+        style={{ ...cornerBtn(40), color: deviceId ? SPOTIFY_GREEN : 'var(--text-muted)' }}
+      >
+        <IconDevices size={16} />
+      </button>
+
       {showTitle && title ? (
         <p
           style={{
@@ -413,6 +516,33 @@ function Widget({ config }: PluginWidgetProps) {
           {controlMsg}
         </p>
       ) : null}
+
+      {searchOpen ? (
+        <SearchPanel
+          clientId={clientId}
+          de={de}
+          deviceId={deviceId}
+          onClose={() => setSearchOpen(false)}
+          onPlayed={() => {
+            setSearchOpen(false)
+            void refresh()
+          }}
+        />
+      ) : null}
+
+      {deviceOpen ? (
+        <DevicePanel
+          clientId={clientId}
+          de={de}
+          selectedId={deviceId}
+          onClose={() => setDeviceOpen(false)}
+          onSelect={(id) => {
+            setDeviceId(id)
+            setDeviceOpen(false)
+            void refresh()
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -464,6 +594,455 @@ function ControlButton({
     >
       {children}
     </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Search overlay — find tracks/playlists and play them on the active device
+// ---------------------------------------------------------------------------
+
+/** Debounce (ms) before firing a search request as the user types. */
+const SEARCH_DEBOUNCE_MS = 350
+
+function searchErrorText(code: string, de: boolean): string {
+  switch (code) {
+    case 'forbidden':
+      return de ? 'Abspielen erfordert Spotify Premium.' : 'Playback requires Spotify Premium.'
+    case 'no_active_device':
+      return de
+        ? 'Kein aktives Gerät — starte Spotify zuerst auf einem Gerät.'
+        : 'No active device — open Spotify on a device first.'
+    case 'not_connected':
+    case 'reauth_required':
+      return de ? 'Verbindung abgelaufen — neu verbinden.' : 'Connection expired — reconnect.'
+    case 'network_error':
+      return de ? 'Netzwerkfehler.' : 'Network error.'
+    default:
+      return de ? 'Aktion fehlgeschlagen.' : 'Action failed.'
+  }
+}
+
+function SearchPanel({
+  clientId,
+  de,
+  deviceId,
+  onClose,
+  onPlayed,
+}: {
+  clientId: string
+  de: boolean
+  deviceId: string | null
+  onClose: () => void
+  onPlayed: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchItem[]>([])
+  const [searching, setSearching] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [pendingUri, setPendingUri] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Debounced search as the query changes.
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) {
+      setResults([])
+      setMsg(null)
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    const t = setTimeout(async () => {
+      try {
+        const json = await postSpotify({ action: 'search', clientId, query: q })
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err) {
+          setResults([])
+          setMsg(searchErrorText(err, de))
+        } else {
+          setResults(Array.isArray(json.results) ? (json.results as SearchItem[]) : [])
+          setMsg(null)
+        }
+      } catch {
+        setResults([])
+        setMsg(searchErrorText('network_error', de))
+      } finally {
+        setSearching(false)
+      }
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [query, clientId, de])
+
+  const play = useCallback(
+    async (item: SearchItem) => {
+      if (pendingUri) return
+      setPendingUri(item.uri)
+      setMsg(null)
+      try {
+        const payload: Record<string, unknown> = { action: 'play-uri', clientId, uri: item.uri, kind: item.kind }
+        if (deviceId) payload.deviceId = deviceId
+        const json = await postSpotify(payload)
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err) setMsg(searchErrorText(err, de))
+        else onPlayed()
+      } catch {
+        setMsg(searchErrorText('network_error', de))
+      } finally {
+        setPendingUri(null)
+      }
+    },
+    [clientId, de, deviceId, onPlayed, pendingUri],
+  )
+
+  const overlay: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 3,
+    background: 'var(--surface)',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '10px 12px',
+    gap: 8,
+  }
+
+  return (
+    <div style={overlay}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', display: 'flex' }}>
+            <IconSearch size={14} />
+          </span>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onClose()
+            }}
+            placeholder={de ? 'Lieder & Playlists suchen…' : 'Search songs & playlists…'}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '6px 8px 6px 26px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--bg, transparent)',
+              color: 'var(--text)',
+              fontSize: 12,
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          title={de ? 'Schließen' : 'Close'}
+          aria-label={de ? 'Schließen' : 'Close'}
+          style={{
+            width: 28,
+            height: 28,
+            flex: '0 0 auto',
+            borderRadius: '50%',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconClose size={16} />
+        </button>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {searching && results.length === 0 ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
+            {de ? 'Suche…' : 'Searching…'}
+          </p>
+        ) : null}
+        {!searching && query.trim() && results.length === 0 && !msg ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
+            {de ? 'Keine Treffer.' : 'No results.'}
+          </p>
+        ) : null}
+        {results.map((item) => (
+          <button
+            key={`${item.kind}:${item.uri}`}
+            type="button"
+            onClick={() => void play(item)}
+            disabled={pendingUri !== null}
+            title={`${item.title} — ${item.subtitle}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              width: '100%',
+              padding: 4,
+              borderRadius: 6,
+              border: 'none',
+              background: pendingUri === item.uri ? 'var(--border)' : 'transparent',
+              color: 'var(--text)',
+              cursor: pendingUri ? 'wait' : 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            {item.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.imageUrl}
+                alt=""
+                width={36}
+                height={36}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: item.kind === 'playlist' ? 6 : 4,
+                  objectFit: 'cover',
+                  flex: '0 0 auto',
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 6,
+                  background: 'var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flex: '0 0 auto',
+                }}
+              >
+                {item.kind === 'playlist' ? <IconList size={16} color={SPOTIFY_GREEN} /> : <IconMusic size={16} color={SPOTIFY_GREEN} />}
+              </span>
+            )}
+            <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {item.title}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {item.kind === 'playlist' ? `${de ? 'Playlist' : 'Playlist'} · ${item.subtitle}` : item.subtitle}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {msg ? (
+        <p style={{ margin: 0, fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>{msg}</p>
+      ) : null}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Device overlay — list available targets and transfer playback to one
+// ---------------------------------------------------------------------------
+
+/** Friendly label for a Spotify device type. */
+function deviceTypeLabel(type: string, de: boolean): string {
+  const t = type.toLowerCase()
+  if (t === 'computer') return de ? 'Computer' : 'Computer'
+  if (t === 'smartphone') return de ? 'Smartphone' : 'Smartphone'
+  if (t === 'speaker') return de ? 'Lautsprecher' : 'Speaker'
+  if (t === 'tv') return 'TV'
+  if (t === 'castvideo' || t === 'castaudio') return 'Cast'
+  if (t === 'gameconsole') return de ? 'Konsole' : 'Console'
+  if (t === 'automobile') return de ? 'Auto' : 'Car'
+  return type || (de ? 'Gerät' : 'Device')
+}
+
+function DevicePanel({
+  clientId,
+  de,
+  selectedId,
+  onClose,
+  onSelect,
+}: {
+  clientId: string
+  de: boolean
+  selectedId: string | null
+  onClose: () => void
+  onSelect: (id: string) => void
+}) {
+  const [devices, setDevices] = useState<DeviceItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const json = await postSpotify({ action: 'devices', clientId })
+      const err = typeof json.error === 'string' ? json.error : ''
+      if (err) {
+        setDevices([])
+        setMsg(searchErrorText(err, de))
+      } else {
+        setDevices(Array.isArray(json.devices) ? (json.devices as DeviceItem[]) : [])
+        setMsg(null)
+      }
+    } catch {
+      setDevices([])
+      setMsg(searchErrorText('network_error', de))
+    } finally {
+      setLoading(false)
+    }
+  }, [clientId, de])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const choose = useCallback(
+    async (d: DeviceItem) => {
+      if (pendingId) return
+      setPendingId(d.id)
+      setMsg(null)
+      try {
+        const json = await postSpotify({ action: 'transfer', clientId, deviceId: d.id })
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err) setMsg(searchErrorText(err, de))
+        else onSelect(d.id)
+      } catch {
+        setMsg(searchErrorText('network_error', de))
+      } finally {
+        setPendingId(null)
+      }
+    },
+    [clientId, de, onSelect, pendingId],
+  )
+
+  const overlay: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 3,
+    background: 'var(--surface)',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '10px 12px',
+    gap: 8,
+  }
+
+  return (
+    <div style={overlay}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+          {de ? 'Gerät wählen' : 'Choose device'}
+        </span>
+        <button
+          type="button"
+          onClick={() => void load()}
+          title={de ? 'Aktualisieren' : 'Refresh'}
+          aria-label={de ? 'Aktualisieren' : 'Refresh'}
+          style={{
+            width: 28,
+            height: 28,
+            flex: '0 0 auto',
+            borderRadius: '50%',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconRefresh size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          title={de ? 'Schließen' : 'Close'}
+          aria-label={de ? 'Schließen' : 'Close'}
+          style={{
+            width: 28,
+            height: 28,
+            flex: '0 0 auto',
+            borderRadius: '50%',
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconClose size={16} />
+        </button>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {loading && devices.length === 0 ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
+            {de ? 'Lade Geräte…' : 'Loading devices…'}
+          </p>
+        ) : null}
+        {!loading && devices.length === 0 && !msg ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0', lineHeight: 1.4 }}>
+            {de
+              ? 'Kein Gerät gefunden. Öffne Spotify auf einem Gerät und tippe auf Aktualisieren.'
+              : 'No device found. Open Spotify on a device, then refresh.'}
+          </p>
+        ) : null}
+        {devices.map((d) => {
+          const chosen = d.id === selectedId || d.isActive
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => void choose(d)}
+              disabled={pendingId !== null || d.isRestricted}
+              title={d.isRestricted ? (de ? 'Dieses Gerät erlaubt keine Fernsteuerung.' : 'This device cannot be remote-controlled.') : d.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 4px',
+                borderRadius: 6,
+                border: 'none',
+                background: pendingId === d.id ? 'var(--border)' : 'transparent',
+                color: 'var(--text)',
+                cursor: d.isRestricted ? 'not-allowed' : pendingId ? 'wait' : 'pointer',
+                opacity: d.isRestricted ? 0.5 : 1,
+                textAlign: 'left',
+              }}
+            >
+              <span style={{ flex: '0 0 auto', display: 'flex', color: chosen ? SPOTIFY_GREEN : 'var(--text-muted)' }}>
+                <IconDevices size={18} />
+              </span>
+              <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.name}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deviceTypeLabel(d.type, de)}
+                  {typeof d.volumePercent === 'number' ? ` · ${d.volumePercent}%` : ''}
+                </span>
+              </span>
+              {chosen ? (
+                <span style={{ flex: '0 0 auto', fontSize: 10, color: SPOTIFY_GREEN, fontWeight: 700 }}>
+                  {de ? 'Aktiv' : 'Active'}
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
+      </div>
+
+      {msg ? (
+        <p style={{ margin: 0, fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>{msg}</p>
+      ) : null}
+    </div>
   )
 }
 
@@ -708,8 +1287,8 @@ export const meta: PluginMeta = {
   id: 'spotify',
   name: 'Spotify',
   description:
-    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung. Verbindung per OAuth; Steuerung erfordert Premium. (Beta)',
-  version: '0.9.5',
+    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung, Suche nach Liedern & Playlists und Gerätewahl (auf welchem Gerät abgespielt wird). Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
+  version: '0.11.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

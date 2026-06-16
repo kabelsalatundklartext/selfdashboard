@@ -284,10 +284,13 @@ async function ensureAccessToken(key, record, signal) {
   await writeStore(key, record);
   return body.access_token;
 }
-async function spotifyApi(token, path, method, signal) {
+async function spotifyApi(token, path, method, signal, body) {
+  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  if (body !== void 0) headers["Content-Type"] = "application/json";
   const res = await fetchWithSsrfGuard(`${API}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    headers,
+    body: body !== void 0 ? JSON.stringify(body) : void 0,
     cache: "no-store",
     signal
   });
@@ -344,6 +347,8 @@ function normalizePlayer(json, product) {
   }
   return base;
 }
+var MAX_QUERY_LEN = 120;
+var SEARCH_LIMIT = 8;
 function jsonResponse(data, status = 200) {
   return Response.json(data, { status });
 }
@@ -445,6 +450,156 @@ async function handleControl(body, signal) {
   }
   return jsonResponse({ ok: true });
 }
+function normalizeTrack(item) {
+  if (!isObj(item) || typeof item.uri !== "string" || typeof item.name !== "string") return null;
+  const artists = Array.isArray(item.artists) ? item.artists : [];
+  const subtitle = artists.filter(isObj).map((a) => typeof a.name === "string" ? a.name : "").filter(Boolean).join(", ");
+  const album = isObj(item.album) ? item.album : null;
+  return {
+    kind: "track",
+    uri: item.uri,
+    title: item.name,
+    subtitle,
+    imageUrl: album ? pickImage(album.images) : void 0
+  };
+}
+function normalizePlaylist(item) {
+  if (!isObj(item) || typeof item.uri !== "string" || typeof item.name !== "string") return null;
+  const owner = isObj(item.owner) ? item.owner : null;
+  const ownerName = owner && typeof owner.display_name === "string" ? owner.display_name : "";
+  const total = isObj(item.tracks) && typeof item.tracks.total === "number" ? item.tracks.total : void 0;
+  const parts = [ownerName, total != null ? `${total} Tracks` : ""].filter(Boolean);
+  return {
+    kind: "playlist",
+    uri: item.uri,
+    title: item.name,
+    subtitle: parts.join(" \xB7 ") || "Playlist",
+    imageUrl: pickImage(item.images)
+  };
+}
+function normalizeSearch(json) {
+  if (!isObj(json)) return [];
+  const out = [];
+  const tracks = isObj(json.tracks) && Array.isArray(json.tracks.items) ? json.tracks.items : [];
+  const playlists = isObj(json.playlists) && Array.isArray(json.playlists.items) ? json.playlists.items : [];
+  for (const t of tracks) {
+    const r = normalizeTrack(t);
+    if (r) out.push(r);
+  }
+  for (const p of playlists) {
+    const r = normalizePlaylist(p);
+    if (r) out.push(r);
+  }
+  return out;
+}
+async function handleSearch(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  const query = String(body.query ?? "").trim().slice(0, MAX_QUERY_LEN);
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  if (!query) return jsonResponse({ results: [] });
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const qs = new URLSearchParams({
+    q: query,
+    type: "track,playlist",
+    limit: String(SEARCH_LIMIT)
+  }).toString();
+  const res = await spotifyApi(token, `/search?${qs}`, "GET", signal);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "search", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ results: normalizeSearch(res.json) });
+}
+function isSpotifyUri(uri, kind) {
+  if (kind === "track") return /^spotify:track:[A-Za-z0-9]+$/.test(uri);
+  if (kind === "playlist") return /^spotify:playlist:[A-Za-z0-9]+$/.test(uri);
+  return false;
+}
+function isDeviceId(id) {
+  return /^[A-Za-z0-9]{1,128}$/.test(id);
+}
+async function handlePlayUri(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  const uri = String(body.uri ?? "").trim();
+  const kind = String(body.kind ?? "").trim();
+  const deviceId = String(body.deviceId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  if (!isSpotifyUri(uri, kind)) return jsonResponse({ error: "invalid_uri" }, 400);
+  if (deviceId && !isDeviceId(deviceId)) return jsonResponse({ error: "invalid_device" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const payload = kind === "playlist" ? { context_uri: uri } : { uris: [uri] };
+  const path = deviceId ? `/me/player/play?device_id=${encodeURIComponent(deviceId)}` : "/me/player/play";
+  const res = await spotifyApi(token, path, "PUT", signal, payload);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
+  if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "play-uri", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ ok: true });
+}
+function normalizeDevices(json) {
+  if (!isObj(json) || !Array.isArray(json.devices)) return [];
+  const out = [];
+  for (const d of json.devices) {
+    if (!isObj(d) || typeof d.id !== "string" || typeof d.name !== "string") continue;
+    out.push({
+      id: d.id,
+      name: d.name,
+      type: typeof d.type === "string" ? d.type : "",
+      isActive: d.is_active === true,
+      isRestricted: d.is_restricted === true,
+      volumePercent: typeof d.volume_percent === "number" ? d.volume_percent : void 0
+    });
+  }
+  return out;
+}
+async function handleDevices(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const res = await spotifyApi(token, "/me/player/devices", "GET", signal);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "devices", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ devices: normalizeDevices(res.json) });
+}
+async function handleTransfer(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  const deviceId = String(body.deviceId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  if (!isDeviceId(deviceId)) return jsonResponse({ error: "invalid_device" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const res = await spotifyApi(token, "/me/player", "PUT", signal, { device_ids: [deviceId] });
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
+  if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "transfer", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ ok: true });
+}
 async function handlePost(req) {
   let body;
   try {
@@ -465,6 +620,14 @@ async function handlePost(req) {
         return await handleDisconnect(body);
       case "control":
         return await handleControl(body, ac.signal);
+      case "search":
+        return await handleSearch(body, ac.signal);
+      case "play-uri":
+        return await handlePlayUri(body, ac.signal);
+      case "devices":
+        return await handleDevices(body, ac.signal);
+      case "transfer":
+        return await handleTransfer(body, ac.signal);
       case "state":
       case "now-playing":
         return await handleState(body, ac.signal);

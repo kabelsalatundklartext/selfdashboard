@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-16T06:59:09.401Z",
+  "generatedAt": "2026-06-16T08:47:36.778Z",
   "plugins": [
     {
       "id": "adguard",
@@ -451,7 +451,7 @@
       "id": "parcel",
       "name": "Paketverfolgung",
       "description": "Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete mit Status, letztem Scan und voraussichtlicher Zustellung. DPD experimentell, GLS nicht verfügbar. API: /api/plugins/parcel/track.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": "SelfDashboard",
       "category": "utility",
       "icon": "📦",
@@ -626,8 +626,8 @@
     {
       "id": "spotify",
       "name": "Spotify",
-      "description": "Zeigt den aktuell laufenden Spotify-Titel (Cover, Künstler, Fortschritt) und steuert die Wiedergabe (Play/Pause/Skip). Verbindung per OAuth, Steuerung erfordert Spotify Premium.",
-      "version": "0.9.5",
+      "description": "Zeigt den aktuell laufenden Spotify-Titel (Cover, Künstler, Fortschritt), steuert die Wiedergabe (Play/Pause/Skip), sucht nach Liedern & Playlists zum direkten Abspielen und wählt das Wiedergabe-Gerät. Verbindung per OAuth, Steuerung/Abspielen erfordert Spotify Premium.",
+      "version": "0.11.0",
       "author": "SelfDashboard",
       "category": "media",
       "icon": "🎵",
