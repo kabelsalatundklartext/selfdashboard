@@ -290,6 +290,30 @@ function Widget({ config }: PluginWidgetProps) {
     [clientId, busy, refresh, de],
   )
 
+  const seek = useCallback(
+    async (positionMs: number) => {
+      if (!clientId) return
+      // Optimistic: jump the bar immediately so seeking feels instant.
+      progressBase.current = { at: performance.now(), ms: positionMs, playing: state?.playing === true }
+      setLocalProgress(positionMs)
+      try {
+        const payload: Record<string, unknown> = { action: 'seek', clientId, positionMs }
+        if (deviceId) payload.deviceId = deviceId
+        const json = await postSpotify(payload)
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (err === 'forbidden') setControlMsg(de ? 'Steuerung erfordert Spotify Premium.' : 'Control requires Spotify Premium.')
+        else if (err === 'no_active_device') setControlMsg(de ? 'Kein aktives Gerät — starte die Wiedergabe zuerst in Spotify.' : 'No active device — start playback in Spotify first.')
+        else if (err) setControlMsg(de ? 'Aktion fehlgeschlagen.' : 'Action failed.')
+        else setControlMsg(null)
+      } catch {
+        /* surfaced on next poll */
+      } finally {
+        setTimeout(() => void refresh(), 400)
+      }
+    },
+    [clientId, deviceId, state, refresh, de],
+  )
+
   const shell: CSSProperties = {
     position: 'relative',
     height: '100%',
@@ -475,23 +499,7 @@ function Widget({ config }: PluginWidgetProps) {
       )}
 
       {hasTrack && duration > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ height: 4, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: SPOTIFY_GREEN, transition: 'width 1s linear' }} />
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 10,
-              color: 'var(--text-muted)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            <span>{fmtTime(progress)}</span>
-            <span>{fmtTime(duration)}</span>
-          </div>
-        </div>
+        <SeekBar progress={progress} duration={duration} pct={pct} onSeek={(ms) => void seek(ms)} />
       ) : null}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
@@ -594,6 +602,133 @@ function ControlButton({
     >
       {children}
     </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Seek bar — click or drag the progress track to scrub playback position
+// ---------------------------------------------------------------------------
+
+function SeekBar({
+  progress,
+  duration,
+  pct,
+  onSeek,
+}: {
+  progress: number
+  duration: number
+  pct: number
+  onSeek: (positionMs: number) => void
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState(false)
+  // While dragging, hold the drag percentage so the bar follows the pointer.
+  const [dragPct, setDragPct] = useState<number | null>(null)
+
+  const ratioFromClientX = useCallback((clientX: number): number | null => {
+    const el = trackRef.current
+    if (!el) return null
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0) return null
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  }, [])
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const r = ratioFromClientX(e.clientX)
+      if (r != null) setDragPct(r * 100)
+    },
+    [ratioFromClientX],
+  )
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (dragPct == null) return
+      const r = ratioFromClientX(e.clientX)
+      if (r != null) setDragPct(r * 100)
+    },
+    [dragPct, ratioFromClientX],
+  )
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (dragPct == null) return
+      const r = ratioFromClientX(e.clientX) ?? dragPct / 100
+      setDragPct(null)
+      onSeek(Math.round(r * duration))
+    },
+    [dragPct, duration, onSeek, ratioFromClientX],
+  )
+
+  const dragging = dragPct != null
+  const shownPct = dragging ? (dragPct as number) : pct
+  const shownProgress = dragging ? (shownPct / 100) * duration : progress
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        role="slider"
+        aria-label="Position"
+        aria-valuemin={0}
+        aria-valuemax={duration}
+        aria-valuenow={Math.round(shownProgress)}
+        style={{
+          position: 'relative',
+          height: 16,
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer',
+          touchAction: 'none',
+        }}
+      >
+        <div style={{ position: 'relative', width: '100%', height: hover || dragging ? 6 : 4, borderRadius: 3, background: 'var(--border)', transition: 'height .12s ease' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${shownPct}%`,
+              background: SPOTIFY_GREEN,
+              borderRadius: 3,
+              transition: dragging ? 'none' : 'width 1s linear',
+            }}
+          />
+          {hover || dragging ? (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: `${shownPct}%`,
+                width: 11,
+                height: 11,
+                borderRadius: '50%',
+                background: '#fff',
+                transform: 'translate(-50%, -50%)',
+                boxShadow: '0 1px 3px rgba(0,0,0,.4)',
+                pointerEvents: 'none',
+              }}
+            />
+          ) : null}
+        </div>
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: 10,
+          color: 'var(--text-muted)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        <span>{fmtTime(shownProgress)}</span>
+        <span>{fmtTime(duration)}</span>
+      </div>
+    </div>
   )
 }
 
@@ -1330,8 +1465,8 @@ export const meta: PluginMeta = {
   id: 'spotify',
   name: 'Spotify',
   description:
-    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl (auf welchem Gerät abgespielt wird). Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
-  version: '0.12.0',
+    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip, Vor-/Zurückspulen über die Fortschrittsleiste, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl. Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
+  version: '0.13.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

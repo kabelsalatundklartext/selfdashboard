@@ -347,6 +347,7 @@ function normalizePlayer(json, product) {
   }
   return base;
 }
+var MAX_SEEK_MS = 24 * 60 * 60 * 1e3;
 var MAX_QUERY_LEN = 120;
 var SEARCH_LIMIT = 8;
 function jsonResponse(data, status = 200) {
@@ -446,6 +447,32 @@ async function handleControl(body, signal) {
   if (res.status >= 400) {
     const detail = spotifyErrorDetail(res.json, res.text);
     void logPluginApiFailure("spotify", "control", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  return jsonResponse({ ok: true });
+}
+async function handleSeek(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  const positionMs = Number(body.positionMs);
+  const deviceId = String(body.deviceId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  if (!Number.isFinite(positionMs) || positionMs < 0 || positionMs > MAX_SEEK_MS) {
+    return jsonResponse({ error: "invalid_position" }, 400);
+  }
+  if (deviceId && !isDeviceId(deviceId)) return jsonResponse({ error: "invalid_device" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const pos = Math.floor(positionMs);
+  const path = `/me/player/seek?position_ms=${pos}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ""}`;
+  const res = await spotifyApi(token, path, "PUT", signal);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status === 403) return jsonResponse({ error: "forbidden", detail: "premium_required" }, 403);
+  if (res.status === 404) return jsonResponse({ error: "no_active_device" }, 404);
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "seek", "api_error", { status: res.status, detail });
     return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
   }
   return jsonResponse({ ok: true });
@@ -643,6 +670,8 @@ async function handlePost(req) {
         return await handleDisconnect(body);
       case "control":
         return await handleControl(body, ac.signal);
+      case "seek":
+        return await handleSeek(body, ac.signal);
       case "search":
         return await handleSearch(body, ac.signal);
       case "my-playlists":
