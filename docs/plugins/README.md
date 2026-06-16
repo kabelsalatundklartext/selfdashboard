@@ -28,6 +28,7 @@ Each plugin has a **README with German and English** sections:
 | [Nginx Proxy Manager](npm/README.md) | `npm` |
 | [OPNsense](opnsense/README.md) | `opnsense` |
 | [OpenMediaVault](openmediavault/README.md) | `openmediavault` |
+| [Paketverfolgung](parcel/README.md) | `parcel` |
 | [Philips Hue](hue/README.md) | `hue` |
 | [Pi-hole](pihole/README.md) | `pihole` |
 | [Plex](plex/README.md) | `plex` |
@@ -44,6 +45,7 @@ Each plugin has a **README with German and English** sections:
 | [Unraid Docker](unraid-docker/README.md) | `unraid-docker` |
 | [Uptime Kuma](uptime-kuma/README.md) | `uptime-kuma` |
 | [Weather](weather/README.md) | `weather` |
+| [Zoraxy](zoraxy/README.md) | `zoraxy` |
 
 **Installation:** [../PLUGINS.md](../PLUGINS.md) · **Develop:** [../PLUGIN_DEV.md](../PLUGIN_DEV.md)
 
