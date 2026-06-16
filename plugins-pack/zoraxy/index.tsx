@@ -80,7 +80,7 @@ const TILES: TileDef[] = [
   { key: 'upstreams', de: 'Upstreams', en: 'Upstreams', group: 'hosts', color: '#6366f1', Icon: Share2 },
   { key: 'online', de: 'Online', en: 'Online', group: 'uptime', color: '#22c55e', Icon: Wifi, good: true },
   { key: 'offline', de: 'Offline', en: 'Offline', group: 'uptime', color: '#ef4444', Icon: WifiOff, danger: true },
-  { key: 'requests', de: 'Requests', en: 'Requests', group: 'stats', color: '#3b82f6', Icon: Activity },
+  { key: 'requests', de: 'Anfragen', en: 'Requests', group: 'stats', color: '#3b82f6', Icon: Activity },
   { key: 'valid', de: 'Gültig', en: 'Valid', group: 'stats', color: '#22c55e', Icon: ShieldCheck, good: true },
   { key: 'blocked', de: 'Geblockt', en: 'Blocked', group: 'stats', color: '#ef4444', Icon: ShieldAlert, danger: true },
   { key: 'down', de: 'Download', en: 'Download', group: 'traffic', color: '#06b6d4', Icon: Download },
