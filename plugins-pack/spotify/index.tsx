@@ -640,11 +640,34 @@ function SearchPanel({
   const [searching, setSearching] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [pendingUri, setPendingUri] = useState<string | null>(null)
+  // The user's own playlists, shown while the search field is empty.
+  const [library, setLibrary] = useState<SearchItem[]>([])
+  const [libLoading, setLibLoading] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
+
+  // Load the user's own playlists once when the panel opens.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const json = await postSpotify({ action: 'my-playlists', clientId })
+        if (cancelled) return
+        const err = typeof json.error === 'string' ? json.error : ''
+        if (!err && Array.isArray(json.results)) setLibrary(json.results as SearchItem[])
+      } catch {
+        /* non-fatal: empty-state hint covers it */
+      } finally {
+        if (!cancelled) setLibLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [clientId])
 
   // Debounced search as the query changes.
   useEffect(() => {
@@ -709,6 +732,9 @@ function SearchPanel({
     gap: 8,
   }
 
+  const hasQuery = query.trim().length > 0
+  const shown = hasQuery ? results : library
+
   return (
     <div style={overlay}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -760,17 +786,34 @@ function SearchPanel({
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {searching && results.length === 0 ? (
+        {!hasQuery && library.length > 0 ? (
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '2px 0 2px 2px' }}>
+            {de ? 'Deine Playlists' : 'Your playlists'}
+          </p>
+        ) : null}
+        {hasQuery && searching && results.length === 0 ? (
           <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
             {de ? 'Suche…' : 'Searching…'}
           </p>
         ) : null}
-        {!searching && query.trim() && results.length === 0 && !msg ? (
+        {hasQuery && !searching && results.length === 0 && !msg ? (
           <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
             {de ? 'Keine Treffer.' : 'No results.'}
           </p>
         ) : null}
-        {results.map((item) => (
+        {!hasQuery && libLoading && library.length === 0 ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0' }}>
+            {de ? 'Lade Playlists…' : 'Loading playlists…'}
+          </p>
+        ) : null}
+        {!hasQuery && !libLoading && library.length === 0 && !msg ? (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', margin: '12px 0', lineHeight: 1.4 }}>
+            {de
+              ? 'Keine eigenen Playlists gefunden. Tippe oben zum Suchen. (Ggf. Plugin neu verbinden für Playlist-Zugriff.)'
+              : 'No playlists found. Type above to search.'}
+          </p>
+        ) : null}
+        {shown.map((item) => (
           <button
             key={`${item.kind}:${item.uri}`}
             type="button"
@@ -1287,8 +1330,8 @@ export const meta: PluginMeta = {
   id: 'spotify',
   name: 'Spotify',
   description:
-    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung, Suche nach Liedern & Playlists und Gerätewahl (auf welchem Gerät abgespielt wird). Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
-  version: '0.11.0',
+    'Aktueller Spotify-Titel mit Cover, Künstler und Fortschritt — plus Play/Pause/Skip-Steuerung, Suche nach Liedern & Playlists (eigene Playlists direkt sichtbar) und Gerätewahl (auf welchem Gerät abgespielt wird). Verbindung per OAuth; Steuerung/Abspielen erfordert Premium. (Beta)',
+  version: '0.12.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '🎵',

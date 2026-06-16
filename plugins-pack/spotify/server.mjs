@@ -198,7 +198,7 @@ var dynamic = "force-dynamic";
 var AUTH_URL = "https://accounts.spotify.com/authorize";
 var TOKEN_URL = "https://accounts.spotify.com/api/token";
 var API = "https://api.spotify.com/v1";
-var SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state";
+var SCOPES = "user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-read-collaborative";
 var FETCH_TIMEOUT_MS = 12e3;
 var TOKEN_SKEW_MS = 3e4;
 function storeDir() {
@@ -515,6 +515,29 @@ async function handleSearch(body, signal) {
   }
   return jsonResponse({ results: normalizeSearch(res.json) });
 }
+var MY_PLAYLISTS_LIMIT = 30;
+async function handleMyPlaylists(body, signal) {
+  const clientId = String(body.clientId ?? "").trim();
+  if (!clientId) return jsonResponse({ error: "missing_credentials" }, 400);
+  const key = storeKey(clientId);
+  const record = await readStore(key);
+  if (!record?.refreshToken) return jsonResponse({ error: "not_connected" }, 401);
+  const token = await ensureAccessToken(key, record, signal);
+  const res = await spotifyApi(token, `/me/playlists?limit=${MY_PLAYLISTS_LIMIT}`, "GET", signal);
+  if (res.status === 401) throw new Error("reauth_required");
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text);
+    void logPluginApiFailure("spotify", "my-playlists", "api_error", { status: res.status, detail });
+    return jsonResponse({ error: "api_error", status: res.status, detail }, 502);
+  }
+  const items = isObj(res.json) && Array.isArray(res.json.items) ? res.json.items : [];
+  const results = [];
+  for (const p of items) {
+    const r = normalizePlaylist(p);
+    if (r) results.push(r);
+  }
+  return jsonResponse({ results });
+}
 function isSpotifyUri(uri, kind) {
   if (kind === "track") return /^spotify:track:[A-Za-z0-9]+$/.test(uri);
   if (kind === "playlist") return /^spotify:playlist:[A-Za-z0-9]+$/.test(uri);
@@ -622,6 +645,8 @@ async function handlePost(req) {
         return await handleControl(body, ac.signal);
       case "search":
         return await handleSearch(body, ac.signal);
+      case "my-playlists":
+        return await handleMyPlaylists(body, ac.signal);
       case "play-uri":
         return await handlePlayUri(body, ac.signal);
       case "devices":

@@ -482,7 +482,8 @@ function ShipmentRow({
   const neutral = notFound || isError
 
   const headline = shipment.name || `${carrierLabel(detectedCarrier)} ${shipment.number}`
-  const subline = shipment.name ? `${carrierLabel(detectedCarrier)} · ${shipment.number}` : shipment.number
+  // Without a custom name the number is already the headline — skip the subline.
+  const subline = shipment.name ? `${carrierLabel(detectedCarrier)} · ${shipment.number}` : ''
 
   const last = result?.lastEvent
   const eta = result?.eta
@@ -529,18 +530,20 @@ function ShipmentRow({
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: cColor, flexShrink: 0 }} title={carrierLabel(detectedCarrier)} />
         </div>
 
-        <span
-          style={{
-            fontSize: 'clamp(9px, 2.3cqmin, 10.5px)',
-            color: 'var(--text-muted)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-          title={subline}
-        >
-          {subline}
-        </span>
+        {subline ? (
+          <span
+            style={{
+              fontSize: 'clamp(9px, 2.3cqmin, 10.5px)',
+              color: 'var(--text-muted)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={subline}
+          >
+            {subline}
+          </span>
+        ) : null}
 
         <span
           style={{
@@ -856,7 +859,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '0.2.0',
+  version: '0.2.1',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },

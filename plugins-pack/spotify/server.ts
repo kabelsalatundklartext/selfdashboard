@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic'
 const AUTH_URL = 'https://accounts.spotify.com/authorize'
 const TOKEN_URL = 'https://accounts.spotify.com/api/token'
 const API = 'https://api.spotify.com/v1'
-const SCOPES = 'user-read-playback-state user-read-currently-playing user-modify-playback-state'
+const SCOPES =
+  'user-read-playback-state user-read-currently-playing user-modify-playback-state playlist-read-private playlist-read-collaborative'
 const FETCH_TIMEOUT_MS = 12_000
 /** Refresh the access token a little before it actually expires. */
 const TOKEN_SKEW_MS = 30_000
@@ -499,6 +500,33 @@ async function handleSearch(body: ReqBody, signal: AbortSignal): Promise<Respons
   return jsonResponse({ results: normalizeSearch(res.json) })
 }
 
+/** Number of the user's own playlists to load for the empty-search view. */
+const MY_PLAYLISTS_LIMIT = 30
+
+async function handleMyPlaylists(body: ReqBody, signal: AbortSignal): Promise<Response> {
+  const clientId = String(body.clientId ?? '').trim()
+  if (!clientId) return jsonResponse({ error: 'missing_credentials' }, 400)
+  const key = storeKey(clientId)
+  const record = await readStore(key)
+  if (!record?.refreshToken) return jsonResponse({ error: 'not_connected' }, 401)
+
+  const token = await ensureAccessToken(key, record, signal)
+  const res = await spotifyApi(token, `/me/playlists?limit=${MY_PLAYLISTS_LIMIT}`, 'GET', signal)
+  if (res.status === 401) throw new Error('reauth_required')
+  if (res.status >= 400) {
+    const detail = spotifyErrorDetail(res.json, res.text)
+    void logPluginApiFailure('spotify', 'my-playlists', 'api_error', { status: res.status, detail })
+    return jsonResponse({ error: 'api_error', status: res.status, detail }, 502)
+  }
+  const items = isObj(res.json) && Array.isArray(res.json.items) ? res.json.items : []
+  const results: SearchResult[] = []
+  for (const p of items) {
+    const r = normalizePlaylist(p)
+    if (r) results.push(r)
+  }
+  return jsonResponse({ results })
+}
+
 /** Basic shape check for a Spotify URI we are about to play. */
 function isSpotifyUri(uri: string, kind: string): boolean {
   if (kind === 'track') return /^spotify:track:[A-Za-z0-9]+$/.test(uri)
@@ -635,6 +663,8 @@ async function handlePost(req: Request): Promise<Response> {
         return await handleControl(body, ac.signal)
       case 'search':
         return await handleSearch(body, ac.signal)
+      case 'my-playlists':
+        return await handleMyPlaylists(body, ac.signal)
       case 'play-uri':
         return await handlePlayUri(body, ac.signal)
       case 'devices':
