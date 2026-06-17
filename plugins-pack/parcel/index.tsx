@@ -10,7 +10,7 @@ import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProp
 // Types — TrackResult mirrors the normalized shape from server.ts.
 // ---------------------------------------------------------------------------
 
-type Carrier = 'auto' | 'dhl' | 'hermes' | 'dpd'
+type Carrier = 'auto' | 'dhl' | 'hermes' | 'dpd' | 'ups'
 type TrackState = 'delivered' | 'transit' | 'problem' | 'unknown'
 
 type Shipment = {
@@ -57,7 +57,7 @@ function clampRefresh(v: unknown): number {
   return Math.min(180, Math.max(10, Math.round(num(v, 30))))
 }
 
-const CARRIERS: Carrier[] = ['auto', 'dhl', 'hermes', 'dpd']
+const CARRIERS: Carrier[] = ['auto', 'dhl', 'hermes', 'dpd', 'ups']
 /** Bounds the number of upstream calls one widget can fan out per refresh. */
 const MAX_SHIPMENTS = 25
 
@@ -73,6 +73,8 @@ function carrierLabel(c: string): string {
       return 'Hermes'
     case 'dpd':
       return 'DPD'
+    case 'ups':
+      return 'UPS'
     case 'auto':
       return 'Auto'
     default:
@@ -85,6 +87,7 @@ const CARRIER_BRAND: Record<string, { bg: string; fg: string; text: string }> = 
   dhl: { bg: '#ffcc00', fg: '#d40511', text: 'DHL' },
   dpd: { bg: '#dc0032', fg: '#ffffff', text: 'DPD' },
   hermes: { bg: '#0a3d91', fg: '#ffffff', text: 'Hermes' },
+  ups: { bg: '#351c15', fg: '#ffb500', text: 'UPS' },
 }
 
 /** Small inline brand chip; null for unknown/auto-undetected carriers. */
@@ -122,6 +125,8 @@ function carrierTrackingUrl(carrier: string, number: string): string | null {
       return `https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=${n}`
     case 'dpd':
       return `https://tracking.dpd.de/status/de_DE/parcel/${n}`
+    case 'ups':
+      return `https://www.ups.com/track?loc=de_DE&tracknum=${n}&requester=ST`
     case 'hermes':
       return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${n}`
     default:
@@ -328,10 +333,19 @@ function StateIcon({ state, size, color }: { state: TrackState; size: number; co
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function fetchTrack(shipment: Shipment, signal: AbortSignal): Promise<Entry> {
+type UpsCreds = { id: string; secret: string }
+
+async function fetchTrack(shipment: Shipment, ups: UpsCreds | null, signal: AbortSignal): Promise<Entry> {
   const q = new URLSearchParams({ carrier: shipment.carrier, number: shipment.number })
+  // UPS credentials only matter for UPS (and auto, which may resolve to UPS);
+  // send them via headers so they never land in the request URL / server logs.
+  const headers: Record<string, string> = {}
+  if (ups && (shipment.carrier === 'ups' || shipment.carrier === 'auto')) {
+    headers['x-ups-client-id'] = ups.id
+    headers['x-ups-client-secret'] = ups.secret
+  }
   try {
-    const res = await fetch(`/api/plugins/parcel/track?${q}`, { signal, cache: 'no-store' })
+    const res = await fetch(`/api/plugins/parcel/track?${q}`, { signal, cache: 'no-store', headers })
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
       const code = str(json.error) || `HTTP ${res.status}`
@@ -358,6 +372,12 @@ function errorText(code: string, de: boolean): string {
       return de
         ? 'DPD-Status gerade nicht abrufbar – beim Anbieter ansehen.'
         : 'DPD status unavailable right now – view on carrier.'
+    case 'ups_no_credentials':
+      return de ? 'UPS: Client ID/Secret in den Einstellungen eintragen.' : 'UPS: add Client ID/Secret in settings.'
+    case 'ups_auth_failed':
+      return de ? 'UPS-Zugangsdaten ungültig.' : 'UPS credentials invalid.'
+    case 'ups_error':
+      return de ? 'UPS-Abruf fehlgeschlagen.' : 'UPS lookup failed.'
     case 'fetch_failed':
     case 'blocked_url':
       return de ? 'Carrier nicht erreichbar.' : 'Carrier unreachable.'
@@ -383,6 +403,13 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showTitle = cfg.showTitle !== false
   const title = cfg.title === undefined ? (de ? 'Pakete' : 'Parcels') : str(cfg.title)
   const density = parseDensity(cfg.density)
+  // Optional UPS API credentials — enable real UPS status (UPS blocks free access).
+  const upsId = str(cfg.upsClientId)
+  const upsSecret = str(cfg.upsClientSecret)
+  const ups = useMemo<UpsCreds | null>(
+    () => (upsId && upsSecret ? { id: upsId, secret: upsSecret } : null),
+    [upsId, upsSecret],
+  )
 
   const [entries, setEntries] = useState<Record<string, Entry>>({})
   const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
@@ -410,8 +437,12 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     [allShipments, writeShipments],
   )
 
-  // Stable signature so the effect only re-subscribes when shipments change.
-  const sig = useMemo(() => shipments.map((s) => `${s.id}|${s.carrier}|${s.number}`).join(','), [shipments])
+  // Stable signature so the effect only re-subscribes when shipments (or the UPS
+  // credentials) change — adding the key should re-fetch UPS right away.
+  const sig = useMemo(
+    () => `${shipments.map((s) => `${s.id}|${s.carrier}|${s.number}`).join(',')}#${ups ? '1' : '0'}`,
+    [shipments, ups],
+  )
 
   const refresh = useCallback(
     async (signal: AbortSignal) => {
@@ -420,7 +451,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         return
       }
       const results = await Promise.all(
-        shipments.map(async (s) => [s.id, await fetchTrack(s, signal)] as const),
+        shipments.map(async (s) => [s.id, await fetchTrack(s, ups, signal)] as const),
       )
       if (signal.aborted) return
       setEntries((prev) => {
@@ -433,7 +464,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         return next
       })
     },
-    [shipments],
+    [shipments, ups],
   )
 
   useEffect(() => {
@@ -995,12 +1026,46 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             onChange('refreshMinutes', v)
           }}
         />
+        <label style={{ display: 'block', fontSize: 12, marginTop: 12, marginBottom: 4 }}>
+          {de ? 'UPS Client ID (für UPS, optional)' : 'UPS Client ID (for UPS, optional)'}
+        </label>
+        <input
+          style={inp}
+          type="text"
+          autoComplete="off"
+          value={str(cfg.upsClientId)}
+          placeholder={de ? 'UPS Client ID' : 'UPS Client ID'}
+          onChange={(e) => onChange('upsClientId', e.target.value)}
+        />
+        <label style={{ display: 'block', fontSize: 12, marginTop: 8, marginBottom: 4 }}>
+          {de ? 'UPS Client Secret' : 'UPS Client Secret'}
+        </label>
+        <input
+          style={inp}
+          type="password"
+          autoComplete="off"
+          value={str(cfg.upsClientSecret)}
+          placeholder={de ? 'UPS Client Secret' : 'UPS Client Secret'}
+          onChange={(e) => onChange('upsClientSecret', e.target.value)}
+        />
+        <p style={{ margin: '6px 0 0', fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          {de ? 'Schaltet echten UPS-Status frei. Kostenloses Entwicklerkonto + App anlegen: ' : 'Enables real UPS status. Create a free developer account + app: '}
+          <a
+            href="https://developer.ups.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--accent)' }}
+          >
+            developer.ups.com
+          </a>
+          {de ? ' (App mit „Tracking", OAuth „Client Credentials" → Client ID + Secret).' : ' (app with “Tracking”, OAuth “Client Credentials” → Client ID + Secret).'}
+        </p>
       </div>
 
       <p style={{ margin: 0, fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
         {de
-          ? 'DHL, Hermes und DPD werden kostenlos und ohne API-Key abgefragt. DPD läuft über die my.dpd.de-Statusseite – falls die gerade nicht erreichbar ist, hilft der Direktlink. GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
-          : 'DHL, Hermes and DPD are tracked for free without an API key. DPD uses the my.dpd.de status page – if that is unavailable, use the direct link. GLS no longer offers free tracking. The server needs outbound internet.'}
+          ? 'DHL, Hermes und DPD werden kostenlos ohne API-Key abgefragt (DPD über die my.dpd.de-Statusseite). UPS blockiert freien Zugriff – echter UPS-Status nur mit eigenem (kostenlosem) UPS-Entwickler-Key oben. GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
+          : 'DHL, Hermes and DPD are tracked for free without an API key (DPD via the my.dpd.de status page). UPS blocks free access – real UPS status needs your own (free) UPS developer key above. GLS no longer offers free tracking. The server needs outbound internet.'}
       </p>
     </div>
   )
@@ -1014,11 +1079,11 @@ export const meta: PluginMeta = {
   id: 'parcel',
   name: 'Paketverfolgung',
   description:
-    'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
+    'Sendungsverfolgung für DHL, Hermes, DPD (kostenlos, ohne Key) und UPS (mit eigenem kostenlosem UPS-API-Key). Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.7',
+  version: '1.0.8',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
@@ -1027,6 +1092,8 @@ export const meta: PluginMeta = {
     { key: 'hideDelivered', label: 'Zugestellte ausblenden', type: 'boolean', defaultValue: false },
     { key: 'density', label: 'Darstellung', type: 'text', defaultValue: 'comfortable' },
     { key: 'refreshMinutes', label: 'Aktualisieren (Min.)', type: 'number', defaultValue: 30 },
+    { key: 'upsClientId', label: 'UPS Client ID', type: 'text', defaultValue: '' },
+    { key: 'upsClientSecret', label: 'UPS Client Secret', type: 'password', defaultValue: '' },
   ],
 }
 
