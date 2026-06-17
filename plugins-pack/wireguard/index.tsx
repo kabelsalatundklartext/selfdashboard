@@ -117,12 +117,12 @@ const WG_CSS = `
 .wg-row:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
 `
 
-function StatHeader({ online, total, totalTx, totalRx }: { online: number; total: number; totalTx: number; totalRx: number }) {
+function StatHeader({ title, online, total, totalTx, totalRx }: { title: string; online: number; total: number; totalTx: number; totalRx: number }) {
   const chip: CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
-    fontSize: 'clamp(9px, 2.5cqmin, 11px)',
+    gap: 4,
+    fontSize: 'clamp(9px, 2.4cqmin, 10.5px)',
     color: 'var(--text-muted)',
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
@@ -134,23 +134,27 @@ function StatHeader({ online, total, totalTx, totalRx }: { online: number; total
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 8,
-        flexWrap: 'wrap',
-        padding: '6px 10px',
-        borderRadius: 10,
+        padding: '4px 9px',
+        borderRadius: 9,
         background: 'color-mix(in srgb, var(--border) 22%, transparent)',
       }}
     >
-      <span style={{ fontSize: 'clamp(14px, 4.4cqmin, 18px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-        <span style={{ color: online > 0 ? '#22c55e' : 'var(--text)' }}>{online}</span>
-        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}> / {total}</span>
-        <span style={{ fontSize: '0.58em', fontWeight: 700, color: 'var(--text-muted)', marginLeft: 5 }}>online</span>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
+        {title ? (
+          <span style={{ fontSize: 'clamp(8px, 2.1cqmin, 9.5px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+        ) : null}
+        <span style={{ fontSize: 'clamp(13px, 3.9cqmin, 16px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          <span style={{ color: online > 0 ? '#22c55e' : 'var(--text)' }}>{online}</span>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}> / {total}</span>
+          <span style={{ fontSize: '0.56em', fontWeight: 700, color: 'var(--text-muted)', marginLeft: 4 }}>online</span>
+        </span>
       </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
         <span style={chip} title="empfangen / received">
-          <Glyph d={ICON.down} size={11} color="#06b6d4" /> {fmtBytes(totalRx)}
+          <Glyph d={ICON.down} size={10} color="#06b6d4" /> {fmtBytes(totalRx)}
         </span>
         <span style={chip} title="gesendet / sent">
-          <Glyph d={ICON.up} size={11} color="#a855f7" /> {fmtBytes(totalTx)}
+          <Glyph d={ICON.up} size={10} color="#a855f7" /> {fmtBytes(totalTx)}
         </span>
       </span>
     </div>
@@ -166,7 +170,7 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
         display: 'flex',
         alignItems: 'center',
         gap: 9,
-        padding: '5px 8px',
+        padding: '4px 7px',
         borderRadius: 8,
         minWidth: 0,
       }}
@@ -287,7 +291,7 @@ function Widget({ config }: PluginWidgetProps) {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: 6,
+    gap: 5,
   }
 
   if (!configured) {
@@ -337,15 +341,9 @@ function Widget({ config }: PluginWidgetProps) {
   return (
     <div style={shell}>
       <style>{WG_CSS}</style>
-      {showTitle && title ? (
-        <p style={{ margin: 0, fontSize: 'clamp(9px, 2.4cqmin, 10px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
-          {title}
-        </p>
-      ) : null}
+      <StatHeader title={showTitle ? title : ''} online={onlinePeers.length} total={peers.length} totalTx={totalTx} totalRx={totalRx} />
 
-      <StatHeader online={onlinePeers.length} total={peers.length} totalTx={totalTx} totalRx={totalRx} />
-
-      <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 9, background: 'color-mix(in srgb, var(--border) 35%, transparent)', alignSelf: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 3, padding: 2, borderRadius: 8, background: 'color-mix(in srgb, var(--border) 35%, transparent)', alignSelf: 'flex-start' }}>
         <button className="wg-tab" data-active={tab === 'online'} onClick={() => setTab('online')}>
           {de ? `Online jetzt (${onlinePeers.length})` : `Online now (${onlinePeers.length})`}
         </button>
@@ -453,7 +451,7 @@ export const meta: PluginMeta = {
   name: 'WireGuard',
   description:
     'WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🔒',
