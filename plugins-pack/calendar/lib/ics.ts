@@ -15,7 +15,6 @@ import { nowIso } from './store'
 import type {
   Account,
   Calendar,
-  CalendarEvent,
   CalendarStore,
   ICSConfig,
 } from './types'
@@ -63,11 +62,11 @@ export async function syncIcsCalendar(
   let resp: Response
   try {
     resp = await fetchWithSsrfGuard(url, { headers })
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e instanceof UnsafeOutboundUrlError) {
       return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`blocked_url: ${e.message}`] }
     }
-    return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`fetch: ${e?.message ?? e}`] }
+    return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`fetch: ${e instanceof Error ? e.message : String(e)}`] }
   }
 
   if (resp.status === 304) {
@@ -196,8 +195,8 @@ export async function testIcs(account: Account): Promise<{ ok: boolean; calendar
       if (!get.ok) return { ok: false, error: `HTTP ${get.status}` }
     }
     return { ok: true, calendars: await discoverIcsCalendars(account) }
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e instanceof UnsafeOutboundUrlError) return { ok: false, error: e.message }
-    return { ok: false, error: e?.message ?? String(e) }
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
 }

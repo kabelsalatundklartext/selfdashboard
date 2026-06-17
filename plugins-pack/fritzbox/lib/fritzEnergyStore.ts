@@ -181,7 +181,7 @@ export async function syncBoxEnergyPeriods(
   },
   sample: EnergySample,
 ): Promise<EnergyStoreFile> {
-  let store =
+  const store =
     (await readEnergyStore(key)) ??
     ({
       ain: meta.ain,
@@ -251,7 +251,7 @@ export async function appendEnergySample(
   meta: { ain: string; baseUrl: string },
   sample: EnergySample,
 ): Promise<{ store: EnergyStoreFile; aggregates: EnergyAggregates }> {
-  let store =
+  const store =
     (await readEnergyStore(key)) ??
     ({
       ain: meta.ain,

@@ -57,8 +57,19 @@ function isHomeautoService(s: Tr064Service): boolean {
   return /X_AVM-DE_Homeauto/i.test(s.type) || /\/x_homeauto/i.test(s.controlUrl)
 }
 
+const warnedInsecureFritzHosts = new Set<string>()
+
+function warnInsecureFritzTlsOnce(host: string): void {
+  if (warnedInsecureFritzHosts.has(host)) return
+  warnedInsecureFritzHosts.add(host)
+  console.warn(
+    `[SelfDashboard] FRITZ!-TLS-Zertifikatsprüfung ist AUS für Host ${host} — Verbindung ungesichert.`,
+  )
+}
+
 function tr064FetchOpts(origin: string, conn: FritzBoxConnection): { agent?: https.Agent } {
   const isHttps = origin.startsWith('https:')
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host)
   const agent =
     isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : undefined
   return agent ? { agent } : {}

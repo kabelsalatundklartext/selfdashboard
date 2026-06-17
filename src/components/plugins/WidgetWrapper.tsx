@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
-import { X, GripVertical, Settings, ZoomIn, ZoomOut, Box, Loader2 } from 'lucide-react'
+import { X, GripVertical, Settings, ZoomIn, ZoomOut, Box, Loader2, Copy, Check } from 'lucide-react'
 import { pluginRegistry } from '@/lib/pluginRegistry'
 import {
   getPluginVolumeLoadPhase,
@@ -13,6 +13,7 @@ import { useDashboardStore } from '@/lib/store'
 import { t } from '@/lib/i18n'
 import { useCanUsePlugin } from '@/components/layout/AuthUserMenu'
 import { PluginConfigModal } from '@/components/ui/PluginConfigModal'
+import { Portal } from '@/components/ui/Portal'
 import type { PluginInstance } from '@/types'
 
 export type WidgetLayoutMode = 'phone' | 'tablet' | 'desktop'
@@ -40,7 +41,10 @@ function coercePadding(v: unknown): number {
 export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Props) {
   const [hovering, setHovering] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
-  const { activeDashboard, removePlugin, updatePluginConfig, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet, locale } =
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copiedTo, setCopiedTo] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null)
+  const { activeDashboard, dashboards, copyPluginToDashboard, removePlugin, updatePluginConfig, updatePluginLayout, updatePluginLayoutPhone, updatePluginLayoutTablet, locale } =
     useDashboardStore()
   const volumePhase = useSyncExternalStore(
     subscribePluginVolumeLoad,
@@ -97,6 +101,16 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
     const w = Math.max(minToolbarW, Math.min(maxToolbarW, toolbarW + delta))
     if (layoutMode === 'tablet') updatePluginLayoutTablet(instance.instanceId, { w })
     else updatePluginLayout(instance.instanceId, { ...instance.layout, w })
+  }
+
+  const otherDashboards = dashboards.filter((d) => d.id !== dash.id)
+  const handleCopyTo = (targetId: string, targetName: string) => {
+    const newId = copyPluginToDashboard(instance.instanceId, targetId)
+    setCopyOpen(false)
+    if (newId) {
+      setCopiedTo(targetName)
+      setTimeout(() => setCopiedTo(null), 2000)
+    }
   }
 
   if (!pluginAllowed) {
@@ -255,6 +269,27 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
               </button>
             )}
 
+            {/* Copy to other dashboard */}
+            {otherDashboards.length > 0 && (
+              <button
+                onClick={(e) => {
+                  if (copyOpen) { setCopyOpen(false); return }
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setMenuPos({ top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) })
+                  setCopyOpen(true)
+                }}
+                title={locale === 'de' ? 'Auf anderes Dashboard kopieren' : 'Copy to another dashboard'}
+                style={{
+                  background: copyOpen ? 'var(--accent)' : 'var(--surface)',
+                  border: `1px solid ${copyOpen ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: '5px', padding: '4px 5px', cursor: 'pointer',
+                  color: copyOpen ? '#fff' : 'var(--text-muted)', display: 'flex', alignItems: 'center',
+                }}
+              >
+                <Copy size={11} />
+              </button>
+            )}
+
             {/* Remove */}
             <button onClick={() => removePlugin(instance.instanceId)} style={{
               background: 'var(--surface)', border: '1px solid var(--border)',
@@ -264,6 +299,61 @@ export function WidgetWrapper({ instance, editMode, layoutMode = 'desktop' }: Pr
               <X size={11} />
             </button>
           </div>
+        )}
+
+        {/* Copy-to-dashboard dropdown (Portal: escapes the panel's overflow:hidden) */}
+        {editMode && copyOpen && menuPos && otherDashboards.length > 0 && (
+          <Portal>
+            <div
+              onClick={() => setCopyOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 4999 }}
+            />
+            <div
+              style={{
+                position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 5000,
+                minWidth: '180px', maxWidth: '240px', maxHeight: '260px', overflowY: 'auto',
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: '8px', padding: '6px', boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+              }}
+            >
+              <p style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', margin: '4px 6px 6px' }}>
+                {locale === 'de' ? 'Kopieren nach…' : 'Copy to…'}
+              </p>
+              {otherDashboards.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => handleCopyTo(d.id, d.name)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '7px 8px', borderRadius: '6px', cursor: 'pointer',
+                    background: 'none', border: 'none', textAlign: 'left',
+                    color: 'var(--text)', fontSize: '13px',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'none' }}
+                >
+                  <span style={{ fontSize: '15px', lineHeight: 1, flexShrink: 0 }}>{d.icon}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                </button>
+              ))}
+            </div>
+          </Portal>
+        )}
+
+        {/* Copy success toast (Portal) */}
+        {copiedTo && menuPos && (
+          <Portal>
+            <div style={{
+              position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 5000,
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'var(--accent)', color: '#fff',
+              borderRadius: '8px', padding: '6px 10px', fontSize: '12px', fontWeight: 600,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            }}>
+              <Check size={13} />
+              {locale === 'de' ? `Kopiert → ${copiedTo}` : `Copied → ${copiedTo}`}
+            </div>
+          </Portal>
         )}
 
         {/* Plugin slot: clip to panel; scale pre-layout size so visual bounds match panel (same idea as DashboardGrid). */}

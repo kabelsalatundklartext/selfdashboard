@@ -44,6 +44,11 @@ function migrateOldStore(): Dashboard[] | null {
   } catch { return null }
 }
 
+/** Eindeutige Instanz-ID (gleiches Format wie das UI-nanoid: Zufall + Zeit). */
+function makeInstanceId(): string {
+  return Math.random().toString(36).slice(2, 9) + Date.now().toString(36)
+}
+
 function makeId(name: string, existing: string[]): string {
   const base = name.toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -91,6 +96,8 @@ interface DashboardStore {
   addDashboard: (name: string, icon: string) => string
   removeDashboard: (id: string) => void
   updateDashboard: (id: string, patch: Partial<Omit<Dashboard, 'id' | 'plugins'>>) => void
+  /** Dashboard in der Reihenfolge verschieben (-1 = nach oben, 1 = nach unten). */
+  moveDashboard: (id: string, dir: -1 | 1) => void
   setActiveDashboard: (id: string) => void
   setLocale: (locale: Locale) => void
   setEditMode: (editMode: boolean) => void
@@ -105,6 +112,8 @@ interface DashboardStore {
   setCustomColors: (colors: Record<string, string>) => void
   resetCustomColors: () => void
   addPlugin: (instance: PluginInstance) => void
+  /** Fertig eingerichtetes Plugin (inkl. Config/Secrets/Layout) auf ein anderes Dashboard kopieren. Gibt die neue instanceId zurück oder null. */
+  copyPluginToDashboard: (instanceId: string, targetDashboardId: string) => string | null
   removePlugin: (instanceId: string) => void
   updatePluginConfig: (instanceId: string, config: Record<string, unknown>) => void
   updatePluginLayout: (instanceId: string, layout: PluginInstance['layout']) => void
@@ -185,6 +194,16 @@ export const useDashboardStore = create<DashboardStore>()(
         return { dashboards: remaining, activeDashboardId: s.activeDashboardId === id ? remaining[0].id : s.activeDashboardId }
       }),
       updateDashboard: (id, patch) => set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, ...patch } : d) })),
+      moveDashboard: (id, dir) => set((s) => {
+        const idx = s.dashboards.findIndex((d) => d.id === id)
+        if (idx < 0) return s
+        const target = idx + dir
+        if (target < 0 || target >= s.dashboards.length) return s
+        const next = [...s.dashboards]
+        const [moved] = next.splice(idx, 1)
+        next.splice(target, 0, moved)
+        return { dashboards: next }
+      }),
       setActiveDashboard: (id) => set({ activeDashboardId: id }),
       setLocale: (locale) => set({ locale }),
       setEditMode: (editMode) => set({ editMode }),
@@ -203,6 +222,29 @@ export const useDashboardStore = create<DashboardStore>()(
       setCustomColors: (colors) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customColors: { ...d.customColors, ...colors } } : d) })) },
       resetCustomColors: () => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customColors: undefined } : d) })) },
       addPlugin: (instance) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: [...d.plugins, instance] } : d) })) },
+      copyPluginToDashboard: (instanceId, targetDashboardId) => {
+        const s = get()
+        const target = s.dashboards.find((d) => d.id === targetDashboardId)
+        if (!target) return null
+        let source: PluginInstance | undefined
+        for (const d of s.dashboards) {
+          const found = d.plugins.find((p) => p.instanceId === instanceId)
+          if (found) { source = found; break }
+        }
+        if (!source) return null
+        // Layout im Ziel unten anhängen, damit nichts überlappt.
+        const nextY = target.plugins.reduce((max, p) => Math.max(max, (p.layout?.y ?? 0) + (p.layout?.h ?? 4)), 0)
+        const copy: PluginInstance = {
+          instanceId: makeInstanceId(),
+          pluginId: source.pluginId,
+          config: structuredClone(source.config),
+          layout: { ...source.layout, x: 0, y: nextY },
+          ...(source.layoutPhone ? { layoutPhone: { ...source.layoutPhone } } : {}),
+          ...(source.layoutTablet ? { layoutTablet: { ...source.layoutTablet } } : {}),
+        }
+        set((st) => ({ dashboards: st.dashboards.map((d) => d.id === targetDashboardId ? { ...d, plugins: [...d.plugins, copy] } : d) }))
+        return copy.instanceId
+      },
       removePlugin: (instanceId) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.filter((p) => p.instanceId !== instanceId) } : d) })) },
       updatePluginConfig: (instanceId, config) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, config: { ...p.config, ...config } } : p) } : d) })) },
       updatePluginLayout: (instanceId, layout) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, plugins: d.plugins.map((p) => p.instanceId === instanceId ? { ...p, layout } : p) } : d) })) },

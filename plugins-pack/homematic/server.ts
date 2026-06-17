@@ -43,6 +43,19 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+/** Bekannte CCU-Schnittstellen — alles andere wird abgelehnt (kein freier RPC-Parameter aus dem Body). */
+const ALLOWED_INTERFACES = new Set(['BidCos-RF', 'BidCos-Wired', 'HmIP-RF', 'VirtualDevices', 'CUxD'])
+/** CCU-Kanaladresse: Seriennummer + ":" + Kanalindex, z. B. "OEQ1234567:1". */
+const ADDRESS_RE = /^[A-Za-z0-9_-]{1,40}:\d{1,3}$/
+/** Datenpunkt-/Paramset-Schlüssel: nur Großbuchstaben, Ziffern, Unterstrich (LEVEL, STATE, HUE …). */
+const VALUE_KEY_RE = /^[A-Z0-9_]{1,40}$/
+
+/** Schnittstelle gegen die Whitelist prüfen; Default BidCos-RF, unbekannte Werte -> null (abgelehnt). */
+function normInterface(v: unknown): string | null {
+  const s = str(v) || 'BidCos-RF'
+  return ALLOWED_INTERFACES.has(s) ? s : null
+}
+
 function normalizeBase(raw: string): string {
   const s = raw.trim()
   if (!s) throw new Error('missing_url')
@@ -250,15 +263,16 @@ async function handlePost(req: Request): Promise<Response> {
 
       // mehrere Datenpunkte auf einmal (z. B. HUE + SATURATION für Farbe) — putParamset
       if (body.kind === 'multi') {
-        const iface = str(body.interface) || 'BidCos-RF'
+        const iface = normInterface(body.interface)
         const address = str(body.address)
-        if (!address || !address.includes(':') || !isObject(body.values)) {
+        if (!iface || !ADDRESS_RE.test(address) || !isObject(body.values)) {
           return Response.json({ error: 'invalid_target' }, { status: 400 })
         }
         // Datenpunkt-Typen serverseitig erzwingen (HUE = integer, SATURATION/LEVEL = double).
         const intKeys = new Set(['HUE'])
         const set: Record<string, unknown> = {}
         for (const [k, v] of Object.entries(body.values)) {
+          if (!VALUE_KEY_RE.test(k)) continue // nur valide Datenpunkt-Schlüssel zulassen
           const n = num(v)
           if (n == null) continue
           set[k] = intKeys.has(k) ? Math.round(n) : n
@@ -280,10 +294,10 @@ async function handlePost(req: Request): Promise<Response> {
       }
 
       // device datapoint
-      const iface = str(body.interface) || 'BidCos-RF'
+      const iface = normInterface(body.interface)
       const address = str(body.address)
       const valueKey = str(body.valueKey)
-      if (!address || !address.includes(':') || !valueKey) {
+      if (!iface || !ADDRESS_RE.test(address) || !VALUE_KEY_RE.test(valueKey)) {
         return Response.json({ error: 'invalid_target' }, { status: 400 })
       }
       const vType = body.valueType ?? 'boolean'
@@ -309,9 +323,9 @@ async function handlePost(req: Request): Promise<Response> {
     const valuesByAddress: Record<string, Record<string, unknown>> = {}
     await Promise.all(
       channels.slice(0, 40).map(async (ch) => {
-        const iface = str(ch.interface) || 'BidCos-RF'
+        const iface = normInterface(ch.interface)
         const address = str(ch.address)
-        if (!address || !address.includes(':')) return
+        if (!iface || !ADDRESS_RE.test(address)) return
         const r = await rpc(
           base,
           'Interface.getParamset',

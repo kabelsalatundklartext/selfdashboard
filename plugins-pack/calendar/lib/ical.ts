@@ -12,7 +12,7 @@
  */
 
 import ICAL from 'ical.js'
-import { RRule, rrulestr } from 'rrule'
+import { rrulestr } from 'rrule'
 import { randomUUID } from 'node:crypto'
 
 import { CalendarEvent, ExpandedEvent } from './types'
@@ -140,7 +140,7 @@ export interface ParsedEvent {
 
 export function parseVcalendar(blob: string): ParsedEvent[] {
   const out: ParsedEvent[] = []
-  let jcal: any
+  let jcal: ReturnType<typeof ICAL.parse>
   try {
     jcal = ICAL.parse(blob)
   } catch {

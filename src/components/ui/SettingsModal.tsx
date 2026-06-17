@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil, Download, RefreshCw } from 'lucide-react'
+import { X, Check, Upload, RotateCcw, Plus, Trash2, ExternalLink, Link, Eye, EyeOff, Pencil, Download, RefreshCw, ChevronUp, ChevronDown } from 'lucide-react'
 import type { LogEntry, LogLevel, LogRetentionDays, LogSource } from '@/lib/errorLogTypes'
 import { useDashboardStore } from '@/lib/store'
 import { themes } from '@/lib/themes'
@@ -91,6 +91,7 @@ export function SettingsModal({ open, onClose }: Props) {
   const addDashboard = useDashboardStore((s) => s.addDashboard)
   const removeDashboard = useDashboardStore((s) => s.removeDashboard)
   const updateDashboard = useDashboardStore((s) => s.updateDashboard)
+  const moveDashboard = useDashboardStore((s) => s.moveDashboard)
   const activeDashboardId = useDashboardStore((s) => s.activeDashboardId)
   const showDashboardTabs = useDashboardStore((s) => s.showDashboardTabs)
   const setShowDashboardTabs = useDashboardStore((s) => s.setShowDashboardTabs)
@@ -569,7 +570,7 @@ export function SettingsModal({ open, onClose }: Props) {
                       }
                     }}
                   />
-                  {dashboards.map((d) => {
+                  {dashboards.map((d, i) => {
                     return (
                       <div key={d.id}>
                         {editingDash === d.id ? (
@@ -662,6 +663,52 @@ export function SettingsModal({ open, onClose }: Props) {
                                 </div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, marginLeft: 'auto' }}>
+                                {dashboards.length > 1 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 }}>
+                                    <button
+                                      type="button"
+                                      disabled={i === 0}
+                                      onClick={() => moveDashboard(d.id, -1)}
+                                      title={locale === 'de' ? 'Nach oben' : 'Move up'}
+                                      style={{
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '6px',
+                                        width: '36px',
+                                        height: '17px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: i === 0 ? 'default' : 'pointer',
+                                        color: i === 0 ? 'var(--border)' : 'var(--text-muted)',
+                                        opacity: i === 0 ? 0.5 : 1,
+                                      }}
+                                    >
+                                      <ChevronUp size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={i === dashboards.length - 1}
+                                      onClick={() => moveDashboard(d.id, 1)}
+                                      title={locale === 'de' ? 'Nach unten' : 'Move down'}
+                                      style={{
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '6px',
+                                        width: '36px',
+                                        height: '17px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: i === dashboards.length - 1 ? 'default' : 'pointer',
+                                        color: i === dashboards.length - 1 ? 'var(--border)' : 'var(--text-muted)',
+                                        opacity: i === dashboards.length - 1 ? 0.5 : 1,
+                                      }}
+                                    >
+                                      <ChevronDown size={14} />
+                                    </button>
+                                  </div>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => updateDashboard(d.id, { hideTab: !d.hideTab })}

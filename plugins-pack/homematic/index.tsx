@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import { useDashboardStore } from '@/lib/store'
@@ -338,7 +338,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const configured = Boolean(baseUrl && username && password)
   const { active } = usePollingActive()
 
-  const channels = parseArr<ChannelCfg>(config.channels)
+  const channels = useMemo(() => parseArr<ChannelCfg>(config.channels), [config.channels])
   const sysvarSel = parseArr<RefCfg>(config.sysvars)
   const programSel = parseArr<RefCfg>(config.programs)
   const nameMap = parseNameMap(config.names)
@@ -393,8 +393,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
       setSysvars(json.sysvars ?? [])
     }
     setLoading(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseUrl, username, password, configured, de, str(config.channels)])
+  }, [baseUrl, username, password, configured, de, channels])
 
   useEffect(() => {
     if (!active) return

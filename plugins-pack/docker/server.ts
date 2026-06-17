@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server'
+import { requireFullAdmin } from '@/lib/auth/guard'
 import { logPluginApiFailure } from '@/lib/pluginLogServer'
 import { createPluginServerCache } from '@/lib/pluginServerCache'
 import type { PluginServerContext } from '@/lib/pluginServerRegistry'
@@ -37,9 +39,10 @@ async function handleListGet(req: Request): Promise<Response> {
     const r = await dockerGet(`/containers/json?all=${all}`)
     if (!r.ok) {
       const err = r.body?.slice(0, 400) || `Docker HTTP ${r.status}`
+      // Rohe Daemon-Antwort nur intern protokollieren — sie kann Pfade/Containerinfos enthalten.
       void logPluginApiFailure('docker', 'list', err, { status: r.status })
       return Response.json(
-        { error: err },
+        { error: 'Docker-Anfrage fehlgeschlagen' },
         { status: r.status >= 400 && r.status < 600 ? r.status : 502 },
       )
     }
@@ -87,13 +90,19 @@ async function handleListGet(req: Request): Promise<Response> {
     const hint =
       msg.includes('ENOENT') || msg.includes('ENOTDIR')
         ? 'Docker-Socket nicht gefunden — z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container.'
-        : msg
-    void logPluginApiFailure('docker', 'list', hint)
+        : 'Docker ist nicht erreichbar.'
+    void logPluginApiFailure('docker', 'list', msg)
     return Response.json({ error: hint }, { status: 503 })
   }
 }
 
 async function handleActionPost(req: Request): Promise<Response> {
+  // Starting/stopping/restarting containers is a privileged action: any user
+  // with the Docker widget could otherwise stop the dashboard itself or other
+  // services. Require an admin who has completed MFA (kiosk sessions excluded).
+  const auth = requireFullAdmin(req)
+  if (auth instanceof NextResponse) return auth
+
   let parsed: { id: string; action: 'start' | 'stop' | 'restart' }
   try {
     const raw = await req.text()
@@ -130,8 +139,9 @@ async function handleActionPost(req: Request): Promise<Response> {
         /* use slice */
       }
       const status = r.status >= 400 && r.status < 600 ? r.status : 502
+      // Detail nur intern; dem Client nur eine generische Meldung + Statuscode geben.
       void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id, status: r.status })
-      return Response.json({ error: msg }, { status })
+      return Response.json({ error: 'Aktion fehlgeschlagen' }, { status })
     }
     listCache.clear()
     return Response.json({ ok: true, action: parsed.action, id: parsed.id })
@@ -148,7 +158,7 @@ async function handleActionPost(req: Request): Promise<Response> {
       )
     }
     void logPluginApiFailure('docker', parsed.action, msg, { id: parsed.id })
-    return Response.json({ error: msg }, { status: 503 })
+    return Response.json({ error: 'Docker ist nicht erreichbar.' }, { status: 503 })
   }
 }
 

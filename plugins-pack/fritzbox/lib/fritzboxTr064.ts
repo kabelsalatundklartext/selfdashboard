@@ -213,6 +213,16 @@ function digestClient(user: string, pass: string): DigestClient {
   return createTr064DigestClient(user, pass)
 }
 
+const warnedInsecureFritzHosts = new Set<string>()
+
+function warnInsecureFritzTlsOnce(host: string): void {
+  if (warnedInsecureFritzHosts.has(host)) return
+  warnedInsecureFritzHosts.add(host)
+  console.warn(
+    `[SelfDashboard] FRITZ!-TLS-Zertifikatsprüfung ist AUS für Host ${host} — Verbindung ungesichert.`,
+  )
+}
+
 export async function fetchFritzBoxSummary(
   conn: FritzBoxConnection,
   signal: AbortSignal,
@@ -225,6 +235,7 @@ export async function fetchFritzBoxSummary(
       ? new https.Agent({ rejectUnauthorized: false })
       : undefined
   const fetchOpts = agent ? { agent } : {}
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host)
 
   const client = digestClient(conn.username, conn.password)
   const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
@@ -429,6 +440,7 @@ export async function fetchFritzBoxByteCountersOnly(
       ? new https.Agent({ rejectUnauthorized: false })
       : undefined
   const fetchOpts = agent ? { agent } : {}
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host)
   const client = digestClient(conn.username, conn.password)
   const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts)
   const services = parseTr064Services(descXml)

@@ -60,10 +60,24 @@ function isMailplusExcluded(path: string, flags?: Set<string>): boolean {
   return MAILPLUS_SKIP_SUFFIX.has(leaf.toLowerCase())
 }
 
+const warnedInsecureImapHosts = new Set<string>()
+
+function warnInsecureImapTlsOnce(host: string): void {
+  if (warnedInsecureImapHosts.has(host)) return
+  warnedInsecureImapHosts.add(host)
+  console.warn(
+    `[SelfDashboard] IMAP-TLS-Zertifikatsprüfung ist AUS für Host ${host} — Verbindung ungesichert.`,
+  )
+}
+
 function createClient(config: MailImapConfig): ImapFlow {
   const { host, port } = normalizeMailConnection(config.host, config.port)
   if (!host || !config.username || !config.passwordEncrypted) {
     throw new Error('IMAP host, username and password required')
+  }
+
+  if (!config.verifyTls) {
+    warnInsecureImapTlsOnce(host)
   }
 
   return new ImapFlow({

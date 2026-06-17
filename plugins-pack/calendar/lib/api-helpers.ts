@@ -15,7 +15,6 @@ import type {
   AccountUpdateBody,
   CalDAVConfig,
   Calendar,
-  CalendarEvent,
   ExpandedEvent,
   ICSConfig,
   ProviderId,
@@ -150,7 +149,7 @@ export function buildAccount(
       } satisfies ICSConfig,
     }
   }
-  throw new Error(`unknown provider: ${(body as any).provider}`)
+  throw new Error(`unknown provider: ${(body as { provider?: string }).provider}`)
 }
 
 export function applyAccountUpdate(

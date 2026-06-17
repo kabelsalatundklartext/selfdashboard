@@ -1,5 +1,8 @@
 import { logPluginApiFailure } from '../_shared/log'
 import { openSealedSecret } from '../_shared/secret-crypto'
+// fetchChecked (nicht fetchWithSsrfGuard): wg-easy läuft typischerweise im LAN und
+// nutzt oft ein selbstsigniertes Zertifikat. fetchChecked behält den SSRF-Schutz bei,
+// erlaubt aber das optionale insecureTls-Flag (rejectUnauthorized:false) für genau diesen Fall.
 import { fetchChecked, type CheckedResponse } from '../_shared/insecure-fetch'
 import { UnsafeOutboundUrlError } from '../_shared/ssrf'
 import type { PluginServerContext } from '../_shared/plugin-server-types'

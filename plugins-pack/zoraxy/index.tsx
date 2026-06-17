@@ -1,22 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react'
-import {
-  Activity,
-  Ban,
-  Cable,
-  CheckCircle2,
-  Download,
-  ListChecks,
-  PowerOff,
-  Server,
-  Share2,
-  ShieldAlert,
-  ShieldCheck,
-  Upload,
-  Wifi,
-  WifiOff,
-} from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
@@ -43,6 +27,136 @@ type ZoraxyData = {
 }
 
 type IconType = ComponentType<{ size?: number | string; color?: string; strokeWidth?: number }>
+
+// Self-contained SVG icons (lucide-equivalent paths). Never depend on the host's curated
+// lucide set — a missing export would crash the widget at runtime.
+function makeIcon(body: React.ReactNode): IconType {
+  return function Icon({ size = 24, color = 'currentColor', strokeWidth = 2 }) {
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        {body}
+      </svg>
+    )
+  }
+}
+
+const Server = makeIcon(
+  <>
+    <rect width="20" height="8" x="2" y="2" rx="2" ry="2" />
+    <rect width="20" height="8" x="2" y="14" rx="2" ry="2" />
+    <line x1="6" x2="6.01" y1="6" y2="6" />
+    <line x1="6" x2="6.01" y1="18" y2="18" />
+  </>,
+)
+const CheckCircle2 = makeIcon(
+  <>
+    <path d="M21.801 10A10 10 0 1 1 17 3.335" />
+    <path d="m9 11 3 3L22 4" />
+  </>,
+)
+const PowerOff = makeIcon(
+  <>
+    <path d="M18.36 6.64A9 9 0 0 1 20.77 15" />
+    <path d="M6.16 6.16a9 9 0 1 0 12.68 12.68" />
+    <path d="M12 2v4" />
+    <path d="m2 2 20 20" />
+  </>,
+)
+const Share2 = makeIcon(
+  <>
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" />
+    <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" />
+  </>,
+)
+const Wifi = makeIcon(
+  <>
+    <path d="M12 20h.01" />
+    <path d="M2 8.82a15 15 0 0 1 20 0" />
+    <path d="M5 12.859a10 10 0 0 1 14 0" />
+    <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+  </>,
+)
+const WifiOff = makeIcon(
+  <>
+    <path d="M12 20h.01" />
+    <path d="M8.5 16.429a5 5 0 0 1 7 0" />
+    <path d="M5 12.859a10 10 0 0 1 5.17-2.69" />
+    <path d="M19 12.859a10 10 0 0 0-2.007-1.523" />
+    <path d="M2 8.82a15 15 0 0 1 4.177-2.643" />
+    <path d="M22 8.82a15 15 0 0 0-11.288-3.764" />
+    <path d="m2 2 20 20" />
+  </>,
+)
+const Activity = makeIcon(
+  <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />,
+)
+const ShieldCheck = makeIcon(
+  <>
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+    <path d="m9 12 2 2 4-4" />
+  </>,
+)
+const ShieldAlert = makeIcon(
+  <>
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+    <path d="M12 8v4" />
+    <path d="M12 16h.01" />
+  </>,
+)
+const Download = makeIcon(
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" x2="12" y1="15" y2="3" />
+  </>,
+)
+const Upload = makeIcon(
+  <>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" x2="12" y1="3" y2="15" />
+  </>,
+)
+const Cable = makeIcon(
+  <>
+    <path d="M4 9a2 2 0 0 1-2-2V5h6v2a2 2 0 0 1-2 2Z" />
+    <path d="M3 5V3" />
+    <path d="M7 5V3" />
+    <path d="M19 15V6.5a3.5 3.5 0 0 0-7 0v11a3.5 3.5 0 0 1-7 0V9" />
+    <path d="M17 21v-2" />
+    <path d="M21 21v-2" />
+    <path d="M22 19h-6v-2a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2Z" />
+  </>,
+)
+const Ban = makeIcon(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m4.9 4.9 14.2 14.2" />
+  </>,
+)
+const ListChecks = makeIcon(
+  <>
+    <path d="m3 17 2 2 4-4" />
+    <path d="m3 7 2 2 4-4" />
+    <path d="M13 6h8" />
+    <path d="M13 12h8" />
+    <path d="M13 18h8" />
+  </>,
+)
 
 type TileKey =
   | 'hosts'

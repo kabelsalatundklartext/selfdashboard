@@ -195,6 +195,13 @@ function num(v) {
   const n = typeof v === "number" ? v : Number(String(v));
   return Number.isFinite(n) ? n : null;
 }
+var ALLOWED_INTERFACES = /* @__PURE__ */ new Set(["BidCos-RF", "BidCos-Wired", "HmIP-RF", "VirtualDevices", "CUxD"]);
+var ADDRESS_RE = /^[A-Za-z0-9_-]{1,40}:\d{1,3}$/;
+var VALUE_KEY_RE = /^[A-Z0-9_]{1,40}$/;
+function normInterface(v) {
+  const s = str(v) || "BidCos-RF";
+  return ALLOWED_INTERFACES.has(s) ? s : null;
+}
 function normalizeBase(raw) {
   const s = raw.trim();
   if (!s) throw new Error("missing_url");
@@ -367,14 +374,15 @@ async function handlePost(req) {
         return Response.json({ ok: true });
       }
       if (body.kind === "multi") {
-        const iface2 = str(body.interface) || "BidCos-RF";
+        const iface2 = normInterface(body.interface);
         const address2 = str(body.address);
-        if (!address2 || !address2.includes(":") || !isObject(body.values)) {
+        if (!iface2 || !ADDRESS_RE.test(address2) || !isObject(body.values)) {
           return Response.json({ error: "invalid_target" }, { status: 400 });
         }
         const intKeys = /* @__PURE__ */ new Set(["HUE"]);
         const set = {};
         for (const [k, v] of Object.entries(body.values)) {
+          if (!VALUE_KEY_RE.test(k)) continue;
           const n = num(v);
           if (n == null) continue;
           set[k] = intKeys.has(k) ? Math.round(n) : n;
@@ -394,10 +402,10 @@ async function handlePost(req) {
         }
         return Response.json({ ok: true });
       }
-      const iface = str(body.interface) || "BidCos-RF";
+      const iface = normInterface(body.interface);
       const address = str(body.address);
       const valueKey = str(body.valueKey);
-      if (!address || !address.includes(":") || !valueKey) {
+      if (!iface || !ADDRESS_RE.test(address) || !VALUE_KEY_RE.test(valueKey)) {
         return Response.json({ error: "invalid_target" }, { status: 400 });
       }
       const vType = body.valueType ?? "boolean";
@@ -421,9 +429,9 @@ async function handlePost(req) {
     const valuesByAddress = {};
     await Promise.all(
       channels.slice(0, 40).map(async (ch) => {
-        const iface = str(ch.interface) || "BidCos-RF";
+        const iface = normInterface(ch.interface);
         const address = str(ch.address);
-        if (!address || !address.includes(":")) return;
+        if (!iface || !ADDRESS_RE.test(address)) return;
         const r = await rpc(
           base,
           "Interface.getParamset",

@@ -114,16 +114,19 @@ async function handlePost(req: Request): Promise<Response> {
     }
 
     const forceImport = body.action === 'importHistory' || body.importHistory === true
-    let store = await readEnergyStore(key)
+    const store = await readEnergyStore(key)
     let boxSynced = false
     try {
       const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal)
       if (box) {
         boxSynced = true
-        store =
-          forceImport || storeNeedsHistoryImport(store)
-            ? await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
-            : await syncBoxEnergyPeriods(key, { ain, baseUrl: conn.baseUrl }, box, sample)
+        // Side effects persist history; the returned store value is not used here
+        // (the response below reads the freshly appended store from appendEnergySample).
+        if (forceImport || storeNeedsHistoryImport(store)) {
+          await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample)
+        } else {
+          await syncBoxEnergyPeriods(key, { ain, baseUrl: conn.baseUrl }, box, sample)
+        }
       }
     } catch {
       /* Verlauf optional — Live-Werte weiterhin aus TR-064 */
@@ -198,14 +201,14 @@ async function handleGet(req: Request): Promise<Response> {
   })
 }
 
-export async function handleFritzEnergyPluginRequest(req: Request, _path: string[]): Promise<Response> {
+export async function handleFritzEnergyPluginRequest(req: Request): Promise<Response> {
   if (req.method === 'GET') return handleGet(req)
   if (req.method === 'POST') return handlePost(req)
   return Response.json({ ok: false, error: 'method_not_allowed' }, { status: 405 })
 }
 
 export function fritzEnergyServerHandler(ctx: PluginServerContext): Promise<Response> {
-  return handleFritzEnergyPluginRequest(ctx.request, ctx.path)
+  return handleFritzEnergyPluginRequest(ctx.request)
 }
 
 export default fritzEnergyServerHandler

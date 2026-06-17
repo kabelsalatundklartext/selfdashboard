@@ -1,3 +1,15 @@
+// sd-server-shim:next-server-stub
+var NextResponse = class extends Response {
+  static json(data, init) {
+    const status = init && typeof init.status === "number" ? init.status : 200;
+    const headers = init && init.headers ? init.headers : void 0;
+    return Response.json(data, { status, headers });
+  }
+};
+
+// plugins-pack/docker/server.ts
+import { requireFullAdmin } from "@/lib/auth/guard";
+
 // plugins-pack/_shared/log.ts
 async function logPluginApiFailure(pluginId, operation, message, detail) {
   const extra = detail ? ` ${JSON.stringify(detail).slice(0, 500)}` : "";
@@ -227,7 +239,7 @@ async function handleListGet(req) {
       const err = r.body?.slice(0, 400) || `Docker HTTP ${r.status}`;
       void logPluginApiFailure("docker", "list", err, { status: r.status });
       return Response.json(
-        { error: err },
+        { error: "Docker-Anfrage fehlgeschlagen" },
         { status: r.status >= 400 && r.status < 600 ? r.status : 502 }
       );
     }
@@ -269,12 +281,14 @@ async function handleListGet(req) {
         { status: 503 }
       );
     }
-    const hint = msg.includes("ENOENT") || msg.includes("ENOTDIR") ? "Docker-Socket nicht gefunden \u2014 z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container." : msg;
-    void logPluginApiFailure("docker", "list", hint);
+    const hint = msg.includes("ENOENT") || msg.includes("ENOTDIR") ? "Docker-Socket nicht gefunden \u2014 z. B. -v /var/run/docker.sock:/var/run/docker.sock am SelfDashboard-Container." : "Docker ist nicht erreichbar.";
+    void logPluginApiFailure("docker", "list", msg);
     return Response.json({ error: hint }, { status: 503 });
   }
 }
 async function handleActionPost(req) {
+  const auth = requireFullAdmin(req);
+  if (auth instanceof NextResponse) return auth;
   let parsed;
   try {
     const raw = await req.text();
@@ -304,7 +318,7 @@ async function handleActionPost(req) {
       }
       const status = r.status >= 400 && r.status < 600 ? r.status : 502;
       void logPluginApiFailure("docker", parsed.action, msg, { id: parsed.id, status: r.status });
-      return Response.json({ error: msg }, { status });
+      return Response.json({ error: "Aktion fehlgeschlagen" }, { status });
     }
     listCache.clear();
     return Response.json({ ok: true, action: parsed.action, id: parsed.id });
@@ -320,7 +334,7 @@ async function handleActionPost(req) {
       );
     }
     void logPluginApiFailure("docker", parsed.action, msg, { id: parsed.id });
-    return Response.json({ error: msg }, { status: 503 });
+    return Response.json({ error: "Docker ist nicht erreichbar." }, { status: 503 });
   }
 }
 async function dockerServerHandler(ctx) {

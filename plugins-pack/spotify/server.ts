@@ -154,11 +154,14 @@ async function ensureAccessToken(key: string, record: StoreFile, signal: AbortSi
     if (body.error === 'invalid_grant') throw new Error('reauth_required')
     throw new Error('refresh_failed')
   }
-  record.accessToken = sealSecret(body.access_token)
-  record.expiresAt = Date.now() + (body.expires_in ?? 3600) * 1000
-  if (body.refresh_token) record.refreshToken = sealSecret(body.refresh_token)
-  if (body.scope) record.scope = body.scope
-  await writeStore(key, record)
+  const updated: StoreFile = {
+    ...record,
+    accessToken: sealSecret(body.access_token),
+    expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000,
+    ...(body.refresh_token ? { refreshToken: sealSecret(body.refresh_token) } : {}),
+    ...(body.scope ? { scope: body.scope } : {}),
+  }
+  await writeStore(key, updated)
   return body.access_token
 }
 
@@ -849,25 +852,28 @@ async function handleCallback(req: Request): Promise<Response> {
       )
     }
 
-    record.refreshToken = sealSecret(body.refresh_token)
-    record.accessToken = sealSecret(body.access_token)
-    record.expiresAt = Date.now() + (body.expires_in ?? 3600) * 1000
-    record.scope = body.scope
-    record.pendingState = undefined
+    const updated: StoreFile = {
+      ...record,
+      refreshToken: sealSecret(body.refresh_token),
+      accessToken: sealSecret(body.access_token),
+      expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000,
+      scope: body.scope,
+      pendingState: undefined,
+    }
 
     // Best-effort profile lookup for a friendly status line.
     try {
       const me = await spotifyApi(body.access_token, '/me', 'GET', ac.signal)
       if (isObj(me.json)) {
-        if (typeof me.json.display_name === 'string') record.displayName = me.json.display_name
-        if (typeof me.json.product === 'string') record.product = me.json.product
+        if (typeof me.json.display_name === 'string') updated.displayName = me.json.display_name
+        if (typeof me.json.product === 'string') updated.product = me.json.product
       }
     } catch {
       /* non-fatal */
     }
 
-    await writeStore(key, record)
-    const who = record.displayName ? ` als ${record.displayName}` : ''
+    await writeStore(key, updated)
+    const who = updated.displayName ? ` als ${updated.displayName}` : ''
     return htmlPage('Spotify verbunden', `Erfolgreich verbunden${who}. Dieses Fenster schließt sich automatisch.`, true)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
