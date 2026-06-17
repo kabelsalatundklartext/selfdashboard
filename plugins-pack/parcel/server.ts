@@ -422,29 +422,174 @@ async function trackDpd(number: string): Promise<TrackResult> {
 }
 
 // ---------------------------------------------------------------------------
+// 17TRACK aggregator — paid-free fallback for carriers we cannot fetch directly
+// (notably DPD, whose own endpoint is bot-blocked). Needs a free API token from
+// 17track.net (Settings → Security → Access Key); the widget sends it per request
+// in the x-17track-key header. v2.2 flow: register a number once (1 of the free
+// quota), then poll gettrackinfo. Carrier is auto-detected (number omits it).
+// ---------------------------------------------------------------------------
+
+const SEVENTEENTRACK_BASE = 'https://api.17track.net/track/v2.2'
+const ST_NOT_REGISTERED = -18019902
+
+async function st17Post(
+  pathSeg: string,
+  number: string,
+  token: string,
+): Promise<{ httpStatus: number; json: unknown }> {
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetchWithSsrfGuard(`${SEVENTEENTRACK_BASE}${pathSeg}`, {
+      method: 'POST',
+      headers: { '17token': token, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify([{ number }]),
+      cache: 'no-store',
+      signal: ac.signal,
+    })
+    const text = await res.text()
+    let json: unknown = null
+    try {
+      json = text ? JSON.parse(text) : null
+    } catch {
+      json = null
+    }
+    return { httpStatus: res.status, json }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** First rejected-item error code, used to detect "not registered yet". */
+function st17RejectedCode(json: unknown): number | null {
+  if (!isObj(json)) return null
+  const data = isObj(json.data) ? json.data : {}
+  const first = asArray(data.rejected).filter(isObj)[0]
+  if (first && isObj(first.error)) {
+    const code = Number(first.error.code)
+    return Number.isFinite(code) ? code : null
+  }
+  return null
+}
+
+/** Throw a stable tracking_* code on auth/quota failure so the UI can explain it. */
+function st17AssertOk(httpStatus: number, json: unknown): void {
+  if (httpStatus === 401 || httpStatus === 403) throw new Error('tracking_key_invalid')
+  const code = isObj(json) ? Number(json.code) : NaN
+  // A non-zero top-level code with no data block is a request-level failure
+  // (bad/blank token, signature error). Item-level issues live in data.rejected.
+  if (Number.isFinite(code) && code !== 0 && !(isObj(json) && isObj(json.data))) {
+    throw new Error('tracking_key_invalid')
+  }
+  const rej = st17RejectedCode(json)
+  // -18019903/-18019905 etc. = registration/quota limits.
+  if (rej != null && rej !== ST_NOT_REGISTERED && (rej === -18019903 || rej === -18019905)) {
+    throw new Error('tracking_quota')
+  }
+}
+
+function map17State(status: string): TrackState {
+  switch (status) {
+    case 'Delivered':
+      return 'delivered'
+    case 'AvailableForPickup':
+    case 'DeliveryFailure':
+    case 'Exception':
+    case 'Expired':
+      return 'problem'
+    case '':
+    case 'NotFound':
+      return 'unknown'
+    default:
+      return 'transit'
+  }
+}
+
+function parse17Event(raw: unknown): TrackEvent | null {
+  if (!isObj(raw)) return null
+  const date = str(raw.time_iso) || str(raw.time_utc)
+  const text = str(raw.description)
+  const addr = isObj(raw.address) ? raw.address : {}
+  const location = str(raw.location) || str(addr.city) || str(addr.state) || undefined
+  if (!text && !date) return null
+  return { date, text, location }
+}
+
+function parse17(number: string, json: unknown): TrackResult {
+  if (!isObj(json)) return emptyResult('dpd', number)
+  const data = isObj(json.data) ? json.data : {}
+  const accepted = asArray(data.accepted).filter(isObj)
+  const entry = accepted.find((a) => str(a.number) === number) ?? accepted[0]
+  const info = entry && isObj(entry.track_info) ? entry.track_info : null
+  if (!info) return emptyResult('dpd', number)
+
+  const latestStatus = isObj(info.latest_status) ? info.latest_status : {}
+  const statusEnum = str(latestStatus.status)
+
+  const tracking = isObj(info.tracking) ? info.tracking : {}
+  const events: TrackEvent[] = asArray(tracking.providers)
+    .filter(isObj)
+    .flatMap((p) => asArray(p.events))
+    .map(parse17Event)
+    .filter((e): e is TrackEvent => e !== null)
+
+  // 17track returns latest_event directly and events newest-first; prefer the
+  // explicit latest_event so the displayed "last scan" is always the newest.
+  const last = (info.latest_event ? parse17Event(info.latest_event) : null) ?? events[0]
+  const statusText = last?.text || statusEnum
+
+  if ((statusEnum === '' || statusEnum === 'NotFound') && events.length === 0) {
+    return emptyResult('dpd', number)
+  }
+
+  return {
+    carrier: 'dpd',
+    number,
+    found: true,
+    state: map17State(statusEnum),
+    status: statusText,
+    lastEvent: last,
+    events,
+  }
+}
+
+async function track17(number: string, token: string): Promise<TrackResult> {
+  let res = await st17Post('/gettrackinfo', number, token)
+  st17AssertOk(res.httpStatus, res.json)
+  if (st17RejectedCode(res.json) === ST_NOT_REGISTERED) {
+    const reg = await st17Post('/register', number, token)
+    st17AssertOk(reg.httpStatus, reg.json)
+    res = await st17Post('/gettrackinfo', number, token)
+    st17AssertOk(res.httpStatus, res.json)
+  }
+  return parse17(number, res.json)
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
-function trackOne(carrier: Carrier, number: string): Promise<TrackResult> {
+function trackOne(carrier: Carrier, number: string, token: string): Promise<TrackResult> {
   switch (carrier) {
     case 'dhl':
       return trackDhl(number)
     case 'hermes':
       return trackHermes(number)
     case 'dpd':
-      return trackDpd(number)
+      // DPD's own endpoint is bot-blocked; use 17TRACK when a token is configured.
+      return token ? track17(number, token) : trackDpd(number)
   }
 }
 
 /** Try carriers in order, return the first that recognizes the number. If every
  * carrier errored (none returned a clean not-found), surface the failure so the
  * caller reports "unreachable" instead of a misleading "not found". */
-async function trackAuto(number: string): Promise<TrackResult> {
+async function trackAuto(number: string, token: string): Promise<TrackResult> {
   let lastResult: TrackResult | null = null
   let lastError: unknown = null
   for (const carrier of AUTO_ORDER) {
     try {
-      const result = await trackOne(carrier, number)
+      const result = await trackOne(carrier, number, token)
       if (result.found) return result
       lastResult = result
     } catch (e) {
@@ -457,12 +602,15 @@ async function trackAuto(number: string): Promise<TrackResult> {
   return lastResult ?? emptyResult('dhl', number)
 }
 
-async function track(carrier: string, number: string): Promise<TrackResult> {
-  const key = `${carrier}:${number}`
+async function track(carrier: string, number: string, token: string): Promise<TrackResult> {
+  // The token-presence flag is part of the key so adding a 17TRACK key doesn't
+  // keep serving a stale "blocked" negative-cache entry for DPD.
+  const key = `${carrier}:${number}:${token ? 't' : ''}`
   const cached = (cache.get(key) ?? negCache.get(key)) as TrackResult | null
   if (cached) return cached
 
-  const result = carrier === 'auto' ? await trackAuto(number) : await trackOne(carrier as Carrier, number)
+  const result =
+    carrier === 'auto' ? await trackAuto(number, token) : await trackOne(carrier as Carrier, number, token)
   // Positive hits cache for the normal TTL; unknown numbers cache briefly so
   // repeated polls don't re-hit every carrier, while still picking up new labels.
   if (result.found) cache.set(key, result)
@@ -491,6 +639,8 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
   const sp = new URL(req.url).searchParams
   const carrier = (sp.get('carrier') || 'auto').trim().toLowerCase()
   const number = sanitizeNumber(sp.get('number') || '')
+  // 17TRACK token travels in a header (not the query) so it never lands in logs.
+  const token = (req.headers.get('x-17track-key') || '').trim()
 
   if (carrier === 'gls') {
     return Response.json(
@@ -509,7 +659,7 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
   }
 
   try {
-    const result = await track(carrier, number)
+    const result = await track(carrier, number, token)
     return Response.json(result)
   } catch (e) {
     // Full error detail goes to the server log only; the client gets a stable
@@ -521,11 +671,19 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
     const aborted = e instanceof Error && e.name === 'AbortError'
     const msg = e instanceof Error ? e.message : String(e)
     void logPluginApiFailure('parcel', `track:${carrier}`, aborted ? 'timeout' : msg)
+    // 17TRACK auth/quota failures get their own codes so the UI can tell the user
+    // to check the key/quota rather than implying the carrier is unreachable.
+    if (!aborted && msg.startsWith('tracking_')) {
+      return Response.json(
+        { error: msg, carrier, hint: '17TRACK: API-Key und freies Kontingent prüfen.' },
+        { status: 502 },
+      )
+    }
     // DPD's free endpoint sits behind an Akamai bot-WAF that resets non-browser
-    // clients (ECONNRESET) — not fixable from a plain server fetch. Surface a
-    // DPD-specific code so the UI points the user straight to DPD's own page
-    // instead of a vague "unreachable" that wrongly implies a problem on our side.
-    if (carrier === 'dpd' && !aborted) {
+    // clients (ECONNRESET) — not fixable from a plain server fetch. Without a
+    // 17TRACK key, surface a DPD-specific code so the UI points the user straight
+    // to DPD's own page instead of a vague "unreachable".
+    if (carrier === 'dpd' && !aborted && !token) {
       return Response.json(
         {
           error: 'dpd_blocked',
