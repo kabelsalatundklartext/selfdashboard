@@ -111,7 +111,7 @@ function Glyph({ d, size = 14, color = 'currentColor', circle = false }: { d: st
 }
 
 const WG_CSS = `
-.wg-tab{cursor:pointer;border:none;background:transparent;font:inherit;padding:5px 10px;border-radius:7px;font-size:11px;font-weight:700;color:var(--text-muted);transition:background .14s ease,color .14s ease}
+.wg-tab{cursor:pointer;border:none;background:transparent;font:inherit;padding:4px 9px;border-radius:7px;font-size:10.5px;font-weight:700;color:var(--text-muted);transition:background .14s ease,color .14s ease}
 .wg-tab[data-active="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px -1px rgba(0,0,0,.25)}
 .wg-row{transition:background .14s ease}
 .wg-row:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
@@ -122,23 +122,36 @@ function StatHeader({ online, total, totalTx, totalRx }: { online: number; total
     display: 'inline-flex',
     alignItems: 'center',
     gap: 5,
-    fontSize: 'clamp(10px, 2.8cqmin, 12px)',
+    fontSize: 'clamp(9px, 2.5cqmin, 11px)',
     color: 'var(--text-muted)',
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
   }
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 'clamp(15px, 5cqmin, 20px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        flexWrap: 'wrap',
+        padding: '6px 10px',
+        borderRadius: 10,
+        background: 'color-mix(in srgb, var(--border) 22%, transparent)',
+      }}
+    >
+      <span style={{ fontSize: 'clamp(14px, 4.4cqmin, 18px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
         <span style={{ color: online > 0 ? '#22c55e' : 'var(--text)' }}>{online}</span>
         <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}> / {total}</span>
-        <span style={{ fontSize: '0.6em', fontWeight: 700, color: 'var(--text-muted)', marginLeft: 6 }}>online</span>
+        <span style={{ fontSize: '0.58em', fontWeight: 700, color: 'var(--text-muted)', marginLeft: 5 }}>online</span>
       </span>
-      <span style={chip} title="empfangen / received">
-        <Glyph d={ICON.down} size={12} color="#06b6d4" /> {fmtBytes(totalRx)}
-      </span>
-      <span style={chip} title="gesendet / sent">
-        <Glyph d={ICON.up} size={12} color="#a855f7" /> {fmtBytes(totalTx)}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9 }}>
+        <span style={chip} title="empfangen / received">
+          <Glyph d={ICON.down} size={11} color="#06b6d4" /> {fmtBytes(totalRx)}
+        </span>
+        <span style={chip} title="gesendet / sent">
+          <Glyph d={ICON.up} size={11} color="#a855f7" /> {fmtBytes(totalTx)}
+        </span>
       </span>
     </div>
   )
@@ -153,8 +166,8 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
         display: 'flex',
         alignItems: 'center',
         gap: 9,
-        padding: '7px 9px',
-        borderRadius: 9,
+        padding: '5px 8px',
+        borderRadius: 8,
         minWidth: 0,
       }}
     >
@@ -269,12 +282,12 @@ function Widget({ config }: PluginWidgetProps) {
     minWidth: 0,
     minHeight: 0,
     boxSizing: 'border-box',
-    padding: '10px 12px',
+    padding: '8px 10px',
     containerType: 'inline-size',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 6,
   }
 
   if (!configured) {
@@ -440,7 +453,7 @@ export const meta: PluginMeta = {
   name: 'WireGuard',
   description:
     'WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)',
-  version: '0.9.0',
+  version: '0.9.1',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🔒',
