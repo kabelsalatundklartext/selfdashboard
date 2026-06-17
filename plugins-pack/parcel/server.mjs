@@ -172,7 +172,7 @@ var BROWSER_HEADERS = {
 var cache = createPluginServerCache({ ttlMs: CACHE_TTL_MS, maxEntries: CACHE_MAX });
 var negCache = createPluginServerCache({ ttlMs: NEG_CACHE_TTL_MS, maxEntries: CACHE_MAX });
 var KNOWN_CARRIERS = ["dhl", "hermes", "dpd", "ups"];
-var AUTO_ORDER = ["dhl", "hermes", "dpd", "ups"];
+var AUTO_ORDER = ["dhl", "hermes", "dpd"];
 function isObj(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -444,118 +444,7 @@ async function trackDpd(number) {
     clearTimeout(timer);
   }
 }
-var UPS_OAUTH_URL = "https://onlinetools.ups.com/security/v1/oauth/token";
-var UPS_TRACK_URL = "https://onlinetools.ups.com/api/track/v1/details";
-var UPS_TOKEN_SKEW_MS = 6e4;
-var upsTokens = /* @__PURE__ */ new Map();
-var upsTransSeq = 0;
-async function getUpsToken(creds, signal) {
-  const cached = upsTokens.get(creds.id);
-  if (cached && cached.expiresAt - UPS_TOKEN_SKEW_MS > Date.now()) return cached.token;
-  const basic = Buffer.from(`${creds.id}:${creds.secret}`, "utf8").toString("base64");
-  const res = await fetchWithSsrfGuard(UPS_OAUTH_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basic}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json"
-    },
-    body: "grant_type=client_credentials",
-    cache: "no-store",
-    signal
-  });
-  const text = await res.text();
-  if (res.status === 400 || res.status === 401) throw new Error("ups_auth_failed");
-  if (!res.ok) throw new Error(`ups_http_${res.status}`);
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-  const token = isObj(json) ? str(json.access_token) : "";
-  if (!token) throw new Error("ups_auth_failed");
-  const expiresIn = isObj(json) ? Number(json.expires_in) : NaN;
-  const ttl = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn * 1e3 : 36e5;
-  upsTokens.set(creds.id, { token, expiresAt: Date.now() + ttl });
-  return token;
-}
-function upsDateTime(date, time) {
-  const d = str(date);
-  const t = str(time);
-  if (!/^\d{8}$/.test(d)) return [d, t].filter(Boolean).join(" ");
-  const iso = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
-  return /^\d{6}$/.test(t) ? `${iso}T${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}` : iso;
-}
-function upsLocation(loc) {
-  if (!isObj(loc)) return void 0;
-  const addr = isObj(loc.address) ? loc.address : {};
-  const parts = [str(addr.city), str(addr.stateProvince) || str(addr.countryCode)].filter(Boolean);
-  return parts.join(", ") || void 0;
-}
-function parseUps(number, json) {
-  if (!isObj(json)) return emptyResult("ups", number);
-  const tr = isObj(json.trackResponse) ? json.trackResponse : {};
-  const shipment = asArray(tr.shipment).filter(isObj)[0];
-  const pkg = shipment ? asArray(shipment.package).filter(isObj)[0] : void 0;
-  if (!pkg) return emptyResult("ups", number);
-  const events = asArray(pkg.activity).filter(isObj).map((a) => {
-    const status = isObj(a.status) ? a.status : {};
-    return { date: upsDateTime(a.date, a.time), text: str(status.description), location: upsLocation(a.location) };
-  }).filter((e) => e.text || e.date);
-  const current = isObj(pkg.currentStatus) ? pkg.currentStatus : {};
-  const statusText = str(current.description) || events[0]?.text || "";
-  if (!statusText && events.length === 0) return emptyResult("ups", number);
-  const deliveredFlag = str(current.code) === "011" ? true : void 0;
-  const eta = asArray(pkg.deliveryDate).filter(isObj).filter((d) => str(d.type) !== "DEL").map((d) => upsDateTime(d.date, "")).find(Boolean);
-  return {
-    carrier: "ups",
-    number,
-    found: true,
-    state: deriveState(statusText, deliveredFlag),
-    status: statusText,
-    eta,
-    lastEvent: events[0],
-    events
-  };
-}
-async function trackUps(number, creds) {
-  if (!creds || !creds.id || !creds.secret) throw new Error("ups_no_credentials");
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const token = await getUpsToken(creds, ac.signal);
-    const url = `${UPS_TRACK_URL}/${encodeURIComponent(number)}?locale=de_DE&returnSignature=false`;
-    const res = await fetchWithSsrfGuard(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-        transId: `sd${Date.now()}${upsTransSeq++ % 1e3}`,
-        transactionSrc: "selfdashboard"
-      },
-      cache: "no-store",
-      signal: ac.signal
-    });
-    if (res.status === 401) {
-      upsTokens.delete(creds.id);
-      throw new Error("ups_auth_failed");
-    }
-    if (res.status === 404) return emptyResult("ups", number);
-    const text = await res.text();
-    if (!res.ok) throw new Error(`ups_http_${res.status}`);
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    return parseUps(number, json);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-function trackOne(carrier, number, ups) {
+function trackOne(carrier, number) {
   switch (carrier) {
     case "dhl":
       return trackDhl(number);
@@ -564,16 +453,15 @@ function trackOne(carrier, number, ups) {
     case "dpd":
       return trackDpd(number);
     case "ups":
-      return trackUps(number, ups);
+      return Promise.resolve(emptyResult("ups", number));
   }
 }
-async function trackAuto(number, ups) {
+async function trackAuto(number) {
   let lastResult = null;
   let lastError = null;
   for (const carrier of AUTO_ORDER) {
-    if (carrier === "ups" && !ups) continue;
     try {
-      const result = await trackOne(carrier, number, ups);
+      const result = await trackOne(carrier, number);
       if (result.found) return result;
       lastResult = result;
     } catch (e) {
@@ -585,11 +473,11 @@ async function trackAuto(number, ups) {
   }
   return lastResult ?? emptyResult("dhl", number);
 }
-async function track(carrier, number, ups) {
+async function track(carrier, number) {
   const key = `${carrier}:${number}`;
   const cached = cache.get(key) ?? negCache.get(key);
   if (cached) return cached;
-  const result = carrier === "auto" ? await trackAuto(number, ups) : await trackOne(carrier, number, ups);
+  const result = carrier === "auto" ? await trackAuto(number) : await trackOne(carrier, number);
   if (result.found) cache.set(key, result);
   else negCache.set(key, result);
   return result;
@@ -608,9 +496,6 @@ async function handleParcelRequest(req, path) {
   const sp = new URL(req.url).searchParams;
   const carrier = (sp.get("carrier") || "auto").trim().toLowerCase();
   const number = sanitizeNumber(sp.get("number") || "");
-  const upsId = (req.headers.get("x-ups-client-id") || "").trim();
-  const upsSecret = (req.headers.get("x-ups-client-secret") || "").trim();
-  const ups = upsId && upsSecret ? { id: upsId, secret: upsSecret } : null;
   if (carrier === "gls") {
     return Response.json(
       {
@@ -627,7 +512,7 @@ async function handleParcelRequest(req, path) {
     return Response.json({ error: "invalid_number" }, { status: 400 });
   }
   try {
-    const result = await track(carrier, number, ups);
+    const result = await track(carrier, number);
     return Response.json(result);
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
@@ -637,13 +522,6 @@ async function handleParcelRequest(req, path) {
     const aborted = e instanceof Error && e.name === "AbortError";
     const msg = e instanceof Error ? e.message : String(e);
     void logPluginApiFailure("parcel", `track:${carrier}`, aborted ? "timeout" : msg);
-    if (!aborted && msg.startsWith("ups_")) {
-      const code = msg === "ups_no_credentials" || msg === "ups_auth_failed" ? msg : "ups_error";
-      return Response.json(
-        { error: code, carrier, hint: "UPS: Client ID/Secret in den Einstellungen pr\xFCfen." },
-        { status: code === "ups_auth_failed" ? 401 : 502 }
-      );
-    }
     if (carrier === "dpd" && !aborted) {
       return Response.json(
         {

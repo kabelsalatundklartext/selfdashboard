@@ -18,9 +18,9 @@ export const dynamic = 'force-dynamic'
 //   Hermes — stable public JSON on api.my-deliveries.de
 //   DPD    — server-rendered milestone status scraped from my.dpd.de (the JSON
 //            endpoint on tracking.dpd.de is bot-WAF-blocked); needs a session.
-//   UPS    — official UPS Track API (OAuth client-credentials). UPS blocks all
-//            free/scraping access via Akamai, so it needs the user's own free
-//            developer Client ID + Secret (sent per request via headers).
+//   UPS    — link-only. UPS blocks all free/scraping access via Akamai Bot
+//            Manager and its official API needs a paid-tier key, so the widget
+//            only deep-links to ups.com (no automatic status).
 //   GLS    — retired its login-free endpoint in 2024/25 → not supported
 // ---------------------------------------------------------------------------
 
@@ -79,9 +79,9 @@ type TrackResult = {
 }
 
 const KNOWN_CARRIERS: Carrier[] = ['dhl', 'hermes', 'dpd', 'ups']
-/** Order used when carrier is "auto" — cheapest/most reliable first. UPS is last
- * (needs API credentials and is skipped cleanly when none are configured). */
-const AUTO_ORDER: Carrier[] = ['dhl', 'hermes', 'dpd', 'ups']
+/** Order used when carrier is "auto" — cheapest/most reliable first. UPS is not
+ * here: it has no free lookup, so auto can't resolve it (UPS is link-only). */
+const AUTO_ORDER: Carrier[] = ['dhl', 'hermes', 'dpd']
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -447,155 +447,10 @@ async function trackDpd(number: string): Promise<TrackResult> {
 }
 
 // ---------------------------------------------------------------------------
-// UPS — official UPS Track API (OAuth client-credentials). UPS blocks all free
-// scraping behind Akamai Bot Manager, so real status needs the user's own free
-// developer Client ID + Secret (sent per request via x-ups-client-id/secret
-// headers). We exchange them for a bearer token (cached in memory) and call the
-// Track API. Docs: github.com/UPS-API/api-documentation (Tracking.yaml).
-// ---------------------------------------------------------------------------
-
-type UpsCreds = { id: string; secret: string }
-
-const UPS_OAUTH_URL = 'https://onlinetools.ups.com/security/v1/oauth/token'
-const UPS_TRACK_URL = 'https://onlinetools.ups.com/api/track/v1/details'
-const UPS_TOKEN_SKEW_MS = 60_000
-
-/** In-memory bearer-token cache keyed by client id (tokens last ~4h). */
-const upsTokens = new Map<string, { token: string; expiresAt: number }>()
-let upsTransSeq = 0
-
-async function getUpsToken(creds: UpsCreds, signal: AbortSignal): Promise<string> {
-  const cached = upsTokens.get(creds.id)
-  if (cached && cached.expiresAt - UPS_TOKEN_SKEW_MS > Date.now()) return cached.token
-
-  const basic = Buffer.from(`${creds.id}:${creds.secret}`, 'utf8').toString('base64')
-  const res = await fetchWithSsrfGuard(UPS_OAUTH_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${basic}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-    body: 'grant_type=client_credentials',
-    cache: 'no-store',
-    signal,
-  })
-  const text = await res.text()
-  if (res.status === 400 || res.status === 401) throw new Error('ups_auth_failed')
-  if (!res.ok) throw new Error(`ups_http_${res.status}`)
-  let json: unknown = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    json = null
-  }
-  const token = isObj(json) ? str(json.access_token) : ''
-  if (!token) throw new Error('ups_auth_failed')
-  const expiresIn = isObj(json) ? Number(json.expires_in) : NaN
-  const ttl = Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn * 1000 : 3_600_000
-  upsTokens.set(creds.id, { token, expiresAt: Date.now() + ttl })
-  return token
-}
-
-/** UPS dates are YYYYMMDD and times HHMMSS — fold into an ISO-ish string fmtDate can read. */
-function upsDateTime(date: unknown, time: unknown): string {
-  const d = str(date)
-  const t = str(time)
-  if (!/^\d{8}$/.test(d)) return [d, t].filter(Boolean).join(' ')
-  const iso = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`
-  return /^\d{6}$/.test(t) ? `${iso}T${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}` : iso
-}
-
-function upsLocation(loc: unknown): string | undefined {
-  if (!isObj(loc)) return undefined
-  const addr = isObj(loc.address) ? loc.address : {}
-  const parts = [str(addr.city), str(addr.stateProvince) || str(addr.countryCode)].filter(Boolean)
-  return parts.join(', ') || undefined
-}
-
-function parseUps(number: string, json: unknown): TrackResult {
-  if (!isObj(json)) return emptyResult('ups', number)
-  const tr = isObj(json.trackResponse) ? json.trackResponse : {}
-  const shipment = asArray(tr.shipment).filter(isObj)[0]
-  const pkg = shipment ? asArray(shipment.package).filter(isObj)[0] : undefined
-  if (!pkg) return emptyResult('ups', number)
-
-  // UPS returns activities newest-first.
-  const events: TrackEvent[] = asArray(pkg.activity)
-    .filter(isObj)
-    .map((a) => {
-      const status = isObj(a.status) ? a.status : {}
-      return { date: upsDateTime(a.date, a.time), text: str(status.description), location: upsLocation(a.location) }
-    })
-    .filter((e) => e.text || e.date)
-
-  const current = isObj(pkg.currentStatus) ? pkg.currentStatus : {}
-  const statusText = str(current.description) || events[0]?.text || ''
-  if (!statusText && events.length === 0) return emptyResult('ups', number)
-
-  // UPS delivered status code is 011; otherwise derive from the localized text.
-  const deliveredFlag = str(current.code) === '011' ? true : undefined
-  // A scheduled/estimated delivery date (skip the actual-delivered 'DEL' entry).
-  const eta = asArray(pkg.deliveryDate)
-    .filter(isObj)
-    .filter((d) => str(d.type) !== 'DEL')
-    .map((d) => upsDateTime(d.date, ''))
-    .find(Boolean)
-
-  return {
-    carrier: 'ups',
-    number,
-    found: true,
-    state: deriveState(statusText, deliveredFlag),
-    status: statusText,
-    eta,
-    lastEvent: events[0],
-    events,
-  }
-}
-
-async function trackUps(number: string, creds: UpsCreds | null): Promise<TrackResult> {
-  if (!creds || !creds.id || !creds.secret) throw new Error('ups_no_credentials')
-  const ac = new AbortController()
-  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)
-  try {
-    const token = await getUpsToken(creds, ac.signal)
-    const url = `${UPS_TRACK_URL}/${encodeURIComponent(number)}?locale=de_DE&returnSignature=false`
-    const res = await fetchWithSsrfGuard(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        transId: `sd${Date.now()}${upsTransSeq++ % 1000}`,
-        transactionSrc: 'selfdashboard',
-      },
-      cache: 'no-store',
-      signal: ac.signal,
-    })
-    if (res.status === 401) {
-      upsTokens.delete(creds.id) // stale token — force re-auth next poll
-      throw new Error('ups_auth_failed')
-    }
-    if (res.status === 404) return emptyResult('ups', number)
-    const text = await res.text()
-    if (!res.ok) throw new Error(`ups_http_${res.status}`)
-    let json: unknown = null
-    try {
-      json = text ? JSON.parse(text) : null
-    } catch {
-      json = null
-    }
-    return parseUps(number, json)
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
-function trackOne(carrier: Carrier, number: string, ups: UpsCreds | null): Promise<TrackResult> {
+function trackOne(carrier: Carrier, number: string): Promise<TrackResult> {
   switch (carrier) {
     case 'dhl':
       return trackDhl(number)
@@ -604,22 +459,22 @@ function trackOne(carrier: Carrier, number: string, ups: UpsCreds | null): Promi
     case 'dpd':
       return trackDpd(number)
     case 'ups':
-      return trackUps(number, ups)
+      // UPS is link-only: no free access (Akamai blocks scraping) and the official
+      // API needs a paid-tier key. The widget shows a "view on UPS" link and never
+      // calls the server for UPS; if hit directly we just return no data.
+      return Promise.resolve(emptyResult('ups', number))
   }
 }
 
 /** Try carriers in order, return the first that recognizes the number. If every
  * carrier errored (none returned a clean not-found), surface the failure so the
  * caller reports "unreachable" instead of a misleading "not found". */
-async function trackAuto(number: string, ups: UpsCreds | null): Promise<TrackResult> {
+async function trackAuto(number: string): Promise<TrackResult> {
   let lastResult: TrackResult | null = null
   let lastError: unknown = null
   for (const carrier of AUTO_ORDER) {
-    // UPS in auto only makes sense with credentials; skip it otherwise so we
-    // don't surface a "credentials missing" error for non-UPS parcels.
-    if (carrier === 'ups' && !ups) continue
     try {
-      const result = await trackOne(carrier, number, ups)
+      const result = await trackOne(carrier, number)
       if (result.found) return result
       lastResult = result
     } catch (e) {
@@ -632,13 +487,12 @@ async function trackAuto(number: string, ups: UpsCreds | null): Promise<TrackRes
   return lastResult ?? emptyResult('dhl', number)
 }
 
-async function track(carrier: string, number: string, ups: UpsCreds | null): Promise<TrackResult> {
+async function track(carrier: string, number: string): Promise<TrackResult> {
   const key = `${carrier}:${number}`
   const cached = (cache.get(key) ?? negCache.get(key)) as TrackResult | null
   if (cached) return cached
 
-  const result =
-    carrier === 'auto' ? await trackAuto(number, ups) : await trackOne(carrier as Carrier, number, ups)
+  const result = carrier === 'auto' ? await trackAuto(number) : await trackOne(carrier as Carrier, number)
   // Positive hits cache for the normal TTL; unknown numbers cache briefly so
   // repeated polls don't re-hit every carrier, while still picking up new labels.
   if (result.found) cache.set(key, result)
@@ -667,11 +521,6 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
   const sp = new URL(req.url).searchParams
   const carrier = (sp.get('carrier') || 'auto').trim().toLowerCase()
   const number = sanitizeNumber(sp.get('number') || '')
-  // UPS API credentials travel in headers (not the query) so they never land in
-  // logs. Only present when the user has configured a UPS developer key.
-  const upsId = (req.headers.get('x-ups-client-id') || '').trim()
-  const upsSecret = (req.headers.get('x-ups-client-secret') || '').trim()
-  const ups: UpsCreds | null = upsId && upsSecret ? { id: upsId, secret: upsSecret } : null
 
   if (carrier === 'gls') {
     return Response.json(
@@ -690,7 +539,7 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
   }
 
   try {
-    const result = await track(carrier, number, ups)
+    const result = await track(carrier, number)
     return Response.json(result)
   } catch (e) {
     // Full error detail goes to the server log only; the client gets a stable
@@ -702,15 +551,6 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
     const aborted = e instanceof Error && e.name === 'AbortError'
     const msg = e instanceof Error ? e.message : String(e)
     void logPluginApiFailure('parcel', `track:${carrier}`, aborted ? 'timeout' : msg)
-    // UPS credential/API failures get their own codes so the UI can tell the user
-    // to check the Client ID/Secret rather than implying the carrier is down.
-    if (!aborted && msg.startsWith('ups_')) {
-      const code = msg === 'ups_no_credentials' || msg === 'ups_auth_failed' ? msg : 'ups_error'
-      return Response.json(
-        { error: code, carrier, hint: 'UPS: Client ID/Secret in den Einstellungen prüfen.' },
-        { status: code === 'ups_auth_failed' ? 401 : 502 },
-      )
-    }
     // If the my.dpd.de status page is unreachable or changed shape, fall back to
     // a DPD-specific code so the UI points the user to DPD's own page.
     if (carrier === 'dpd' && !aborted) {
