@@ -2,7 +2,7 @@
   "id": "wireguard",
   "name": "WireGuard",
   "description": "WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "author": "SelfDashboard",
   "category": "network",
   "icon": "🔒",

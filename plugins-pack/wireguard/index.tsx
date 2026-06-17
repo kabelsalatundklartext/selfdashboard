@@ -141,7 +141,7 @@ function StatHeader({ title, online, total, totalTx, totalRx }: { title: string;
     >
       <span style={{ display: 'flex', alignItems: 'baseline', gap: 7, minWidth: 0 }}>
         {title ? (
-          <span style={{ fontSize: 'clamp(8px, 2.1cqmin, 9.5px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+          <span style={{ fontSize: 'clamp(6px, 1.5cqmin, 7px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
         ) : null}
         <span style={{ fontSize: 'clamp(13px, 3.9cqmin, 16px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
           <span style={{ color: online > 0 ? '#22c55e' : 'var(--text)' }}>{online}</span>
@@ -451,7 +451,7 @@ export const meta: PluginMeta = {
   name: 'WireGuard',
   description:
     'WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)',
-  version: '0.9.2',
+  version: '0.9.3',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🔒',
