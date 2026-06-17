@@ -521,6 +521,20 @@ export async function handleParcelRequest(req: Request, path: string[]): Promise
     const aborted = e instanceof Error && e.name === 'AbortError'
     const msg = e instanceof Error ? e.message : String(e)
     void logPluginApiFailure('parcel', `track:${carrier}`, aborted ? 'timeout' : msg)
+    // DPD's free endpoint sits behind an Akamai bot-WAF that resets non-browser
+    // clients (ECONNRESET) — not fixable from a plain server fetch. Surface a
+    // DPD-specific code so the UI points the user straight to DPD's own page
+    // instead of a vague "unreachable" that wrongly implies a problem on our side.
+    if (carrier === 'dpd' && !aborted) {
+      return Response.json(
+        {
+          error: 'dpd_blocked',
+          carrier,
+          hint: 'DPD blockiert automatische Abrufe (Bot-Schutz). Bitte direkt bei DPD verfolgen.',
+        },
+        { status: 502 },
+      )
+    }
     return Response.json(
       {
         error: aborted ? 'timeout' : 'fetch_failed',

@@ -504,6 +504,16 @@ async function handleParcelRequest(req, path) {
     const aborted = e instanceof Error && e.name === "AbortError";
     const msg = e instanceof Error ? e.message : String(e);
     void logPluginApiFailure("parcel", `track:${carrier}`, aborted ? "timeout" : msg);
+    if (carrier === "dpd" && !aborted) {
+      return Response.json(
+        {
+          error: "dpd_blocked",
+          carrier,
+          hint: "DPD blockiert automatische Abrufe (Bot-Schutz). Bitte direkt bei DPD verfolgen."
+        },
+        { status: 502 }
+      );
+    }
     return Response.json(
       {
         error: aborted ? "timeout" : "fetch_failed",

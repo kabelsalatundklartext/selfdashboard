@@ -354,6 +354,10 @@ function errorText(code: string, de: boolean): string {
       return de ? 'Zeitüberschreitung beim Carrier.' : 'Carrier timed out.'
     case 'network_error':
       return de ? 'Netzwerkfehler.' : 'Network error.'
+    case 'dpd_blocked':
+      return de
+        ? 'DPD blockiert den automatischen Abruf – beim Anbieter ansehen.'
+        : 'DPD blocks automatic lookup – view on carrier.'
     case 'fetch_failed':
     case 'blocked_url':
       return de ? 'Carrier nicht erreichbar.' : 'Carrier unreachable.'
@@ -993,8 +997,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <p style={{ margin: 0, fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
         {de
-          ? 'DHL und Hermes sind stabil. DPD ist experimentell (Bot-Schutz kann den Abruf blockieren). GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
-          : 'DHL and Hermes are stable. DPD is experimental (bot protection may block lookups). GLS no longer offers free tracking. The server needs outbound internet.'}
+          ? 'DHL und Hermes sind stabil. DPD blockiert den automatischen Abruf inzwischen per Bot-Schutz – nutze den Link „Beim Anbieter ansehen" im Widget. GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
+          : 'DHL and Hermes are stable. DPD now blocks automatic lookups via bot protection – use the “View on carrier” link in the widget. GLS no longer offers free tracking. The server needs outbound internet.'}
       </p>
     </div>
   )
@@ -1012,7 +1016,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.2',
+  version: '1.0.3',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
