@@ -12,7 +12,7 @@ Kostenlose Multi-Carrier-Sendungsverfolgung **ohne API-Key** — fragt die login
 |----------|--------|------------------------|
 | **DHL** | ✅ stabil | `www.dhl.de/int-verfolgen/data/search` |
 | **Hermes** | ✅ stabil | `api.my-deliveries.de/tnt/parcelservice/parceldetails` |
-| **DPD** | ⚠️ best-effort | `tracking.dpd.de/rest/plc/de_DE` — Akamai-Bot-Schutz kann den Abruf blockieren |
+| **DPD** | ✅ kostenlos | `my.dpd.de` Statusseite (Session-Flow; liest die Stationen aus dem HTML, da der JSON-Endpunkt `tracking.dpd.de/rest/plc` per Akamai-Bot-Schutz geblockt ist) |
 | **GLS** | ❌ nicht möglich | GLS hat seinen freien Endpunkt 2024/25 abgeschaltet (Login/API-Key nötig) |
 
 **Auto** probiert DHL → Hermes → DPD und nimmt den ersten Treffer.
@@ -46,7 +46,7 @@ Antwort (normalisiert): `{ carrier, number, found, state, status, progress?, eta
 
 - **Caching:** Treffer werden serverseitig 10 Min. gecached, unbekannte Nummern kurz (3 Min.). Das Widget pollt bewusst langsam (Standard 30 Min.), um die Carrier nicht zu belasten.
 - **Unofficial:** Die Endpunkte sind reverse-engineered und können sich ändern; die Parser sind defensiv. Ein Feld-Rename ist eine Ein-Stellen-Korrektur pro Carrier.
-- **Outbound:** Der Server braucht ausgehenden HTTPS-Zugriff auf `dhl.de`, `my-deliveries.de`, `dpd.de`. SSRF-Guard ist aktiv (`_shared/ssrf.ts`).
+- **Outbound:** Der Server braucht ausgehenden HTTPS-Zugriff auf `dhl.de`, `my-deliveries.de`, `my.dpd.de`. SSRF-Guard ist aktiv (`_shared/ssrf.ts`).
 
 ### Deploy
 
@@ -66,7 +66,7 @@ Free multi-carrier parcel tracking **without an API key** — it queries the log
 |---------|--------|------------------------|
 | **DHL** | ✅ stable | `www.dhl.de/int-verfolgen/data/search` |
 | **Hermes** | ✅ stable | `api.my-deliveries.de/tnt/parcelservice/parceldetails` |
-| **DPD** | ⚠️ best-effort | `tracking.dpd.de/rest/plc/de_DE` — Akamai bot protection may block lookups |
+| **DPD** | ✅ free | `my.dpd.de` status page (session flow; reads the milestones from the HTML, since the `tracking.dpd.de/rest/plc` JSON endpoint is Akamai-bot-blocked) |
 | **GLS** | ❌ not possible | GLS retired its free endpoint in 2024/25 (login/API key required) |
 
 **Auto** tries DHL → Hermes → DPD and takes the first hit.
@@ -88,7 +88,7 @@ Free multi-carrier parcel tracking **without an API key** — it queries the log
 
 - **Caching:** hits cache 10 min server-side, unknown numbers 3 min; the widget polls slowly (default 30 min) to be gentle on the carriers.
 - **Unofficial:** endpoints are reverse-engineered and may change; parsers are defensive — a field rename is a one-spot fix per carrier.
-- **Outbound:** the server needs HTTPS access to `dhl.de`, `my-deliveries.de`, `dpd.de`. SSRF guard is active.
+- **Outbound:** the server needs HTTPS access to `dhl.de`, `my-deliveries.de`, `my.dpd.de`. SSRF guard is active.
 
 ### Deploy
 
