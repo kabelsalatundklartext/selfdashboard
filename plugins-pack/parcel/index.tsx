@@ -686,7 +686,9 @@ function ShipmentRow({
           </span>
         ) : null}
 
-        {d.showLink && trackUrl ? (
+        {/* On error the explicit link always shows (even in mini), since the
+            error message tells the user to open the carrier page directly. */}
+        {(d.showLink || isError) && trackUrl ? (
           <a
             href={trackUrl}
             target="_blank"
@@ -1016,7 +1018,7 @@ export const meta: PluginMeta = {
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.3',
+  version: '1.0.4',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
