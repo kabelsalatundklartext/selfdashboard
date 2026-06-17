@@ -243,6 +243,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Containers via Unraid API |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="22"/> | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Network | Status-page monitors |
 | 🌤️ | [Weather](plugins-pack/weather/README.md) | Utility | Open-Meteo (proxy), day blocks + 7-day |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/wireguard.png" width="22"/> | [WireGuard](plugins-pack/wireguard/README.md) | Network | wg-easy peers — who's online now + handshake history & transfer **(Beta)** |
 | 🔀 | [Zoraxy](plugins-pack/zoraxy/README.md) | Network | Reverse-proxy host overview **(Beta)** |
 
 <sub>All plugin READMEs are bilingual (EN/DE). Brand logos via [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons).</sub>
@@ -740,6 +741,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/unraid.png" width="22"/> | [Unraid Docker](plugins-pack/unraid-docker/README.md) | System | Container per Unraid-API |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/uptime-kuma.png" width="22"/> | [Uptime Kuma](plugins-pack/uptime-kuma/README.md) | Netzwerk | Status-Page-Monitore |
 | 🌤️ | [Wetter](plugins-pack/weather/README.md) | Utility | Open-Meteo (Proxy), Tagesabschnitte + 7 Tage |
+| <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/wireguard.png" width="22"/> | [WireGuard](plugins-pack/wireguard/README.md) | Netzwerk | wg-easy-Peers — wer jetzt online ist + Handshake-Verlauf & Transfer **(Beta)** |
 | 🔀 | [Zoraxy](plugins-pack/zoraxy/README.md) | Netzwerk | Reverse-Proxy-Host-Übersicht **(Beta)** |
 
 <sub>Alle Plugin-READMEs sind zweisprachig (DE/EN). Marken-Logos via [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons).</sub>

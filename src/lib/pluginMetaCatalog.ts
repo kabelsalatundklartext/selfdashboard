@@ -167,6 +167,10 @@ export const PLUGIN_META_CATALOG: Record<string, PluginCatalogEntry> = {
     de: 'Status-Page-Übersicht aus Uptime Kuma: kompakte Monitor-Liste (2 Spalten ab 6 Einträgen). API: /api/plugins/uptime-kuma.',
     en: 'Status-page overview from Uptime Kuma: compact monitor list (2 columns from 6 entries). API: /api/plugins/uptime-kuma.',
   },
+  wireguard: {
+    de: 'WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)',
+    en: 'WireGuard peers via wg-easy: who is online now (fresh handshake), a history with the last handshake (date/time) and transfer volume (↓ received / ↑ sent). Auto-detects wg-easy v15 (basic auth) and v14 (session). (Beta)',
+  },
   zoraxy: {
     de: 'Zoraxy-Übersicht: Proxy-Hosts, Uptime, Requests/Geblockt, Traffic, Redirects, Streams, Blacklist u. m. — Kacheln frei ein-/ausblendbar und sortierbar. (Beta)',
     en: 'Zoraxy overview: proxy hosts, uptime, requests/blocked, traffic, redirects, streams, blacklist and more — tiles freely toggleable and sortable. (Beta)',

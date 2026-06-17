@@ -45,6 +45,7 @@ Each plugin has a **README with German and English** sections:
 | [Unraid Docker](unraid-docker/README.md) | `unraid-docker` |
 | [Uptime Kuma](uptime-kuma/README.md) | `uptime-kuma` |
 | [Weather](weather/README.md) | `weather` |
+| [WireGuard](wireguard/README.md) | `wireguard` |
 | [Zoraxy](zoraxy/README.md) | `zoraxy` |
 
 **Installation:** [../PLUGINS.md](../PLUGINS.md) · **Develop:** [../PLUGIN_DEV.md](../PLUGIN_DEV.md)
