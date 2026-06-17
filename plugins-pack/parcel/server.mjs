@@ -158,7 +158,6 @@ function createPluginServerCache(options) {
 var dynamic = "force-dynamic";
 var DHL_URL = "https://www.dhl.de/int-verfolgen/data/search";
 var HERMES_URL = "https://api.my-deliveries.de/tnt/parcelservice/parceldetails";
-var DPD_URL = "https://tracking.dpd.de/rest/plc/de_DE";
 var FETCH_TIMEOUT_MS = 12e3;
 var CACHE_TTL_MS = 10 * 60 * 1e3;
 var NEG_CACHE_TTL_MS = 3 * 60 * 1e3;
@@ -353,205 +352,114 @@ async function trackHermes(number) {
   if (status >= 500) throw new Error(`hermes_http_${status}`);
   return parseHermes(number, json);
 }
-function joinDateTime(date, time) {
-  const d = str(date);
-  const t = str(time);
-  return [d, t].filter(Boolean).join(" ");
-}
-function contentLines(v) {
-  if (!isObj(v)) return "";
-  return asArray(v.content).map((c) => str(c)).filter(Boolean).join(" ");
-}
-function parseDpdLifecycle(number, parcel) {
-  const steps = asArray(parcel.statusInfo).filter(isObj);
-  const events = steps.map((s) => ({
-    date: joinDateTime(s.date, s.time),
-    text: str(s.label) || contentLines(s.description),
-    location: str(s.location) || void 0
-  })).filter((e) => e.text || e.date);
-  const current = steps.find((s) => s.isCurrentStatus === true) ?? lastOf(steps);
-  const statusText = current ? str(current.label) || contentLines(current.description) || str(parcel.shipmentResponsibleStatus) : str(parcel.shipmentResponsibleStatus);
-  const last = lastOf(events);
-  const reached = steps.filter((s) => s.statusHasBeenReached === true).length;
-  const progress = steps.length > 0 ? Math.max(0, Math.min(1, reached / steps.length)) : void 0;
-  return {
-    carrier: "dpd",
-    number,
-    found: events.length > 0 || Boolean(statusText),
-    state: deriveState(statusText),
-    status: statusText,
-    progress,
-    lastEvent: last,
-    events
-  };
-}
-function parseDpdStatusJson(number, tsj) {
-  const infos = asArray(tsj.statusInfos).filter(isObj);
-  const events = infos.map((s) => {
-    const contents = asArray(s.contents).filter(isObj);
-    const text = str(s.label) || str(contents[0]?.label);
-    return { date: joinDateTime(s.date, s.time), text, location: str(s.location) || void 0 };
-  }).filter((e) => e.text || e.date);
-  const shipmentInfo = isObj(tsj.shipmentInfo) ? tsj.shipmentInfo : {};
-  const deliveryStatus = Number(shipmentInfo.deliveryStatus);
-  const progress = Number.isFinite(deliveryStatus) ? Math.max(0, Math.min(1, deliveryStatus / 5)) : void 0;
-  const deliveredFlag = Number.isFinite(deliveryStatus) ? deliveryStatus >= 5 : void 0;
-  const current = infos.find((s) => s.isCurrentStatus === true);
-  const last = lastOf(events);
-  const statusText = current ? str(current.label) || str(asArray(current.contents).filter(isObj)[0]?.label) : last?.text || "";
-  return {
-    carrier: "dpd",
-    number,
-    found: events.length > 0 || Boolean(statusText),
-    state: deriveState(statusText, deliveredFlag),
-    status: statusText,
-    progress,
-    lastEvent: last,
-    events
-  };
-}
-function parseDpd(number, json) {
-  if (!isObj(json)) return emptyResult("dpd", number);
-  if (isObj(json.parcellifecycle)) {
-    const plc = json.parcellifecycle;
-    const parcel = isObj(plc.parcel) ? plc.parcel : null;
-    if (parcel) return parseDpdLifecycle(number, parcel);
+var DPD_ENTRY_URL = "https://my.dpd.de/redirect.aspx?action=12&parcelno=";
+var DPD_PAGE_HOST = "https://my.dpd.de/";
+var DPD_MILESTONES = [
+  "labStatusStart",
+  "labStatusOnTheRoad",
+  "labStatusDeliveryDepot",
+  "labStatusCarLoad",
+  "labStatusDelivered"
+];
+var DPD_HTML_HEADERS = {
+  "User-Agent": BROWSER_HEADERS["User-Agent"],
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "de-DE,de;q=0.9"
+};
+function collectCookies(res, jar) {
+  const h = res.headers;
+  const lines = typeof h.getSetCookie === "function" ? h.getSetCookie() : [res.headers.get("set-cookie") ?? ""];
+  for (const line of lines) {
+    const m = line.match(/^\s*([^=;]+)=([^;]*)/);
+    if (m) jar.set(m[1].trim(), m[2]);
   }
-  if (isObj(json.TrackingStatusJSON)) {
-    return parseDpdStatusJson(number, json.TrackingStatusJSON);
-  }
-  return emptyResult("dpd", number);
 }
-async function trackDpd(number) {
-  const url = `${DPD_URL}/${encodeURIComponent(number)}`;
-  const { status, json } = await fetchCarrier(url);
-  if (status >= 500 || status === 403 || status === 429) throw new Error(`dpd_http_${status}`);
-  return parseDpd(number, json);
+function cookieHeader(jar) {
+  return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
 }
-var SEVENTEENTRACK_BASE = "https://api.17track.net/track/v2.2";
-var ST_NOT_REGISTERED = -18019902;
-async function st17Post(pathSeg, number, token) {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetchWithSsrfGuard(`${SEVENTEENTRACK_BASE}${pathSeg}`, {
-      method: "POST",
-      headers: { "17token": token, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify([{ number }]),
+async function fetchDpdPage(number, signal) {
+  const jar = /* @__PURE__ */ new Map();
+  let url = `${DPD_ENTRY_URL}${encodeURIComponent(number)}`;
+  let referer = DPD_PAGE_HOST;
+  for (let hop = 0; hop < 6; hop++) {
+    await assertSafeOutboundUrlResolved(url);
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        ...DPD_HTML_HEADERS,
+        Referer: referer,
+        ...jar.size ? { Cookie: cookieHeader(jar) } : {}
+      },
+      redirect: "manual",
       cache: "no-store",
-      signal: ac.signal
+      signal
     });
-    const text = await res.text();
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
+    collectCookies(res, jar);
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return "";
+      referer = url;
+      url = new URL(loc, url).href;
+      continue;
     }
-    return { httpStatus: res.status, json };
-  } finally {
-    clearTimeout(timer);
+    if (res.status !== 200) throw new Error(`dpd_http_${res.status}`);
+    return res.text();
   }
+  throw new Error("dpd_too_many_redirects");
 }
-function st17RejectedCode(json) {
-  if (!isObj(json)) return null;
-  const data = isObj(json.data) ? json.data : {};
-  const first = asArray(data.rejected).filter(isObj)[0];
-  if (first && isObj(first.error)) {
-    const code = Number(first.error.code);
-    return Number.isFinite(code) ? code : null;
-  }
-  return null;
+function dpdSpanText(html, idTail) {
+  const m = html.match(new RegExp(`id="[^"]*${idTail}"[^>]*>([\\s\\S]*?)</span>`, "i"));
+  if (!m) return "";
+  return m[1].replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
 }
-function st17AssertOk(httpStatus, json) {
-  if (httpStatus === 401 || httpStatus === 403) throw new Error("tracking_key_invalid");
-  const code = isObj(json) ? Number(json.code) : NaN;
-  if (Number.isFinite(code) && code !== 0 && !(isObj(json) && isObj(json.data))) {
-    throw new Error("tracking_key_invalid");
+function parseDpdPage(number, html) {
+  const reached = [];
+  for (const id of DPD_MILESTONES) {
+    const label = dpdSpanText(html, id);
+    const date = dpdSpanText(html, `${id}Date`);
+    if (label && date) reached.push({ date, text: label });
   }
-  const rej = st17RejectedCode(json);
-  if (rej != null && rej !== ST_NOT_REGISTERED && (rej === -18019903 || rej === -18019905)) {
-    throw new Error("tracking_quota");
-  }
-}
-function map17State(status) {
-  switch (status) {
-    case "Delivered":
-      return "delivered";
-    case "AvailableForPickup":
-    case "DeliveryFailure":
-    case "Exception":
-    case "Expired":
-      return "problem";
-    case "":
-    case "NotFound":
-      return "unknown";
-    default:
-      return "transit";
-  }
-}
-function parse17Event(raw) {
-  if (!isObj(raw)) return null;
-  const date = str(raw.time_iso) || str(raw.time_utc);
-  const text = str(raw.description);
-  const addr = isObj(raw.address) ? raw.address : {};
-  const location = str(raw.location) || str(addr.city) || str(addr.state) || void 0;
-  if (!text && !date) return null;
-  return { date, text, location };
-}
-function parse17(number, json) {
-  if (!isObj(json)) return emptyResult("dpd", number);
-  const data = isObj(json.data) ? json.data : {};
-  const accepted = asArray(data.accepted).filter(isObj);
-  const entry = accepted.find((a) => str(a.number) === number) ?? accepted[0];
-  const info = entry && isObj(entry.track_info) ? entry.track_info : null;
-  if (!info) return emptyResult("dpd", number);
-  const latestStatus = isObj(info.latest_status) ? info.latest_status : {};
-  const statusEnum = str(latestStatus.status);
-  const tracking = isObj(info.tracking) ? info.tracking : {};
-  const events = asArray(tracking.providers).filter(isObj).flatMap((p) => asArray(p.events)).map(parse17Event).filter((e) => e !== null);
-  const last = (info.latest_event ? parse17Event(info.latest_event) : null) ?? events[0];
-  const statusText = last?.text || statusEnum;
-  if ((statusEnum === "" || statusEnum === "NotFound") && events.length === 0) {
-    return emptyResult("dpd", number);
-  }
+  if (reached.length === 0) return emptyResult("dpd", number);
+  const last = lastOf(reached);
+  const delivered = Boolean(dpdSpanText(html, "labStatusDeliveredDate"));
+  const statusText = last?.text || "";
   return {
     carrier: "dpd",
     number,
     found: true,
-    state: map17State(statusEnum),
+    state: deriveState(statusText, delivered),
     status: statusText,
+    progress: Math.max(0, Math.min(1, reached.length / DPD_MILESTONES.length)),
     lastEvent: last,
-    events
+    events: reached
   };
 }
-async function track17(number, token) {
-  let res = await st17Post("/gettrackinfo", number, token);
-  st17AssertOk(res.httpStatus, res.json);
-  if (st17RejectedCode(res.json) === ST_NOT_REGISTERED) {
-    const reg = await st17Post("/register", number, token);
-    st17AssertOk(reg.httpStatus, reg.json);
-    res = await st17Post("/gettrackinfo", number, token);
-    st17AssertOk(res.httpStatus, res.json);
+async function trackDpd(number) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const html = await fetchDpdPage(number, ac.signal);
+    return parseDpdPage(number, html);
+  } finally {
+    clearTimeout(timer);
   }
-  return parse17(number, res.json);
 }
-function trackOne(carrier, number, token) {
+function trackOne(carrier, number) {
   switch (carrier) {
     case "dhl":
       return trackDhl(number);
     case "hermes":
       return trackHermes(number);
     case "dpd":
-      return token ? track17(number, token) : trackDpd(number);
+      return trackDpd(number);
   }
 }
-async function trackAuto(number, token) {
+async function trackAuto(number) {
   let lastResult = null;
   let lastError = null;
   for (const carrier of AUTO_ORDER) {
     try {
-      const result = await trackOne(carrier, number, token);
+      const result = await trackOne(carrier, number);
       if (result.found) return result;
       lastResult = result;
     } catch (e) {
@@ -563,11 +471,11 @@ async function trackAuto(number, token) {
   }
   return lastResult ?? emptyResult("dhl", number);
 }
-async function track(carrier, number, token) {
-  const key = `${carrier}:${number}:${token ? "t" : ""}`;
+async function track(carrier, number) {
+  const key = `${carrier}:${number}`;
   const cached = cache.get(key) ?? negCache.get(key);
   if (cached) return cached;
-  const result = carrier === "auto" ? await trackAuto(number, token) : await trackOne(carrier, number, token);
+  const result = carrier === "auto" ? await trackAuto(number) : await trackOne(carrier, number);
   if (result.found) cache.set(key, result);
   else negCache.set(key, result);
   return result;
@@ -586,7 +494,6 @@ async function handleParcelRequest(req, path) {
   const sp = new URL(req.url).searchParams;
   const carrier = (sp.get("carrier") || "auto").trim().toLowerCase();
   const number = sanitizeNumber(sp.get("number") || "");
-  const token = (req.headers.get("x-17track-key") || "").trim();
   if (carrier === "gls") {
     return Response.json(
       {
@@ -603,7 +510,7 @@ async function handleParcelRequest(req, path) {
     return Response.json({ error: "invalid_number" }, { status: 400 });
   }
   try {
-    const result = await track(carrier, number, token);
+    const result = await track(carrier, number);
     return Response.json(result);
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) {
@@ -613,18 +520,12 @@ async function handleParcelRequest(req, path) {
     const aborted = e instanceof Error && e.name === "AbortError";
     const msg = e instanceof Error ? e.message : String(e);
     void logPluginApiFailure("parcel", `track:${carrier}`, aborted ? "timeout" : msg);
-    if (!aborted && msg.startsWith("tracking_")) {
-      return Response.json(
-        { error: msg, carrier, hint: "17TRACK: API-Key und freies Kontingent pr\xFCfen." },
-        { status: 502 }
-      );
-    }
-    if (carrier === "dpd" && !aborted && !token) {
+    if (carrier === "dpd" && !aborted) {
       return Response.json(
         {
           error: "dpd_blocked",
           carrier,
-          hint: "DPD blockiert automatische Abrufe (Bot-Schutz). Bitte direkt bei DPD verfolgen."
+          hint: "DPD-Status gerade nicht abrufbar. Bitte direkt bei DPD verfolgen."
         },
         { status: 502 }
       );

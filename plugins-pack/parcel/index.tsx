@@ -328,16 +328,10 @@ function StateIcon({ state, size, color }: { state: TrackState; size: number; co
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function fetchTrack(shipment: Shipment, apiKey: string, signal: AbortSignal): Promise<Entry> {
+async function fetchTrack(shipment: Shipment, signal: AbortSignal): Promise<Entry> {
   const q = new URLSearchParams({ carrier: shipment.carrier, number: shipment.number })
-  // The 17TRACK key only helps DPD (and auto, which may resolve to DPD); send it
-  // via header so it never lands in the request URL / server logs.
-  const headers: Record<string, string> = {}
-  if (apiKey && (shipment.carrier === 'dpd' || shipment.carrier === 'auto')) {
-    headers['x-17track-key'] = apiKey
-  }
   try {
-    const res = await fetch(`/api/plugins/parcel/track?${q}`, { signal, cache: 'no-store', headers })
+    const res = await fetch(`/api/plugins/parcel/track?${q}`, { signal, cache: 'no-store' })
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
     if (!res.ok) {
       const code = str(json.error) || `HTTP ${res.status}`
@@ -362,14 +356,8 @@ function errorText(code: string, de: boolean): string {
       return de ? 'Netzwerkfehler.' : 'Network error.'
     case 'dpd_blocked':
       return de
-        ? 'DPD blockiert den automatischen Abruf – beim Anbieter ansehen.'
-        : 'DPD blocks automatic lookup – view on carrier.'
-    case 'tracking_key_invalid':
-      return de ? '17TRACK-Key ungültig oder fehlt.' : '17TRACK key invalid or missing.'
-    case 'tracking_quota':
-      return de ? '17TRACK-Kontingent erschöpft.' : '17TRACK quota exhausted.'
-    case 'tracking_api_error':
-      return de ? 'Tracking-Dienst nicht erreichbar.' : 'Tracking service unavailable.'
+        ? 'DPD-Status gerade nicht abrufbar – beim Anbieter ansehen.'
+        : 'DPD status unavailable right now – view on carrier.'
     case 'fetch_failed':
     case 'blocked_url':
       return de ? 'Carrier nicht erreichbar.' : 'Carrier unreachable.'
@@ -395,8 +383,6 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
   const showTitle = cfg.showTitle !== false
   const title = cfg.title === undefined ? (de ? 'Pakete' : 'Parcels') : str(cfg.title)
   const density = parseDensity(cfg.density)
-  // Optional 17TRACK key — enables real DPD status (DPD's own endpoint is blocked).
-  const trackingApiKey = str(cfg.trackingApiKey)
 
   const [entries, setEntries] = useState<Record<string, Entry>>({})
   const { ref: shellRef, active } = usePollingActive<HTMLDivElement>()
@@ -424,12 +410,8 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
     [allShipments, writeShipments],
   )
 
-  // Stable signature so the effect only re-subscribes when shipments (or the
-  // 17TRACK key) change — a key edit should re-fetch DPD right away.
-  const sig = useMemo(
-    () => `${shipments.map((s) => `${s.id}|${s.carrier}|${s.number}`).join(',')}#${trackingApiKey}`,
-    [shipments, trackingApiKey],
-  )
+  // Stable signature so the effect only re-subscribes when shipments change.
+  const sig = useMemo(() => shipments.map((s) => `${s.id}|${s.carrier}|${s.number}`).join(','), [shipments])
 
   const refresh = useCallback(
     async (signal: AbortSignal) => {
@@ -438,7 +420,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         return
       }
       const results = await Promise.all(
-        shipments.map(async (s) => [s.id, await fetchTrack(s, trackingApiKey, signal)] as const),
+        shipments.map(async (s) => [s.id, await fetchTrack(s, signal)] as const),
       )
       if (signal.aborted) return
       setEntries((prev) => {
@@ -451,7 +433,7 @@ function Widget({ config, instanceId }: PluginWidgetProps) {
         return next
       })
     },
-    [shipments, trackingApiKey],
+    [shipments],
   )
 
   useEffect(() => {
@@ -1013,35 +995,12 @@ function Settings({ config, onChange }: PluginSettingsProps) {
             onChange('refreshMinutes', v)
           }}
         />
-        <label style={{ display: 'block', fontSize: 12, marginTop: 12, marginBottom: 4 }}>
-          {de ? '17TRACK API-Key (für DPD, optional)' : '17TRACK API key (for DPD, optional)'}
-        </label>
-        <input
-          style={inp}
-          type="password"
-          autoComplete="off"
-          value={str(cfg.trackingApiKey)}
-          placeholder={de ? 'Access Key von 17track.net' : 'Access key from 17track.net'}
-          onChange={(e) => onChange('trackingApiKey', e.target.value)}
-        />
-        <p style={{ margin: '6px 0 0', fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          {de ? 'Schaltet echten DPD-Status frei. Kostenlosen Key holen: ' : 'Enables real DPD status. Get a free key: '}
-          <a
-            href="https://features.17track.net/en/api"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: 'var(--accent)' }}
-          >
-            17track.net/api
-          </a>
-          {de ? ' (Settings → Security → Access Key, 100 Sendungen gratis).' : ' (Settings → Security → Access Key, 100 free shipments).'}
-        </p>
       </div>
 
       <p style={{ margin: 0, fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
         {de
-          ? 'DHL und Hermes sind stabil. DPD blockiert den eigenen Gratis-Abruf per Bot-Schutz – ohne 17TRACK-Key bleibt nur der Direktlink, mit Key kommt der echte Status. GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
-          : 'DHL and Hermes are stable. DPD blocks its own free lookup via bot protection – without a 17TRACK key only the direct link works, with a key you get real status. GLS no longer offers free tracking. The server needs outbound internet.'}
+          ? 'DHL, Hermes und DPD werden kostenlos und ohne API-Key abgefragt. DPD läuft über die my.dpd.de-Statusseite – falls die gerade nicht erreichbar ist, hilft der Direktlink. GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
+          : 'DHL, Hermes and DPD are tracked for free without an API key. DPD uses the my.dpd.de status page – if that is unavailable, use the direct link. GLS no longer offers free tracking. The server needs outbound internet.'}
       </p>
     </div>
   )
@@ -1055,11 +1014,11 @@ export const meta: PluginMeta = {
   id: 'parcel',
   name: 'Paketverfolgung',
   description:
-    'Sendungsverfolgung für DHL, Hermes und DPD. DHL/Hermes kostenlos ohne Key; DPD per optionalem 17TRACK-Key (kostenlos). Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
+    'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.6',
+  version: '1.0.7',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },
@@ -1068,7 +1027,6 @@ export const meta: PluginMeta = {
     { key: 'hideDelivered', label: 'Zugestellte ausblenden', type: 'boolean', defaultValue: false },
     { key: 'density', label: 'Darstellung', type: 'text', defaultValue: 'comfortable' },
     { key: 'refreshMinutes', label: 'Aktualisieren (Min.)', type: 'number', defaultValue: 30 },
-    { key: 'trackingApiKey', label: '17TRACK API-Key (für DPD)', type: 'password', defaultValue: '' },
   ],
 }
 
