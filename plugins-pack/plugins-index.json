@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-17T08:20:42.527Z",
+  "generatedAt": "2026-06-17T08:28:12.682Z",
   "plugins": [
     {
       "id": "adguard",
@@ -758,7 +758,7 @@
       "id": "wireguard",
       "name": "WireGuard",
       "description": "WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)",
-      "version": "0.9.3",
+      "version": "0.9.4",
       "author": "SelfDashboard",
       "category": "network",
       "icon": "🔒",

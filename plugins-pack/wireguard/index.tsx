@@ -111,7 +111,7 @@ function Glyph({ d, size = 14, color = 'currentColor', circle = false }: { d: st
 }
 
 const WG_CSS = `
-.wg-tab{cursor:pointer;border:none;background:transparent;font:inherit;padding:4px 9px;border-radius:7px;font-size:10.5px;font-weight:700;color:var(--text-muted);transition:background .14s ease,color .14s ease}
+.wg-tab{cursor:pointer;border:none;background:transparent;font:inherit;padding:3px 8px;border-radius:6px;font-size:9.5px;font-weight:700;color:var(--text-muted);transition:background .14s ease,color .14s ease}
 .wg-tab[data-active="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 3px -1px rgba(0,0,0,.25)}
 .wg-row{transition:background .14s ease}
 .wg-row:hover{background:color-mix(in srgb,var(--accent) 8%,transparent)}
@@ -122,7 +122,7 @@ function StatHeader({ title, online, total, totalTx, totalRx }: { title: string;
     display: 'inline-flex',
     alignItems: 'center',
     gap: 4,
-    fontSize: 'clamp(9px, 2.4cqmin, 10.5px)',
+    fontSize: 'clamp(8px, 2.1cqmin, 9px)',
     color: 'var(--text-muted)',
     fontVariantNumeric: 'tabular-nums',
     whiteSpace: 'nowrap',
@@ -134,8 +134,8 @@ function StatHeader({ title, online, total, totalTx, totalRx }: { title: string;
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 8,
-        padding: '4px 9px',
-        borderRadius: 9,
+        padding: '3px 8px',
+        borderRadius: 8,
         background: 'color-mix(in srgb, var(--border) 22%, transparent)',
       }}
     >
@@ -143,7 +143,7 @@ function StatHeader({ title, online, total, totalTx, totalRx }: { title: string;
         {title ? (
           <span style={{ fontSize: 'clamp(6px, 1.5cqmin, 7px)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
         ) : null}
-        <span style={{ fontSize: 'clamp(13px, 3.9cqmin, 16px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 'clamp(11px, 3.2cqmin, 13px)', fontWeight: 800, color: 'var(--text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
           <span style={{ color: online > 0 ? '#22c55e' : 'var(--text)' }}>{online}</span>
           <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}> / {total}</span>
           <span style={{ fontSize: '0.56em', fontWeight: 700, color: 'var(--text-muted)', marginLeft: 4 }}>online</span>
@@ -151,10 +151,10 @@ function StatHeader({ title, online, total, totalTx, totalRx }: { title: string;
       </span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
         <span style={chip} title="empfangen / received">
-          <Glyph d={ICON.down} size={10} color="#06b6d4" /> {fmtBytes(totalRx)}
+          <Glyph d={ICON.down} size={9} color="#06b6d4" /> {fmtBytes(totalRx)}
         </span>
         <span style={chip} title="gesendet / sent">
-          <Glyph d={ICON.up} size={10} color="#a855f7" /> {fmtBytes(totalTx)}
+          <Glyph d={ICON.up} size={9} color="#a855f7" /> {fmtBytes(totalTx)}
         </span>
       </span>
     </div>
@@ -169,17 +169,17 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 9,
-        padding: '4px 7px',
-        borderRadius: 8,
+        gap: 7,
+        padding: '3px 6px',
+        borderRadius: 7,
         minWidth: 0,
       }}
     >
       <span
         aria-hidden
         style={{
-          width: 8,
-          height: 8,
+          width: 7,
+          height: 7,
           borderRadius: '50%',
           background: dot,
           flex: '0 0 auto',
@@ -189,7 +189,7 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: 1 }}>
         <span
           style={{
-            fontSize: 'clamp(12px, 3.4cqmin, 13px)',
+            fontSize: 'clamp(10px, 2.9cqmin, 11.5px)',
             fontWeight: 700,
             color: peer.enabled ? 'var(--text)' : 'var(--text-muted)',
             overflow: 'hidden',
@@ -198,9 +198,9 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
           }}
         >
           {peer.name}
-          {!peer.enabled ? <span style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', marginLeft: 6 }}>{de ? 'INAKTIV' : 'OFF'}</span> : null}
+          {!peer.enabled ? <span style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8', marginLeft: 5 }}>{de ? 'INAKTIV' : 'OFF'}</span> : null}
         </span>
-        <span style={{ fontSize: 'clamp(9px, 2.6cqmin, 10px)', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 'clamp(8px, 2.3cqmin, 9px)', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {mode === 'online'
             ? peer.endpoint || peer.address || '—'
             : fmtDateTime(peer.handshakeAt, de)}
@@ -208,19 +208,19 @@ function PeerRow({ peer, now, de, mode }: { peer: WgPeer; now: number; de: boole
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flex: '0 0 auto', fontVariantNumeric: 'tabular-nums' }}>
         {mode === 'online' ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#22c55e', fontWeight: 700 }}>
-            <Glyph d={ICON.clock} size={11} color="#22c55e" circle /> {fmtRelative(peer.handshakeAt, now, de)}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#22c55e', fontWeight: 700 }}>
+            <Glyph d={ICON.clock} size={9} color="#22c55e" circle /> {fmtRelative(peer.handshakeAt, now, de)}
           </span>
         ) : (
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>{fmtRelative(peer.handshakeAt, now, de)}</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600 }}>{fmtRelative(peer.handshakeAt, now, de)}</span>
         )}
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 9.5, color: 'var(--text-muted)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 8.5, color: 'var(--text-muted)' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }} title="empfangen / received">
-            <Glyph d={ICON.down} size={10} color="#06b6d4" />
+            <Glyph d={ICON.down} size={9} color="#06b6d4" />
             {fmtBytes(peer.rx)}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }} title="gesendet / sent">
-            <Glyph d={ICON.up} size={10} color="#a855f7" />
+            <Glyph d={ICON.up} size={9} color="#a855f7" />
             {fmtBytes(peer.tx)}
           </span>
         </span>
@@ -286,12 +286,12 @@ function Widget({ config }: PluginWidgetProps) {
     minWidth: 0,
     minHeight: 0,
     boxSizing: 'border-box',
-    padding: '8px 10px',
+    padding: '7px 9px',
     containerType: 'inline-size',
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    gap: 5,
+    gap: 4,
   }
 
   if (!configured) {
@@ -354,7 +354,7 @@ function Widget({ config }: PluginWidgetProps) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {list.length === 0 ? (
-          <p style={{ margin: 'auto', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>{emptyText}</p>
+          <p style={{ margin: 'auto', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>{emptyText}</p>
         ) : (
           list.map((peer, i) => <PeerRow key={peer.id || `${peer.name}-${i}`} peer={peer} now={now} de={de} mode={tab} />)
         )}
@@ -451,7 +451,7 @@ export const meta: PluginMeta = {
   name: 'WireGuard',
   description:
     'WireGuard-Peers per wg-easy: wer jetzt online ist (frischer Handshake), Verlauf mit letztem Handshake (Datum/Zeit) und Transfervolumen (↓ empfangen / ↑ gesendet). Erkennt wg-easy v15 (Basic-Auth) und v14 (Session) automatisch. (Beta)',
-  version: '0.9.3',
+  version: '0.9.4',
   author: 'SelfDashboard',
   category: 'network',
   icon: '🔒',
