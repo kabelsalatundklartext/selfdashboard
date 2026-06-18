@@ -2,6 +2,19 @@ import type { Theme } from '@/types'
 
 export const themes: Theme[] = [
   {
+    id: 'self',
+    name: 'Self',
+    colors: {
+      background: '#080c11',
+      surface: '#161b22',
+      'surface-2': '#1c2333',
+      border: '#233140',
+      text: '#eef4f7',
+      'text-muted': '#8a9caa',
+      accent: '#33a78c',
+    },
+  },
+  {
     id: 'dark',
     name: 'Dark',
     colors: {

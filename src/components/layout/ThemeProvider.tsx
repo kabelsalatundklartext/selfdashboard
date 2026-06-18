@@ -7,7 +7,7 @@ import { getTheme } from '@/lib/themes'
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Direkt die Theme-Werte abonnieren (nicht die stabile activeDashboard-Funktion),
   // sonst rendert der Provider bei Theme-/Farbwechsel nicht neu → Theme greift erst nach Reload.
-  const themeId = useDashboardStore((s) => s.dashboards.find((d) => d.id === s.activeDashboardId)?.theme ?? 'dark')
+  const themeId = useDashboardStore((s) => s.dashboards.find((d) => d.id === s.activeDashboardId)?.theme ?? 'self')
   const customColors = useDashboardStore((s) => s.dashboards.find((d) => d.id === s.activeDashboardId)?.customColors)
   const appliedCustom = useRef<string[]>([])
 

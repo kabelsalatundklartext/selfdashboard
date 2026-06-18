@@ -32,7 +32,7 @@ export type DashboardStatePersisted = {
   dashboardBackgroundOverlay: number
 }
 
-const THEMES: ThemeId[] = ['dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
+const THEMES: ThemeId[] = ['self', 'dark', 'light', 'nord', 'catppuccin', 'dracula', 'solarized']
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x)

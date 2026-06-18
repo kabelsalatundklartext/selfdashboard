@@ -1,4 +1,4 @@
-export type ThemeId = 'dark' | 'light' | 'nord' | 'catppuccin' | 'dracula' | 'solarized'
+export type ThemeId = 'self' | 'dark' | 'light' | 'nord' | 'catppuccin' | 'dracula' | 'solarized'
 
 export interface Theme {
   id: ThemeId

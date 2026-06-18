@@ -30,7 +30,7 @@ const DEFAULT_DASHBOARD: Dashboard = {
   name: 'Home',
   icon: '🏠',
   plugins: [],
-  theme: 'dark',
+  theme: 'self',
 }
 
 function migrateOldStore(): Dashboard[] | null {
@@ -40,7 +40,7 @@ function migrateOldStore(): Dashboard[] | null {
     const parsed = JSON.parse(old)
     if (!parsed?.state) return null
     const s = parsed.state
-    return [{ id: 'home', name: s.title ?? 'Home', icon: '🏠', theme: s.theme ?? 'dark', customColors: s.customColors, customLogo: s.customLogo, plugins: s.plugins ?? [] }]
+    return [{ id: 'home', name: s.title ?? 'Home', icon: '🏠', theme: s.theme ?? 'self', customColors: s.customColors, customLogo: s.customLogo, plugins: s.plugins ?? [] }]
   } catch { return null }
 }
 
@@ -184,7 +184,7 @@ export const useDashboardStore = create<DashboardStore>()(
       addDashboard: (name, icon) => {
         const existing = get().dashboards.map((d) => d.id)
         const id = makeId(name, existing)
-        const newDash: Dashboard = { id, name, icon, theme: 'dark', plugins: [] }
+        const newDash: Dashboard = { id, name, icon, theme: 'self', plugins: [] }
         set((s) => ({ dashboards: [...s.dashboards, newDash], activeDashboardId: id }))
         return id
       },

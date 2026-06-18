@@ -146,15 +146,7 @@ export function Navbar() {
             dash.customLogo ? (
               <img src={dash.customLogo} alt="Logo" style={{ height: '34px', width: '34px', borderRadius: '10px', objectFit: 'cover' }} />
             ) : (
-              <div style={{ height: '34px', width: '34px', borderRadius: '10px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg width="20" height="20" viewBox="0 0 96 96" fill="none">
-                  <rect x="13" y="13" width="36" height="36" rx="8" fill="white"/>
-                  <rect x="53" y="13" width="28" height="17" rx="5" fill="white" opacity="0.75"/>
-                  <rect x="53" y="33" width="28" height="17" rx="5" fill="white" opacity="0.45"/>
-                  <rect x="13" y="53" width="17" height="28" rx="5" fill="white" opacity="0.5"/>
-                  <rect x="34" y="53" width="47" height="28" rx="5" fill="white" opacity="0.9"/>
-                </svg>
-              </div>
+              <img src="/shield.png" alt="SelfDashboard" style={{ height: '34px', width: '34px', objectFit: 'contain', flexShrink: 0 }} />
             )
           )}
           {showText && (
