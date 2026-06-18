@@ -2,7 +2,7 @@
   "id": "bambu-cam",
   "name": "Bambu Lab Kamera",
   "description": "Live-Kamerabild von Bambu-Lab-Druckern: P1/A1 direkt (lokal, Port 6000) oder beliebige MJPEG-/Snapshot-URL (z. B. X1 via go2rtc). Bild aktualisiert sich automatisch. (Beta)",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "🖨️",

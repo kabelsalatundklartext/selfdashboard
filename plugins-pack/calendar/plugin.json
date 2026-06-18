@@ -2,7 +2,7 @@
   "id": "calendar",
   "name": "Kalender",
   "description": "CalDAV + ICS Kalender mit Two-Way-Sync. iCloud, Nextcloud, Fastmail, Posteo … API: /api/plugins/calendar.",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "author": "SelfDashboard Community",
   "category": "productivity",
   "icon": "📅"

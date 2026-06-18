@@ -2,7 +2,7 @@
   "id": "reolink",
   "name": "Reolink Kamera",
   "description": "Live-Kamerabild von Reolink-Kameras/NVRs (lokale CGI-API): Auto-Snapshot, Online-Status, KI-/Bewegungs-Badges und PTZ-Steuerung. (Beta)",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "author": "SelfDashboard",
   "category": "utility",
   "icon": "📹",
