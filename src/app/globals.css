@@ -11,7 +11,7 @@
   --text:        #eef4f7;
   --text-muted:  #8a9caa;
   --accent:      #33a78c;
-  --font-ui:     'Inter', 'DM Sans', system-ui, sans-serif;
+  --font-ui:     var(--font-exo2), 'Inter', 'DM Sans', system-ui, sans-serif;
 }
 
 /* Self — Markenthema (= Standard via :root, auch explizit wählbar) */

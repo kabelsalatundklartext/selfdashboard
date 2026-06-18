@@ -1191,14 +1191,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {dash.customLogo ? <img src={dash.customLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
-                      <svg width="30" height="30" viewBox="0 0 96 96" fill="none">
-                        <rect width="96" height="96" rx="24" fill="var(--accent)"/>
-                        <rect x="13" y="13" width="36" height="36" rx="8" fill="white"/>
-                        <rect x="53" y="13" width="28" height="17" rx="5" fill="white" opacity="0.75"/>
-                        <rect x="53" y="33" width="28" height="17" rx="5" fill="white" opacity="0.45"/>
-                        <rect x="13" y="53" width="17" height="28" rx="5" fill="white" opacity="0.5"/>
-                        <rect x="34" y="53" width="47" height="28" rx="5" fill="white" opacity="0.9"/>
-                      </svg>
+                      <img src="/logo-avatar.png" alt="SelfDashboard" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
