@@ -103,6 +103,7 @@ function validateDashboard(x: unknown): boolean {
   if (typeof x.name !== 'string' || x.name.length > 200) return false
   if (typeof x.icon !== 'string' || x.icon.length > 32) return false
   if (!isThemeId(x.theme)) return false
+  if (x.prevTheme !== undefined && !isThemeId(x.prevTheme)) return false
   if (!Array.isArray(x.plugins)) return false
   if (x.plugins.length > 200) return false
   for (const p of x.plugins) {

@@ -104,6 +104,8 @@ export interface Dashboard {
   name: string
   icon: string        // emoji
   theme: ThemeId
+  /** Theme aktiv vor dem Wechsel zu 'light' via Hell/Dunkel-Schalter; ermöglicht Zurückspringen zum vorherigen Theme. */
+  prevTheme?: ThemeId
   customColors?: Record<string, string>
   customLogo?: string
   customIcon?: string  // base64 PNG for tab icon

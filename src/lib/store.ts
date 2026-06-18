@@ -107,6 +107,8 @@ interface DashboardStore {
   setGridGap: (gap: number) => void
   setGridPadding: (padding: number) => void
   setTheme: (theme: ThemeId) => void
+  /** Hell/Dunkel-Schalter: wechselt zu 'light' und zurück zum vorher aktiven Theme (Standard 'self'). */
+  toggleLightTheme: () => void
   setTitle: (title: string) => void
   setCustomLogo: (url: string) => void
   setCustomColors: (colors: Record<string, string>) => void
@@ -216,7 +218,21 @@ export const useDashboardStore = create<DashboardStore>()(
       },
       setGridGap: (gridGap) => set({ gridGap }),
       setGridPadding: (gridPadding) => set({ gridPadding }),
-      setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme, customColors: undefined } : d) })) },
+      setTheme: (theme) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, theme, prevTheme: undefined, customColors: undefined } : d) })) },
+      toggleLightTheme: () => {
+        const id = get().activeDashboardId
+        set((s) => ({
+          dashboards: s.dashboards.map((d) => {
+            if (d.id !== id) return d
+            if (d.theme === 'light') {
+              // Zurück zum vorher aktiven Theme (Standard: Marken-Theme 'self').
+              return { ...d, theme: d.prevTheme ?? 'self', prevTheme: undefined, customColors: undefined }
+            }
+            // Aktuelles Theme merken, dann auf Hell wechseln.
+            return { ...d, theme: 'light', prevTheme: d.theme, customColors: undefined }
+          }),
+        }))
+      },
       setTitle: (name) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, name } : d) })) },
       setCustomLogo: (customLogo) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customLogo } : d) })) },
       setCustomColors: (colors) => { const id = get().activeDashboardId; set((s) => ({ dashboards: s.dashboards.map((d) => d.id === id ? { ...d, customColors: { ...d.customColors, ...colors } } : d) })) },

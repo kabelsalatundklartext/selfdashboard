@@ -37,7 +37,7 @@ export const themes: Theme[] = [
       border: '#e2e4e9',
       text: '#111318',
       'text-muted': '#6b7280',
-      accent: '#6366f1',
+      accent: '#1f7d68',
     },
   },
   {

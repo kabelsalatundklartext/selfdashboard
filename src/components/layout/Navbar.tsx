@@ -53,8 +53,7 @@ export function Navbar() {
   const setEditMode = useDashboardStore((s) => s.setEditMode)
   const locale = useDashboardStore((s) => s.locale)
   const activeDashboard = useDashboardStore((s) => s.activeDashboard)
-  const setTheme = useDashboardStore((s) => s.setTheme)
-  const resetCustomColors = useDashboardStore((s) => s.resetCustomColors)
+  const toggleLightTheme = useDashboardStore((s) => s.toggleLightTheme)
   const showDashboardTabs = useDashboardStore((s) => s.showDashboardTabs)
   const navbarStyle = useDashboardStore((s) => s.navbarStyle)
   const dashboardZoom = useDashboardStore((s) => s.dashboardZoom)
@@ -211,7 +210,7 @@ export function Navbar() {
             </button>
           </div>
           <div className="navbar-icon-group" style={{ display: 'flex', alignItems: 'center', gap: navbarPhone ? '4px' : '6px', flexShrink: 0 }}>
-            <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => { setTheme(isLight ? 'dark' : 'light'); resetCustomColors() }}>
+            <button className="btn-ghost navbar-icon-btn" style={{ padding: navbarPhone ? 10 : 7 }} onClick={() => toggleLightTheme()}>
               {isLight ? <Moon size={navbarPhone ? 16 : 15} /> : <Sun size={navbarPhone ? 16 : 15} />}
             </button>
             <button className={editMode ? 'btn-accent navbar-icon-btn' : 'btn-ghost navbar-icon-btn'}
