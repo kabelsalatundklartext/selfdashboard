@@ -151,7 +151,7 @@ export function Navbar() {
           {showText && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {showIcon && <div style={{ height: '26px', width: '3px', borderRadius: '2px', background: 'var(--accent)', flexShrink: 0 }} />}
-              <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.5px', color: 'var(--text)' }}>
+              <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px', color: 'var(--text)', fontFamily: 'var(--font-orbitron)' }}>
                 Self<span style={{ color: 'var(--accent)' }}>Dashboard</span>
               </span>
             </div>

@@ -1191,7 +1191,7 @@ export function SettingsModal({ open, onClose }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
                     {dash.customLogo ? <img src={dash.customLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (
-                      <img src="/logo-avatar.png" alt="SelfDashboard" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src="/shield.png" alt="SelfDashboard" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '7px' }} />
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
