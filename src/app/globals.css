@@ -4,14 +4,25 @@
 
 /* ── Theme Variables ───────────────────────────────────────── */
 :root {
-  --background:  #0d0f14;
-  --surface:     #161920;
-  --surface-2:   #1e2229;
-  --border:      #2a2f3a;
-  --text:        #e8eaf0;
-  --text-muted:  #6b7280;
-  --accent:      #6366f1;
+  --background:  #080c11;
+  --surface:     #161b22;
+  --surface-2:   #1c2333;
+  --border:      #233140;
+  --text:        #eef4f7;
+  --text-muted:  #8a9caa;
+  --accent:      #33a78c;
   --font-ui:     'Inter', 'DM Sans', system-ui, sans-serif;
+}
+
+/* Self — Markenthema (identisch zum Standard, auch explizit wählbar) */
+[data-theme="self"] {
+  --background:  #080c11;
+  --surface:     #161b22;
+  --surface-2:   #1c2333;
+  --border:      #233140;
+  --text:        #eef4f7;
+  --text-muted:  #8a9caa;
+  --accent:      #33a78c;
 }
 
 [data-theme="light"] {
