@@ -171,8 +171,8 @@ var BROWSER_HEADERS = {
 };
 var cache = createPluginServerCache({ ttlMs: CACHE_TTL_MS, maxEntries: CACHE_MAX });
 var negCache = createPluginServerCache({ ttlMs: NEG_CACHE_TTL_MS, maxEntries: CACHE_MAX });
-var KNOWN_CARRIERS = ["dhl", "hermes", "dpd", "ups"];
-var AUTO_ORDER = ["dhl", "hermes", "dpd"];
+var KNOWN_CARRIERS = ["dhl", "hermes", "dpd", "ups", "amazon"];
+var AUTO_ORDER = ["dhl", "hermes", "dpd", "amazon"];
 function isObj(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -444,6 +444,76 @@ async function trackDpd(number) {
     clearTimeout(timer);
   }
 }
+var AMAZON_TRACK_URL = "https://track.amazon.com/api/tracker";
+var AMAZON_STATUS_DE = {
+  Delivered: "Zugestellt",
+  DeliveryAttempted: "Zustellung versucht",
+  OutForDelivery: "In Zustellung",
+  Shipped: "Versandt",
+  Shipping: "Unterwegs",
+  InTransit: "Unterwegs",
+  Arrived: "Im Verteilzentrum",
+  Delayed: "Verz\xF6gert",
+  AvailableForPickup: "Zur Abholung bereit",
+  OrderReceived: "Bestellung erfasst",
+  PackageReceived: "Im Verteilzentrum",
+  Returning: "R\xFCcksendung",
+  Undeliverable: "Nicht zustellbar"
+};
+function amazonLabel(code) {
+  if (!code) return "";
+  if (AMAZON_STATUS_DE[code]) return AMAZON_STATUS_DE[code];
+  return code.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+}
+function parseMaybeJson(v) {
+  if (isObj(v) || Array.isArray(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+function parseAmazon(number, json) {
+  if (!isObj(json)) return emptyResult("amazon", number);
+  const pt = parseMaybeJson(json.progressTracker);
+  const ptObj = isObj(pt) ? pt : {};
+  if (asArray(ptObj.errors).length > 0) return emptyResult("amazon", number);
+  const summary = isObj(ptObj.summary) ? ptObj.summary : {};
+  const rawStatus = summary.status;
+  const statusCode = typeof rawStatus === "string" ? rawStatus : isObj(rawStatus) ? str(rawStatus.status) || str(rawStatus.statusCode) || str(rawStatus.code) : "";
+  const eta = str(ptObj.expectedDeliveryDate) || void 0;
+  const eh = parseMaybeJson(json.eventHistory);
+  const events = asArray(eh).filter(isObj).map((e) => {
+    const loc = isObj(e.location) ? e.location : {};
+    const location = str(loc.city) || str(loc.state) || str(loc.country) || str(loc.shortName) || void 0;
+    const code = str(e.eventCode) || str(e.statusCode) || str(e.status);
+    const text = str(e.statusSummary) || str(e.shortStatus) || amazonLabel(code);
+    const date = str(e.eventTime) || str(e.eventDate) || str(e.timeStamp) || str(e.date);
+    return { date, text, location };
+  }).filter((e) => e.text || e.date);
+  const statusText = amazonLabel(statusCode) || events[0]?.text || "";
+  if (!statusText && events.length === 0) return emptyResult("amazon", number);
+  const delivered = /^delivered$/i.test(statusCode) || void 0;
+  return {
+    carrier: "amazon",
+    number,
+    found: true,
+    state: deriveState(statusText, delivered),
+    status: statusText,
+    eta,
+    lastEvent: events[0],
+    events
+  };
+}
+async function trackAmazon(number) {
+  const url = `${AMAZON_TRACK_URL}/${encodeURIComponent(number)}`;
+  const { status, json } = await fetchCarrier(url);
+  if (status >= 500) throw new Error(`amazon_http_${status}`);
+  return parseAmazon(number, json);
+}
 function trackOne(carrier, number) {
   switch (carrier) {
     case "dhl":
@@ -454,6 +524,8 @@ function trackOne(carrier, number) {
       return trackDpd(number);
     case "ups":
       return Promise.resolve(emptyResult("ups", number));
+    case "amazon":
+      return trackAmazon(number);
   }
 }
 async function trackAuto(number) {

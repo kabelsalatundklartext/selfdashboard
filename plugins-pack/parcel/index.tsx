@@ -10,7 +10,7 @@ import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProp
 // Types — TrackResult mirrors the normalized shape from server.ts.
 // ---------------------------------------------------------------------------
 
-type Carrier = 'auto' | 'dhl' | 'hermes' | 'dpd' | 'ups'
+type Carrier = 'auto' | 'dhl' | 'hermes' | 'dpd' | 'ups' | 'amazon'
 type TrackState = 'delivered' | 'transit' | 'problem' | 'unknown'
 
 type Shipment = {
@@ -57,7 +57,7 @@ function clampRefresh(v: unknown): number {
   return Math.min(180, Math.max(10, Math.round(num(v, 30))))
 }
 
-const CARRIERS: Carrier[] = ['auto', 'dhl', 'hermes', 'dpd', 'ups']
+const CARRIERS: Carrier[] = ['auto', 'dhl', 'hermes', 'dpd', 'ups', 'amazon']
 /** Bounds the number of upstream calls one widget can fan out per refresh. */
 const MAX_SHIPMENTS = 25
 
@@ -75,6 +75,8 @@ function carrierLabel(c: string): string {
       return 'DPD'
     case 'ups':
       return 'UPS'
+    case 'amazon':
+      return 'Amazon'
     case 'auto':
       return 'Auto'
     default:
@@ -88,6 +90,7 @@ const CARRIER_BRAND: Record<string, { bg: string; fg: string; text: string }> = 
   dpd: { bg: '#dc0032', fg: '#ffffff', text: 'DPD' },
   hermes: { bg: '#0a3d91', fg: '#ffffff', text: 'Hermes' },
   ups: { bg: '#351c15', fg: '#ffb500', text: 'UPS' },
+  amazon: { bg: '#232f3e', fg: '#ff9900', text: 'Amazon' },
 }
 
 /** Small inline brand chip; null for unknown/auto-undetected carriers. */
@@ -127,6 +130,8 @@ function carrierTrackingUrl(carrier: string, number: string): string | null {
       return `https://tracking.dpd.de/status/de_DE/parcel/${n}`
     case 'ups':
       return `https://www.ups.com/track?loc=de_DE&tracknum=${n}&requester=ST`
+    case 'amazon':
+      return `https://track.amazon.com/tracking/${n}`
     case 'hermes':
       return `https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#${n}`
     default:
@@ -1009,8 +1014,8 @@ function Settings({ config, onChange }: PluginSettingsProps) {
 
       <p style={{ margin: 0, fontSize: 10.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
         {de
-          ? 'DHL, Hermes und DPD werden kostenlos ohne API-Key abgefragt (DPD über die my.dpd.de-Statusseite). UPS blockiert jeden freien Abruf – dort gibt es nur den Direktlink „Beim Anbieter ansehen" (kein Auto-Status). GLS unterstützt keine kostenlose Verfolgung mehr. Der Server braucht ausgehenden Internetzugriff.'
-          : 'DHL, Hermes and DPD are tracked for free without an API key (DPD via the my.dpd.de status page). UPS blocks all free lookups – it only offers the “View on carrier” link (no automatic status). GLS no longer offers free tracking. The server needs outbound internet.'}
+          ? 'DHL, Hermes, DPD und Amazon Logistics (TBA…-Nummern) werden kostenlos ohne API-Key abgefragt. UPS blockiert jeden freien Abruf – dort gibt es nur den Direktlink „Beim Anbieter ansehen". Amazon-Pakete per DHL/Hermes/DPD den jeweiligen Carrier wählen. GLS wird nicht mehr unterstützt. Der Server braucht ausgehenden Internetzugriff.'
+          : 'DHL, Hermes, DPD and Amazon Logistics (TBA… numbers) are tracked for free without an API key. UPS blocks all free lookups – only the “View on carrier” link. For Amazon parcels shipped via DHL/Hermes/DPD pick that carrier. GLS is no longer supported. The server needs outbound internet.'}
       </p>
     </div>
   )
@@ -1024,11 +1029,11 @@ export const meta: PluginMeta = {
   id: 'parcel',
   name: 'Paketverfolgung',
   description:
-    'Sendungsverfolgung für DHL, Hermes und DPD — kostenlos, ohne API-Key. UPS per Direktlink (blockiert freien Abruf). Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
+    'Sendungsverfolgung für DHL, Hermes, DPD und Amazon Logistics — kostenlos, ohne API-Key. UPS per Direktlink (blockiert freien Abruf). Mehrere Pakete mit Status, letztem Scan und Direktlink zum Anbieter. Darstellung in drei Dichtestufen.',
   author: 'SelfDashboard',
   category: 'utility',
   icon: '📦',
-  version: '1.0.9',
+  version: '1.1.0',
   defaultLayout: { w: 3, h: 3, minW: 2, minH: 2 },
   configSchema: [
     { key: 'shipments', label: 'Sendungen', type: 'text', defaultValue: '[]' },

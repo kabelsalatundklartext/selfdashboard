@@ -21,6 +21,9 @@ export const dynamic = 'force-dynamic'
 //   UPS    — link-only. UPS blocks all free/scraping access via Akamai Bot
 //            Manager and its official API needs a paid-tier key, so the widget
 //            only deep-links to ups.com (no automatic status).
+//   Amazon — Amazon Logistics (TBA… numbers) via the public track.amazon.com
+//            tracker API (open, returns JSON; no key). Amazon orders shipped via
+//            DHL/Hermes/DPD carry the carrier's number and track via those.
 //   GLS    — retired its login-free endpoint in 2024/25 → not supported
 // ---------------------------------------------------------------------------
 
@@ -61,7 +64,7 @@ type TrackEvent = {
   location?: string
 }
 
-type Carrier = 'dhl' | 'hermes' | 'dpd' | 'ups'
+type Carrier = 'dhl' | 'hermes' | 'dpd' | 'ups' | 'amazon'
 
 type TrackResult = {
   carrier: Carrier
@@ -78,10 +81,12 @@ type TrackResult = {
   events: TrackEvent[]
 }
 
-const KNOWN_CARRIERS: Carrier[] = ['dhl', 'hermes', 'dpd', 'ups']
+const KNOWN_CARRIERS: Carrier[] = ['dhl', 'hermes', 'dpd', 'ups', 'amazon']
 /** Order used when carrier is "auto" — cheapest/most reliable first. UPS is not
- * here: it has no free lookup, so auto can't resolve it (UPS is link-only). */
-const AUTO_ORDER: Carrier[] = ['dhl', 'hermes', 'dpd']
+ * here: it has no free lookup, so auto can't resolve it (UPS is link-only).
+ * Amazon (track.amazon.com) is last; it cleanly returns not-found for non-TBA
+ * numbers, so it only matches Amazon Logistics shipments. */
+const AUTO_ORDER: Carrier[] = ['dhl', 'hermes', 'dpd', 'amazon']
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -447,6 +452,108 @@ async function trackDpd(number: string): Promise<TrackResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Amazon Logistics — public tracker at track.amazon.com/api/tracker/<id>. Open,
+// returns JSON, no key. The payload nests a stringified `progressTracker` JSON
+// (summary.status + expectedDeliveryDate + errors) plus an `eventHistory` list
+// (eventCode/eventTime/location). Field shapes are parsed defensively.
+// ---------------------------------------------------------------------------
+
+const AMAZON_TRACK_URL = 'https://track.amazon.com/api/tracker'
+
+/** Map Amazon's status codes to readable German; fall back to the raw code. */
+const AMAZON_STATUS_DE: Record<string, string> = {
+  Delivered: 'Zugestellt',
+  DeliveryAttempted: 'Zustellung versucht',
+  OutForDelivery: 'In Zustellung',
+  Shipped: 'Versandt',
+  Shipping: 'Unterwegs',
+  InTransit: 'Unterwegs',
+  Arrived: 'Im Verteilzentrum',
+  Delayed: 'Verzögert',
+  AvailableForPickup: 'Zur Abholung bereit',
+  OrderReceived: 'Bestellung erfasst',
+  PackageReceived: 'Im Verteilzentrum',
+  Returning: 'Rücksendung',
+  Undeliverable: 'Nicht zustellbar',
+}
+
+function amazonLabel(code: string): string {
+  if (!code) return ''
+  if (AMAZON_STATUS_DE[code]) return AMAZON_STATUS_DE[code]
+  // Humanise an unknown CamelCase / SNAKE code, e.g. "ArrivedAtFacility".
+  return code.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim()
+}
+
+/** Some Amazon fields are JSON strings; parse to an object, else return {}. */
+function parseMaybeJson(v: unknown): unknown {
+  if (isObj(v) || Array.isArray(v)) return v
+  if (typeof v === 'string' && v.trim()) {
+    try {
+      return JSON.parse(v)
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+function parseAmazon(number: string, json: unknown): TrackResult {
+  if (!isObj(json)) return emptyResult('amazon', number)
+
+  const pt = parseMaybeJson(json.progressTracker)
+  const ptObj = isObj(pt) ? pt : {}
+  // An errors array (e.g. TRACKING_ID_NOT_FOUND) means Amazon has no such parcel.
+  if (asArray(ptObj.errors).length > 0) return emptyResult('amazon', number)
+
+  const summary = isObj(ptObj.summary) ? ptObj.summary : {}
+  const rawStatus = summary.status
+  const statusCode =
+    typeof rawStatus === 'string'
+      ? rawStatus
+      : isObj(rawStatus)
+        ? str(rawStatus.status) || str(rawStatus.statusCode) || str(rawStatus.code)
+        : ''
+  const eta = str(ptObj.expectedDeliveryDate) || undefined
+
+  const eh = parseMaybeJson(json.eventHistory)
+  const events: TrackEvent[] = asArray(eh)
+    .filter(isObj)
+    .map((e) => {
+      const loc = isObj(e.location) ? e.location : {}
+      const location =
+        str(loc.city) || str(loc.state) || str(loc.country) || str(loc.shortName) || undefined
+      const code = str(e.eventCode) || str(e.statusCode) || str(e.status)
+      const text = str(e.statusSummary) || str(e.shortStatus) || amazonLabel(code)
+      const date = str(e.eventTime) || str(e.eventDate) || str(e.timeStamp) || str(e.date)
+      return { date, text, location }
+    })
+    .filter((e) => e.text || e.date)
+
+  const statusText = amazonLabel(statusCode) || events[0]?.text || ''
+  if (!statusText && events.length === 0) return emptyResult('amazon', number)
+
+  const delivered = /^delivered$/i.test(statusCode) || undefined
+  // eventHistory is newest-first.
+  return {
+    carrier: 'amazon',
+    number,
+    found: true,
+    state: deriveState(statusText, delivered),
+    status: statusText,
+    eta,
+    lastEvent: events[0],
+    events,
+  }
+}
+
+async function trackAmazon(number: string): Promise<TrackResult> {
+  const url = `${AMAZON_TRACK_URL}/${encodeURIComponent(number)}`
+  const { status, json } = await fetchCarrier(url)
+  if (status >= 500) throw new Error(`amazon_http_${status}`)
+  return parseAmazon(number, json)
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
@@ -463,6 +570,8 @@ function trackOne(carrier: Carrier, number: string): Promise<TrackResult> {
       // API needs a paid-tier key. The widget shows a "view on UPS" link and never
       // calls the server for UPS; if hit directly we just return no data.
       return Promise.resolve(emptyResult('ups', number))
+    case 'amazon':
+      return trackAmazon(number)
   }
 }
 
