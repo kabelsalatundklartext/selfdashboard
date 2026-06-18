@@ -43,7 +43,7 @@
   min-width: 150px;
   display: flex;
   flex-direction: column;
-  background: var(--surface-2);
+  background: var(--surface);
   border-right: 1px solid var(--border);
   min-height: 0;
 }
@@ -281,7 +281,7 @@
   padding: 8px 10px 8px 32px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   font-size: 12px;
 }
@@ -302,7 +302,7 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   padding: 4px 8px;
-  background: var(--surface-2);
+  background: var(--surface);
   border-radius: 6px;
   border: 1px solid var(--border);
 }
@@ -323,7 +323,7 @@
   gap: 8px;
   padding: 5px 8px;
   border-radius: 8px;
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1px solid var(--border);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
