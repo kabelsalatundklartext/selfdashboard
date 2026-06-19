@@ -102,11 +102,20 @@ html, body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* ── Scrollbar (Self-Markenfarben) ─────────────────────────── */
+/* Firefox + Standard + Android-WebView respektieren scrollbar-color/-width. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 55%, var(--border)) var(--background);
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--background); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 4px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* Scroll area: keep overflow scroll/wheel, hide visible scrollbar (plugin UIs) */
 .sd-plugin-no-scrollbar {
