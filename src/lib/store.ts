@@ -67,6 +67,8 @@ interface DashboardStore {
   editMode: boolean
   showDashboardTabs: boolean
   navbarStyle: "icon-text" | "icon-only" | "text-only"
+  /** Schriftzug „SelfDashboard" nur in der Handy-Ansicht ausblenden (mehr Platz für Tabs). */
+  navbarHideTextMobile: boolean
   dashboardZoom: number
   gridGap: number       // px between widgets
   gridPadding: number   // px outer padding
@@ -103,6 +105,7 @@ interface DashboardStore {
   setEditMode: (editMode: boolean) => void
   setShowDashboardTabs: (show: boolean) => void
   setNavbarStyle: (style: "icon-text" | "icon-only" | "text-only") => void
+  setNavbarHideTextMobile: (hide: boolean) => void
   setDashboardZoom: (zoom: number) => void
   setGridGap: (gap: number) => void
   setGridPadding: (padding: number) => void
@@ -158,6 +161,7 @@ export const useDashboardStore = create<DashboardStore>()(
       editMode: false,
       showDashboardTabs: true,
       navbarStyle: "icon-text",
+      navbarHideTextMobile: false,
       dashboardZoom: 1,
       gridGap: 8,
       gridPadding: 12,
@@ -211,6 +215,7 @@ export const useDashboardStore = create<DashboardStore>()(
       setEditMode: (editMode) => set({ editMode }),
       setShowDashboardTabs: (showDashboardTabs) => set({ showDashboardTabs }),
       setNavbarStyle: (navbarStyle) => set({ navbarStyle }),
+      setNavbarHideTextMobile: (navbarHideTextMobile) => set({ navbarHideTextMobile }),
       setDashboardZoom: (raw) => {
         const n = typeof raw === 'number' ? raw : Number(raw)
         const z = Number.isFinite(n) ? Math.round(n * 10) / 10 : 1
@@ -409,6 +414,7 @@ export const useDashboardStore = create<DashboardStore>()(
             state.dashboardZoom = Number.isFinite(n) ? Math.min(1.5, Math.max(0.6, Math.round(n * 10) / 10)) : 1
           }
           if (typeof state.navbarSearchEnabled !== 'boolean') state.navbarSearchEnabled = false
+          if (typeof state.navbarHideTextMobile !== 'boolean') state.navbarHideTextMobile = false
           if (state.navbarSearchPosition !== 'left' && state.navbarSearchPosition !== 'center' && state.navbarSearchPosition !== 'right') {
             state.navbarSearchPosition = 'center'
           }

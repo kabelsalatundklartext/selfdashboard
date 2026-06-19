@@ -97,6 +97,8 @@ export function SettingsModal({ open, onClose }: Props) {
   const setShowDashboardTabs = useDashboardStore((s) => s.setShowDashboardTabs)
   const navbarStyle = useDashboardStore((s) => s.navbarStyle)
   const setNavbarStyle = useDashboardStore((s) => s.setNavbarStyle)
+  const navbarHideTextMobile = useDashboardStore((s) => s.navbarHideTextMobile)
+  const setNavbarHideTextMobile = useDashboardStore((s) => s.setNavbarHideTextMobile)
   const gridGap = useDashboardStore((s) => s.gridGap)
   const setGridGap = useDashboardStore((s) => s.setGridGap)
   const gridPadding = useDashboardStore((s) => s.gridPadding)
@@ -899,6 +901,21 @@ export function SettingsModal({ open, onClose }: Props) {
                     </button>
                   ))}
                 </div>
+
+                {/* Schriftzug auf dem Handy ausblenden */}
+                {navbarStyle !== 'icon-only' && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)', marginTop: '10px' }}>
+                    <div>
+                      <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+                        {locale === 'de' ? 'Schriftzug auf Handy ausblenden' : 'Hide wordmark on mobile'}
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                        {locale === 'de' ? 'Nur in der Handy-Ansicht – schafft Platz für die Dashboard-Tabs' : 'Phone view only – frees space for dashboard tabs'}
+                      </p>
+                    </div>
+                    <Toggle value={navbarHideTextMobile} onChange={setNavbarHideTextMobile} />
+                  </div>
+                )}
               </div>
 
               {/* Grid spacing */}

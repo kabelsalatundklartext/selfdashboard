@@ -56,6 +56,7 @@ export function Navbar() {
   const toggleLightTheme = useDashboardStore((s) => s.toggleLightTheme)
   const showDashboardTabs = useDashboardStore((s) => s.showDashboardTabs)
   const navbarStyle = useDashboardStore((s) => s.navbarStyle)
+  const navbarHideTextMobile = useDashboardStore((s) => s.navbarHideTextMobile)
   const dashboardZoom = useDashboardStore((s) => s.dashboardZoom)
   const setDashboardZoom = useDashboardStore((s) => s.setDashboardZoom)
   const navbarSearchEnabled = useDashboardStore((s) => s.navbarSearchEnabled)
@@ -116,6 +117,31 @@ export function Navbar() {
   const searchInTopRow = showNavbarSearch && !stackSearchBar
   const searchFullWidthRow = showNavbarSearch && stackSearchBar
   const { compact: navbarCompact, phone: navbarPhone } = useNavbarCompact()
+  // Wordmark auf dem Handy optional ausblenden → schafft Platz für die Dashboard-Tabs.
+  const showWordmark = showText && !(navbarPhone && navbarHideTextMobile)
+  const hasDashboardTabs = showDashboardTabs && dashboards.length > 1
+  const renderDashboardTabs = (fullWidth: boolean) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0', maxWidth: fullWidth ? '100%' : 'min(52vw, 560px)' }}>
+      {dashboards.filter((d) => !d.hideTab).map((d) => (
+        <button key={d.id} onClick={() => router.push(`/dashboard/${d.id}`)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '5px 12px', borderRadius: '8px', fontSize: '13px',
+            fontWeight: d.id === activeDashboardId ? 600 : 400,
+            whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer',
+            background: d.id === activeDashboardId ? 'var(--accent)' : 'transparent',
+            color: d.id === activeDashboardId ? '#fff' : 'var(--text-muted)',
+            border: 'none', transition: 'all 0.15s',
+          }}
+          onMouseEnter={(e) => { if (d.id !== activeDashboardId) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
+          onMouseLeave={(e) => { if (d.id !== activeDashboardId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+        >
+          <DashboardIcon icon={d.icon} size={16} />
+          {d.name}
+        </button>
+      ))}
+    </div>
+  )
 
   useSyncExternalStore(subscribeNavbarSlots, getNavbarSlotsVersion, () => 0)
   const navbarSlots = getNavbarSlots()
@@ -148,7 +174,7 @@ export function Navbar() {
               <img src="/shield.png" alt="SelfDashboard" style={{ height: '34px', width: '34px', objectFit: 'contain', flexShrink: 0 }} />
             )
           )}
-          {showText && (
+          {showWordmark && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {showIcon && <div style={{ height: '26px', width: '3px', borderRadius: '2px', background: 'var(--accent)', flexShrink: 0 }} />}
               <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px', color: 'var(--text)', fontFamily: 'var(--font-orbitron)' }}>
@@ -158,28 +184,7 @@ export function Navbar() {
           )}
         </div>
 
-        {showDashboardTabs && dashboards.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflowX: 'auto', padding: '2px 0', maxWidth: 'min(52vw, 560px)' }}>
-            {dashboards.filter((d) => !d.hideTab).map((d) => (
-              <button key={d.id} onClick={() => router.push(`/dashboard/${d.id}`)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '5px 12px', borderRadius: '8px', fontSize: '13px',
-                  fontWeight: d.id === activeDashboardId ? 600 : 400,
-                  whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer',
-                  background: d.id === activeDashboardId ? 'var(--accent)' : 'transparent',
-                  color: d.id === activeDashboardId ? '#fff' : 'var(--text-muted)',
-                  border: 'none', transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { if (d.id !== activeDashboardId) (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)' }}
-                onMouseLeave={(e) => { if (d.id !== activeDashboardId) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-              >
-                <DashboardIcon icon={d.icon} size={16} />
-                {d.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {hasDashboardTabs && !navbarPhone && renderDashboardTabs(false)}
 
         {searchInTopRow && navbarSearchPosition === 'left' && <NavbarSearch locale={locale} editMode={editMode} />}
         </div>
@@ -253,6 +258,12 @@ export function Navbar() {
           </div>
         </div>
         </div>
+
+        {hasDashboardTabs && navbarPhone ? (
+          <div className="w-full min-w-0" style={{ paddingTop: 2 }}>
+            {renderDashboardTabs(true)}
+          </div>
+        ) : null}
 
         {searchFullWidthRow ? (
           <div className="w-full min-w-0" style={{ paddingBottom: 2 }}>
