@@ -11,6 +11,8 @@
   --text:        #eef4f7;
   --text-muted:  #8a9caa;
   --accent:      #33a78c;
+  /* Wortmarke: „Self" = Eis-Blau (Self Brand-Kit --self-ice). Default für alle dunklen Themes. */
+  --brand-self:  #9dbdd0;
   --font-ui:     var(--font-exo2), 'Inter', 'DM Sans', system-ui, sans-serif;
 }
 
@@ -44,6 +46,8 @@
   --text:        #111318;
   --text-muted:  #6b7280;
   --accent:      #1f7d68;
+  /* Eis-Blau dunkler/kräftiger, damit „Self" auf hellem Grund lesbar bleibt. */
+  --brand-self:  #3f6f8c;
 }
 
 [data-theme="nord"] {

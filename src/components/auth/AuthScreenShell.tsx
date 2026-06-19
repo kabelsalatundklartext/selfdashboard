@@ -37,7 +37,7 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
                   fontWeight: 800,
                   fontSize: '30px',
                   letterSpacing: '0.5px',
-                  color: 'var(--text)',
+                  color: 'var(--brand-self)',
                   lineHeight: 1,
                 }}
               >
