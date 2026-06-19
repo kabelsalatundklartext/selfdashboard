@@ -19,17 +19,43 @@ export function AuthScreenShell({ children }: { children: ReactNode }) {
         <div className="w-full flex justify-center">
           <Link
             href="/"
-            className="inline-flex justify-center no-underline"
+            className="inline-flex flex-col items-center no-underline"
             aria-label="SelfDashboard"
           >
-            <img
-              src="/logo-auth.svg"
-              alt=""
-              width={280}
-              height={59}
-              className="mx-auto"
-              style={{ width: 'min(100%, 280px)', height: 'auto', display: 'block' }}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <img
+                src="/shield.png"
+                alt=""
+                width={48}
+                height={48}
+                style={{ height: '48px', width: '48px', objectFit: 'contain', flexShrink: 0 }}
+              />
+              <div style={{ height: '40px', width: '4px', borderRadius: '2px', background: 'var(--accent)', flexShrink: 0 }} />
+              <span
+                style={{
+                  fontFamily: 'var(--font-orbitron)',
+                  fontWeight: 800,
+                  fontSize: '30px',
+                  letterSpacing: '0.5px',
+                  color: 'var(--text)',
+                  lineHeight: 1,
+                }}
+              >
+                Self<span style={{ color: 'var(--accent)' }}>Dashboard</span>
+              </span>
+            </div>
+            <span
+              style={{
+                marginTop: '8px',
+                fontSize: '10px',
+                fontWeight: 600,
+                letterSpacing: '0.35em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+              }}
+            >
+              Your modular home dashboard
+            </span>
           </Link>
         </div>
 
