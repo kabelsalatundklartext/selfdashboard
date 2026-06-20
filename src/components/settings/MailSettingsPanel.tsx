@@ -62,6 +62,7 @@ export function MailSettingsPanel({
   const [unreadMaxAgeDraft, setUnreadMaxAgeDraft] = useState(String(MAIL_UNREAD_MAX_AGE_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
   const [imapEnabled, setImapEnabled] = useState(true)
+  const [inboxOnly, setInboxOnly] = useState(false)
   const [selfmailerBase, setSelfmailerBase] = useState('')
   const [selfmailerToken, setSelfmailerToken] = useState('')
   const [hasSelfmailerToken, setHasSelfmailerToken] = useState(false)
@@ -110,12 +111,14 @@ export function MailSettingsPanel({
         unreadMaxAgeDays?: number
         accounts?: MailAccountPublic[]
         imapEnabled?: boolean
+        inboxOnly?: boolean
         selfmailerBase?: string
         hasSelfmailerToken?: boolean
         status?: MailStatus
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
       setImapEnabled(j.imapEnabled !== false)
+      setInboxOnly(j.inboxOnly === true)
       setSelfmailerBase(typeof j.selfmailerBase === 'string' ? j.selfmailerBase : '')
       setHasSelfmailerToken(Boolean(j.hasSelfmailerToken))
       if (typeof j.pollIntervalSeconds === 'number') {
@@ -256,6 +259,27 @@ export function MailSettingsPanel({
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
       if (j.status) setStatus(j.status)
       setMsg(v ? (de ? 'IMAP-Konten aktiv' : 'IMAP accounts on') : (de ? 'IMAP-Konten aus — nur SelfMailer zählt' : 'IMAP accounts off — only SelfMailer counts'))
+      dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const toggleInboxOnly = async (v: boolean) => {
+    setInboxOnly(v)
+    setErr(null); setMsg(null)
+    try {
+      const res = await fetch('/api/plugins/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inboxOnly: v }),
+      })
+      const j = await res.json() as { error?: string; status?: MailStatus }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (j.status) setStatus(j.status)
+      setMsg(v
+        ? (de ? 'Nur Posteingang — IMAP-Konten zählen nur INBOX' : 'Inbox only — IMAP accounts count INBOX only')
+        : (de ? 'Alle Ordner — IMAP zählt wie eingestellt' : 'All folders — IMAP counts per mailbox setting'))
       dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -518,9 +542,11 @@ export function MailSettingsPanel({
     if (!selected) return
     const label = form.label || selected.label || selected.username
     const scope =
-      form.mailbox.trim() === '*' || !form.mailbox.trim()
-        ? (de ? 'alle IMAP-Ordner dieses Kontos (ohne Papierkorb)' : 'all IMAP folders for this account (except trash)')
-        : (de ? `Ordner „${form.mailbox.trim()}“ inkl. Unterordner` : `mailbox “${form.mailbox.trim()}” including subfolders`)
+      inboxOnly
+        ? (de ? 'nur der Posteingang (INBOX)' : 'inbox only (INBOX)')
+        : form.mailbox.trim() === '*' || !form.mailbox.trim()
+          ? (de ? 'alle IMAP-Ordner dieses Kontos (ohne Papierkorb)' : 'all IMAP folders for this account (except trash)')
+          : (de ? `Ordner „${form.mailbox.trim()}“ inkl. Unterordner` : `mailbox “${form.mailbox.trim()}” including subfolders`)
 
     const step1 = window.confirm(
       de
@@ -758,6 +784,16 @@ export function MailSettingsPanel({
 
       {imapEnabled ? (
       <>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
+        <input type="checkbox" checked={inboxOnly} onChange={e => void toggleInboxOnly(e.target.checked)} />
+        {de ? 'Nur Posteingang zählen' : 'Count inbox only'}
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+          {inboxOnly
+            ? (de ? '(nur INBOX, kein Spam/Sent/Unterordner)' : '(INBOX only, no spam/sent/subfolders)')
+            : (de ? '(aus — zählt je Konto-Ordnerwahl)' : '(off — uses each account’s mailbox setting)')}
+        </span>
+      </label>
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
           {de ? 'E-Mail-Konten' : 'Email accounts'}
@@ -850,12 +886,18 @@ export function MailSettingsPanel({
             placeholder={hasPassword ? (de ? 'Passwort (leer = unverändert)' : 'Password (blank = unchanged)') : (de ? 'Passwort' : 'Password')}
             autoComplete="new-password" />
 
-          <input style={inp} value={form.mailbox} onChange={e => setForm({ ...form, mailbox: e.target.value })}
+          <input style={{ ...inp, opacity: inboxOnly ? 0.5 : 1 }} value={inboxOnly ? 'INBOX' : form.mailbox}
+            disabled={inboxOnly}
+            onChange={e => setForm({ ...form, mailbox: e.target.value })}
             placeholder={de ? '* = alle Ordner' : '* = all folders'} />
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '-8px 0 4px', lineHeight: 1.45 }}>
-            {de
-              ? '„*“ = alle IMAP-Ordner mit ungelesenen Mails, nur Papierkorb wird ausgelassen (inkl. Gesendet, Unterordner, …). Optional nur MailPlus-Konten: @accounts'
-              : '“*” = all IMAP folders with unread mail, trash excluded only. MailPlus sidebar only: @accounts'}
+            {inboxOnly
+              ? (de
+                ? 'Globale Option „Nur Posteingang zählen“ ist aktiv — diese Ordnerwahl wird ignoriert (nur INBOX).'
+                : 'Global option “Count inbox only” is on — this mailbox setting is ignored (INBOX only).')
+              : de
+                ? '„*“ = alle IMAP-Ordner mit ungelesenen Mails, nur Papierkorb wird ausgelassen (inkl. Gesendet, Unterordner, …). Optional nur MailPlus-Konten: @accounts'
+                : '“*” = all IMAP folders with unread mail, trash excluded only. MailPlus sidebar only: @accounts'}
           </p>
 
           <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>

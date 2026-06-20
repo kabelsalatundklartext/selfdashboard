@@ -3,7 +3,7 @@ import 'server-only'
 import { ImapFlow } from 'imapflow'
 
 import { decrypt } from '@/lib/secretCrypto'
-import { isAllMailboxes, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
+import { isAllMailboxes, isInboxOnly, isMailplusAccountsOnly, normalizeMailConnection } from './normalize'
 import type {
   MailFolderUnread,
   MailImapConfig,
@@ -161,6 +161,20 @@ function resolveScanPaths(boxes: ListedBox[], mailbox: string): { paths: string[
 /** Gemeinsame Ordnerplanung für Zählen, Vorschau und „Als gelesen“. */
 function planMailboxScan(boxes: ListedBox[], mailbox: string): MailboxScanPlan {
   const boxByPath = new Map(boxes.map(b => [b.path, b]))
+
+  // „Nur Posteingang“: strikt der/die INBOX-Root-Ordner, KEINE Unterordner
+  // (bei Synology bleibt INBOX.<Konto> also außen vor).
+  if (isInboxOnly(mailbox)) {
+    const roots = boxes.filter(b => isInboxRoot(b.path) && !b.flags?.has('\\Noselect'))
+    const inbox = roots.length > 0
+      ? roots
+      : boxes.filter(b => b.path.toUpperCase() === 'INBOX' && !b.flags?.has('\\Noselect'))
+    return {
+      mode: 'single',
+      statusPaths: [],
+      searchPaths: inbox.map(b => b.path),
+    }
+  }
 
   if (!isAllMailboxes(mailbox) && !isMailplusAccountsOnly(mailbox)) {
     const root = mailbox.trim() || 'INBOX'
@@ -493,7 +507,7 @@ export async function fetchUnreadMessagePreviews(
 ): Promise<MailUnreadPreviewResult> {
   const maxUnreadAgeDays = resolveUnreadMaxAgeDays(config.maxUnreadAgeDays)
   return withImapClient(config, async client => {
-    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox)) {
+    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox) || isInboxOnly(config.mailbox)) {
       return collectUnreadPreviews(client, config.mailbox, maxUnreadAgeDays)
     }
     return previewSingleMailbox(client, config.mailbox.trim() || 'INBOX', maxUnreadAgeDays)
@@ -503,7 +517,7 @@ export async function fetchUnreadMessagePreviews(
 export async function fetchUnreadBreakdown(config: MailImapConfig): Promise<MailUnreadResult> {
   const maxUnreadAgeDays = resolveUnreadMaxAgeDays(config.maxUnreadAgeDays)
   return withImapClient(config, async client => {
-    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox)) {
+    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox) || isInboxOnly(config.mailbox)) {
       return sumUnreadAllFolders(client, config.mailbox, maxUnreadAgeDays)
     }
     const mailbox = config.mailbox.trim() || 'INBOX'

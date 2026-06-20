@@ -187,6 +187,10 @@ export interface MailStoreFile {
   /** IMAP-Konten ueberhaupt nutzen? false = nur SelfMailer-Quelle zaehlt, der
    *  ganze IMAP-Bereich (Konten/Intervall/Altersfilter) ist aus + ausgeblendet. */
   imapEnabled: boolean
+  /** true = bei IMAP-Konten nur den reinen Posteingang (INBOX) zaehlen, keine
+   *  Unterordner/Spam/Sent. Global fuer alle IMAP-Konten; SelfMailer ist eh
+   *  schon INBOX-only. false (Standard) = bisheriges Verhalten (pro-Konto mailbox). */
+  inboxOnly: boolean
   accounts: MailAccount[]
   /** Optionale SelfMailer-Quelle: buendelt Ungelesen ueber ALLE dort hinterlegten
    *  Postfaecher in EINEN Navbar-Zaehler. Leer = aus (reiner IMAP-Modus). */
@@ -245,9 +249,13 @@ export function isMailAccountFetchable(account: MailAccount): boolean {
   )
 }
 
+/** Sondermailbox: nur der reine Posteingang (siehe normalize.ts → isInboxOnly). */
+export const MAILBOX_INBOX_ONLY = '@inbox'
+
 export function accountToImapConfig(
   account: MailAccount,
   unreadMaxAgeDays?: number,
+  inboxOnly?: boolean,
 ): MailImapConfig {
   return {
     host: account.host,
@@ -255,7 +263,7 @@ export function accountToImapConfig(
     secure: account.secure,
     username: account.username,
     passwordEncrypted: account.passwordEncrypted,
-    mailbox: account.mailbox,
+    mailbox: inboxOnly ? MAILBOX_INBOX_ONLY : account.mailbox,
     verifyTls: account.verifyTls,
     maxUnreadAgeDays: resolveUnreadMaxAgeDays(unreadMaxAgeDays),
   }

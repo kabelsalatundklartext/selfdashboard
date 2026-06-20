@@ -69,6 +69,7 @@ function defaultStore(): MailStoreFile {
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     imapEnabled: true,
+    inboxOnly: false,
     accounts: [],
     selfmailerBase: '',
     selfmailerToken: '',
@@ -101,6 +102,7 @@ function migrateFromV1(parsed: Record<string, unknown>): MailStoreFile {
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     imapEnabled: true,
+    inboxOnly: false,
     accounts: [account],
     selfmailerBase: '',
     selfmailerToken: '',
@@ -139,6 +141,7 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
           ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays)
           : resolveUnreadMaxAgeDays(),
       imapEnabled: parsed.imapEnabled !== false,
+      inboxOnly: parsed.inboxOnly === true,
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === 'string' ? parsed.selfmailerBase.trim() : '',
       selfmailerToken: typeof parsed.selfmailerToken === 'string' ? parsed.selfmailerToken : '',
@@ -276,8 +279,38 @@ export function resolveAccountFromRequest(
   return applyAccountUpdate({ ...base }, body)
 }
 
-/** Webmail-Link: Konto mit Ungelesen, sonst erstes Konto mit URL/Host-Fallback */
+/** SelfMailer-Basis-URL als öffenbare Web-Adresse (Schema ergänzen, Slash trimmen). */
+function selfmailerOpenUrl(store: MailStoreFile): string | null {
+  const base = (store.selfmailerBase ?? '').trim()
+  if (!base) return null
+  const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`
+  return withScheme.replace(/\/+$/, '')
+}
+
+/** Webmail-Link beim Navbar-Klick. Reihenfolge:
+ *  1. IMAP-Konto mit Ungelesen + eigener Webmail-URL
+ *  2. IMAP-Konto mit eigener Webmail-URL (aktiv bevorzugt)
+ *  3. SelfMailer-Quelle (bewusst eingerichtet) — VOR dem nur geratenen Host-Default
+ *  4. IMAP Host-Default (z. B. Synology :5000), aus dem Host abgeleitet */
 export function pickOpenUrl(store: MailStoreFile): string | null {
+  const direct = (a: MailAccount): string | null => a.openUrl?.trim() || null
+
+  // 1./2. Explizit gesetzte IMAP-Webmail-URL hat Vorrang.
+  const withDirect = store.accounts.filter(a => direct(a))
+  for (const st of store.status.accounts) {
+    if (st.unread > 0) {
+      const acc = withDirect.find(a => a.id === st.id)
+      if (acc) return direct(acc)
+    }
+  }
+  const preferredDirect = withDirect.find(a => parseAccountEnabled(a.enabled)) ?? withDirect[0]
+  if (preferredDirect) return direct(preferredDirect)
+
+  // 3. SelfMailer-Quelle als Fallback (vor dem nur geratenen Host-Default).
+  const sm = selfmailerOpenUrl(store)
+  if (sm) return sm
+
+  // 4. IMAP Host-Default (Webmail aus Host abgeleitet) — bisheriges Verhalten.
   const withLink = store.accounts.filter(a => resolveWebmailUrl(a))
   for (const st of store.status.accounts) {
     if (st.unread > 0) {

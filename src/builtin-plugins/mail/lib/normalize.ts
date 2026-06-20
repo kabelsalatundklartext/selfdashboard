@@ -38,6 +38,13 @@ export function isMailplusAccountsOnly(mailbox: string | undefined): boolean {
   return m === '@accounts' || m === 'accounts' || m === 'mailplus' || m === 'konten'
 }
 
+/** Nur der reine Posteingang (INBOX-Root) — keine Unterordner, kein Spam/Sent.
+ *  Gesetzt durch die globale „Nur Posteingang“-Option (store.inboxOnly). */
+export function isInboxOnly(mailbox: string | undefined): boolean {
+  const m = (mailbox ?? '').trim().toLowerCase()
+  return m === '@inbox' || m === 'inbox-only' || m === 'posteingang-only'
+}
+
 /** Gespeicherte Webmail-URL oder Synology-Standard (Port 5000) aus IMAP-Host. */
 export function resolveWebmailUrl(
   account: { openUrl?: string; host?: string; port?: number },

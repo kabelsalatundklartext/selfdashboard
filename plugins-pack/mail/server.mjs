@@ -155,6 +155,10 @@ function isMailplusAccountsOnly(mailbox) {
   const m = (mailbox ?? "").trim().toLowerCase();
   return m === "@accounts" || m === "accounts" || m === "mailplus" || m === "konten";
 }
+function isInboxOnly(mailbox) {
+  const m = (mailbox ?? "").trim().toLowerCase();
+  return m === "@inbox" || m === "inbox-only" || m === "posteingang-only";
+}
 function resolveWebmailUrl(account) {
   const direct = account.openUrl?.trim();
   if (direct) return direct;
@@ -230,14 +234,15 @@ function isMailAccountFetchable(account) {
     parseAccountEnabled(account.enabled) && String(account.host ?? "").trim() && String(account.username ?? "").trim() && String(account.passwordEncrypted ?? "").trim()
   );
 }
-function accountToImapConfig(account, unreadMaxAgeDays) {
+var MAILBOX_INBOX_ONLY = "@inbox";
+function accountToImapConfig(account, unreadMaxAgeDays, inboxOnly) {
   return {
     host: account.host,
     port: account.port,
     secure: account.secure,
     username: account.username,
     passwordEncrypted: account.passwordEncrypted,
-    mailbox: account.mailbox,
+    mailbox: inboxOnly ? MAILBOX_INBOX_ONLY : account.mailbox,
     verifyTls: account.verifyTls,
     maxUnreadAgeDays: resolveUnreadMaxAgeDays(unreadMaxAgeDays)
   };
@@ -361,6 +366,15 @@ function resolveScanPaths(boxes, mailbox) {
 }
 function planMailboxScan(boxes, mailbox) {
   const boxByPath = new Map(boxes.map((b) => [b.path, b]));
+  if (isInboxOnly(mailbox)) {
+    const roots = boxes.filter((b) => isInboxRoot(b.path) && !b.flags?.has("\\Noselect"));
+    const inbox = roots.length > 0 ? roots : boxes.filter((b) => b.path.toUpperCase() === "INBOX" && !b.flags?.has("\\Noselect"));
+    return {
+      mode: "single",
+      statusPaths: [],
+      searchPaths: inbox.map((b) => b.path)
+    };
+  }
   if (!isAllMailboxes(mailbox) && !isMailplusAccountsOnly(mailbox)) {
     const root = mailbox.trim() || "INBOX";
     const inScope = boxes.filter((b) => b.path === root || isDescendantMailboxPath(root, b.path));
@@ -614,7 +628,7 @@ async function previewSingleMailbox(client, mailbox, maxUnreadAgeDays) {
 async function fetchUnreadMessagePreviews(config) {
   const maxUnreadAgeDays = resolveUnreadMaxAgeDays(config.maxUnreadAgeDays);
   return withImapClient(config, async (client) => {
-    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox)) {
+    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox) || isInboxOnly(config.mailbox)) {
       return collectUnreadPreviews(client, config.mailbox, maxUnreadAgeDays);
     }
     return previewSingleMailbox(client, config.mailbox.trim() || "INBOX", maxUnreadAgeDays);
@@ -623,7 +637,7 @@ async function fetchUnreadMessagePreviews(config) {
 async function fetchUnreadBreakdown(config) {
   const maxUnreadAgeDays = resolveUnreadMaxAgeDays(config.maxUnreadAgeDays);
   return withImapClient(config, async (client) => {
-    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox)) {
+    if (isAllMailboxes(config.mailbox) || isMailplusAccountsOnly(config.mailbox) || isInboxOnly(config.mailbox)) {
       return sumUnreadAllFolders(client, config.mailbox, maxUnreadAgeDays);
     }
     const mailbox = config.mailbox.trim() || "INBOX";
@@ -715,6 +729,7 @@ function defaultStore() {
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     imapEnabled: true,
+    inboxOnly: false,
     accounts: [],
     selfmailerBase: "",
     selfmailerToken: "",
@@ -744,6 +759,7 @@ function migrateFromV1(parsed) {
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     imapEnabled: true,
+    inboxOnly: false,
     accounts: [account],
     selfmailerBase: "",
     selfmailerToken: "",
@@ -774,6 +790,7 @@ function normalizeStore(parsed) {
       pollIntervalSeconds: typeof parsed.pollIntervalSeconds === "number" ? clampPollIntervalSeconds(parsed.pollIntervalSeconds) : MAIL_POLL_INTERVAL_DEFAULT,
       unreadMaxAgeDays: typeof parsed.unreadMaxAgeDays === "number" ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays) : resolveUnreadMaxAgeDays(),
       imapEnabled: parsed.imapEnabled !== false,
+      inboxOnly: parsed.inboxOnly === true,
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === "string" ? parsed.selfmailerBase.trim() : "",
       selfmailerToken: typeof parsed.selfmailerToken === "string" ? parsed.selfmailerToken : "",
@@ -892,7 +909,25 @@ function resolveAccountFromRequest(store, body, fallbackLabel) {
   };
   return applyAccountUpdate({ ...base }, body);
 }
+function selfmailerOpenUrl(store) {
+  const base = (store.selfmailerBase ?? "").trim();
+  if (!base) return null;
+  const withScheme = /^https?:\/\//i.test(base) ? base : `http://${base}`;
+  return withScheme.replace(/\/+$/, "");
+}
 function pickOpenUrl(store) {
+  const direct = (a) => a.openUrl?.trim() || null;
+  const withDirect = store.accounts.filter((a) => direct(a));
+  for (const st of store.status.accounts) {
+    if (st.unread > 0) {
+      const acc = withDirect.find((a) => a.id === st.id);
+      if (acc) return direct(acc);
+    }
+  }
+  const preferredDirect = withDirect.find((a) => parseAccountEnabled(a.enabled)) ?? withDirect[0];
+  if (preferredDirect) return direct(preferredDirect);
+  const sm = selfmailerOpenUrl(store);
+  if (sm) return sm;
   const withLink = store.accounts.filter((a) => resolveWebmailUrl(a));
   for (const st of store.status.accounts) {
     if (st.unread > 0) {
@@ -1157,7 +1192,7 @@ async function runMailSync(opts) {
     const errors = [];
     for (const account of active) {
       try {
-        const result = await fetchUnreadBreakdown(accountToImapConfig(account, store.unreadMaxAgeDays));
+        const result = await fetchUnreadBreakdown(accountToImapConfig(account, store.unreadMaxAgeDays, store.inboxOnly));
         total += result.total;
         perAccount.push({
           id: account.id,
@@ -1216,6 +1251,7 @@ function shouldSyncAfterSettingsPut(body) {
   if (typeof body.selfmailerToken === "string") return true;
   if (body.clearSelfmailerToken === true) return true;
   if (typeof body.imapEnabled === "boolean") return true;
+  if (typeof body.inboxOnly === "boolean") return true;
   return false;
 }
 async function handleMailStatus(req) {
@@ -1249,6 +1285,7 @@ async function handleMailSettingsGet() {
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
       imapEnabled: store.imapEnabled !== false,
+      inboxOnly: store.inboxOnly === true,
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(store.selfmailerToken),
@@ -1277,6 +1314,7 @@ async function handleMailSettingsPut(req) {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays);
       }
       if (typeof body.imapEnabled === "boolean") s.imapEnabled = body.imapEnabled;
+      if (typeof body.inboxOnly === "boolean") s.inboxOnly = body.inboxOnly;
       if (typeof body.selfmailerBase === "string") {
         s.selfmailerBase = body.selfmailerBase.trim();
         if (!s.selfmailerBase) s.selfmailerToken = "";
@@ -1315,6 +1353,7 @@ async function handleMailSettingsPut(req) {
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
       imapEnabled: updated.imapEnabled !== false,
+      inboxOnly: updated.inboxOnly === true,
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(updated.selfmailerToken),
@@ -1336,7 +1375,7 @@ async function handleMailTest(req) {
   try {
     const store = await readMailStore();
     const merged = resolveAccountFromRequest(store, body, "Test");
-    const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays));
+    const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly));
     if (!result.ok) {
       void logMailEvent("test", result.error, {
         detail: { accountId: merged.id, label: merged.label, host: merged.host }
@@ -1379,7 +1418,7 @@ async function handleMailUnreadPreview(req) {
     const store = await readMailStore();
     const merged = resolveAccountFromRequest(store, body, "Preview");
     const result = await fetchUnreadMessagePreviews(
-      accountToImapConfig(merged, store.unreadMaxAgeDays)
+      accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly)
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
@@ -1403,7 +1442,7 @@ async function handleMailMarkAllRead(req) {
         { status: 400 }
       );
     }
-    const result = await markAllUnreadAsRead(accountToImapConfig(merged, store.unreadMaxAgeDays));
+    const result = await markAllUnreadAsRead(accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly));
     await runMailSync({ wait: true });
     const fresh = await readMailStore();
     return NextResponse.json({ ok: true, ...result, status: fresh.status });

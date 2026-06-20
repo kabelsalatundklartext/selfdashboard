@@ -32,6 +32,7 @@ function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
   if (typeof body.selfmailerToken === 'string') return true
   if (body.clearSelfmailerToken === true) return true
   if (typeof body.imapEnabled === 'boolean') return true
+  if (typeof body.inboxOnly === 'boolean') return true
   return false
 }
 
@@ -67,6 +68,7 @@ export async function handleMailSettingsGet(): Promise<Response> {
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
       imapEnabled: store.imapEnabled !== false,
+      inboxOnly: store.inboxOnly === true,
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(store.selfmailerToken),
@@ -96,6 +98,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays)
       }
       if (typeof body.imapEnabled === 'boolean') s.imapEnabled = body.imapEnabled
+      if (typeof body.inboxOnly === 'boolean') s.inboxOnly = body.inboxOnly
       if (typeof body.selfmailerBase === 'string') {
         s.selfmailerBase = body.selfmailerBase.trim()
         if (!s.selfmailerBase) s.selfmailerToken = ''  // Quelle geleert -> Token weg
@@ -134,6 +137,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
       imapEnabled: updated.imapEnabled !== false,
+      inboxOnly: updated.inboxOnly === true,
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(updated.selfmailerToken),
@@ -157,7 +161,7 @@ export async function handleMailTest(req: Request): Promise<Response> {
   try {
     const store = await readMailStore()
     const merged = resolveAccountFromRequest(store, body, 'Test')
-    const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays))
+    const result = await testImapConnection(accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly))
     if (!result.ok) {
       void logMailEvent('test', result.error, {
         detail: { accountId: merged.id, label: merged.label, host: merged.host },
@@ -207,7 +211,7 @@ export async function handleMailUnreadPreview(req: Request): Promise<Response> {
     const store = await readMailStore()
     const merged = resolveAccountFromRequest(store, body, 'Preview')
     const result = await fetchUnreadMessagePreviews(
-      accountToImapConfig(merged, store.unreadMaxAgeDays),
+      accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly),
     )
     return NextResponse.json({ ok: true, ...result })
   } catch (e: unknown) {
@@ -233,7 +237,7 @@ export async function handleMailMarkAllRead(req: Request): Promise<Response> {
         { status: 400 },
       )
     }
-    const result = await markAllUnreadAsRead(accountToImapConfig(merged, store.unreadMaxAgeDays))
+    const result = await markAllUnreadAsRead(accountToImapConfig(merged, store.unreadMaxAgeDays, store.inboxOnly))
     await runMailSync({ wait: true })
     const fresh = await readMailStore()
     return NextResponse.json({ ok: true, ...result, status: fresh.status })
