@@ -1,0 +1,15 @@
+{
+  "id": "selfmailer",
+  "name": "SelfMailer",
+  "description": "Ungelesene Mails über ALLE SelfMailer-Postfächer gebündelt: Gesamtzahl, je Konto und die neuesten Mails. Quelle: SelfMailer-Server (Basis-URL + Token) — kein IMAP im Dashboard nötig.",
+  "version": "1.0.0",
+  "author": "SelfDashboard",
+  "category": "productivity",
+  "icon": "📬",
+  "defaultLayout": {
+    "w": 3,
+    "h": 3,
+    "minW": 2,
+    "minH": 2
+  }
+}

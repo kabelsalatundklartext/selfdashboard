@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-18T14:45:57.179Z",
+  "generatedAt": "2026-06-20T17:41:36.296Z",
   "plugins": [
     {
       "id": "adguard",
@@ -563,6 +563,27 @@
         "plugin.json",
         "widget.js"
       ]
+    },
+    {
+      "id": "selfmailer",
+      "name": "SelfMailer",
+      "description": "Ungelesene Mails über ALLE SelfMailer-Postfächer gebündelt: Gesamtzahl, je Konto und die neuesten Mails. Quelle: SelfMailer-Server (Basis-URL + Token) — kein IMAP im Dashboard nötig.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "productivity",
+      "icon": "📬",
+      "defaultLayout": {
+        "w": 3,
+        "h": 3,
+        "minW": 2,
+        "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
     },
     {
       "id": "selfstream",
