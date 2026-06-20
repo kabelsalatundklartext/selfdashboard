@@ -233,6 +233,7 @@ Plugins marked **(Beta)** are new integrations that have not yet been tested aga
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |
 | <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/reolink/icon.svg" width="22"/> | [Reolink Camera](plugins-pack/reolink/README.md) | Utility | Live camera, AI/motion badges, PTZ **(Beta)** |
 | 📝 | [Scratchpad](plugins-pack/scratchpad/README.md) | Utility | Short notes |
+| ✉️ | [SelfMailer](plugins-pack/selfmailer/README.md) | Productivity | Unread across all SelfMailer mailboxes |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | Live IPTV |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Combined stream list |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Now playing, controls, seek, volume, search & device picker |
@@ -731,6 +732,7 @@ Mit **(Beta)** markierte Plugins sind neue Integrationen, die noch nicht gegen j
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/proxmox.png" width="22"/> | [Proxmox VE](plugins-pack/proxmox/README.md) | System | Nodes, VMs/LXC **(Beta)** |
 | <img src="https://raw.githubusercontent.com/kabelsalatundklartext/selfdashboard/main/plugins-pack/reolink/icon.svg" width="22"/> | [Reolink Kamera](plugins-pack/reolink/README.md) | Utility | Live-Kamera, KI-/Bewegungs-Badges, PTZ **(Beta)** |
 | 📝 | [Notizzettel](plugins-pack/scratchpad/README.md) | Utility | Kurznotizen |
+| ✉️ | [SelfMailer](plugins-pack/selfmailer/README.md) | Productivity | Ungelesene über alle SelfMailer-Postfächer |
 | 📺 | [Selfstream](plugins-pack/selfstream/README.md) | Media | IPTV-Streams live |
 | 📺 | [Selfstream · Emby · Jellyfin](plugins-pack/selfstream-emby/README.md) | Media | Kombinierte Stream-Liste |
 | <img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/spotify.png" width="22"/> | [Spotify](plugins-pack/spotify/README.md) | Media | Aktueller Titel, Steuerung, Seek, Lautstärke, Suche & Gerätewahl |

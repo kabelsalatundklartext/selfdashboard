@@ -35,6 +35,7 @@ Each plugin has a **README with German and English** sections:
 | [Proxmox VE](proxmox/README.md) | `proxmox` |
 | [Reolink Kamera](reolink/README.md) | `reolink` |
 | [Scratchpad](scratchpad/README.md) | `scratchpad` |
+| [SelfMailer](selfmailer/README.md) | `selfmailer` |
 | [Selfstream](selfstream/README.md) | `selfstream` |
 | [Selfstream · Emby · Jellyfin](selfstream-emby/README.md) | `selfstream-emby` |
 | [Spotify](spotify/README.md) | `spotify` |
