@@ -61,6 +61,9 @@ export function MailSettingsPanel({
   const [unreadMaxAgeUnit, setUnreadMaxAgeUnit] = useState<UnreadMaxAgeUnit>('days')
   const [unreadMaxAgeDraft, setUnreadMaxAgeDraft] = useState(String(MAIL_UNREAD_MAX_AGE_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
+  const [selfmailerBase, setSelfmailerBase] = useState('')
+  const [selfmailerToken, setSelfmailerToken] = useState('')
+  const [hasSelfmailerToken, setHasSelfmailerToken] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [hasPassword, setHasPassword] = useState(false)
@@ -105,9 +108,13 @@ export function MailSettingsPanel({
         pollIntervalSeconds?: number
         unreadMaxAgeDays?: number
         accounts?: MailAccountPublic[]
+        selfmailerBase?: string
+        hasSelfmailerToken?: boolean
         status?: MailStatus
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
+      setSelfmailerBase(typeof j.selfmailerBase === 'string' ? j.selfmailerBase : '')
+      setHasSelfmailerToken(Boolean(j.hasSelfmailerToken))
       if (typeof j.pollIntervalSeconds === 'number') {
         const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
         setPollIntervalSeconds(sec)
@@ -226,6 +233,54 @@ export function MailSettingsPanel({
         unread: j.status?.unread,
         pollIntervalSeconds: sec,
       })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveSelfmailer = async () => {
+    setBusy(true); setErr(null); setMsg(null)
+    try {
+      const body: Record<string, unknown> = { selfmailerBase: selfmailerBase.trim() }
+      if (selfmailerToken.trim()) body.selfmailerToken = selfmailerToken.trim()
+      const res = await fetch('/api/plugins/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const j = await res.json() as {
+        error?: string; selfmailerBase?: string; hasSelfmailerToken?: boolean; status?: MailStatus
+      }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (typeof j.selfmailerBase === 'string') setSelfmailerBase(j.selfmailerBase)
+      setHasSelfmailerToken(Boolean(j.hasSelfmailerToken))
+      setSelfmailerToken('')
+      if (j.status) setStatus(j.status)
+      setMsg(de ? 'SelfMailer-Quelle gespeichert' : 'SelfMailer source saved')
+      dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const clearSelfmailer = async () => {
+    setBusy(true); setErr(null); setMsg(null)
+    try {
+      const res = await fetch('/api/plugins/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selfmailerBase: '', clearSelfmailerToken: true }),
+      })
+      const j = await res.json() as { error?: string; status?: MailStatus }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      setSelfmailerBase(''); setSelfmailerToken(''); setHasSelfmailerToken(false)
+      if (j.status) setStatus(j.status)
+      setMsg(de ? 'SelfMailer-Quelle entfernt' : 'SelfMailer source removed')
+      dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -637,6 +692,37 @@ export function MailSettingsPanel({
           await saveMailNavbarEnabled(v)
         }}
       />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', borderRadius: '10px', background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+        <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+          {de ? 'Quelle: SelfMailer (alle Postfächer)' : 'Source: SelfMailer (all mailboxes)'}
+        </label>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+          {de
+            ? 'Optional: zählt ungelesene Mails ALLER in SelfMailer hinterlegten Postfächer und addiert sie in die Navbar — ohne hier IMAP-Konten anzulegen. Navbar-Symbol oben muss an sein.'
+            : 'Optional: counts unread across ALL mailboxes configured in SelfMailer and adds them to the navbar — no IMAP accounts needed here. Enable the navbar icon above.'}
+        </p>
+        <input style={inp} value={selfmailerBase} onChange={e => setSelfmailerBase(e.target.value)}
+          placeholder="http://192.168.1.10:8090" />
+        <input style={inp} type="password" value={selfmailerToken} onChange={e => setSelfmailerToken(e.target.value)}
+          placeholder={hasSelfmailerToken ? (de ? 'Token (leer = unverändert)' : 'Token (blank = unchanged)') : (de ? 'Token aus SelfMailer → Feeds/Export' : 'Token from SelfMailer → Feeds/Export')}
+          autoComplete="new-password" />
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button type="button" className="btn-accent" disabled={busy} onClick={() => void saveSelfmailer()}>
+            {de ? 'SelfMailer speichern' : 'Save SelfMailer'}
+          </button>
+          {(selfmailerBase || hasSelfmailerToken) ? (
+            <button type="button" className="btn-ghost" disabled={busy} onClick={() => void clearSelfmailer()} style={{ color: '#f87171' }}>
+              {de ? 'Entfernen' : 'Remove'}
+            </button>
+          ) : null}
+        </div>
+        {hasSelfmailerToken ? (
+          <p style={{ fontSize: '11px', color: '#4ade80', margin: 0 }}>
+            {de ? '✓ Token gespeichert' : '✓ Token saved'}
+          </p>
+        ) : null}
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>

@@ -280,10 +280,21 @@ function isMailplusExcluded(path2, flags) {
   const leaf = (path2.includes("/") ? path2.split("/").pop() : path2) ?? path2;
   return MAILPLUS_SKIP_SUFFIX.has(leaf.toLowerCase());
 }
+var warnedInsecureImapHosts = /* @__PURE__ */ new Set();
+function warnInsecureImapTlsOnce(host) {
+  if (warnedInsecureImapHosts.has(host)) return;
+  warnedInsecureImapHosts.add(host);
+  console.warn(
+    `[SelfDashboard] IMAP-TLS-Zertifikatspr\xFCfung ist AUS f\xFCr Host ${host} \u2014 Verbindung ungesichert.`
+  );
+}
 function createClient(config) {
   const { host, port } = normalizeMailConnection(config.host, config.port);
   if (!host || !config.username || !config.passwordEncrypted) {
     throw new Error("IMAP host, username and password required");
+  }
+  if (!config.verifyTls) {
+    warnInsecureImapTlsOnce(host);
   }
   return new ImapFlow({
     host,
@@ -704,6 +715,8 @@ function defaultStore() {
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     accounts: [],
+    selfmailerBase: "",
+    selfmailerToken: "",
     status: structuredClone(EMPTY_MAIL_STATUS)
   };
 }
@@ -730,6 +743,8 @@ function migrateFromV1(parsed) {
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     accounts: [account],
+    selfmailerBase: "",
+    selfmailerToken: "",
     status: {
       unread: st?.unread ?? 0,
       lastSyncAt: st?.lastSyncAt,
@@ -757,6 +772,8 @@ function normalizeStore(parsed) {
       pollIntervalSeconds: typeof parsed.pollIntervalSeconds === "number" ? clampPollIntervalSeconds(parsed.pollIntervalSeconds) : MAIL_POLL_INTERVAL_DEFAULT,
       unreadMaxAgeDays: typeof parsed.unreadMaxAgeDays === "number" ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays) : resolveUnreadMaxAgeDays(),
       accounts,
+      selfmailerBase: typeof parsed.selfmailerBase === "string" ? parsed.selfmailerBase.trim() : "",
+      selfmailerToken: typeof parsed.selfmailerToken === "string" ? parsed.selfmailerToken : "",
       status: {
         unread: status?.unread ?? 0,
         lastSyncAt: status?.lastSyncAt,
@@ -957,7 +974,142 @@ function toPublicConfigLegacy(store) {
   };
 }
 
+// plugins-pack/_shared/ssrf.ts
+import net from "node:net";
+import { lookup } from "node:dns/promises";
+var BLOCKED_HOSTNAMES = /* @__PURE__ */ new Set([
+  "localhost",
+  "metadata.google.internal",
+  "metadata.google",
+  "instance-data"
+]);
+function isAlwaysBlockedIp(ip) {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const normalized = ip.toLowerCase();
+    if (normalized === "::1") return true;
+    if (normalized.startsWith("fe80:")) return true;
+    if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+    const embedded = embeddedIpv4(normalized);
+    if (embedded) return isAlwaysBlockedIp(embedded);
+  }
+  return false;
+}
+function embeddedIpv4(normalizedV6) {
+  if (!normalizedV6.startsWith("::ffff:")) return null;
+  const rest = normalizedV6.slice("::ffff:".length);
+  if (net.isIPv4(rest)) return rest;
+  const hex = rest.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (!hex) return null;
+  const hi = parseInt(hex[1], 16);
+  const lo = parseInt(hex[2], 16);
+  return `${hi >> 8 & 255}.${hi & 255}.${lo >> 8 & 255}.${lo & 255}`;
+}
+function isPrivateLanIp(ip) {
+  if (!net.isIPv4(ip)) return false;
+  const [a, b] = ip.split(".").map(Number);
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+function blockPrivateLanUrls() {
+  const v = process.env.SELFDASHBOARD_BLOCK_PRIVATE_CALENDAR_URLS?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+var UnsafeOutboundUrlError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UnsafeOutboundUrlError";
+  }
+};
+function assertSafeOutboundUrl(urlStr) {
+  let u;
+  try {
+    u = new URL(urlStr);
+  } catch {
+    throw new UnsafeOutboundUrlError("invalid_url");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new UnsafeOutboundUrlError("unsupported_protocol");
+  }
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (!host) throw new UnsafeOutboundUrlError("missing_host");
+  if (BLOCKED_HOSTNAMES.has(host)) throw new UnsafeOutboundUrlError("blocked_host");
+  if (host.endsWith(".local") || host.endsWith(".internal")) {
+    throw new UnsafeOutboundUrlError("blocked_host");
+  }
+  const ipVersion = net.isIP(host);
+  if (ipVersion) {
+    if (isAlwaysBlockedIp(host)) throw new UnsafeOutboundUrlError("blocked_ip");
+    if (blockPrivateLanUrls() && isPrivateLanIp(host)) {
+      throw new UnsafeOutboundUrlError("private_ip_blocked");
+    }
+    return;
+  }
+  if (host.endsWith(".localhost")) throw new UnsafeOutboundUrlError("blocked_host");
+}
+async function assertSafeOutboundUrlResolved(urlStr) {
+  assertSafeOutboundUrl(urlStr);
+  const u = new URL(urlStr);
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (net.isIP(host)) return;
+  let addrs;
+  try {
+    addrs = await lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new UnsafeOutboundUrlError("dns_lookup_failed");
+  }
+  if (addrs.length === 0) throw new UnsafeOutboundUrlError("dns_lookup_failed");
+  for (const { address } of addrs) {
+    if (isAlwaysBlockedIp(address)) throw new UnsafeOutboundUrlError("blocked_ip_resolved");
+    if (blockPrivateLanUrls() && isPrivateLanIp(address)) {
+      throw new UnsafeOutboundUrlError("private_ip_blocked");
+    }
+  }
+}
+async function fetchWithSsrfGuard(urlStr, init, maxRedirects = 5) {
+  await assertSafeOutboundUrlResolved(urlStr);
+  let current = urlStr;
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    const resp = await fetch(current, { ...init, redirect: "manual" });
+    if (resp.status < 300 || resp.status >= 400) return resp;
+    const location = resp.headers.get("location");
+    if (!location) return resp;
+    current = new URL(location, current).href;
+    await assertSafeOutboundUrlResolved(current);
+  }
+  throw new UnsafeOutboundUrlError("too_many_redirects");
+}
+
 // plugins-pack/mail/lib/sync.ts
+var SELFMAILER_TIMEOUT_MS = 2e4;
+async function fetchSelfmailerUnread(base, token) {
+  const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, "");
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=1`;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS);
+  try {
+    const res = await fetchWithSsrfGuard(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: ac.signal
+    });
+    if (!res.ok) throw new Error(res.status === 401 ? "Token ung\xFCltig" : `HTTP ${res.status}`);
+    const j = await res.json();
+    const accounts = Array.isArray(j.accounts) ? j.accounts.map((a) => ({ id: `sm_${a.id}`, label: a.label, unread: Number(a.unseen) || 0 })) : [];
+    return { total: Number(j.total_unseen) || 0, accounts };
+  } finally {
+    clearTimeout(t);
+  }
+}
 var syncInFlight = false;
 async function runMailSync(opts) {
   if (syncInFlight) {
@@ -980,7 +1132,10 @@ async function runMailSync(opts) {
       return;
     }
     const active = store.accounts.filter(isMailAccountFetchable);
-    if (active.length === 0) {
+    const smBase = (store.selfmailerBase ?? "").trim();
+    const smToken = (store.selfmailerToken ?? "").trim();
+    const smEnabled = Boolean(smBase && smToken);
+    if (active.length === 0 && !smEnabled) {
       const blocker = describeMailSyncBlocker(store);
       await mutateMailStore((s) => {
         if (store.accounts.length === 0) {
@@ -1014,6 +1169,18 @@ async function runMailSync(opts) {
         void logMailEvent("sync", msg, { detail: { host: account.host, accountId: account.id, label: account.label, raw } });
       }
     }
+    if (smEnabled) {
+      try {
+        const sm = await fetchSelfmailerUnread(smBase, smToken);
+        total += sm.total;
+        for (const a of sm.accounts) perAccount.push(a);
+      } catch (e) {
+        const raw = e instanceof Error ? e.message : String(e);
+        const msg = formatMailError(raw);
+        errors.push(`SelfMailer: ${msg}`);
+        void logMailEvent("sync", `SelfMailer: ${msg}`, { detail: { raw } });
+      }
+    }
     await mutateMailStore((s) => {
       s.status.unread = total;
       s.status.lastSyncAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -1041,6 +1208,9 @@ function shouldSyncAfterSettingsPut(body) {
   if (typeof body.host === "string" || typeof body.username === "string") return true;
   if (typeof body.pollIntervalSeconds === "number") return true;
   if (typeof body.unreadMaxAgeDays === "number") return true;
+  if (typeof body.selfmailerBase === "string") return true;
+  if (typeof body.selfmailerToken === "string") return true;
+  if (body.clearSelfmailerToken === true) return true;
   return false;
 }
 async function handleMailStatus(req) {
@@ -1074,6 +1244,8 @@ async function handleMailSettingsGet() {
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
       accounts: store.accounts.map(toPublicAccount),
+      selfmailerBase: store.selfmailerBase ?? "",
+      hasSelfmailerToken: Boolean(store.selfmailerToken),
       status: store.status,
       config: toPublicConfigLegacy(store)
     });
@@ -1098,6 +1270,14 @@ async function handleMailSettingsPut(req) {
       if (typeof body.unreadMaxAgeDays === "number" && Number.isFinite(body.unreadMaxAgeDays)) {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays);
       }
+      if (typeof body.selfmailerBase === "string") {
+        s.selfmailerBase = body.selfmailerBase.trim();
+        if (!s.selfmailerBase) s.selfmailerToken = "";
+      }
+      if (typeof body.selfmailerToken === "string" && body.selfmailerToken.length > 0) {
+        s.selfmailerToken = body.selfmailerToken.trim();
+      }
+      if (body.clearSelfmailerToken === true) s.selfmailerToken = "";
       if (typeof body.deleteAccountId === "string") {
         s.accounts = s.accounts.filter((a) => a.id !== body.deleteAccountId);
         s.status.accounts = s.status.accounts.filter((a) => a.id !== body.deleteAccountId);
@@ -1128,6 +1308,8 @@ async function handleMailSettingsPut(req) {
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
       accounts: updated.accounts.map(toPublicAccount),
+      selfmailerBase: updated.selfmailerBase ?? "",
+      hasSelfmailerToken: Boolean(updated.selfmailerToken),
       status: updated.status,
       config: toPublicConfigLegacy(updated)
     });

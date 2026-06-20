@@ -69,6 +69,8 @@ function defaultStore(): MailStoreFile {
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     accounts: [],
+    selfmailerBase: '',
+    selfmailerToken: '',
     status: structuredClone(EMPTY_MAIL_STATUS),
   }
 }
@@ -98,6 +100,8 @@ function migrateFromV1(parsed: Record<string, unknown>): MailStoreFile {
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
     accounts: [account],
+    selfmailerBase: '',
+    selfmailerToken: '',
     status: {
       unread: st?.unread ?? 0,
       lastSyncAt: st?.lastSyncAt,
@@ -133,6 +137,8 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
           ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays)
           : resolveUnreadMaxAgeDays(),
       accounts,
+      selfmailerBase: typeof parsed.selfmailerBase === 'string' ? parsed.selfmailerBase.trim() : '',
+      selfmailerToken: typeof parsed.selfmailerToken === 'string' ? parsed.selfmailerToken : '',
       status: {
         unread: status?.unread ?? 0,
         lastSyncAt: status?.lastSyncAt,

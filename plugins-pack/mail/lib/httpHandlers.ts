@@ -28,6 +28,9 @@ function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
   if (typeof body.host === 'string' || typeof body.username === 'string') return true
   if (typeof body.pollIntervalSeconds === 'number') return true
   if (typeof body.unreadMaxAgeDays === 'number') return true
+  if (typeof body.selfmailerBase === 'string') return true
+  if (typeof body.selfmailerToken === 'string') return true
+  if (body.clearSelfmailerToken === true) return true
   return false
 }
 
@@ -63,6 +66,8 @@ export async function handleMailSettingsGet(): Promise<Response> {
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
       accounts: store.accounts.map(toPublicAccount),
+      selfmailerBase: store.selfmailerBase ?? '',
+      hasSelfmailerToken: Boolean(store.selfmailerToken),
       status: store.status,
       config: toPublicConfigLegacy(store),
     })
@@ -88,6 +93,14 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       if (typeof body.unreadMaxAgeDays === 'number' && Number.isFinite(body.unreadMaxAgeDays)) {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays)
       }
+      if (typeof body.selfmailerBase === 'string') {
+        s.selfmailerBase = body.selfmailerBase.trim()
+        if (!s.selfmailerBase) s.selfmailerToken = ''  // Quelle geleert -> Token weg
+      }
+      if (typeof body.selfmailerToken === 'string' && body.selfmailerToken.length > 0) {
+        s.selfmailerToken = body.selfmailerToken.trim()  // leer = unveraendert
+      }
+      if (body.clearSelfmailerToken === true) s.selfmailerToken = ''
       if (typeof body.deleteAccountId === 'string') {
         s.accounts = s.accounts.filter(a => a.id !== body.deleteAccountId)
         s.status.accounts = s.status.accounts.filter(a => a.id !== body.deleteAccountId)
@@ -118,6 +131,8 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
       accounts: updated.accounts.map(toPublicAccount),
+      selfmailerBase: updated.selfmailerBase ?? '',
+      hasSelfmailerToken: Boolean(updated.selfmailerToken),
       status: updated.status,
       config: toPublicConfigLegacy(updated),
     })

@@ -12,6 +12,40 @@ import {
 } from './types'
 import { fetchUnreadBreakdown } from './imap'
 import { describeMailSyncBlocker, mutateMailStore, readMailStore, resetMailStatusCache } from './store'
+import { fetchWithSsrfGuard } from '@/lib/security/ssrf'
+
+const SELFMAILER_TIMEOUT_MS = 20_000
+
+/** Gebuendelte Ungelesen-Uebersicht aus einer SelfMailer-Instanz (alle Postfaecher).
+ *  Server-zu-Server mit SSRF-Schutz; Token wandert nur an SelfMailer. */
+async function fetchSelfmailerUnread(
+  base: string,
+  token: string,
+): Promise<{ total: number; accounts: MailAccountStatus[] }> {
+  const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, '')
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=1`
+  const ac = new AbortController()
+  const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS)
+  try {
+    const res = await fetchWithSsrfGuard(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+      signal: ac.signal,
+    })
+    if (!res.ok) throw new Error(res.status === 401 ? 'Token ungültig' : `HTTP ${res.status}`)
+    const j = (await res.json()) as {
+      total_unseen?: number
+      accounts?: { id: number; label: string; unseen: number }[]
+    }
+    const accounts: MailAccountStatus[] = Array.isArray(j.accounts)
+      ? j.accounts.map(a => ({ id: `sm_${a.id}`, label: a.label, unread: Number(a.unseen) || 0 }))
+      : []
+    return { total: Number(j.total_unseen) || 0, accounts }
+  } finally {
+    clearTimeout(t)
+  }
+}
 
 let schedulerStarted = false
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null
@@ -39,8 +73,12 @@ export async function runMailSync(opts?: { wait?: boolean; resetStatus?: boolean
     }
 
     const active = store.accounts.filter(isMailAccountFetchable)
+    const smBase = (store.selfmailerBase ?? '').trim()
+    const smToken = (store.selfmailerToken ?? '').trim()
+    const smEnabled = Boolean(smBase && smToken)
 
-    if (active.length === 0) {
+    // Nichts zu tun nur, wenn weder ein abrufbares IMAP-Konto noch SelfMailer da ist.
+    if (active.length === 0 && !smEnabled) {
       const blocker = describeMailSyncBlocker(store)
       await mutateMailStore(s => {
         if (store.accounts.length === 0) {
@@ -74,6 +112,20 @@ export async function runMailSync(opts?: { wait?: boolean; resetStatus?: boolean
         errors.push(`${account.label}: ${msg}`)
         perAccount.push({ id: account.id, label: account.label, unread: 0, lastError: msg })
         void logMailEvent('sync', msg, { detail: { host: account.host, accountId: account.id, label: account.label, raw } })
+      }
+    }
+
+    // SelfMailer-Quelle: eine Instanz, alle Postfaecher gebuendelt.
+    if (smEnabled) {
+      try {
+        const sm = await fetchSelfmailerUnread(smBase, smToken)
+        total += sm.total
+        for (const a of sm.accounts) perAccount.push(a)
+      } catch (e: unknown) {
+        const raw = e instanceof Error ? e.message : String(e)
+        const msg = formatMailError(raw)
+        errors.push(`SelfMailer: ${msg}`)
+        void logMailEvent('sync', `SelfMailer: ${msg}`, { detail: { raw } })
       }
     }
 

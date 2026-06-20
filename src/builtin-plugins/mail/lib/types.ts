@@ -185,6 +185,10 @@ export interface MailStoreFile {
   /** 0 = alle UNSEEN zählen; Standard 30 */
   unreadMaxAgeDays: number
   accounts: MailAccount[]
+  /** Optionale SelfMailer-Quelle: buendelt Ungelesen ueber ALLE dort hinterlegten
+   *  Postfaecher in EINEN Navbar-Zaehler. Leer = aus (reiner IMAP-Modus). */
+  selfmailerBase: string
+  selfmailerToken: string
   status: MailAggregateStatus
 }
 
