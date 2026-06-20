@@ -23,7 +23,10 @@ async function fetchSelfmailerUnread(
   token: string,
 ): Promise<{ total: number; accounts: MailAccountStatus[] }> {
   const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, '')
-  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=1`
+  // live=0 = SelfMailer-Cache (instant, ~0,2s). live=1 würde pro Postfach IMAP
+  // anfragen → bei vielen/großen Konten >20s = Timeout. Der Cache ist aktuell
+  // genug (SelfMailer pflegt ihn bei Nutzung); Badge braucht keine Echtzeit.
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0`
   const ac = new AbortController()
   const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS)
   try {

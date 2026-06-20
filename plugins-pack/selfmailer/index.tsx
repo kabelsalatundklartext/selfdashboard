@@ -24,7 +24,7 @@ async function fetchSummary(base: string, token: string): Promise<Summary> {
   const res = await fetch('/api/plugins/selfmailer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ base, token, live: true }),
+    body: JSON.stringify({ base, token, live: false }),
     cache: 'no-store',
   })
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
@@ -417,7 +417,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer',
   description:
     'Ungelesene Mails über ALLE SelfMailer-Postfächer gebündelt: Gesamtzahl, je Konto und die neuesten Mails. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.0.0',
+  version: '1.0.1',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📬',

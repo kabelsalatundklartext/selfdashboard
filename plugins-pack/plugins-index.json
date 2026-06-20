@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-20T18:09:56.815Z",
+  "generatedAt": "2026-06-20T18:25:46.346Z",
   "plugins": [
     {
       "id": "adguard",
@@ -364,7 +364,7 @@
       "id": "mail",
       "name": "E-Mail / IMAP",
       "description": "Navbar-Badge mit ungelesenen Mails: mehrere IMAP-Konten ODER eine SelfMailer-Quelle (alle Postfächer gebündelt). Einstellungen unter E-Mail.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "SelfDashboard",
       "category": "productivity",
       "icon": "✉️",
@@ -568,7 +568,7 @@
       "id": "selfmailer",
       "name": "SelfMailer",
       "description": "Ungelesene Mails über ALLE SelfMailer-Postfächer gebündelt: Gesamtzahl, je Konto und die neuesten Mails. Quelle: SelfMailer-Server (Basis-URL + Token) — kein IMAP im Dashboard nötig.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "author": "SelfDashboard",
       "category": "productivity",
       "icon": "📬",

@@ -1095,7 +1095,7 @@ async function fetchWithSsrfGuard(urlStr, init, maxRedirects = 5) {
 var SELFMAILER_TIMEOUT_MS = 2e4;
 async function fetchSelfmailerUnread(base, token) {
   const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, "");
-  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=1`;
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0`;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS);
   try {
