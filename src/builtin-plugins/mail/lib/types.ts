@@ -184,6 +184,9 @@ export interface MailStoreFile {
   pollIntervalSeconds: number
   /** 0 = alle UNSEEN zählen; Standard 30 */
   unreadMaxAgeDays: number
+  /** IMAP-Konten ueberhaupt nutzen? false = nur SelfMailer-Quelle zaehlt, der
+   *  ganze IMAP-Bereich (Konten/Intervall/Altersfilter) ist aus + ausgeblendet. */
+  imapEnabled: boolean
   accounts: MailAccount[]
   /** Optionale SelfMailer-Quelle: buendelt Ungelesen ueber ALLE dort hinterlegten
    *  Postfaecher in EINEN Navbar-Zaehler. Leer = aus (reiner IMAP-Modus). */

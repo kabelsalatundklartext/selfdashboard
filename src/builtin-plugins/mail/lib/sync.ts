@@ -72,16 +72,18 @@ export async function runMailSync(opts?: { wait?: boolean; resetStatus?: boolean
       return
     }
 
-    const active = store.accounts.filter(isMailAccountFetchable)
+    const imapOff = store.imapEnabled === false
+    const active = imapOff ? [] : store.accounts.filter(isMailAccountFetchable)
     const smBase = (store.selfmailerBase ?? '').trim()
     const smToken = (store.selfmailerToken ?? '').trim()
     const smEnabled = Boolean(smBase && smToken)
 
     // Nichts zu tun nur, wenn weder ein abrufbares IMAP-Konto noch SelfMailer da ist.
     if (active.length === 0 && !smEnabled) {
-      const blocker = describeMailSyncBlocker(store)
+      // IMAP bewusst aus oder kein Konto -> sauber leeren (kein Blocker-Hinweis).
+      const blocker = imapOff || store.accounts.length === 0 ? undefined : describeMailSyncBlocker(store)
       await mutateMailStore(s => {
-        if (store.accounts.length === 0) {
+        if (imapOff || store.accounts.length === 0) {
           s.status.unread = 0
           s.status.accounts = []
           s.status.lastError = undefined

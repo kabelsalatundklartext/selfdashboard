@@ -714,6 +714,7 @@ function defaultStore() {
     navbarEnabled: false,
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
+    imapEnabled: true,
     accounts: [],
     selfmailerBase: "",
     selfmailerToken: "",
@@ -742,6 +743,7 @@ function migrateFromV1(parsed) {
     navbarEnabled: Boolean(c.enabled),
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
+    imapEnabled: true,
     accounts: [account],
     selfmailerBase: "",
     selfmailerToken: "",
@@ -771,6 +773,7 @@ function normalizeStore(parsed) {
       ),
       pollIntervalSeconds: typeof parsed.pollIntervalSeconds === "number" ? clampPollIntervalSeconds(parsed.pollIntervalSeconds) : MAIL_POLL_INTERVAL_DEFAULT,
       unreadMaxAgeDays: typeof parsed.unreadMaxAgeDays === "number" ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays) : resolveUnreadMaxAgeDays(),
+      imapEnabled: parsed.imapEnabled !== false,
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === "string" ? parsed.selfmailerBase.trim() : "",
       selfmailerToken: typeof parsed.selfmailerToken === "string" ? parsed.selfmailerToken : "",
@@ -1131,14 +1134,15 @@ async function runMailSync(opts) {
       });
       return;
     }
-    const active = store.accounts.filter(isMailAccountFetchable);
+    const imapOff = store.imapEnabled === false;
+    const active = imapOff ? [] : store.accounts.filter(isMailAccountFetchable);
     const smBase = (store.selfmailerBase ?? "").trim();
     const smToken = (store.selfmailerToken ?? "").trim();
     const smEnabled = Boolean(smBase && smToken);
     if (active.length === 0 && !smEnabled) {
-      const blocker = describeMailSyncBlocker(store);
+      const blocker = imapOff || store.accounts.length === 0 ? void 0 : describeMailSyncBlocker(store);
       await mutateMailStore((s) => {
-        if (store.accounts.length === 0) {
+        if (imapOff || store.accounts.length === 0) {
           s.status.unread = 0;
           s.status.accounts = [];
           s.status.lastError = void 0;
@@ -1211,6 +1215,7 @@ function shouldSyncAfterSettingsPut(body) {
   if (typeof body.selfmailerBase === "string") return true;
   if (typeof body.selfmailerToken === "string") return true;
   if (body.clearSelfmailerToken === true) return true;
+  if (typeof body.imapEnabled === "boolean") return true;
   return false;
 }
 async function handleMailStatus(req) {
@@ -1243,6 +1248,7 @@ async function handleMailSettingsGet() {
       navbarEnabled: store.navbarEnabled,
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
+      imapEnabled: store.imapEnabled !== false,
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(store.selfmailerToken),
@@ -1270,6 +1276,7 @@ async function handleMailSettingsPut(req) {
       if (typeof body.unreadMaxAgeDays === "number" && Number.isFinite(body.unreadMaxAgeDays)) {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays);
       }
+      if (typeof body.imapEnabled === "boolean") s.imapEnabled = body.imapEnabled;
       if (typeof body.selfmailerBase === "string") {
         s.selfmailerBase = body.selfmailerBase.trim();
         if (!s.selfmailerBase) s.selfmailerToken = "";
@@ -1307,6 +1314,7 @@ async function handleMailSettingsPut(req) {
       navbarEnabled: updated.navbarEnabled,
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
+      imapEnabled: updated.imapEnabled !== false,
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(updated.selfmailerToken),

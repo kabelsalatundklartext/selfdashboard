@@ -31,6 +31,7 @@ function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
   if (typeof body.selfmailerBase === 'string') return true
   if (typeof body.selfmailerToken === 'string') return true
   if (body.clearSelfmailerToken === true) return true
+  if (typeof body.imapEnabled === 'boolean') return true
   return false
 }
 
@@ -65,6 +66,7 @@ export async function handleMailSettingsGet(): Promise<Response> {
       navbarEnabled: store.navbarEnabled,
       pollIntervalSeconds: store.pollIntervalSeconds,
       unreadMaxAgeDays: store.unreadMaxAgeDays,
+      imapEnabled: store.imapEnabled !== false,
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(store.selfmailerToken),
@@ -93,6 +95,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       if (typeof body.unreadMaxAgeDays === 'number' && Number.isFinite(body.unreadMaxAgeDays)) {
         s.unreadMaxAgeDays = clampUnreadMaxAgeDays(body.unreadMaxAgeDays)
       }
+      if (typeof body.imapEnabled === 'boolean') s.imapEnabled = body.imapEnabled
       if (typeof body.selfmailerBase === 'string') {
         s.selfmailerBase = body.selfmailerBase.trim()
         if (!s.selfmailerBase) s.selfmailerToken = ''  // Quelle geleert -> Token weg
@@ -130,6 +133,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       navbarEnabled: updated.navbarEnabled,
       pollIntervalSeconds: updated.pollIntervalSeconds,
       unreadMaxAgeDays: updated.unreadMaxAgeDays,
+      imapEnabled: updated.imapEnabled !== false,
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(updated.selfmailerToken),

@@ -68,6 +68,7 @@ function defaultStore(): MailStoreFile {
     navbarEnabled: false,
     pollIntervalSeconds: 120,
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
+    imapEnabled: true,
     accounts: [],
     selfmailerBase: '',
     selfmailerToken: '',
@@ -99,6 +100,7 @@ function migrateFromV1(parsed: Record<string, unknown>): MailStoreFile {
     navbarEnabled: Boolean(c.enabled),
     pollIntervalSeconds: clampPollIntervalSeconds(c.pollIntervalSeconds ?? MAIL_POLL_INTERVAL_DEFAULT),
     unreadMaxAgeDays: resolveUnreadMaxAgeDays(),
+    imapEnabled: true,
     accounts: [account],
     selfmailerBase: '',
     selfmailerToken: '',
@@ -136,6 +138,7 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
         typeof parsed.unreadMaxAgeDays === 'number'
           ? clampUnreadMaxAgeDays(parsed.unreadMaxAgeDays)
           : resolveUnreadMaxAgeDays(),
+      imapEnabled: parsed.imapEnabled !== false,
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === 'string' ? parsed.selfmailerBase.trim() : '',
       selfmailerToken: typeof parsed.selfmailerToken === 'string' ? parsed.selfmailerToken : '',

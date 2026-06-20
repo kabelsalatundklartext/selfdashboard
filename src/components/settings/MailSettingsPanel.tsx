@@ -61,6 +61,7 @@ export function MailSettingsPanel({
   const [unreadMaxAgeUnit, setUnreadMaxAgeUnit] = useState<UnreadMaxAgeUnit>('days')
   const [unreadMaxAgeDraft, setUnreadMaxAgeDraft] = useState(String(MAIL_UNREAD_MAX_AGE_DEFAULT))
   const [accounts, setAccounts] = useState<MailAccountPublic[]>([])
+  const [imapEnabled, setImapEnabled] = useState(true)
   const [selfmailerBase, setSelfmailerBase] = useState('')
   const [selfmailerToken, setSelfmailerToken] = useState('')
   const [hasSelfmailerToken, setHasSelfmailerToken] = useState(false)
@@ -108,11 +109,13 @@ export function MailSettingsPanel({
         pollIntervalSeconds?: number
         unreadMaxAgeDays?: number
         accounts?: MailAccountPublic[]
+        imapEnabled?: boolean
         selfmailerBase?: string
         hasSelfmailerToken?: boolean
         status?: MailStatus
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
+      setImapEnabled(j.imapEnabled !== false)
       setSelfmailerBase(typeof j.selfmailerBase === 'string' ? j.selfmailerBase : '')
       setHasSelfmailerToken(Boolean(j.hasSelfmailerToken))
       if (typeof j.pollIntervalSeconds === 'number') {
@@ -237,6 +240,25 @@ export function MailSettingsPanel({
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  const toggleImap = async (v: boolean) => {
+    setImapEnabled(v)
+    setErr(null); setMsg(null)
+    try {
+      const res = await fetch('/api/plugins/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imapEnabled: v }),
+      })
+      const j = await res.json() as { error?: string; status?: MailStatus }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (j.status) setStatus(j.status)
+      setMsg(v ? (de ? 'IMAP-Konten aktiv' : 'IMAP accounts on') : (de ? 'IMAP-Konten aus — nur SelfMailer zählt' : 'IMAP accounts off — only SelfMailer counts'))
+      dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -724,6 +746,18 @@ export function MailSettingsPanel({
         ) : null}
       </div>
 
+      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>
+        <input type="checkbox" checked={imapEnabled} onChange={e => void toggleImap(e.target.checked)} />
+        {de ? 'IMAP-Konten verwenden' : 'Use IMAP accounts'}
+        {!imapEnabled ? (
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {de ? '(aus — nur SelfMailer zählt)' : '(off — only SelfMailer counts)'}
+          </span>
+        ) : null}
+      </label>
+
+      {imapEnabled ? (
+      <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <label style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
           {de ? 'E-Mail-Konten' : 'Email accounts'}
@@ -967,6 +1001,9 @@ export function MailSettingsPanel({
           ? `Ungelesen älter als der Wert wird ignoriert (Standard ${MAIL_UNREAD_MAX_AGE_DEFAULT} Tage). Aus = alle IMAP-UNSEEN. Max = ${MAIL_UNREAD_MAX_AGE_MAX_YEARS} Jahre. Eingabe in Tagen oder Jahren (bis ${MAIL_UNREAD_MAX_AGE_MAX_DAYS} Tage).`
           : `Unread older than the value is ignored (default ${MAIL_UNREAD_MAX_AGE_DEFAULT} days). Off = all IMAP UNSEEN. Max = ${MAIL_UNREAD_MAX_AGE_MAX_YEARS} years. Enter days or years (up to ${MAIL_UNREAD_MAX_AGE_MAX_DAYS} days).`}
       </p>
+
+      </>
+      ) : null}
 
       {status ? (
         <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)' }}>
