@@ -31,6 +31,7 @@ function shouldSyncAfterSettingsPut(body: Record<string, unknown>): boolean {
   if (typeof body.selfmailerBase === 'string') return true
   if (typeof body.selfmailerToken === 'string') return true
   if (body.clearSelfmailerToken === true) return true
+  if (typeof body.selfmailerSubfolders === 'boolean') return true
   if (typeof body.imapEnabled === 'boolean') return true
   if (typeof body.inboxOnly === 'boolean') return true
   return false
@@ -72,6 +73,7 @@ export async function handleMailSettingsGet(): Promise<Response> {
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(store.selfmailerToken),
+      selfmailerSubfolders: store.selfmailerSubfolders === true,
       status: store.status,
       config: toPublicConfigLegacy(store),
     })
@@ -107,6 +109,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
         s.selfmailerToken = body.selfmailerToken.trim()  // leer = unveraendert
       }
       if (body.clearSelfmailerToken === true) s.selfmailerToken = ''
+      if (typeof body.selfmailerSubfolders === 'boolean') s.selfmailerSubfolders = body.selfmailerSubfolders
       if (typeof body.deleteAccountId === 'string') {
         s.accounts = s.accounts.filter(a => a.id !== body.deleteAccountId)
         s.status.accounts = s.status.accounts.filter(a => a.id !== body.deleteAccountId)
@@ -141,6 +144,7 @@ export async function handleMailSettingsPut(req: Request): Promise<Response> {
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? '',
       hasSelfmailerToken: Boolean(updated.selfmailerToken),
+      selfmailerSubfolders: updated.selfmailerSubfolders === true,
       status: updated.status,
       config: toPublicConfigLegacy(updated),
     })

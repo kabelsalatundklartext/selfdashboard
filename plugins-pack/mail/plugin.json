@@ -2,7 +2,7 @@
   "id": "mail",
   "name": "E-Mail / IMAP",
   "description": "Navbar-Badge mit ungelesenen Mails: mehrere IMAP-Konten ODER eine SelfMailer-Quelle (alle Postfächer gebündelt). Einstellungen unter E-Mail.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "SelfDashboard",
   "category": "productivity",
   "icon": "✉️",

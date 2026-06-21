@@ -196,6 +196,10 @@ export interface MailStoreFile {
    *  Postfaecher in EINEN Navbar-Zaehler. Leer = aus (reiner IMAP-Modus). */
   selfmailerBase: string
   selfmailerToken: string
+  /** true = SelfMailer-Quelle zaehlt auch Unterordner/eigene Ordner (ohne
+   *  Papierkorb/Spam/Gesendet/Entwuerfe) statt nur den Posteingang. Wird als
+   *  `folders=all` an SelfMailers summary-Endpoint durchgereicht. */
+  selfmailerSubfolders: boolean
   status: MailAggregateStatus
 }
 

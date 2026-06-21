@@ -66,6 +66,7 @@ export function MailSettingsPanel({
   const [selfmailerBase, setSelfmailerBase] = useState('')
   const [selfmailerToken, setSelfmailerToken] = useState('')
   const [hasSelfmailerToken, setHasSelfmailerToken] = useState(false)
+  const [selfmailerSubfolders, setSelfmailerSubfolders] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState(emptyForm())
   const [hasPassword, setHasPassword] = useState(false)
@@ -114,6 +115,7 @@ export function MailSettingsPanel({
         inboxOnly?: boolean
         selfmailerBase?: string
         hasSelfmailerToken?: boolean
+        selfmailerSubfolders?: boolean
         status?: MailStatus
       }
       setNavbarEnabled(Boolean(j.navbarEnabled))
@@ -121,6 +123,7 @@ export function MailSettingsPanel({
       setInboxOnly(j.inboxOnly === true)
       setSelfmailerBase(typeof j.selfmailerBase === 'string' ? j.selfmailerBase : '')
       setHasSelfmailerToken(Boolean(j.hasSelfmailerToken))
+      setSelfmailerSubfolders(j.selfmailerSubfolders === true)
       if (typeof j.pollIntervalSeconds === 'number') {
         const sec = clampPollIntervalSeconds(j.pollIntervalSeconds)
         setPollIntervalSeconds(sec)
@@ -331,6 +334,27 @@ export function MailSettingsPanel({
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  const toggleSelfmailerSubfolders = async (v: boolean) => {
+    setSelfmailerSubfolders(v)
+    setErr(null); setMsg(null)
+    try {
+      const res = await fetch('/api/plugins/mail/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selfmailerSubfolders: v }),
+      })
+      const j = await res.json() as { error?: string; status?: MailStatus }
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`)
+      if (j.status) setStatus(j.status)
+      setMsg(v
+        ? (de ? 'SelfMailer: auch Unterordner (ohne Papierkorb/Spam/Gesendet/Entwürfe)' : 'SelfMailer: subfolders included (no trash/spam/sent/drafts)')
+        : (de ? 'SelfMailer: nur Posteingang' : 'SelfMailer: inbox only'))
+      dispatchMailConfigChanged({ unread: j.status?.unread, forceRefresh: true })
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -770,6 +794,20 @@ export function MailSettingsPanel({
             {de ? '✓ Token gespeichert' : '✓ Token saved'}
           </p>
         ) : null}
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text)', marginTop: '2px' }}>
+          <input type="checkbox" checked={selfmailerSubfolders} onChange={e => void toggleSelfmailerSubfolders(e.target.checked)} />
+          {de ? 'Auch Unterordner zählen' : 'Count subfolders too'}
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            {selfmailerSubfolders
+              ? (de ? '(ohne Papierkorb/Spam/Gesendet/Entwürfe)' : '(no trash/spam/sent/drafts)')
+              : (de ? '(aus — nur Posteingang)' : '(off — inbox only)')}
+          </span>
+        </label>
+        <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+          {de
+            ? 'Braucht eine aktuelle SelfMailer-Version; ältere zählen weiter nur den Posteingang.'
+            : 'Requires a recent SelfMailer; older versions still count inbox only.'}
+        </p>
       </div>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text)' }}>

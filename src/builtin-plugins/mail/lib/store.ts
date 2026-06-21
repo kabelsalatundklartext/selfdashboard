@@ -73,6 +73,7 @@ function defaultStore(): MailStoreFile {
     accounts: [],
     selfmailerBase: '',
     selfmailerToken: '',
+    selfmailerSubfolders: false,
     status: structuredClone(EMPTY_MAIL_STATUS),
   }
 }
@@ -106,6 +107,7 @@ function migrateFromV1(parsed: Record<string, unknown>): MailStoreFile {
     accounts: [account],
     selfmailerBase: '',
     selfmailerToken: '',
+    selfmailerSubfolders: false,
     status: {
       unread: st?.unread ?? 0,
       lastSyncAt: st?.lastSyncAt,
@@ -145,6 +147,7 @@ function normalizeStore(parsed: Record<string, unknown>): MailStoreFile {
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === 'string' ? parsed.selfmailerBase.trim() : '',
       selfmailerToken: typeof parsed.selfmailerToken === 'string' ? parsed.selfmailerToken : '',
+      selfmailerSubfolders: parsed.selfmailerSubfolders === true,
       status: {
         unread: status?.unread ?? 0,
         lastSyncAt: status?.lastSyncAt,

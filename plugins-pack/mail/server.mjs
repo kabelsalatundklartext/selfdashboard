@@ -733,6 +733,7 @@ function defaultStore() {
     accounts: [],
     selfmailerBase: "",
     selfmailerToken: "",
+    selfmailerSubfolders: false,
     status: structuredClone(EMPTY_MAIL_STATUS)
   };
 }
@@ -763,6 +764,7 @@ function migrateFromV1(parsed) {
     accounts: [account],
     selfmailerBase: "",
     selfmailerToken: "",
+    selfmailerSubfolders: false,
     status: {
       unread: st?.unread ?? 0,
       lastSyncAt: st?.lastSyncAt,
@@ -794,6 +796,7 @@ function normalizeStore(parsed) {
       accounts,
       selfmailerBase: typeof parsed.selfmailerBase === "string" ? parsed.selfmailerBase.trim() : "",
       selfmailerToken: typeof parsed.selfmailerToken === "string" ? parsed.selfmailerToken : "",
+      selfmailerSubfolders: parsed.selfmailerSubfolders === true,
       status: {
         unread: status?.unread ?? 0,
         lastSyncAt: status?.lastSyncAt,
@@ -1128,9 +1131,10 @@ async function fetchWithSsrfGuard(urlStr, init, maxRedirects = 5) {
 
 // plugins-pack/mail/lib/sync.ts
 var SELFMAILER_TIMEOUT_MS = 2e4;
-async function fetchSelfmailerUnread(base, token) {
+async function fetchSelfmailerUnread(base, token, subfolders) {
   const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, "");
-  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0`;
+  const scope = subfolders ? "all" : "inbox";
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0&folders=${scope}`;
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS);
   try {
@@ -1210,7 +1214,7 @@ async function runMailSync(opts) {
     }
     if (smEnabled) {
       try {
-        const sm = await fetchSelfmailerUnread(smBase, smToken);
+        const sm = await fetchSelfmailerUnread(smBase, smToken, store.selfmailerSubfolders === true);
         total += sm.total;
         for (const a of sm.accounts) perAccount.push(a);
       } catch (e) {
@@ -1250,6 +1254,7 @@ function shouldSyncAfterSettingsPut(body) {
   if (typeof body.selfmailerBase === "string") return true;
   if (typeof body.selfmailerToken === "string") return true;
   if (body.clearSelfmailerToken === true) return true;
+  if (typeof body.selfmailerSubfolders === "boolean") return true;
   if (typeof body.imapEnabled === "boolean") return true;
   if (typeof body.inboxOnly === "boolean") return true;
   return false;
@@ -1289,6 +1294,7 @@ async function handleMailSettingsGet() {
       accounts: store.accounts.map(toPublicAccount),
       selfmailerBase: store.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(store.selfmailerToken),
+      selfmailerSubfolders: store.selfmailerSubfolders === true,
       status: store.status,
       config: toPublicConfigLegacy(store)
     });
@@ -1323,6 +1329,7 @@ async function handleMailSettingsPut(req) {
         s.selfmailerToken = body.selfmailerToken.trim();
       }
       if (body.clearSelfmailerToken === true) s.selfmailerToken = "";
+      if (typeof body.selfmailerSubfolders === "boolean") s.selfmailerSubfolders = body.selfmailerSubfolders;
       if (typeof body.deleteAccountId === "string") {
         s.accounts = s.accounts.filter((a) => a.id !== body.deleteAccountId);
         s.status.accounts = s.status.accounts.filter((a) => a.id !== body.deleteAccountId);
@@ -1357,6 +1364,7 @@ async function handleMailSettingsPut(req) {
       accounts: updated.accounts.map(toPublicAccount),
       selfmailerBase: updated.selfmailerBase ?? "",
       hasSelfmailerToken: Boolean(updated.selfmailerToken),
+      selfmailerSubfolders: updated.selfmailerSubfolders === true,
       status: updated.status,
       config: toPublicConfigLegacy(updated)
     });

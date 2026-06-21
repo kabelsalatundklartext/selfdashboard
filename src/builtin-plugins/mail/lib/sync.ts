@@ -21,12 +21,16 @@ const SELFMAILER_TIMEOUT_MS = 20_000
 async function fetchSelfmailerUnread(
   base: string,
   token: string,
+  subfolders: boolean,
 ): Promise<{ total: number; accounts: MailAccountStatus[] }> {
   const b = (/^https?:\/\//i.test(base) ? base : `http://${base}`).replace(/\/+$/, '')
   // live=0 = SelfMailer-Cache (instant, ~0,2s). live=1 würde pro Postfach IMAP
   // anfragen → bei vielen/großen Konten >20s = Timeout. Der Cache ist aktuell
   // genug (SelfMailer pflegt ihn bei Nutzung); Badge braucht keine Echtzeit.
-  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0`
+  // folders=all = auch Unterordner (ohne Papierkorb/Spam/Gesendet/Entwürfe),
+  // inbox = nur Posteingang (Default). Ältere SelfMailer ignorieren den Parameter.
+  const scope = subfolders ? 'all' : 'inbox'
+  const url = `${b}/api/v1/dashboard/summary?token=${encodeURIComponent(token)}&live=0&folders=${scope}`
   const ac = new AbortController()
   const t = setTimeout(() => ac.abort(), SELFMAILER_TIMEOUT_MS)
   try {
@@ -123,7 +127,7 @@ export async function runMailSync(opts?: { wait?: boolean; resetStatus?: boolean
     // SelfMailer-Quelle: eine Instanz, alle Postfaecher gebuendelt.
     if (smEnabled) {
       try {
-        const sm = await fetchSelfmailerUnread(smBase, smToken)
+        const sm = await fetchSelfmailerUnread(smBase, smToken, store.selfmailerSubfolders === true)
         total += sm.total
         for (const a of sm.accounts) perAccount.push(a)
       } catch (e: unknown) {
