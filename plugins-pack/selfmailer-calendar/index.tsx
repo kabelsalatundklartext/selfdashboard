@@ -891,7 +891,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
