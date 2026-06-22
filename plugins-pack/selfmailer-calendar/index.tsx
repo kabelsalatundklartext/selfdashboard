@@ -6,6 +6,9 @@ import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const ACCENT = 'var(--accent, #14b8a6)'
+// Default-Kalenderfarbe (teal) wie im alten Kalender-Plugin — wenn ein Termin
+// keine eigene Quell-Farbe hat. Bewusst NICHT der --accent (im Dashboard gruen).
+const CAL_FALLBACK = '#2dd4bf'
 
 type Ev = {
   id: number
@@ -125,15 +128,11 @@ function localHM(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-/** Tages-Label relativ (Heute/Morgen) sonst Wochentag + Datum. */
+/** Tages-Label: Wochentag (kurz) + Tag + Monat — wie das alte Kalender-Plugin
+    (z. B. „Di., 23. Juni"), bewusst OHNE „Heute/Morgen". */
 function dayLabel(key: string, de: boolean): string {
-  const today = localDateKey(new Date())
-  const tmr = new Date()
-  tmr.setDate(tmr.getDate() + 1)
-  if (key === today) return de ? 'Heute' : 'Today'
-  if (key === localDateKey(tmr)) return de ? 'Morgen' : 'Tomorrow'
   const d = new Date(key + 'T12:00:00')
-  return d.toLocaleDateString(de ? 'de-DE' : 'en-US', { weekday: 'short', day: '2-digit', month: 'short' })
+  return d.toLocaleDateString(de ? 'de-DE' : 'en-US', { weekday: 'short', day: '2-digit', month: 'long' })
 }
 
 function timeLabel(ev: Ev, de: boolean): string {
@@ -660,19 +659,18 @@ function Widget({ config }: PluginWidgetProps) {
               {de ? 'Heute' : 'Today'}
             </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)', paddingBottom: 3, marginBottom: 3 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: 'var(--bg, var(--surface))', borderRadius: 6, padding: '6px 0', marginBottom: 3 }}>
             {weekdayLabels(de).map((w, i) => (
               <span
                 key={w}
                 style={{
-                  textAlign: 'right',
-                  paddingRight: 4,
-                  fontSize: 'clamp(7px, 2cqmin, 9px)',
+                  textAlign: 'center',
+                  fontSize: 'clamp(8px, 2.4cqmin, 11px)',
                   fontWeight: 600,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  color: i >= 5 ? 'var(--text-muted)' : 'var(--text-muted)',
-                  opacity: i >= 5 ? 0.7 : 1,
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-muted)',
+                  opacity: i >= 5 ? 0.6 : 1,
                 }}
               >
                 {w}
@@ -754,7 +752,7 @@ function Widget({ config }: PluginWidgetProps) {
                           justifyContent: 'center',
                           borderRadius: 999,
                           color: '#04201c',
-                          background: dayEvs[0].source_color || ACCENT,
+                          background: dayEvs[0].source_color || CAL_FALLBACK,
                           fontWeight: 700,
                           lineHeight: 1,
                         }}
@@ -800,7 +798,7 @@ function Widget({ config }: PluginWidgetProps) {
                       padding: '5px 8px',
                       borderRadius: 6,
                       border: 'none',
-                      borderLeft: `3px solid ${ev.source_color || ACCENT}`,
+                      borderLeft: `3px solid ${ev.source_color || CAL_FALLBACK}`,
                       background: 'var(--surface)',
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -1077,7 +1075,7 @@ function Widget({ config }: PluginWidgetProps) {
                           padding: '10px 12px',
                           borderRadius: 8,
                           border: '1px solid var(--border)',
-                          borderLeft: `3px solid ${ev.source_color || ACCENT}`,
+                          borderLeft: `3px solid ${ev.source_color || CAL_FALLBACK}`,
                           background: 'var(--bg, var(--surface))',
                           color: 'var(--text)',
                           cursor: 'pointer',
@@ -1385,7 +1383,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.5.0',
+  version: '1.6.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
