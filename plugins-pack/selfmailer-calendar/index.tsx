@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { usePluginLocale } from '@/lib/pluginLocale'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -248,7 +249,11 @@ function Widget({ config }: PluginWidgetProps) {
   }, [load, refreshMs])
 
   // Ziele erst beim Öffnen des Formulars holen (Google-Call vermeiden beim Pollen).
-  const openAdd = useCallback(async () => {
+  // Optionales Datum (Klick auf einen Tag) belegt das Formular vor.
+  const openAdd = useCallback(async (date?: string) => {
+    setFDate(date || selDay || localDateKey(new Date()))
+    setFTitle('')
+    setFTime('')
     setAdding(true)
     setSaveErr(null)
     if (targets === null && base && token) {
@@ -263,7 +268,7 @@ function Widget({ config }: PluginWidgetProps) {
         setTargets([{ key: 'local', label: de ? 'Lokal' : 'Local', color: '', primary: false }])
       }
     }
-  }, [targets, base, token, fTarget, de])
+  }, [targets, base, token, fTarget, de, selDay])
 
   const submit = useCallback(async () => {
     const t = fTitle.trim()
@@ -414,12 +419,12 @@ function Widget({ config }: PluginWidgetProps) {
         {allowAdd ? (
           <button
             type="button"
-            onClick={() => (adding ? setAdding(false) : void openAdd())}
+            onClick={() => void openAdd()}
             title={de ? 'Termin anlegen' : 'Add event'}
             style={{
               border: '1px solid var(--border)',
-              background: adding ? ACCENT : 'var(--surface)',
-              color: adding ? '#04201c' : 'var(--text)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
               borderRadius: 6,
               width: 24,
               height: 24,
@@ -429,82 +434,22 @@ function Widget({ config }: PluginWidgetProps) {
               flexShrink: 0,
             }}
           >
-            {adding ? '×' : '＋'}
+            ＋
           </button>
         ) : null}
       </div>
 
-      {/* Anlege-Formular */}
-      {adding ? (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            marginBottom: 10,
-            padding: 8,
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'var(--surface)',
-          }}
-        >
-          <input
-            value={fTitle}
-            onChange={(e) => setFTitle(e.target.value)}
-            placeholder={de ? 'Titel' : 'Title'}
-            autoFocus
-            style={miniInp}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void submit()
-            }}
-          />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...miniInp, flex: 1 }} />
-            <input
-              type="time"
-              value={fTime}
-              onChange={(e) => setFTime(e.target.value)}
-              title={de ? 'leer = ganztägig' : 'empty = all day'}
-              style={{ ...miniInp, width: 92 }}
-            />
-          </div>
-          <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} style={miniInp}>
-            {(targets ?? [{ key: 'local', label: de ? 'Lokal' : 'Local', color: '', primary: false }]).map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-                {t.primary ? ' ★' : ''}
-              </option>
-            ))}
-          </select>
-          {saveErr ? <p style={{ margin: 0, fontSize: 10, color: '#ef4444' }}>{saveErr}</p> : null}
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={saving || !fTitle.trim()}
-            style={{
-              ...miniInp,
-              cursor: 'pointer',
-              background: ACCENT,
-              color: '#04201c',
-              fontWeight: 700,
-              borderColor: ACCENT,
-              opacity: saving || !fTitle.trim() ? 0.6 : 1,
-            }}
-          >
-            {saving ? (de ? 'Speichere…' : 'Saving…') : de ? 'Anlegen' : 'Add'}
-          </button>
-        </div>
-      ) : null}
-
-      {/* Monatsraster */}
+      {/* Monatsraster (1:1 wie das Kalender-Plugin) */}
       {view === 'month' ? (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <button type="button" onClick={() => setCursor((c) => shiftMonth(c, -1))} title="‹" style={navBtn}>‹</button>
-            <span style={{ flex: 1, textAlign: 'center', fontSize: 'clamp(10px, 2.8cqmin, 12px)', fontWeight: 700, color: 'var(--text)' }}>
+            <span style={{ flex: 1, textAlign: 'center', fontSize: 'clamp(11px, 3cqmin, 13px)', fontWeight: 700, color: 'var(--text)' }}>
               {monthTitle(cursor, de)}
             </span>
             <button type="button" onClick={() => setCursor((c) => shiftMonth(c, 1))} title="›" style={navBtn}>›</button>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', margin: '3px 0 6px' }}>
             <button
               type="button"
               onClick={() => {
@@ -512,20 +457,44 @@ function Widget({ config }: PluginWidgetProps) {
                 setCursor({ year: n.getFullYear(), month: n.getMonth() })
                 setSelDay(localDateKey(n))
               }}
-              title={de ? 'Heute' : 'Today'}
-              style={{ ...navBtn, width: 'auto', padding: '0 6px', fontSize: 10 }}
+              style={{ ...navBtn, width: 'auto', height: 20, padding: '0 10px', fontSize: 10, fontWeight: 600 }}
             >
               {de ? 'Heute' : 'Today'}
             </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1 }}>
-            {weekdayLabels(de).map((w) => (
-              <span key={w} style={{ textAlign: 'center', fontSize: 'clamp(7px, 2cqmin, 9px)', color: 'var(--text-muted)', fontWeight: 600 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)', paddingBottom: 3, marginBottom: 3 }}>
+            {weekdayLabels(de).map((w, i) => (
+              <span
+                key={w}
+                style={{
+                  textAlign: 'right',
+                  paddingRight: 4,
+                  fontSize: 'clamp(7px, 2cqmin, 9px)',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: i >= 5 ? 'var(--text-muted)' : 'var(--text-muted)',
+                  opacity: i >= 5 ? 0.7 : 1,
+                }}
+              >
                 {w}
               </span>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '1fr', gap: 1, flex: 1, minHeight: 0 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gridAutoRows: '1fr',
+              gap: 1,
+              background: 'var(--border)',
+              border: '1px solid var(--border)',
+              borderRadius: 6,
+              overflow: 'hidden',
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
             {monthCells(cursor).map((d) => {
               const key = localDateKey(d)
               const dayEvs = eventsByDay.get(key) ?? []
@@ -539,88 +508,108 @@ function Widget({ config }: PluginWidgetProps) {
                   onClick={() => setSelDay(key)}
                   style={{
                     position: 'relative',
-                    border: isSel ? `1px solid ${ACCENT}` : '1px solid transparent',
-                    borderRadius: 4,
-                    background: 'transparent',
+                    border: 'none',
+                    boxShadow: isSel ? `inset 0 0 0 2px ${ACCENT}` : 'none',
+                    background: 'var(--surface)',
                     cursor: 'pointer',
-                    padding: 0,
+                    padding: '2px 3px',
                     minHeight: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'flex-start',
+                    alignItems: 'stretch',
                     gap: 1,
                     opacity: outside ? 0.4 : 1,
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: 'clamp(8px, 2.4cqmin, 11px)',
-                      width: '1.7em',
-                      height: '1.7em',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: 999,
-                      color: isToday ? '#04201c' : 'var(--text)',
-                      background: isToday ? ACCENT : 'transparent',
-                      fontWeight: isToday ? 700 : 400,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {d.getDate()}
-                  </span>
-                  {dayEvs.length > 0 ? (
+                  <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
                     <span
                       style={{
-                        fontSize: 'clamp(7px, 1.8cqmin, 9px)',
-                        minWidth: '1.4em',
-                        height: '1.4em',
-                        padding: '0 0.3em',
-                        display: 'flex',
+                        fontSize: 'clamp(8px, 2.4cqmin, 11px)',
+                        minWidth: '1.6em',
+                        height: '1.6em',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         borderRadius: 999,
-                        color: '#04201c',
-                        background: dayEvs[0].source_color || ACCENT,
-                        fontWeight: 700,
-                        lineHeight: 1,
+                        color: isToday ? '#04201c' : 'var(--text)',
+                        background: isToday ? ACCENT : 'transparent',
+                        fontWeight: isToday ? 700 : 400,
+                        fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {dayEvs.length}
+                      {d.getDate()}
+                    </span>
+                  </span>
+                  {dayEvs.length > 0 ? (
+                    <span style={{ display: 'flex', justifyContent: 'center' }}>
+                      <span
+                        style={{
+                          fontSize: 'clamp(7px, 1.8cqmin, 9px)',
+                          minWidth: '1.4em',
+                          height: '1.4em',
+                          padding: '0 0.3em',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: 999,
+                          color: '#04201c',
+                          background: dayEvs[0].source_color || ACCENT,
+                          fontWeight: 700,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {dayEvs.length}
+                      </span>
                     </span>
                   ) : null}
                 </button>
               )
             })}
           </div>
-          <div style={{ marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6, maxHeight: '36%', overflowY: 'auto' }}>
-            <p style={{ margin: '0 0 3px', fontSize: 'clamp(9px, 2.4cqmin, 11px)', fontWeight: 700, color: 'var(--text)' }}>
-              {dayLabel(selDay, de)}
-            </p>
-            {selDayEvents.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)' }}>
-                {de ? 'Keine Termine.' : 'No events.'}
+          {/* Termine des gewaehlten Tages — wie die Detailliste im Kalender-Plugin */}
+          <div style={{ marginTop: 8, maxHeight: '34%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <p style={{ margin: 0, flex: 1, fontSize: 'clamp(9px, 2.4cqmin, 12px)', fontWeight: 700, color: 'var(--text)' }}>
+                {dayLabel(selDay, de)}
+                {selDayEvents.length > 0 ? ` (${selDayEvents.length})` : ''}
               </p>
-            ) : (
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {selDayEvents.map((ev) => (
-                  <li
+              {allowAdd ? (
+                <button type="button" onClick={() => void openAdd(selDay)} title={de ? 'Termin anlegen' : 'Add event'} style={{ ...navBtn, width: 22, height: 22, fontSize: 14 }}>
+                  ＋
+                </button>
+              ) : null}
+            </div>
+            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {selDayEvents.length === 0 ? (
+                <p style={{ margin: 0, fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)' }}>
+                  {de ? 'Keine Termine.' : 'No events.'}
+                </p>
+              ) : (
+                selDayEvents.map((ev) => (
+                  <div
                     key={ev.id}
                     title={`${ev.title}${ev.location ? `\n📍 ${ev.location}` : ''}${ev.source_name ? `\n🗓 ${ev.source_name}` : ''}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 8,
+                      minWidth: 0,
+                      padding: '5px 8px',
+                      borderRadius: 6,
+                      borderLeft: `3px solid ${ev.source_color || ACCENT}`,
+                      background: 'var(--surface)',
+                    }}
                   >
-                    <span style={dot(ev.source_color)} />
-                    <span style={{ fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', minWidth: 38 }}>
+                    <span style={{ fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontFamily: 'var(--font-mono, monospace)' }}>
                       {timeLabel(ev, de)}
                     </span>
                     <span style={{ fontSize: 'clamp(10px, 2.8cqmin, 12px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {ev.title || (de ? '(ohne Titel)' : '(no title)')}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -683,8 +672,115 @@ function Widget({ config }: PluginWidgetProps) {
         )}
       </div>
       )}
+      {adding && allowAdd && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              onClick={() => setAdding(false)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(2px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: 'min(360px, 92vw)',
+                  background: 'var(--surface, #1b1b1f)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <p style={{ margin: 0, flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                    {de ? 'Neuer Termin' : 'New event'}
+                  </p>
+                  <button type="button" onClick={() => setAdding(false)} title={de ? 'Schließen' : 'Close'} style={{ ...navBtn, width: 26, height: 26, fontSize: 15 }}>
+                    ×
+                  </button>
+                </div>
+                <input
+                  value={fTitle}
+                  onChange={(e) => setFTitle(e.target.value)}
+                  placeholder={de ? 'Titel' : 'Title'}
+                  autoFocus
+                  style={modalInp}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void submit()
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...modalInp, flex: 1 }} />
+                  <input
+                    type="time"
+                    value={fTime}
+                    onChange={(e) => setFTime(e.target.value)}
+                    title={de ? 'leer = ganztägig' : 'empty = all day'}
+                    style={{ ...modalInp, width: 110 }}
+                  />
+                </div>
+                <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} style={modalInp}>
+                  {(targets ?? [{ key: 'local', label: de ? 'Lokal' : 'Local', color: '', primary: false }]).map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label}
+                      {t.primary ? ' ★' : ''}
+                    </option>
+                  ))}
+                </select>
+                {saveErr ? <p style={{ margin: 0, fontSize: 11, color: '#ef4444' }}>{saveErr}</p> : null}
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
+                  <button type="button" onClick={() => setAdding(false)} style={{ ...modalInp, width: 'auto', padding: '8px 14px', cursor: 'pointer' }}>
+                    {de ? 'Abbrechen' : 'Cancel'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submit()}
+                    disabled={saving || !fTitle.trim()}
+                    style={{
+                      ...modalInp,
+                      width: 'auto',
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      background: ACCENT,
+                      color: '#04201c',
+                      fontWeight: 700,
+                      borderColor: ACCENT,
+                      opacity: saving || !fTitle.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {saving ? (de ? 'Speichere…' : 'Saving…') : de ? 'Anlegen' : 'Add'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
+}
+
+const modalInp: CSSProperties = {
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid var(--border)',
+  background: 'var(--bg, var(--surface))',
+  color: 'var(--text)',
+  fontSize: 13,
+  boxSizing: 'border-box',
+  outline: 'none',
+  width: '100%',
 }
 
 const navBtn: CSSProperties = {
@@ -715,18 +811,6 @@ function toggleBtn(active: boolean): CSSProperties {
     flexShrink: 0,
     padding: 0,
   }
-}
-
-const miniInp: CSSProperties = {
-  padding: '5px 8px',
-  borderRadius: 6,
-  border: '1px solid var(--border)',
-  background: 'var(--bg, var(--surface))',
-  color: 'var(--text)',
-  fontSize: 12,
-  boxSizing: 'border-box',
-  outline: 'none',
-  width: '100%',
 }
 
 // ---------------------------------------------------------------------------
@@ -891,7 +975,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.1.0',
+  version: '1.2.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
