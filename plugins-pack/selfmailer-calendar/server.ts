@@ -34,6 +34,8 @@ interface ReqBody {
   token?: string
   // summary
   days?: number
+  from?: string // ISO — expliziter Zeitbereichsanfang (Monatsansicht); ueberschreibt days
+  to?: string   // ISO — expliziter Zeitbereichsende (Monatsansicht)
   // create
   title?: string
   description?: string
@@ -66,6 +68,14 @@ function isoPlusDays(days: number): string {
   d.setHours(0, 0, 0, 0)
   d.setDate(d.getDate() + Math.max(1, Math.min(366, Math.round(days || 30))))
   return d.toISOString()
+}
+
+/** Akzeptiert nur gueltige ISO-Datumsangaben (sonst null → Fallback greift). */
+function isoOrNull(raw: unknown): string | null {
+  const s = typeof raw === 'string' ? raw.trim() : ''
+  if (!s) return null
+  const t = Date.parse(s)
+  return Number.isNaN(t) ? null : new Date(t).toISOString()
 }
 
 /**
@@ -129,9 +139,11 @@ export async function handleCalendarRequest(req: Request): Promise<Response> {
       }),
     }
   } else {
-    // summary: kommende Termine ab heute
-    const from = encodeURIComponent(isoFloorToday())
-    const to = encodeURIComponent(isoPlusDays(body.days ?? 30))
+    // summary: expliziter Zeitbereich (Monatsansicht) ODER kommende Termine ab heute.
+    const fromIso = isoOrNull(body.from)
+    const toIso = isoOrNull(body.to)
+    const from = encodeURIComponent(fromIso ?? isoFloorToday())
+    const to = encodeURIComponent(toIso ?? isoPlusDays(body.days ?? 30))
     url = `${base}/api/v1/calendar/events?token=${tq}&start_from=${from}&start_to=${to}`
     init = { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
   }

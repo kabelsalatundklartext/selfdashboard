@@ -165,6 +165,12 @@ function isoPlusDays(days) {
   d.setDate(d.getDate() + Math.max(1, Math.min(366, Math.round(days || 30))));
   return d.toISOString();
 }
+function isoOrNull(raw) {
+  const s = typeof raw === "string" ? raw.trim() : "";
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
 async function handleCalendarRequest(req) {
   if (req.method !== "POST") {
     return NextResponse.json({ error: "method_not_allowed" }, { status: 405 });
@@ -214,8 +220,10 @@ async function handleCalendarRequest(req) {
       })
     };
   } else {
-    const from = encodeURIComponent(isoFloorToday());
-    const to = encodeURIComponent(isoPlusDays(body.days ?? 30));
+    const fromIso = isoOrNull(body.from);
+    const toIso = isoOrNull(body.to);
+    const from = encodeURIComponent(fromIso ?? isoFloorToday());
+    const to = encodeURIComponent(toIso ?? isoPlusDays(body.days ?? 30));
     url = `${base}/api/v1/calendar/events?token=${tq}&start_from=${from}&start_to=${to}`;
     init = { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" };
   }

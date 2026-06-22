@@ -49,8 +49,12 @@ async function callProxy(payload: Record<string, unknown>): Promise<Record<strin
   return json
 }
 
-async function fetchEvents(base: string, token: string, days: number): Promise<Ev[]> {
-  const json = await callProxy({ action: 'summary', base, token, days })
+async function fetchEvents(
+  base: string,
+  token: string,
+  params: { days?: number; from?: string; to?: string },
+): Promise<Ev[]> {
+  const json = await callProxy({ action: 'summary', base, token, ...params })
   return Array.isArray(json.events) ? (json.events as Ev[]) : []
 }
 
@@ -125,6 +129,54 @@ function buildTimes(date: string, time: string): { start: string; end: string; a
 }
 
 // ---------------------------------------------------------------------------
+// Monatsansicht-Helfer
+// ---------------------------------------------------------------------------
+
+type Cursor = { year: number; month: number } // month: 0-11
+
+function shiftMonth(c: Cursor, delta: number): Cursor {
+  const m = c.month + delta
+  return { year: c.year + Math.floor(m / 12), month: ((m % 12) + 12) % 12 }
+}
+
+function monthTitle(c: Cursor, de: boolean): string {
+  return new Date(c.year, c.month, 1).toLocaleDateString(de ? 'de-DE' : 'en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/** Wochentagskuerzel Mo..So, lokalisiert. */
+function weekdayLabels(de: boolean): string[] {
+  return Array.from({ length: 7 }, (_, i) =>
+    new Date(2024, 0, 1 + i).toLocaleDateString(de ? 'de-DE' : 'en-US', { weekday: 'short' }),
+  )
+}
+
+/** 42 Tage (6 Wochen) ab dem Montag der ersten Monatswoche. */
+function monthCells(c: Cursor): Date[] {
+  const first = new Date(c.year, c.month, 1)
+  const offset = (first.getDay() + 6) % 7 // Mo=0
+  const start = new Date(first)
+  start.setDate(1 - offset)
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
+    return d
+  })
+}
+
+/** Sichtbarer 6-Wochen-Bereich als ISO-Zeitfenster (fuer den Datenabruf). */
+function monthRange(c: Cursor): { from: string; to: string } {
+  const cells = monthCells(c)
+  const from = new Date(cells[0])
+  from.setHours(0, 0, 0, 0)
+  const to = new Date(cells[41])
+  to.setHours(23, 59, 59, 0)
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
+// ---------------------------------------------------------------------------
 // Widget
 // ---------------------------------------------------------------------------
 
@@ -138,10 +190,27 @@ function Widget({ config }: PluginWidgetProps) {
   const title = config.title === undefined ? (de ? 'Kalender' : 'Calendar') : str(config.title)
   const defaultTarget = str(config.defaultTarget) || 'local'
   const refreshMs = Math.max(60, num(config.refreshSeconds) || 300) * 1000
+  const configView: 'month' | 'agenda' = str(config.view) === 'agenda' ? 'agenda' : 'month'
 
   const [events, setEvents] = useState<Ev[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Ansicht (Monat/Agenda) — Default aus Einstellungen, Umschaltung pro Browser gemerkt.
+  const [view, setView] = useState<'month' | 'agenda'>(() => {
+    try {
+      const v = localStorage.getItem('selfmailer-calendar.view')
+      if (v === 'month' || v === 'agenda') return v
+    } catch { /* egal */ }
+    return configView
+  })
+  const setViewPersist = useCallback((v: 'month' | 'agenda') => {
+    setView(v)
+    try { localStorage.setItem('selfmailer-calendar.view', v) } catch { /* egal */ }
+  }, [])
+  const today = new Date()
+  const [cursor, setCursor] = useState<Cursor>({ year: today.getFullYear(), month: today.getMonth() })
+  const [selDay, setSelDay] = useState<string>(localDateKey(today))
 
   // Anlege-Formular
   const [adding, setAdding] = useState(false)
@@ -159,7 +228,10 @@ function Widget({ config }: PluginWidgetProps) {
       return
     }
     try {
-      const ev = await fetchEvents(base, token, days)
+      // Monatsansicht: den sichtbaren 6-Wochen-Bereich holen (auch Vergangenheit).
+      // Agenda: kommende Termine ab heute (days).
+      const params = view === 'month' ? monthRange(cursor) : { days }
+      const ev = await fetchEvents(base, token, params)
       setEvents(ev)
       setError(null)
     } catch (e) {
@@ -167,7 +239,7 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       setLoading(false)
     }
-  }, [base, token, days])
+  }, [base, token, days, view, cursor])
 
   useEffect(() => {
     void load()
@@ -222,6 +294,21 @@ function Widget({ config }: PluginWidgetProps) {
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [events])
+
+  // Tag → Termine (fuer das Monatsraster); je Tag nach Startzeit sortiert.
+  const eventsByDay = useMemo(() => {
+    const m = new Map<string, Ev[]>()
+    for (const ev of events ?? []) {
+      const key = localDateKey(new Date(ev.start))
+      const arr = m.get(key) ?? []
+      arr.push(ev)
+      m.set(key, arr)
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.start.localeCompare(b.start))
+    return m
+  }, [events])
+
+  const selDayEvents = eventsByDay.get(selDay) ?? []
 
   const shell: CSSProperties = {
     height: '100%',
@@ -305,6 +392,25 @@ function Widget({ config }: PluginWidgetProps) {
         ) : (
           <span style={{ flex: 1 }} />
         )}
+        {/* Ansichts-Umschalter: Monatsraster / Agenda-Liste */}
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setViewPersist('month')}
+            title={de ? 'Monat' : 'Month'}
+            style={toggleBtn(view === 'month')}
+          >
+            ▦
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewPersist('agenda')}
+            title={de ? 'Liste' : 'List'}
+            style={toggleBtn(view === 'agenda')}
+          >
+            ☰
+          </button>
+        </div>
         {allowAdd ? (
           <button
             type="button"
@@ -390,7 +496,135 @@ function Widget({ config }: PluginWidgetProps) {
         </div>
       ) : null}
 
-      {/* Terminliste */}
+      {/* Monatsraster */}
+      {view === 'month' ? (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+            <button type="button" onClick={() => setCursor((c) => shiftMonth(c, -1))} title="‹" style={navBtn}>‹</button>
+            <span style={{ flex: 1, textAlign: 'center', fontSize: 'clamp(10px, 2.8cqmin, 12px)', fontWeight: 700, color: 'var(--text)' }}>
+              {monthTitle(cursor, de)}
+            </span>
+            <button type="button" onClick={() => setCursor((c) => shiftMonth(c, 1))} title="›" style={navBtn}>›</button>
+            <button
+              type="button"
+              onClick={() => {
+                const n = new Date()
+                setCursor({ year: n.getFullYear(), month: n.getMonth() })
+                setSelDay(localDateKey(n))
+              }}
+              title={de ? 'Heute' : 'Today'}
+              style={{ ...navBtn, width: 'auto', padding: '0 6px', fontSize: 10 }}
+            >
+              {de ? 'Heute' : 'Today'}
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1 }}>
+            {weekdayLabels(de).map((w) => (
+              <span key={w} style={{ textAlign: 'center', fontSize: 'clamp(7px, 2cqmin, 9px)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                {w}
+              </span>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '1fr', gap: 1, flex: 1, minHeight: 0 }}>
+            {monthCells(cursor).map((d) => {
+              const key = localDateKey(d)
+              const dayEvs = eventsByDay.get(key) ?? []
+              const outside = d.getMonth() !== cursor.month
+              const isToday = key === localDateKey(today)
+              const isSel = key === selDay
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSelDay(key)}
+                  style={{
+                    position: 'relative',
+                    border: isSel ? `1px solid ${ACCENT}` : '1px solid transparent',
+                    borderRadius: 4,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    padding: 0,
+                    minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    gap: 1,
+                    opacity: outside ? 0.4 : 1,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 'clamp(8px, 2.4cqmin, 11px)',
+                      width: '1.7em',
+                      height: '1.7em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 999,
+                      color: isToday ? '#04201c' : 'var(--text)',
+                      background: isToday ? ACCENT : 'transparent',
+                      fontWeight: isToday ? 700 : 400,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {d.getDate()}
+                  </span>
+                  {dayEvs.length > 0 ? (
+                    <span
+                      style={{
+                        fontSize: 'clamp(7px, 1.8cqmin, 9px)',
+                        minWidth: '1.4em',
+                        height: '1.4em',
+                        padding: '0 0.3em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 999,
+                        color: '#04201c',
+                        background: dayEvs[0].source_color || ACCENT,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {dayEvs.length}
+                    </span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6, maxHeight: '36%', overflowY: 'auto' }}>
+            <p style={{ margin: '0 0 3px', fontSize: 'clamp(9px, 2.4cqmin, 11px)', fontWeight: 700, color: 'var(--text)' }}>
+              {dayLabel(selDay, de)}
+            </p>
+            {selDayEvents.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)' }}>
+                {de ? 'Keine Termine.' : 'No events.'}
+              </p>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {selDayEvents.map((ev) => (
+                  <li
+                    key={ev.id}
+                    title={`${ev.title}${ev.location ? `\n📍 ${ev.location}` : ''}${ev.source_name ? `\n🗓 ${ev.source_name}` : ''}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}
+                  >
+                    <span style={dot(ev.source_color)} />
+                    <span style={{ fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', minWidth: 38 }}>
+                      {timeLabel(ev, de)}
+                    </span>
+                    <span style={{ fontSize: 'clamp(10px, 2.8cqmin, 12px)', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ev.title || (de ? '(ohne Titel)' : '(no title)')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : (
+      /* Agenda-Liste */
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
         {grouped.length === 0 ? (
           <p style={{ fontSize: 'clamp(11px, 3cqmin, 13px)', color: 'var(--text-muted)', margin: 0 }}>
@@ -448,8 +682,39 @@ function Widget({ config }: PluginWidgetProps) {
           ))
         )}
       </div>
+      )}
     </div>
   )
+}
+
+const navBtn: CSSProperties = {
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--text)',
+  borderRadius: 6,
+  width: 22,
+  height: 22,
+  fontSize: 13,
+  lineHeight: 1,
+  cursor: 'pointer',
+  flexShrink: 0,
+  padding: 0,
+}
+
+function toggleBtn(active: boolean): CSSProperties {
+  return {
+    border: `1px solid ${active ? ACCENT : 'var(--border)'}`,
+    background: active ? ACCENT : 'var(--surface)',
+    color: active ? '#04201c' : 'var(--text)',
+    borderRadius: 6,
+    width: 24,
+    height: 24,
+    fontSize: 12,
+    lineHeight: 1,
+    cursor: 'pointer',
+    flexShrink: 0,
+    padding: 0,
+  }
 }
 
 const miniInp: CSSProperties = {
