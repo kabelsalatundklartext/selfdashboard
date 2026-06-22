@@ -26,7 +26,7 @@ function normalizeBase(raw: string): string {
   return out
 }
 
-type Action = 'summary' | 'targets' | 'create'
+type Action = 'summary' | 'targets' | 'create' | 'update' | 'delete'
 
 interface ReqBody {
   action?: Action
@@ -36,7 +36,8 @@ interface ReqBody {
   days?: number
   from?: string // ISO — expliziter Zeitbereichsanfang (Monatsansicht); ueberschreibt days
   to?: string   // ISO — expliziter Zeitbereichsende (Monatsansicht)
-  // create
+  // create / update
+  id?: number    // SelfMailer-Event-ID (update/delete)
   title?: string
   description?: string
   location?: string
@@ -138,6 +139,33 @@ export async function handleCalendarRequest(req: Request): Promise<Response> {
         gcal_calendar_id,
       }),
     }
+  } else if (action === 'update') {
+    const id = Number(body.id)
+    if (!Number.isInteger(id)) return NextResponse.json({ error: 'missing_id' }, { status: 400 })
+    const start = String(body.start ?? '').trim()
+    const end = String(body.end ?? '').trim()
+    const title = String(body.title ?? '').trim()
+    if (!title) return NextResponse.json({ error: 'missing_title' }, { status: 400 })
+    if (!start || !end) return NextResponse.json({ error: 'missing_time' }, { status: 400 })
+    url = `${base}/api/v1/calendar/events/${id}?token=${tq}`
+    init = {
+      method: 'PATCH',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        title,
+        description: String(body.description ?? ''),
+        location: String(body.location ?? ''),
+        start,
+        end,
+        all_day: body.allDay === true,
+      }),
+    }
+  } else if (action === 'delete') {
+    const id = Number(body.id)
+    if (!Number.isInteger(id)) return NextResponse.json({ error: 'missing_id' }, { status: 400 })
+    url = `${base}/api/v1/calendar/events/${id}?token=${tq}`
+    init = { method: 'DELETE', headers: { Accept: 'application/json' }, cache: 'no-store' }
   } else {
     // summary: expliziter Zeitbereich (Monatsansicht) ODER kommende Termine ab heute.
     const fromIso = isoOrNull(body.from)
