@@ -67,7 +67,7 @@ async function fetchTargets(base: string, token: string): Promise<Target[]> {
 async function createEvent(
   base: string,
   token: string,
-  ev: { title: string; start: string; end: string; allDay: boolean; location?: string; target: string },
+  ev: { title: string; start: string; end: string; allDay: boolean; location?: string; description?: string; target: string },
 ): Promise<void> {
   await callProxy({ action: 'create', base, token, ...ev })
 }
@@ -117,15 +117,26 @@ function timeLabel(ev: Ev, de: boolean): string {
   return d.toLocaleTimeString(de ? 'de-DE' : 'en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
-/** Eingaben des Formulars in ISO-UTC + all_day fuer SelfMailer umrechnen. */
-function buildTimes(date: string, time: string): { start: string; end: string; allDay: boolean } {
-  if (!time) {
-    // Ganztags: Mitternacht UTC, Ende = Start (SelfMailer behandelt all_day-Ende inklusiv).
-    const s = new Date(date + 'T00:00:00Z').toISOString()
-    return { start: s, end: s, allDay: true }
+/** Formular-Eingaben (Beginn/Ende, Ganztags) in ISO-UTC + all_day umrechnen. */
+function buildTimes(
+  startDate: string,
+  startTime: string,
+  endDate: string,
+  endTime: string,
+  allDay: boolean,
+): { start: string; end: string; allDay: boolean } {
+  if (allDay) {
+    // Ganztags: Mitternacht UTC; Ende = Enddatum (oder Startdatum), inklusiv.
+    const s = new Date(startDate + 'T00:00:00Z').toISOString()
+    const e = new Date((endDate || startDate) + 'T00:00:00Z').toISOString()
+    return { start: s, end: e, allDay: true }
   }
-  const start = new Date(`${date}T${time}`) // lokale Zeit des Browsers
-  const end = new Date(start.getTime() + 60 * 60 * 1000)
+  // lokale Zeit des Browsers → UTC. Ohne Startzeit: 00:00. Ohne Endwert: Start + 1 h.
+  const start = new Date(`${startDate}T${startTime || '00:00'}`)
+  const end =
+    endDate && endTime
+      ? new Date(`${endDate}T${endTime}`)
+      : new Date(start.getTime() + 60 * 60 * 1000)
   return { start: start.toISOString(), end: end.toISOString(), allDay: false }
 }
 
@@ -219,9 +230,34 @@ function Widget({ config }: PluginWidgetProps) {
   const [fTitle, setFTitle] = useState('')
   const [fDate, setFDate] = useState(localDateKey(new Date()))
   const [fTime, setFTime] = useState('')
+  const [fEndDate, setFEndDate] = useState(localDateKey(new Date()))
+  const [fEndTime, setFEndTime] = useState('')
+  const [fAllDay, setFAllDay] = useState(false)
+  const [fLocation, setFLocation] = useState('')
+  const [fNotes, setFNotes] = useState('')
   const [fTarget, setFTarget] = useState(defaultTarget)
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
+
+  // Kalender-Filter (Zahnrad): ausgeblendete Quell-Kalender, pro Browser gemerkt.
+  const [gearOpen, setGearOpen] = useState(false)
+  const [hiddenSrc, setHiddenSrc] = useState<Set<string>>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('selfmailer-calendar.hidden') || '[]')
+      return new Set(Array.isArray(v) ? v.map(String) : [])
+    } catch {
+      return new Set()
+    }
+  })
+  const toggleSrc = useCallback((key: string) => {
+    setHiddenSrc((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      try { localStorage.setItem('selfmailer-calendar.hidden', JSON.stringify([...next])) } catch { /* egal */ }
+      return next
+    })
+  }, [])
 
   const load = useCallback(async () => {
     if (!base || !token) {
@@ -251,9 +287,15 @@ function Widget({ config }: PluginWidgetProps) {
   // Ziele erst beim Öffnen des Formulars holen (Google-Call vermeiden beim Pollen).
   // Optionales Datum (Klick auf einen Tag) belegt das Formular vor.
   const openAdd = useCallback(async (date?: string) => {
-    setFDate(date || selDay || localDateKey(new Date()))
+    const d = date || selDay || localDateKey(new Date())
+    setFDate(d)
+    setFEndDate(d)
     setFTitle('')
     setFTime('')
+    setFEndTime('')
+    setFAllDay(false)
+    setFLocation('')
+    setFNotes('')
     setAdding(true)
     setSaveErr(null)
     if (targets === null && base && token) {
@@ -276,10 +318,18 @@ function Widget({ config }: PluginWidgetProps) {
     setSaving(true)
     setSaveErr(null)
     try {
-      const times = buildTimes(fDate, fTime)
-      await createEvent(base, token, { title: t, target: fTarget, ...times })
+      const times = buildTimes(fDate, fTime, fEndDate, fEndTime, fAllDay)
+      await createEvent(base, token, {
+        title: t,
+        target: fTarget,
+        location: fLocation.trim(),
+        description: fNotes.trim(),
+        ...times,
+      })
       setFTitle('')
       setFTime('')
+      setFLocation('')
+      setFNotes('')
       setAdding(false)
       await load()
     } catch (e) {
@@ -287,23 +337,38 @@ function Widget({ config }: PluginWidgetProps) {
     } finally {
       setSaving(false)
     }
-  }, [fTitle, fDate, fTime, fTarget, base, token, de, load])
+  }, [fTitle, fDate, fTime, fEndDate, fEndTime, fAllDay, fLocation, fNotes, fTarget, base, token, de, load])
+
+  // Sichtbare Events nach Kalender-Filter (Zahnrad).
+  const shownEvents = useMemo(
+    () => (events ?? []).filter((e) => !hiddenSrc.has(e.source_key || `dav:${e.dav_account_id ?? 'local'}`)),
+    [events, hiddenSrc],
+  )
+  // Alle vorkommenden Quell-Kalender (key → Name/Farbe) fuer die Zahnrad-Liste.
+  const sources = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; color: string }>()
+    for (const e of events ?? []) {
+      const key = e.source_key || `dav:${e.dav_account_id ?? 'local'}`
+      if (!m.has(key)) m.set(key, { key, name: e.source_name || (key === 'local' ? 'Lokal' : key), color: e.source_color || '' })
+    }
+    return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [events])
 
   const grouped = useMemo(() => {
     const out = new Map<string, Ev[]>()
-    for (const ev of events ?? []) {
+    for (const ev of shownEvents) {
       const key = localDateKey(new Date(ev.start))
       const arr = out.get(key) ?? []
       arr.push(ev)
       out.set(key, arr)
     }
     return [...out.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-  }, [events])
+  }, [shownEvents])
 
   // Tag → Termine (fuer das Monatsraster); je Tag nach Startzeit sortiert.
   const eventsByDay = useMemo(() => {
     const m = new Map<string, Ev[]>()
-    for (const ev of events ?? []) {
+    for (const ev of shownEvents) {
       const key = localDateKey(new Date(ev.start))
       const arr = m.get(key) ?? []
       arr.push(ev)
@@ -311,7 +376,7 @@ function Widget({ config }: PluginWidgetProps) {
     }
     for (const arr of m.values()) arr.sort((a, b) => a.start.localeCompare(b.start))
     return m
-  }, [events])
+  }, [shownEvents])
 
   const selDayEvents = eventsByDay.get(selDay) ?? []
 
@@ -435,6 +500,27 @@ function Widget({ config }: PluginWidgetProps) {
             }}
           >
             ＋
+          </button>
+        ) : null}
+        {sources.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setGearOpen(true)}
+            title={de ? 'Kalender anzeigen/ausblenden' : 'Show/hide calendars'}
+            style={{
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              borderRadius: 6,
+              width: 24,
+              height: 24,
+              fontSize: 13,
+              lineHeight: 1,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ⚙
           </button>
         ) : null}
       </div>
@@ -710,34 +796,62 @@ function Widget({ config }: PluginWidgetProps) {
                     ×
                   </button>
                 </div>
-                <input
-                  value={fTitle}
-                  onChange={(e) => setFTitle(e.target.value)}
-                  placeholder={de ? 'Titel' : 'Title'}
-                  autoFocus
-                  style={modalInp}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void submit()
-                  }}
-                />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...modalInp, flex: 1 }} />
+                <div>
+                  <label style={modalLbl}>{de ? 'Titel' : 'Title'}</label>
                   <input
-                    type="time"
-                    value={fTime}
-                    onChange={(e) => setFTime(e.target.value)}
-                    title={de ? 'leer = ganztägig' : 'empty = all day'}
-                    style={{ ...modalInp, width: 110 }}
+                    value={fTitle}
+                    onChange={(e) => setFTitle(e.target.value)}
+                    placeholder={de ? 'Titel' : 'Title'}
+                    autoFocus
+                    style={modalInp}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void submit()
+                    }}
                   />
                 </div>
-                <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} style={modalInp}>
-                  {(targets ?? [{ key: 'local', label: de ? 'Lokal' : 'Local', color: '', primary: false }]).map((t) => (
-                    <option key={t.key} value={t.key}>
-                      {t.label}
-                      {t.primary ? ' ★' : ''}
-                    </option>
-                  ))}
-                </select>
+                <div>
+                  <label style={modalLbl}>{de ? 'Kalender' : 'Calendar'}</label>
+                  <select value={fTarget} onChange={(e) => setFTarget(e.target.value)} style={modalInp}>
+                    {(targets ?? [{ key: 'local', label: de ? 'Lokal' : 'Local', color: '', primary: false }]).map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                        {t.primary ? ' ★' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={fAllDay} onChange={(e) => setFAllDay(e.target.checked)} />
+                  {de ? 'Ganztägig' : 'All day'}
+                </label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <label style={modalLbl}>{de ? 'Beginn' : 'Start'}</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} style={{ ...modalInp, flex: 1, minWidth: 0 }} />
+                      {!fAllDay ? (
+                        <input type="time" value={fTime} onChange={(e) => setFTime(e.target.value)} style={{ ...modalInp, width: 86 }} />
+                      ) : null}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <label style={modalLbl}>{de ? 'Ende' : 'End'}</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input type="date" value={fEndDate} onChange={(e) => setFEndDate(e.target.value)} style={{ ...modalInp, flex: 1, minWidth: 0 }} />
+                      {!fAllDay ? (
+                        <input type="time" value={fEndTime} onChange={(e) => setFEndTime(e.target.value)} style={{ ...modalInp, width: 86 }} />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label style={modalLbl}>{de ? 'Ort' : 'Location'}</label>
+                  <input value={fLocation} onChange={(e) => setFLocation(e.target.value)} placeholder={de ? 'Ort' : 'Location'} style={modalInp} />
+                </div>
+                <div>
+                  <label style={modalLbl}>{de ? 'Notizen' : 'Notes'}</label>
+                  <textarea value={fNotes} onChange={(e) => setFNotes(e.target.value)} rows={2} style={{ ...modalInp, resize: 'vertical', minHeight: 48 }} />
+                </div>
                 {saveErr ? <p style={{ margin: 0, fontSize: 11, color: '#ef4444' }}>{saveErr}</p> : null}
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 2 }}>
                   <button type="button" onClick={() => setAdding(false)} style={{ ...modalInp, width: 'auto', padding: '8px 14px', cursor: 'pointer' }}>
@@ -767,6 +881,61 @@ function Widget({ config }: PluginWidgetProps) {
             document.body,
           )
         : null}
+      {gearOpen && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              onClick={() => setGearOpen(false)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 9999,
+                background: 'rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(2px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: 'min(340px, 92vw)',
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  background: 'var(--surface, #1b1b1f)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <p style={{ margin: 0, flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                    {de ? 'Kalender anzeigen' : 'Show calendars'}
+                  </p>
+                  <button type="button" onClick={() => setGearOpen(false)} title={de ? 'Schließen' : 'Close'} style={{ ...navBtn, width: 26, height: 26, fontSize: 15 }}>
+                    ×
+                  </button>
+                </div>
+                {sources.map((s) => {
+                  const visible = !hiddenSrc.has(s.key)
+                  return (
+                    <label key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer', padding: '4px 2px' }}>
+                      <input type="checkbox" checked={visible} onChange={() => toggleSrc(s.key)} />
+                      <span style={{ width: 10, height: 10, borderRadius: 999, flexShrink: 0, background: s.color || ACCENT }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -781,6 +950,16 @@ const modalInp: CSSProperties = {
   boxSizing: 'border-box',
   outline: 'none',
   width: '100%',
+}
+
+const modalLbl: CSSProperties = {
+  display: 'block',
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.06em',
+  color: 'var(--text-muted)',
+  marginBottom: 4,
 }
 
 const navBtn: CSSProperties = {
@@ -975,7 +1154,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.2.0',
+  version: '1.3.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',
