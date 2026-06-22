@@ -64,6 +64,13 @@ async function fetchTargets(base: string, token: string): Promise<Target[]> {
   return Array.isArray(json.targets) ? (json.targets as Target[]) : []
 }
 
+type CalInfo = { key: string; name: string; color: string }
+
+async function fetchAllCalendars(base: string, token: string): Promise<CalInfo[]> {
+  const json = await callProxy({ action: 'calendars', base, token })
+  return Array.isArray(json.calendars) ? (json.calendars as CalInfo[]) : []
+}
+
 async function createEvent(
   base: string,
   token: string,
@@ -261,6 +268,7 @@ function Widget({ config }: PluginWidgetProps) {
   const [saveErr, setSaveErr] = useState<string | null>(null)
 
   // Kalender-Filter (Zahnrad): ausgeblendete Quell-Kalender, pro Browser gemerkt.
+  const [allCals, setAllCals] = useState<CalInfo[]>([]) // vollstaendige Liste vom Server
   const [gearOpen, setGearOpen] = useState(false)
   const [hiddenSrc, setHiddenSrc] = useState<Set<string>>(() => {
     try {
@@ -304,6 +312,17 @@ function Widget({ config }: PluginWidgetProps) {
     const t = setInterval(() => void load(), refreshMs)
     return () => clearInterval(t)
   }, [load, refreshMs])
+
+  // Vollstaendige Kalenderliste (alle Kalender, auch leere) — einmalig je base/token,
+  // NICHT beim Polling (Google-Call). Fuer den Zahnrad-Filter.
+  useEffect(() => {
+    if (!base || !token) return
+    let alive = true
+    fetchAllCalendars(base, token)
+      .then((cs) => { if (alive) setAllCals(cs) })
+      .catch(() => { /* Filter faellt sonst auf Event-Quellen zurueck */ })
+    return () => { alive = false }
+  }, [base, token])
 
   // Ziele erst beim Öffnen des Formulars holen (Google-Call vermeiden beim Pollen).
   // Optionales Datum (Klick auf einen Tag) belegt das Formular vor.
@@ -415,15 +434,18 @@ function Widget({ config }: PluginWidgetProps) {
     () => (events ?? []).filter((e) => !hiddenSrc.has(e.source_key || `dav:${e.dav_account_id ?? 'local'}`)),
     [events, hiddenSrc],
   )
-  // Alle vorkommenden Quell-Kalender (key → Name/Farbe) fuer die Zahnrad-Liste.
+  // Quell-Kalender fuer die Zahnrad-Liste: vollstaendige Server-Liste (ALLE
+  // Kalender, auch ohne Termine) als Basis, ergaenzt um Event-Quellen, die dort
+  // nicht stehen (z. B. CalDAV) — so fehlt kein Kalender mehr.
   const sources = useMemo(() => {
     const m = new Map<string, { key: string; name: string; color: string }>()
+    for (const c of allCals) m.set(c.key, { key: c.key, name: c.name, color: c.color || '' })
     for (const e of events ?? []) {
       const key = e.source_key || `dav:${e.dav_account_id ?? 'local'}`
       if (!m.has(key)) m.set(key, { key, name: e.source_name || (key === 'local' ? 'Lokal' : key), color: e.source_color || '' })
     }
     return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [events])
+  }, [allCals, events])
 
   const grouped = useMemo(() => {
     const out = new Map<string, Ev[]>()
@@ -573,6 +595,25 @@ function Widget({ config }: PluginWidgetProps) {
             ＋
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={() => void load()}
+          title={de ? 'Aktualisieren' : 'Refresh'}
+          style={{
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            borderRadius: 6,
+            width: 24,
+            height: 24,
+            fontSize: 13,
+            lineHeight: 1,
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          ⟳
+        </button>
         {sources.length > 0 ? (
           <button
             type="button"
@@ -742,7 +783,7 @@ function Widget({ config }: PluginWidgetProps) {
             <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
               {selDayEvents.length === 0 ? (
                 <p style={{ margin: 0, fontSize: 'clamp(9px, 2.4cqmin, 11px)', color: 'var(--text-muted)' }}>
-                  {de ? 'Keine Termine.' : 'No events.'}
+                  {de ? 'Keine Termine an diesem Tag' : 'No events on this day'}
                 </p>
               ) : (
                 selDayEvents.map((ev) => (
@@ -1021,7 +1062,7 @@ function Widget({ config }: PluginWidgetProps) {
                 </div>
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
                   {(eventsByDay.get(dayModal)?.length ?? 0) === 0 ? (
-                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>{de ? 'Keine Termine.' : 'No events.'}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>{de ? 'Keine Termine an diesem Tag' : 'No events on this day'}</p>
                   ) : (
                     (eventsByDay.get(dayModal) ?? []).map((ev) => (
                       <button
@@ -1344,7 +1385,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.4.0',
+  version: '1.5.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',

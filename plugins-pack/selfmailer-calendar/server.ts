@@ -26,7 +26,7 @@ function normalizeBase(raw: string): string {
   return out
 }
 
-type Action = 'summary' | 'targets' | 'create' | 'update' | 'delete'
+type Action = 'summary' | 'targets' | 'calendars' | 'create' | 'update' | 'delete'
 
 interface ReqBody {
   action?: Action
@@ -115,6 +115,9 @@ export async function handleCalendarRequest(req: Request): Promise<Response> {
   let init: RequestInit
   if (action === 'targets') {
     url = `${base}/api/v1/calendar/targets?token=${tq}`
+    init = { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
+  } else if (action === 'calendars') {
+    url = `${base}/api/v1/calendar/calendars?token=${tq}`
     init = { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
   } else if (action === 'create') {
     const start = String(body.start ?? '').trim()

@@ -196,6 +196,9 @@ async function handleCalendarRequest(req) {
   if (action === "targets") {
     url = `${base}/api/v1/calendar/targets?token=${tq}`;
     init = { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" };
+  } else if (action === "calendars") {
+    url = `${base}/api/v1/calendar/calendars?token=${tq}`;
+    init = { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" };
   } else if (action === "create") {
     const start = String(body.start ?? "").trim();
     const end = String(body.end ?? "").trim();
