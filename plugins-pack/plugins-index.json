@@ -3,7 +3,7 @@
   "repository": "kabelsalatundklartext/selfdashboard",
   "ref": "main",
   "basePath": "plugins-pack",
-  "generatedAt": "2026-06-21T14:39:34.106Z",
+  "generatedAt": "2026-06-22T16:58:58.702Z",
   "plugins": [
     {
       "id": "adguard",
@@ -577,6 +577,27 @@
         "h": 3,
         "minW": 2,
         "minH": 2
+      },
+      "files": [
+        "plugin.json",
+        "widget.js",
+        "server.mjs"
+      ],
+      "hasServer": true
+    },
+    {
+      "id": "selfmailer-calendar",
+      "name": "SelfMailer Kalender",
+      "description": "Kommende Termine aus SelfMailer anzeigen UND neue Termine anlegen — direkt in SelfMailer, mit automatischem Push in den gewählten Google-Kalender. Quelle: SelfMailer-Server (Basis-URL + Token), kein eigener Kalender-Speicher.",
+      "version": "1.0.0",
+      "author": "SelfDashboard",
+      "category": "productivity",
+      "icon": "📅",
+      "defaultLayout": {
+        "w": 4,
+        "h": 4,
+        "minW": 2,
+        "minH": 3
       },
       "files": [
         "plugin.json",
