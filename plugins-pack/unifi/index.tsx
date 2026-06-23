@@ -346,7 +346,7 @@ export const meta: PluginMeta = {
   name: 'UniFi Controller',
   description:
     'UniFi-Netzwerkstatus: WLAN/LAN/WAN, APs, Switches, Clients (Controller-Login, serverseitig). (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'network',
   icon: '📶',

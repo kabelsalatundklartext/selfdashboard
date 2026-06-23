@@ -56,14 +56,27 @@ export function legacyStoreExists(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// async mutex (single queue for all calendar files)
+// async mutex — eine Queue PRO Owner-Store (Datei).
+//
+// Früher gab es eine einzige globale Queue für alle Kalender-Dateien. Da der
+// Sync seine Netzwerk-Calls innerhalb des Locks ausführt (siehe sync.ts), hat
+// ein langsamer/toter CalDAV-Server eines Nutzers die Schreibzugriffe ALLER
+// Nutzer blockiert. Jeder Owner schreibt eine eigene Datei → pro-Owner-Lock
+// reicht für die Datei-Sicherheit und entkoppelt die Nutzer voneinander.
 // ---------------------------------------------------------------------------
 
-let chain: Promise<unknown> = Promise.resolve()
+const chains = new Map<string, Promise<unknown>>()
 
-function withLock<T>(fn: () => Promise<T> | T): Promise<T> {
-  const next = chain.then(fn)
-  chain = next.catch(() => undefined)
+function withLock<T>(key: string, fn: () => Promise<T> | T): Promise<T> {
+  const prev = chains.get(key) ?? Promise.resolve()
+  const next = prev.then(fn)
+  chains.set(
+    key,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  )
   return next as Promise<T>
 }
 
@@ -112,18 +125,18 @@ export function listCalendarOwnerUserIds(): string[] {
 }
 
 export async function readLegacyStore(): Promise<CalendarStore> {
-  return withLock(() => structuredClone(readSyncFromPath(legacyStorePath())))
+  return withLock(LEGACY_OWNER_ID, () => structuredClone(readSyncFromPath(legacyStorePath())))
 }
 
 export async function readUserStore(userId: string): Promise<CalendarStore> {
-  return withLock(() => structuredClone(readSyncFromPath(userStorePath(userId))))
+  return withLock(userId, () => structuredClone(readSyncFromPath(userStorePath(userId))))
 }
 
 export async function mutateUserStore<T>(
   userId: string,
   fn: (s: CalendarStore) => T | Promise<T>,
 ): Promise<T> {
-  return withLock(async () => {
+  return withLock(userId, async () => {
     const path = userStorePath(userId)
     const store = readSyncFromPath(path)
     const result = await fn(store)
@@ -135,7 +148,7 @@ export async function mutateUserStore<T>(
 export async function mutateLegacyStore<T>(
   fn: (s: CalendarStore) => T | Promise<T>,
 ): Promise<T> {
-  return withLock(async () => {
+  return withLock(LEGACY_OWNER_ID, async () => {
     const path = legacyStorePath()
     const store = readSyncFromPath(path)
     const result = await fn(store)

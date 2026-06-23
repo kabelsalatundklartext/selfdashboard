@@ -18,6 +18,21 @@ const MAX_MESSAGE = 2_000
 const logFilePath = () => join(dataDir(), 'error-log.jsonl')
 const settingsPath = () => join(dataDir(), 'log-settings.json')
 
+/**
+ * Serialisiert alle datei-mutierenden Log-Operationen (append/purge/trim/clear).
+ * Ohne diesen Lock können zwei gleichzeitige Schreiber beim read→purge→write
+ * ineinanderlaufen und Einträge verlieren.
+ */
+let logChain: Promise<unknown> = Promise.resolve()
+function withLogLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = logChain.then(fn, fn)
+  logChain = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
 function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
@@ -123,7 +138,7 @@ async function writeAllEntries(entries: LogEntry[]): Promise<void> {
   }
 }
 
-export async function purgeExpiredLogs(retentionDays?: LogRetentionDays): Promise<number> {
+async function purgeExpiredLogsUnlocked(retentionDays?: LogRetentionDays): Promise<number> {
   const days = retentionDays ?? (await readLogSettings()).retentionDays
   const cutoff = retentionCutoff(days)
   const all = await readAllEntries()
@@ -134,6 +149,10 @@ export async function purgeExpiredLogs(retentionDays?: LogRetentionDays): Promis
   if (kept.length === all.length) return 0
   await writeAllEntries(kept)
   return all.length - kept.length
+}
+
+export function purgeExpiredLogs(retentionDays?: LogRetentionDays): Promise<number> {
+  return withLogLock(() => purgeExpiredLogsUnlocked(retentionDays))
 }
 
 async function trimOversizedFile(): Promise<void> {
@@ -149,9 +168,6 @@ async function trimOversizedFile(): Promise<void> {
 }
 
 export async function appendErrorLog(input: AppendLogInput): Promise<LogEntry> {
-  const settings = await readLogSettings()
-  await purgeExpiredLogs(settings.retentionDays)
-
   const entry: LogEntry = {
     id: newId(),
     ts: new Date().toISOString(),
@@ -164,11 +180,15 @@ export async function appendErrorLog(input: AppendLogInput): Promise<LogEntry> {
     instanceId: input.instanceId ? clampField(input.instanceId, 120) : undefined,
   }
 
-  const dir = dataDir()
-  await mkdir(dir, { recursive: true })
-  await appendFile(logFilePath(), `${JSON.stringify(entry)}\n`, 'utf8')
-  await trimOversizedFile()
-  return entry
+  return withLogLock(async () => {
+    const settings = await readLogSettings()
+    await purgeExpiredLogsUnlocked(settings.retentionDays)
+    const dir = dataDir()
+    await mkdir(dir, { recursive: true })
+    await appendFile(logFilePath(), `${JSON.stringify(entry)}\n`, 'utf8')
+    await trimOversizedFile()
+    return entry
+  })
 }
 
 export async function listErrorLogs(opts?: {
@@ -202,7 +222,7 @@ export async function listErrorLogs(opts?: {
 }
 
 export async function clearErrorLogs(): Promise<void> {
-  await writeAllEntries([])
+  await withLogLock(() => writeAllEntries([]))
 }
 
 export function formatLogsAsText(entries: LogEntry[]): string {

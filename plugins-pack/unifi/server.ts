@@ -116,7 +116,7 @@ async function handlePost(req: Request): Promise<Response> {
     return Response.json({ error: 'invalid_site', detail: 'Site darf nur a–z, 0–9, _ und - enthalten.' }, { status: 400 })
   }
 
-  const insecureTls = body.insecureTls !== false
+  const insecureTls = body.insecureTls === true
 
   const ac = new AbortController()
   const t = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS)

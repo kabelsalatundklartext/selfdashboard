@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
 import { TotpQrImage } from '@/components/auth/TotpQrImage'
 import { authRateLimitMessage, authT } from '@/lib/authScreenI18n'
+import { safeNextPath } from '@/lib/safeNextPath'
 import { useDashboardStore } from '@/lib/store'
 
 export function TotpLoginForm() {
   const router = useRouter()
   const search = useSearchParams()
   const locale = useDashboardStore((s) => s.locale)
-  const nextPath = search.get('next') || '/dashboard/home'
+  const nextPath = safeNextPath(search.get('next'))
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -78,8 +79,7 @@ export function TotpLoginForm() {
         setError(authT(locale, 'totpInvalid'))
         return
       }
-      const target = nextPath.startsWith('/') ? nextPath : '/dashboard/home'
-      window.location.assign(target)
+      window.location.assign(nextPath)
     } catch {
       setError(authT(locale, 'networkError'))
     } finally {
@@ -132,7 +132,7 @@ export function TotpLoginForm() {
           <button
             type="button"
             className="btn-accent py-2.5 rounded-lg font-semibold"
-            onClick={() => window.location.assign(nextPath.startsWith('/') ? nextPath : '/dashboard/home')}
+            onClick={() => window.location.assign(nextPath)}
           >
             {locale === 'de' ? 'Weiter zum Dashboard' : 'Continue to dashboard'}
           </button>

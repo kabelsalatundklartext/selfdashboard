@@ -538,21 +538,25 @@ export function resolveCrowdsecDbPath(userPath: string): string {
   return resolved
 }
 
-let dashboardInflight: Promise<CrowdsecDashboardData> | null = null
-let dashboardInflightKey = ''
+// In-Flight-Dedup pro Query-Key. Früher zwei Modul-Globals (Promise + Key):
+// kam während eines laufenden Calls für Key A ein Call für Key B, überschrieb B
+// die Globals, und das `finally` des zuerst fertigen Calls löschte den jeweils
+// anderen Eintrag → Dedup gebrochen. Eine Map pro Key vermeidet das Rennen.
+const dashboardInflight = new Map<string, Promise<CrowdsecDashboardData>>()
 
 export async function loadCrowdsecDashboard(
   dbPath: string,
   opts: CrowdsecDbOptions = {},
 ): Promise<CrowdsecDashboardData> {
   const key = `${dbPath}|${opts.daysBack ?? 30}|${opts.maxAlerts ?? 2000}`
-  if (dashboardInflight && dashboardInflightKey === key) return dashboardInflight
-  dashboardInflightKey = key
-  dashboardInflight = loadCrowdsecDashboardInner(dbPath, opts).finally(() => {
-    dashboardInflight = null
-    dashboardInflightKey = ''
+  const existing = dashboardInflight.get(key)
+  if (existing) return existing
+  const run = loadCrowdsecDashboardInner(dbPath, opts).finally(() => {
+    // Nur den eigenen Eintrag löschen (referenzgleich), nie einen neueren.
+    if (dashboardInflight.get(key) === run) dashboardInflight.delete(key)
   })
-  return dashboardInflight
+  dashboardInflight.set(key, run)
+  return run
 }
 
 async function loadCrowdsecDashboardInner(

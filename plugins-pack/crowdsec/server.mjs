@@ -155,6 +155,13 @@ import fs from "fs";
 import path from "path";
 import maxmind from "maxmind";
 var readerCache = null;
+function geoipMtimeMs(p) {
+  try {
+    return fs.statSync(p).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
 function isPublicIp(ip) {
   if (!ip || !/^[\d.a-fA-F:]+$/.test(ip)) return false;
   if (ip.includes(":")) {
@@ -219,9 +226,10 @@ async function createGeoipLookup() {
   const dbPath = findGeoipDatabase();
   if (!dbPath) return null;
   try {
-    if (!readerCache || readerCache.path !== dbPath) {
+    const mtimeMs = geoipMtimeMs(dbPath);
+    if (!readerCache || readerCache.path !== dbPath || readerCache.mtimeMs !== mtimeMs) {
       const reader2 = await maxmind.open(dbPath);
-      readerCache = { path: dbPath, reader: reader2 };
+      readerCache = { path: dbPath, mtimeMs, reader: reader2 };
     }
     const reader = readerCache.reader;
     return {
@@ -376,7 +384,30 @@ function decisionUntilClause(alias = "d") {
   const untilSec = decisionUntilUnixSecExpr(alias);
   return `(${untilSec} IS NOT NULL AND ${untilSec} > CAST(strftime('%s', 'now') AS INTEGER))`;
 }
+var columnNameCache = /* @__PURE__ */ new WeakMap();
+function tableColumnNames(db, table) {
+  let perDb = columnNameCache.get(db);
+  if (!perDb) {
+    perDb = /* @__PURE__ */ new Map();
+    columnNameCache.set(db, perDb);
+  }
+  let names = perDb.get(table);
+  if (!names) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+    names = new Set(cols.map((c) => c.name));
+    perDb.set(table, names);
+  }
+  return names;
+}
+var decisionMetaCache = /* @__PURE__ */ new WeakMap();
 function decisionSchemaMeta(db) {
+  const cached = decisionMetaCache.get(db);
+  if (cached) return cached;
+  const result = computeDecisionSchemaMeta(db);
+  decisionMetaCache.set(db, result);
+  return result;
+}
+function computeDecisionSchemaMeta(db) {
   const decisionTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='decisions'").all();
   if (decisionTables.length === 0) {
     return {
@@ -389,8 +420,7 @@ function decisionSchemaMeta(db) {
       hasOrigin: false
     };
   }
-  const dCols = db.prepare("PRAGMA table_info(decisions)").all();
-  const dNames = new Set(dCols.map((c) => c.name));
+  const dNames = tableColumnNames(db, "decisions");
   const linkCol = dNames.has("alert_decisions") ? "alert_decisions" : dNames.has("alert_id") ? "alert_id" : null;
   return {
     hasTable: true,
@@ -466,8 +496,7 @@ function loadAlertIdsWithActiveBan(db) {
 function loadActiveBanFeed(db, geoip) {
   const meta = decisionSchemaMeta(db);
   if (!meta.hasTable || !meta.hasValue) return [];
-  const cols = db.prepare("PRAGMA table_info(decisions)").all();
-  const names = new Set(cols.map((c) => c.name));
+  const names = tableColumnNames(db, "decisions");
   const scenarioExpr = names.has("scenario") ? "d.scenario" : "''";
   const createdExpr = names.has("created_at") ? "d.created_at" : names.has("updated_at") ? "d.updated_at" : "NULL";
   const rows = db.prepare(
@@ -516,8 +545,7 @@ function createdAtUnixSecExpr(alias = "a") {
   )`;
 }
 function countAlertsSince(db, cutoffUnix) {
-  const cols = db.prepare("PRAGMA table_info(alerts)").all();
-  const names = new Set(cols.map((c) => c.name));
+  const names = tableColumnNames(db, "alerts");
   if (!names.has("created_at")) return 0;
   const base = "a.scenario IS NOT NULL AND TRIM(a.scenario) != '' AND TRIM(a.scenario) != 'unknown'";
   const ts = createdAtUnixSecExpr("a");
@@ -563,8 +591,7 @@ function countriesFromRows(rows, geoip) {
   return [...countryMap.entries()].map(([country, count]) => ({ country, count })).sort((a, b) => b.count - a.count);
 }
 function loadCountriesFromDatabase(db, geoip) {
-  const cols = db.prepare("PRAGMA table_info(alerts)").all();
-  const names = new Set(cols.map((c) => c.name));
+  const names = tableColumnNames(db, "alerts");
   const countryCol = names.has("source_country") ? "a.source_country" : names.has("country") ? "a.country" : null;
   if (countryCol) {
     const rows2 = db.prepare(
@@ -587,8 +614,7 @@ LIMIT 15000`).all(...params);
 }
 function buildAlertsSql(db, cutoffUnix, opts = {}) {
   const includeEvents = opts.includeEvents !== false;
-  const cols = db.prepare("PRAGMA table_info(alerts)").all();
-  const names = new Set(cols.map((c) => c.name));
+  const names = tableColumnNames(db, "alerts");
   const ipParts = [];
   if (names.has("source_ip")) ipParts.push("a.source_ip");
   if (names.has("source_value")) ipParts.push("a.source_value");
@@ -651,17 +677,16 @@ function resolveCrowdsecDbPath(userPath) {
   if (!fs2.statSync(resolved).isFile()) throw new Error("db_not_a_file");
   return resolved;
 }
-var dashboardInflight = null;
-var dashboardInflightKey = "";
+var dashboardInflight = /* @__PURE__ */ new Map();
 async function loadCrowdsecDashboard(dbPath, opts = {}) {
   const key = `${dbPath}|${opts.daysBack ?? 30}|${opts.maxAlerts ?? 2e3}`;
-  if (dashboardInflight && dashboardInflightKey === key) return dashboardInflight;
-  dashboardInflightKey = key;
-  dashboardInflight = loadCrowdsecDashboardInner(dbPath, opts).finally(() => {
-    dashboardInflight = null;
-    dashboardInflightKey = "";
+  const existing = dashboardInflight.get(key);
+  if (existing) return existing;
+  const run = loadCrowdsecDashboardInner(dbPath, opts).finally(() => {
+    if (dashboardInflight.get(key) === run) dashboardInflight.delete(key);
   });
-  return dashboardInflight;
+  dashboardInflight.set(key, run);
+  return run;
 }
 async function loadCrowdsecDashboardInner(dbPath, opts = {}) {
   const daysBackRaw = opts.daysBack ?? 30;

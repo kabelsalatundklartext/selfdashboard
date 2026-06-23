@@ -99,10 +99,17 @@ function userStorePath(userId) {
 function legacyStoreExists() {
   return existsSync(legacyStorePath());
 }
-var chain = Promise.resolve();
-function withLock(fn) {
-  const next = chain.then(fn);
-  chain = next.catch(() => void 0);
+var chains = /* @__PURE__ */ new Map();
+function withLock(key, fn) {
+  const prev = chains.get(key) ?? Promise.resolve();
+  const next = prev.then(fn);
+  chains.set(
+    key,
+    next.then(
+      () => void 0,
+      () => void 0
+    )
+  );
   return next;
 }
 function readSyncFromPath(path) {
@@ -142,13 +149,13 @@ function listCalendarOwnerUserIds() {
   return ids;
 }
 async function readLegacyStore() {
-  return withLock(() => structuredClone(readSyncFromPath(legacyStorePath())));
+  return withLock(LEGACY_OWNER_ID, () => structuredClone(readSyncFromPath(legacyStorePath())));
 }
 async function readUserStore(userId) {
-  return withLock(() => structuredClone(readSyncFromPath(userStorePath(userId))));
+  return withLock(userId, () => structuredClone(readSyncFromPath(userStorePath(userId))));
 }
 async function mutateUserStore(userId, fn) {
-  return withLock(async () => {
+  return withLock(userId, async () => {
     const path = userStorePath(userId);
     const store = readSyncFromPath(path);
     const result = await fn(store);
@@ -157,7 +164,7 @@ async function mutateUserStore(userId, fn) {
   });
 }
 async function mutateLegacyStore(fn) {
-  return withLock(async () => {
+  return withLock(LEGACY_OWNER_ID, async () => {
     const path = legacyStorePath();
     const store = readSyncFromPath(path);
     const result = await fn(store);
@@ -1099,7 +1106,7 @@ async function pullCaldav(client, davCal, calendar, store) {
     const fetched = await client.fetchCalendarObjects({ calendar: davCal });
     objects = fetched.map((o) => ({ url: o.url, etag: o.etag ?? "", data: o.data ?? "" }));
   } catch (e) {
-    result.errors.push(`fetch objects: ${e?.message ?? e}`);
+    result.errors.push(`fetch objects: ${e instanceof Error ? e.message : String(e)}`);
     return result;
   }
   const seenUids = /* @__PURE__ */ new Set();
@@ -1177,7 +1184,7 @@ async function pushPendingRemoteDeletes(client, calendar, store) {
       delete ev.pendingRemoteDelete;
       result.deleted++;
     } catch (e) {
-      const msg = String(e?.message ?? e);
+      const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("404")) {
         delete ev.pendingRemoteDelete;
         result.deleted++;
@@ -1255,13 +1262,13 @@ async function pushCaldav(client, davCal, calendar, store) {
             calendarObject: { url: ev.remoteHref, etag: ev.remoteEtag, data: "" }
           });
         } catch (e) {
-          if (!String(e?.message ?? "").includes("404")) throw e;
+          if (!(e instanceof Error ? e.message : String(e)).includes("404")) throw e;
         }
         store.events.splice(store.events.indexOf(ev), 1);
         result.deleted++;
       }
     } catch (e) {
-      const msg = String(e?.message ?? e);
+      const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("412") || msg.includes("Precondition")) {
         ev.syncState = "conflict";
         result.conflicts++;
@@ -1281,7 +1288,7 @@ async function testCaldav(account) {
     const cals = await discoverCaldavCalendars(account);
     return { ok: true, calendars: cals };
   } catch (e) {
-    return { ok: false, error: e?.message ?? String(e) };
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -1321,7 +1328,7 @@ async function syncIcsCalendar(account, calendar, store) {
     if (e instanceof UnsafeOutboundUrlError) {
       return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`blocked_url: ${e.message}`] };
     }
-    return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`fetch: ${e?.message ?? e}`] };
+    return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [`fetch: ${e instanceof Error ? e.message : String(e)}`] };
   }
   if (resp.status === 304) {
     return { added: 0, updated: 0, deleted: 0, conflicts: 0, errors: [] };
@@ -1431,7 +1438,7 @@ async function testIcs(account) {
     return { ok: true, calendars: await discoverIcsCalendars(account) };
   } catch (e) {
     if (e instanceof UnsafeOutboundUrlError) return { ok: false, error: e.message };
-    return { ok: false, error: e?.message ?? String(e) };
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

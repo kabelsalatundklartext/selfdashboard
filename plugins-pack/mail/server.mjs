@@ -82,34 +82,66 @@ import { join as join3 } from "node:path";
 var ALGO = "aes-256-gcm";
 var IV_LEN = 12;
 var KEY_LEN = 32;
-var cachedKey = null;
-function deriveKey(material) {
-  return scryptSync(material, "selfdashboard.calendar.v1", KEY_LEN);
-}
-function loadOrCreateKey() {
-  if (cachedKey) return cachedKey;
+var LEGACY_SALT = "selfdashboard.calendar.v1";
+var cachedPrimaryKey = null;
+var cachedLegacyKey = null;
+function keyMaterial() {
   const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim();
-  if (envKey) {
-    cachedKey = deriveKey(envKey);
-    return cachedKey;
-  }
+  if (envKey) return envKey;
   const keyFile = join3(dataDir(), ".calendar-key");
-  if (existsSync(keyFile)) {
-    cachedKey = deriveKey(readFileSync(keyFile, "utf8").trim());
-    return cachedKey;
-  }
+  if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
   const fresh = randomBytes(32).toString("base64");
-  writeFileSync(keyFile, fresh, "utf8");
   try {
-    chmodSync(keyFile, 384);
+    writeFileSync(keyFile, fresh, { flag: "wx" });
+    try {
+      chmodSync(keyFile, 384);
+    } catch {
+    }
+    return fresh;
   } catch {
+    if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
+    return fresh;
   }
-  cachedKey = deriveKey(fresh);
-  return cachedKey;
+}
+function installSalt() {
+  const saltFile = join3(dataDir(), ".secret-salt");
+  try {
+    if (existsSync(saltFile)) {
+      const v = readFileSync(saltFile, "utf8").trim();
+      if (v) return v;
+    }
+    const fresh = randomBytes(16).toString("hex");
+    try {
+      writeFileSync(saltFile, fresh, { flag: "wx" });
+      try {
+        chmodSync(saltFile, 384);
+      } catch {
+      }
+      return fresh;
+    } catch {
+      const v = existsSync(saltFile) ? readFileSync(saltFile, "utf8").trim() : "";
+      return v || LEGACY_SALT;
+    }
+  } catch {
+    return LEGACY_SALT;
+  }
+}
+function primaryKey() {
+  if (!cachedPrimaryKey) cachedPrimaryKey = scryptSync(keyMaterial(), installSalt(), KEY_LEN);
+  return cachedPrimaryKey;
+}
+function legacyKey() {
+  if (!cachedLegacyKey) cachedLegacyKey = scryptSync(keyMaterial(), LEGACY_SALT, KEY_LEN);
+  return cachedLegacyKey;
+}
+function decryptGcm(key, iv, enc, tag) {
+  const decipher = createDecipheriv(ALGO, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
 function encrypt(plaintext) {
   if (!plaintext) return "";
-  const key = loadOrCreateKey();
+  const key = primaryKey();
   const iv = randomBytes(IV_LEN);
   const cipher = createCipheriv(ALGO, key, iv);
   const enc = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
@@ -118,14 +150,15 @@ function encrypt(plaintext) {
 }
 function decrypt(ciphertext) {
   if (!ciphertext) return "";
-  const key = loadOrCreateKey();
   const buf = Buffer.from(ciphertext, "base64");
   const iv = buf.subarray(0, IV_LEN);
   const tag = buf.subarray(IV_LEN, IV_LEN + 16);
   const data = buf.subarray(IV_LEN + 16);
-  const decipher = createDecipheriv(ALGO, key, iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  try {
+    return decryptGcm(primaryKey(), iv, data, tag);
+  } catch {
+    return decryptGcm(legacyKey(), iv, data, tag);
+  }
 }
 
 // plugins-pack/mail/lib/normalize.ts

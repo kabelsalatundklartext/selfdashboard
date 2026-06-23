@@ -380,7 +380,7 @@ export const meta: PluginMeta = {
   id: 'proxmox',
   name: 'Proxmox VE',
   description: 'Proxmox-Knoten mit CPU/RAM und laufenden VMs/LXCs per API-Token. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'system',
   icon: '🖥️',

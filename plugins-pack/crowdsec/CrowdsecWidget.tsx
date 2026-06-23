@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react'
 import { Copy, Globe, Search, Shield, Trash2 } from 'lucide-react'
 import { pluginApiJson, pluginApiJsonWithStale, reportPluginError } from '@/lib/pluginDev'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { ThemeId } from '@/types'
 import { parseCrowdsecConfig } from './config'
 import { COUNTRY_NAME } from './constants'
@@ -135,6 +136,8 @@ export function CrowdsecWidget({
     [cfg.lookupEnabled],
   )
 
+  const { active } = usePollingActive()
+
   const fetchData = useCallback(async () => {
     const params = new URLSearchParams({
       dbPath: cfg.dbPath,
@@ -159,11 +162,12 @@ export function CrowdsecWidget({
   }, [cfg.dbPath, cfg.daysBack, cfg.maxAlerts])
 
   useEffect(() => {
+    if (!active) return
     setLoading(true)
     void fetchData()
     const id = window.setInterval(() => void fetchData(), cfg.refreshSeconds * 1000)
     return () => window.clearInterval(id)
-  }, [fetchData, cfg.refreshSeconds, cfg.daysBack, cfg.maxAlerts])
+  }, [active, fetchData, cfg.refreshSeconds, cfg.daysBack, cfg.maxAlerts])
 
   const q = search.trim().toLowerCase()
   const baseFeed = useMemo(() => data?.feed ?? [], [data])

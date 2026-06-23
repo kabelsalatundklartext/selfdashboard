@@ -4,42 +4,6 @@ async function logPluginApiFailure(pluginId, operation, message, detail) {
   console.error(`[SelfDashboard][${pluginId}] ${operation}: ${message}${extra}`);
 }
 
-// plugins-pack/_shared/plugin-server-cache.ts
-function createPluginServerCache(options) {
-  const maxEntries = Math.max(1, options.maxEntries ?? 32);
-  const ttlMs = Math.max(0, options.ttlMs);
-  const cache = /* @__PURE__ */ new Map();
-  function evictIfNeeded() {
-    while (cache.size >= maxEntries) {
-      const first = cache.keys().next().value;
-      if (!first) break;
-      cache.delete(first);
-    }
-  }
-  return {
-    get(key) {
-      const entry = cache.get(key);
-      if (!entry) return null;
-      if (Date.now() > entry.expires) {
-        cache.delete(key);
-        return null;
-      }
-      return entry.data;
-    },
-    set(key, data) {
-      if (ttlMs <= 0) return;
-      evictIfNeeded();
-      cache.set(key, { expires: Date.now() + ttlMs, data });
-    },
-    delete(key) {
-      cache.delete(key);
-    },
-    clear() {
-      cache.clear();
-    }
-  };
-}
-
 // plugins-pack/_shared/secret-crypto.ts
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
@@ -57,30 +21,62 @@ function dataDir() {
 var ALGO = "aes-256-gcm";
 var IV_LEN = 12;
 var KEY_LEN = 32;
-var cachedKey = null;
-function deriveKey(material) {
-  return scryptSync(material, "selfdashboard.calendar.v1", KEY_LEN);
-}
-function loadOrCreateKey() {
-  if (cachedKey) return cachedKey;
+var LEGACY_SALT = "selfdashboard.calendar.v1";
+var cachedPrimaryKey = null;
+var cachedLegacyKey = null;
+function keyMaterial() {
   const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim();
-  if (envKey) {
-    cachedKey = deriveKey(envKey);
-    return cachedKey;
-  }
+  if (envKey) return envKey;
   const keyFile = join2(dataDir(), ".calendar-key");
-  if (existsSync(keyFile)) {
-    cachedKey = deriveKey(readFileSync(keyFile, "utf8").trim());
-    return cachedKey;
-  }
+  if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
   const fresh = randomBytes(32).toString("base64");
-  writeFileSync(keyFile, fresh, "utf8");
   try {
-    chmodSync(keyFile, 384);
+    writeFileSync(keyFile, fresh, { flag: "wx" });
+    try {
+      chmodSync(keyFile, 384);
+    } catch {
+    }
+    return fresh;
   } catch {
+    if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
+    return fresh;
   }
-  cachedKey = deriveKey(fresh);
-  return cachedKey;
+}
+function installSalt() {
+  const saltFile = join2(dataDir(), ".secret-salt");
+  try {
+    if (existsSync(saltFile)) {
+      const v = readFileSync(saltFile, "utf8").trim();
+      if (v) return v;
+    }
+    const fresh = randomBytes(16).toString("hex");
+    try {
+      writeFileSync(saltFile, fresh, { flag: "wx" });
+      try {
+        chmodSync(saltFile, 384);
+      } catch {
+      }
+      return fresh;
+    } catch {
+      const v = existsSync(saltFile) ? readFileSync(saltFile, "utf8").trim() : "";
+      return v || LEGACY_SALT;
+    }
+  } catch {
+    return LEGACY_SALT;
+  }
+}
+function primaryKey() {
+  if (!cachedPrimaryKey) cachedPrimaryKey = scryptSync(keyMaterial(), installSalt(), KEY_LEN);
+  return cachedPrimaryKey;
+}
+function legacyKey() {
+  if (!cachedLegacyKey) cachedLegacyKey = scryptSync(keyMaterial(), LEGACY_SALT, KEY_LEN);
+  return cachedLegacyKey;
+}
+function decryptGcm(key, iv, enc, tag) {
+  const decipher = createDecipheriv(ALGO, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
 var TAG_LEN = 16;
 var SEALED_SECRET_PREFIX = "sdsec1:";
@@ -89,17 +85,19 @@ function isSealedSecret(value) {
 }
 function openSealedSecret(value) {
   if (!isSealedSecret(value)) return value;
+  const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), "base64");
+  if (buf.length < IV_LEN + TAG_LEN + 1) return "";
+  const iv = buf.subarray(0, IV_LEN);
+  const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
+  const enc = buf.subarray(IV_LEN + TAG_LEN);
   try {
-    const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), "base64");
-    if (buf.length < IV_LEN + TAG_LEN + 1) return "";
-    const iv = buf.subarray(0, IV_LEN);
-    const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
-    const enc = buf.subarray(IV_LEN + TAG_LEN);
-    const decipher = createDecipheriv(ALGO, loadOrCreateKey(), iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+    return decryptGcm(primaryKey(), iv, enc, tag);
   } catch {
-    return "";
+    try {
+      return decryptGcm(legacyKey(), iv, enc, tag);
+    } catch {
+      return "";
+    }
   }
 }
 
@@ -347,12 +345,21 @@ async function soapAction(client, controlUrl, serviceUrn, action, signal, fetchO
 function digestClient(user, pass) {
   return createTr064DigestClient(user, pass);
 }
+var warnedInsecureFritzHosts = /* @__PURE__ */ new Set();
+function warnInsecureFritzTlsOnce(host) {
+  if (warnedInsecureFritzHosts.has(host)) return;
+  warnedInsecureFritzHosts.add(host);
+  console.warn(
+    `[SelfDashboard] FRITZ!-TLS-Zertifikatspr\xFCfung ist AUS f\xFCr Host ${host} \u2014 Verbindung ungesichert.`
+  );
+}
 async function fetchFritzBoxSummary(conn, signal) {
   const root = fritzboxRootFromInput(conn.baseUrl);
   const origin = tr064OriginFromRoot(root);
   const isHttps = new URL(origin).protocol === "https:";
   const agent = isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : void 0;
   const fetchOpts = agent ? { agent } : {};
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host);
   const client = digestClient(conn.username, conn.password);
   const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts);
   const services = parseTr064Services(descXml);
@@ -515,6 +522,7 @@ async function fetchFritzBoxByteCountersOnly(conn, signal) {
   const isHttps = new URL(origin).protocol === "https:";
   const agent = isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : void 0;
   const fetchOpts = agent ? { agent } : {};
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host);
   const client = digestClient(conn.username, conn.password);
   const { xml: descXml } = await fetchDescriptorXml(client, origin, signal, fetchOpts);
   const services = parseTr064Services(descXml);
@@ -586,22 +594,11 @@ async function fetchFritzBoxByteCountersOnly(conn, signal) {
 // plugins-pack/fritzbox/server.ts
 var FETCH_TIMEOUT_MS = 18e3;
 var MAX_BODY_BYTES = 12e3;
-var summaryCache = createPluginServerCache({
-  ttlMs: Math.max(0, Number(process.env.FRITZBOX_CACHE_MS) || 8e3),
-  maxEntries: 4
-});
-var liteCache = createPluginServerCache({
-  ttlMs: Math.max(0, Number(process.env.FRITZBOX_LITE_CACHE_MS) || 3e3),
-  maxEntries: 4
-});
-function fritzboxCacheKey(baseUrl, username, password, insecureTls) {
-  return `${baseUrl}\0${username}\0${password}\0${insecureTls ? 1 : 0}`;
-}
 function clampStr(v, max) {
   if (typeof v !== "string") return "";
   return v.trim().slice(0, max);
 }
-async function handleFritzboxPluginRequest(req, _path) {
+async function handleFritzboxPluginRequest(req) {
   if (req.method !== "POST") {
     return Response.json({ ok: false, error: "method_not_allowed" }, { status: 405 });
   }
@@ -634,37 +631,28 @@ async function handleFritzboxPluginRequest(req, _path) {
   const lite = body.lite === true;
   const ac = new AbortController();
   const to = setTimeout(() => ac.abort(), FETCH_TIMEOUT_MS);
-  const cacheKey = fritzboxCacheKey(baseUrl, username, password, insecureTls);
   try {
     if (lite) {
-      const hit2 = liteCache.get(cacheKey);
-      if (hit2) return Response.json(hit2);
       const counters = await fetchFritzBoxByteCountersOnly(
         { baseUrl, username, password, insecureTls },
         ac.signal
       );
-      const payload2 = {
+      return Response.json({
         ok: true,
         lite: true,
         ...counters,
         fetchedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-      liteCache.set(cacheKey, payload2);
-      return Response.json(payload2);
+      });
     }
-    const hit = summaryCache.get(cacheKey);
-    if (hit) return Response.json(hit);
     const summary = await fetchFritzBoxSummary(
       { baseUrl, username, password, insecureTls },
       ac.signal
     );
-    const payload = {
+    return Response.json({
       ok: true,
       ...summary,
       fetchedAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-    summaryCache.set(cacheKey, payload);
-    return Response.json(payload);
+    });
   } catch (e) {
     const name = e instanceof Error ? e.name : "";
     const msg = e instanceof Error ? e.message : String(e);
@@ -683,7 +671,7 @@ async function handleFritzboxPluginRequest(req, _path) {
   }
 }
 function fritzboxServerHandler(ctx) {
-  return handleFritzboxPluginRequest(ctx.request, ctx.path);
+  return handleFritzboxPluginRequest(ctx.request);
 }
 var server_default = fritzboxServerHandler;
 export {

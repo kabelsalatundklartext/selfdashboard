@@ -170,7 +170,7 @@ async function handlePost(req: Request): Promise<Response> {
     )
   }
 
-  const insecureTls = body.insecureTls !== false
+  const insecureTls = body.insecureTls === true
   const rpcUrl = `${base}/rpc.php`
 
   const ac = new AbortController()

@@ -7,39 +7,70 @@ const ALGO = 'aes-256-gcm'
 const IV_LEN = 12
 const KEY_LEN = 32
 
-let cachedKey: Buffer | null = null
+// MUSS identisch zur Schlüssel-Ableitung in src/lib/secretCrypto.ts bleiben —
+// Plugin-Server öffnen vom Core versiegelte Werte (sealSecret/openSealedSecret).
+const LEGACY_SALT = 'selfdashboard.calendar.v1'
 
-function deriveKey(material: string): Buffer {
-  return scryptSync(material, 'selfdashboard.calendar.v1', KEY_LEN)
+let cachedPrimaryKey: Buffer | null = null
+let cachedLegacyKey: Buffer | null = null
+
+function keyMaterial(): string {
+  const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim()
+  if (envKey) return envKey
+  const keyFile = join(dataDir(), '.calendar-key')
+  if (existsSync(keyFile)) return readFileSync(keyFile, 'utf8').trim()
+  const fresh = randomBytes(32).toString('base64')
+  try {
+    writeFileSync(keyFile, fresh, { flag: 'wx' })
+    try { chmodSync(keyFile, 0o600) } catch { /* ignore */ }
+    return fresh
+  } catch {
+    if (existsSync(keyFile)) return readFileSync(keyFile, 'utf8').trim()
+    return fresh
+  }
 }
 
-function loadOrCreateKey(): Buffer {
-  if (cachedKey) return cachedKey
-  // Allgemeiner Name bevorzugt; SELFDASHBOARD_CALENDAR_KEY als Legacy-Fallback.
-  const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim()
-  if (envKey) {
-    cachedKey = deriveKey(envKey)
-    return cachedKey
-  }
-  const keyFile = join(dataDir(), '.calendar-key')
-  if (existsSync(keyFile)) {
-    cachedKey = deriveKey(readFileSync(keyFile, 'utf8').trim())
-    return cachedKey
-  }
-  const fresh = randomBytes(32).toString('base64')
-  writeFileSync(keyFile, fresh, 'utf8')
+/** Per-Install-Zufalls-Salt (M3); `.secret-salt`, atomar via `wx`. */
+function installSalt(): string {
+  const saltFile = join(dataDir(), '.secret-salt')
   try {
-    chmodSync(keyFile, 0o600)
+    if (existsSync(saltFile)) {
+      const v = readFileSync(saltFile, 'utf8').trim()
+      if (v) return v
+    }
+    const fresh = randomBytes(16).toString('hex')
+    try {
+      writeFileSync(saltFile, fresh, { flag: 'wx' })
+      try { chmodSync(saltFile, 0o600) } catch { /* ignore */ }
+      return fresh
+    } catch {
+      const v = existsSync(saltFile) ? readFileSync(saltFile, 'utf8').trim() : ''
+      return v || LEGACY_SALT
+    }
   } catch {
-    /* ignore */
+    return LEGACY_SALT
   }
-  cachedKey = deriveKey(fresh)
-  return cachedKey
+}
+
+function primaryKey(): Buffer {
+  if (!cachedPrimaryKey) cachedPrimaryKey = scryptSync(keyMaterial(), installSalt(), KEY_LEN)
+  return cachedPrimaryKey
+}
+
+function legacyKey(): Buffer {
+  if (!cachedLegacyKey) cachedLegacyKey = scryptSync(keyMaterial(), LEGACY_SALT, KEY_LEN)
+  return cachedLegacyKey
+}
+
+function decryptGcm(key: Buffer, iv: Buffer, enc: Buffer, tag: Buffer): string {
+  const decipher = createDecipheriv(ALGO, key, iv)
+  decipher.setAuthTag(tag)
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
 }
 
 export function encrypt(plaintext: string): string {
   if (!plaintext) return ''
-  const key = loadOrCreateKey()
+  const key = primaryKey()
   const iv = randomBytes(IV_LEN)
   const cipher = createCipheriv(ALGO, key, iv)
   const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
@@ -49,14 +80,15 @@ export function encrypt(plaintext: string): string {
 
 export function decrypt(ciphertext: string): string {
   if (!ciphertext) return ''
-  const key = loadOrCreateKey()
   const buf = Buffer.from(ciphertext, 'base64')
   const iv = buf.subarray(0, IV_LEN)
   const tag = buf.subarray(IV_LEN, IV_LEN + 16)
   const data = buf.subarray(IV_LEN + 16)
-  const decipher = createDecipheriv(ALGO, key, iv)
-  decipher.setAuthTag(tag)
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
+  try {
+    return decryptGcm(primaryKey(), iv, data, tag)
+  } catch {
+    return decryptGcm(legacyKey(), iv, data, tag)
+  }
 }
 
 /**
@@ -74,7 +106,7 @@ export function isSealedSecret(value: unknown): value is string {
 
 export function sealSecret(plaintext: string): string {
   if (!plaintext) return ''
-  const key = loadOrCreateKey()
+  const key = primaryKey()
   const iv = randomBytes(IV_LEN)
   const cipher = createCipheriv(ALGO, key, iv)
   const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
@@ -85,16 +117,18 @@ export function sealSecret(plaintext: string): string {
 /** Returns plaintext for sealed values, the value unchanged for legacy plaintext, '' on tamper/key mismatch. */
 export function openSealedSecret(value: string): string {
   if (!isSealedSecret(value)) return value
+  const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), 'base64')
+  if (buf.length < IV_LEN + TAG_LEN + 1) return ''
+  const iv = buf.subarray(0, IV_LEN)
+  const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN)
+  const enc = buf.subarray(IV_LEN + TAG_LEN)
   try {
-    const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), 'base64')
-    if (buf.length < IV_LEN + TAG_LEN + 1) return ''
-    const iv = buf.subarray(0, IV_LEN)
-    const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN)
-    const enc = buf.subarray(IV_LEN + TAG_LEN)
-    const decipher = createDecipheriv(ALGO, loadOrCreateKey(), iv)
-    decipher.setAuthTag(tag)
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString('utf8')
+    return decryptGcm(primaryKey(), iv, enc, tag)
   } catch {
-    return ''
+    try {
+      return decryptGcm(legacyKey(), iv, enc, tag)
+    } catch {
+      return ''
+    }
   }
 }

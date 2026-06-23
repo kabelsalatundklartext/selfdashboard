@@ -9,7 +9,15 @@ export type GeoipLookup = {
   dbPath: string
 }
 
-let readerCache: { path: string; reader: Reader<CityResponse> } | null = null
+let readerCache: { path: string; mtimeMs: number; reader: Reader<CityResponse> } | null = null
+
+function geoipMtimeMs(p: string): number {
+  try {
+    return fs.statSync(p).mtimeMs
+  } catch {
+    return 0
+  }
+}
 
 function isPublicIp(ip: string): boolean {
   if (!ip || !/^[\d.a-fA-F:]+$/.test(ip)) return false
@@ -83,9 +91,12 @@ export async function createGeoipLookup(): Promise<GeoipLookup | null> {
   if (!dbPath) return null
 
   try {
-    if (!readerCache || readerCache.path !== dbPath) {
+    // mtime mitprüfen, damit ein DB-Update (MaxMind-Wochenupdate, manueller
+    // mmdb-Tausch) ohne Prozess-Neustart übernommen wird.
+    const mtimeMs = geoipMtimeMs(dbPath)
+    if (!readerCache || readerCache.path !== dbPath || readerCache.mtimeMs !== mtimeMs) {
       const reader = await maxmind.open<CityResponse>(dbPath)
-      readerCache = { path: dbPath, reader }
+      readerCache = { path: dbPath, mtimeMs, reader }
     }
 
     const reader = readerCache.reader

@@ -371,7 +371,7 @@ export const meta: PluginMeta = {
   id: 'openmediavault',
   name: 'OpenMediaVault',
   description: 'OMV-Systeminfo: Hostname, Version, Uptime, CPU/RAM-Last per RPC-Login. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'storage',
   icon: '🗄️',

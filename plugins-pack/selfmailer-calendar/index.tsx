@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const ACCENT = 'var(--accent, #14b8a6)'
@@ -306,11 +307,14 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }, [base, token, days, view, cursor])
 
+  const { active } = usePollingActive()
+
   useEffect(() => {
+    if (!active) return
     void load()
     const t = setInterval(() => void load(), refreshMs)
     return () => clearInterval(t)
-  }, [load, refreshMs])
+  }, [active, load, refreshMs])
 
   // Vollstaendige Kalenderliste (alle Kalender, auch leere) — einmalig je base/token,
   // NICHT beim Polling (Google-Call). Fuer den Zahnrad-Filter.
@@ -1383,7 +1387,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer Kalender',
   description:
     'Kommende Termine aus SelfMailer anzeigen UND neue anlegen — direkt in SelfMailer mit automatischem Google-Push. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.6.0',
+  version: '1.7.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📅',

@@ -79,8 +79,14 @@ export function getGitHubPluginConfig(): {
 
   const [owner, repo] = repoEnv.split('/').filter(Boolean)
   if (!owner || !repo) return null
+  // owner/repo gegen einen sicheren Zeichensatz prüfen (kein Pfad-Traversal,
+  // keine Host-Manipulation), bevor sie in die Raw-URL interpoliert werden.
+  const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/
+  if (!SAFE_SEGMENT.test(owner) || owner.includes('..')) return null
+  if (!SAFE_SEGMENT.test(repo) || repo.includes('..')) return null
 
   const ref = process.env.SELFDASHBOARD_PLUGINS_GITHUB_REF?.trim() || 'main'
+  if (!/^[A-Za-z0-9._/-]+$/.test(ref) || ref.includes('..')) return null
 
   const basePath = (process.env.SELFDASHBOARD_PLUGINS_GITHUB_PATH?.trim() || 'plugins-pack').replace(
 
@@ -108,7 +114,26 @@ export function githubRawUrl(filePath: string): string | null {
 
   const p = filePath.replace(/^\/+/, '')
 
-  return `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${cfg.ref}/${p}`
+  if (p.includes('..')) return null
+
+  const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${cfg.ref}/${p}`
+
+  // Defense-in-Depth (H6): das Ziel darf NUR GitHub-Raw sein. Verhindert SSRF
+  // auf interne Dienste, falls eine ENV-Override eine andere Host-Form einschmuggelt.
+
+  try {
+
+    const u = new URL(url)
+
+    if (u.protocol !== 'https:' || u.hostname !== 'raw.githubusercontent.com') return null
+
+  } catch {
+
+    return null
+
+  }
+
+  return url
 
 }
 

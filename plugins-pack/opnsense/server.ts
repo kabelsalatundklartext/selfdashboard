@@ -112,7 +112,7 @@ async function handlePost(req: Request): Promise<Response> {
       { status: 400 },
     )
   }
-  const insecureTls = body.insecureTls !== false
+  const insecureTls = body.insecureTls === true
 
   const headers: Record<string, string> = {
     Accept: 'application/json',

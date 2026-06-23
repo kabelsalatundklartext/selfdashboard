@@ -21,30 +21,62 @@ function dataDir() {
 var ALGO = "aes-256-gcm";
 var IV_LEN = 12;
 var KEY_LEN = 32;
-var cachedKey = null;
-function deriveKey(material) {
-  return scryptSync(material, "selfdashboard.calendar.v1", KEY_LEN);
-}
-function loadOrCreateKey() {
-  if (cachedKey) return cachedKey;
+var LEGACY_SALT = "selfdashboard.calendar.v1";
+var cachedPrimaryKey = null;
+var cachedLegacyKey = null;
+function keyMaterial() {
   const envKey = (process.env.SELFDASHBOARD_SECRET_KEY ?? process.env.SELFDASHBOARD_CALENDAR_KEY)?.trim();
-  if (envKey) {
-    cachedKey = deriveKey(envKey);
-    return cachedKey;
-  }
+  if (envKey) return envKey;
   const keyFile = join2(dataDir(), ".calendar-key");
-  if (existsSync(keyFile)) {
-    cachedKey = deriveKey(readFileSync(keyFile, "utf8").trim());
-    return cachedKey;
-  }
+  if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
   const fresh = randomBytes(32).toString("base64");
-  writeFileSync(keyFile, fresh, "utf8");
   try {
-    chmodSync(keyFile, 384);
+    writeFileSync(keyFile, fresh, { flag: "wx" });
+    try {
+      chmodSync(keyFile, 384);
+    } catch {
+    }
+    return fresh;
   } catch {
+    if (existsSync(keyFile)) return readFileSync(keyFile, "utf8").trim();
+    return fresh;
   }
-  cachedKey = deriveKey(fresh);
-  return cachedKey;
+}
+function installSalt() {
+  const saltFile = join2(dataDir(), ".secret-salt");
+  try {
+    if (existsSync(saltFile)) {
+      const v = readFileSync(saltFile, "utf8").trim();
+      if (v) return v;
+    }
+    const fresh = randomBytes(16).toString("hex");
+    try {
+      writeFileSync(saltFile, fresh, { flag: "wx" });
+      try {
+        chmodSync(saltFile, 384);
+      } catch {
+      }
+      return fresh;
+    } catch {
+      const v = existsSync(saltFile) ? readFileSync(saltFile, "utf8").trim() : "";
+      return v || LEGACY_SALT;
+    }
+  } catch {
+    return LEGACY_SALT;
+  }
+}
+function primaryKey() {
+  if (!cachedPrimaryKey) cachedPrimaryKey = scryptSync(keyMaterial(), installSalt(), KEY_LEN);
+  return cachedPrimaryKey;
+}
+function legacyKey() {
+  if (!cachedLegacyKey) cachedLegacyKey = scryptSync(keyMaterial(), LEGACY_SALT, KEY_LEN);
+  return cachedLegacyKey;
+}
+function decryptGcm(key, iv, enc, tag) {
+  const decipher = createDecipheriv(ALGO, key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
 var TAG_LEN = 16;
 var SEALED_SECRET_PREFIX = "sdsec1:";
@@ -53,17 +85,19 @@ function isSealedSecret(value) {
 }
 function openSealedSecret(value) {
   if (!isSealedSecret(value)) return value;
+  const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), "base64");
+  if (buf.length < IV_LEN + TAG_LEN + 1) return "";
+  const iv = buf.subarray(0, IV_LEN);
+  const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
+  const enc = buf.subarray(IV_LEN + TAG_LEN);
   try {
-    const buf = Buffer.from(value.slice(SEALED_SECRET_PREFIX.length), "base64");
-    if (buf.length < IV_LEN + TAG_LEN + 1) return "";
-    const iv = buf.subarray(0, IV_LEN);
-    const tag = buf.subarray(IV_LEN, IV_LEN + TAG_LEN);
-    const enc = buf.subarray(IV_LEN + TAG_LEN);
-    const decipher = createDecipheriv(ALGO, loadOrCreateKey(), iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
+    return decryptGcm(primaryKey(), iv, enc, tag);
   } catch {
-    return "";
+    try {
+      return decryptGcm(legacyKey(), iv, enc, tag);
+    } catch {
+      return "";
+    }
   }
 }
 
@@ -302,8 +336,17 @@ function soapFaultCode(xml) {
 function isHomeautoService(s) {
   return /X_AVM-DE_Homeauto/i.test(s.type) || /\/x_homeauto/i.test(s.controlUrl);
 }
+var warnedInsecureFritzHosts = /* @__PURE__ */ new Set();
+function warnInsecureFritzTlsOnce(host) {
+  if (warnedInsecureFritzHosts.has(host)) return;
+  warnedInsecureFritzHosts.add(host);
+  console.warn(
+    `[SelfDashboard] FRITZ!-TLS-Zertifikatspr\xFCfung ist AUS f\xFCr Host ${host} \u2014 Verbindung ungesichert.`
+  );
+}
 function tr064FetchOpts(origin, conn) {
   const isHttps = origin.startsWith("https:");
+  if (isHttps && conn.insecureTls) warnInsecureFritzTlsOnce(new URL(origin).host);
   const agent = isHttps && conn.insecureTls ? new https.Agent({ rejectUnauthorized: false }) : void 0;
   return agent ? { agent } : {};
 }
@@ -482,7 +525,6 @@ async function webFetch(conn, origin, path, init) {
   return fetch(url.toString(), rest);
 }
 async function loginSid(conn, origin, signal) {
-  const loginUrl = `${origin}${LOGIN_PATH}`;
   const r1 = await webFetch(conn, origin, LOGIN_PATH, { signal });
   const t1 = await r1.text();
   if (!r1.ok) throw new Error(`login_http_${r1.status}`);
@@ -899,7 +941,7 @@ function mergeMonthly(target, add) {
   }
 }
 async function syncBoxEnergyPeriods(key, meta, box, sample) {
-  let store = await readEnergyStore(key) ?? {
+  const store = await readEnergyStore(key) ?? {
     ain: meta.ain,
     baseUrl: meta.baseUrl,
     dailyKwh: {},
@@ -942,7 +984,7 @@ async function importBoxEnergyHistory(key, meta, box, sample) {
   return store;
 }
 async function appendEnergySample(key, meta, sample) {
-  let store = await readEnergyStore(key) ?? {
+  const store = await readEnergyStore(key) ?? {
     ain: meta.ain,
     baseUrl: meta.baseUrl,
     dailyKwh: {},
@@ -1064,13 +1106,17 @@ async function handlePost(req) {
       energyWh: reading.energyWh
     };
     const forceImport = body.action === "importHistory" || body.importHistory === true;
-    let store = await readEnergyStore(key);
+    const store = await readEnergyStore(key);
     let boxSynced = false;
     try {
       const box = await fetchFritzEnergyHistoryFromBox(conn, ain, ac.signal);
       if (box) {
         boxSynced = true;
-        store = forceImport || storeNeedsHistoryImport(store) ? await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample) : await syncBoxEnergyPeriods(key, { ain, baseUrl: conn.baseUrl }, box, sample);
+        if (forceImport || storeNeedsHistoryImport(store)) {
+          await importBoxEnergyHistory(key, { ain, baseUrl: conn.baseUrl }, box, sample);
+        } else {
+          await syncBoxEnergyPeriods(key, { ain, baseUrl: conn.baseUrl }, box, sample);
+        }
       }
     } catch {
     }
@@ -1139,13 +1185,13 @@ async function handleGet(req) {
     boxPeriods: store.boxPeriodKwh ?? null
   });
 }
-async function handleFritzEnergyPluginRequest(req, _path) {
+async function handleFritzEnergyPluginRequest(req) {
   if (req.method === "GET") return handleGet(req);
   if (req.method === "POST") return handlePost(req);
   return Response.json({ ok: false, error: "method_not_allowed" }, { status: 405 });
 }
 function fritzEnergyServerHandler(ctx) {
-  return handleFritzEnergyPluginRequest(ctx.request, ctx.path);
+  return handleFritzEnergyPluginRequest(ctx.request);
 }
 var server_default = fritzEnergyServerHandler;
 export {

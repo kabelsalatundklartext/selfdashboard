@@ -128,25 +128,29 @@ async function fetchSelfstreamSessions(
   return { sessions: Array.isArray(json.sessions) ? json.sessions : [] }
 }
 
+// Emby/Jellyfin-Sessions über den eigenen Server-Proxy holen (server-zu-server,
+// SSRF-Guard) statt direkt aus dem Browser — kein API-Key im DevTools-Netzwerk
+// und kein CORS-Bruch hinter einem Reverse-Proxy/HTTPS.
 async function fetchEmbySessions(baseUrl: string, apiKey: string): Promise<EmbySession[]> {
-  const headers = { Accept: 'application/json', 'X-Emby-Token': apiKey }
-  const paths = ['/emby/Sessions', '/Sessions']
-  let lastErr = ''
-  for (const p of paths) {
-    const res = await fetch(`${baseUrl}${p}`, { method: 'GET', headers, cache: 'no-store' })
-    if (res.ok) {
-      const data = await res.json()
-      return Array.isArray(data) ? data : []
-    }
-    if (res.status === 404) continue
-    const body = await res.text().catch(() => '')
-    lastErr =
-      res.status === 401
-        ? '401 — API-Key prüfen'
-        : `HTTP ${res.status}${body ? `: ${body.slice(0, 100)}` : ''}`
-    throw new Error(lastErr || `HTTP ${res.status}`)
+  const res = await fetch('/api/plugins/selfstream-emby', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: baseUrl, apiKey }),
+    cache: 'no-store',
+  })
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string
+    detail?: string
+    sessions?: EmbySession[]
   }
-  throw new Error(lastErr || 'Sessions-Endpoint nicht gefunden')
+  if (!res.ok) {
+    const msg =
+      json.error === 'auth_failed'
+        ? '401 — API-Key prüfen'
+        : json.detail || json.error || `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return Array.isArray(json.sessions) ? json.sessions : []
 }
 
 function activeEmbySessions(sessions: EmbySession[]): EmbySession[] {
@@ -550,7 +554,7 @@ export const meta: PluginMeta = {
   name: 'Selfstream · Emby · Jellyfin',
   description:
     'Selfstream, Emby und Jellyfin in einer Liste — Quellen-Icon pro Zeile, Widget-Titel anpassbar. Alle Quellen optional.',
-  version: '1.3.1',
+  version: '1.4.0',
   author: 'SelfDashboard',
   category: 'media',
   icon: '📺',

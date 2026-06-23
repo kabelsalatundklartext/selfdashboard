@@ -1,1 +1,14 @@
-SelfDashboard Android: vorgebautes APK in diesem Ordner.
+SelfDashboard Android (WebView-Wrapper) — vorgebautes, signiertes APK in diesem Ordner.
+
+Stand 2026-06-23 (Security-Härtung):
+- android:debuggable entfernt
+- network_security_config: kein Vertrauen mehr in user-CAs (nur System-CAs)
+- WebView setMixedContentMode: ALWAYS_ALLOW -> COMPATIBILITY
+- shouldOverrideUrlLoading: Fremd-Hosts werden NICHT mehr in der App geladen
+- Backup ohne SharedPreferences (server_url)
+- versionName 1.0.0-debug -> 1.0.0
+- Signatur: eigener Release-Key (CN=SelfDashboard), v2+v3
+  Keystore/Passwort/Fingerprint im Memory (selfdashboard-apk-keystore).
+
+Hinweis: Der zuvor ausgelieferte Build war mit einem anderen (verlorenen) Key
+signiert. Eine ggf. installierte Altversion muss vor dem Update deinstalliert werden.

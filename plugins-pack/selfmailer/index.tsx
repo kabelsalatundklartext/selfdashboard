@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
 const ACCENT = 'var(--accent, #14b8a6)'
@@ -96,11 +97,14 @@ function Widget({ config }: PluginWidgetProps) {
     }
   }, [base, token])
 
+  const { active: pollActive } = usePollingActive()
+
   useEffect(() => {
+    if (!pollActive) return
     void load()
     const t = setInterval(() => void load(), refreshMs)
     return () => clearInterval(t)
-  }, [load, refreshMs])
+  }, [pollActive, load, refreshMs])
 
   const shell: CSSProperties = {
     height: '100%',
@@ -417,7 +421,7 @@ export const meta: PluginMeta = {
   name: 'SelfMailer',
   description:
     'Ungelesene Mails über ALLE SelfMailer-Postfächer gebündelt: Gesamtzahl, je Konto und die neuesten Mails. Quelle: SelfMailer-Server (Basis-URL + Token).',
-  version: '1.0.1',
+  version: '1.1.0',
   author: 'SelfDashboard',
   category: 'productivity',
   icon: '📬',

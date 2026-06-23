@@ -7,9 +7,12 @@
  *   - `startScheduler()`   — kick off an in-process periodic sync loop;
  *      invoked from Next.js instrumentation (see `src/instrumentation.ts`)
  *
- * Concurrency: all writes go through `mutateOwnerStore` which is mutex'd, so we
- * can never corrupt the JSON. The sync itself runs network calls outside
- * the mutex and only enters it to merge results back into the store.
+ * Concurrency: all writes go through `mutateOwnerStore`, which is mutex'd
+ * PER OWNER (see store.ts), so we never corrupt a user's JSON and one user's
+ * slow CalDAV server no longer blocks other users. Note: the network sync for
+ * a calendar still runs inside that owner's lock (the two-way merge mutates the
+ * live store as it goes), so it briefly serialises that same owner's other
+ * calendar writes — acceptable, and far less harmful than the old global lock.
  */
 
 import { logPluginApiFailure } from './log'

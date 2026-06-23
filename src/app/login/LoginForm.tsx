@@ -4,12 +4,13 @@ import { FormEvent, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { AuthScreenShell } from '@/components/auth/AuthScreenShell'
 import { authRateLimitMessage, authT } from '@/lib/authScreenI18n'
+import { safeNextPath } from '@/lib/safeNextPath'
 import { useDashboardStore } from '@/lib/store'
 
 export function LoginForm() {
   const search = useSearchParams()
   const locale = useDashboardStore((s) => s.locale)
-  const nextPath = search.get('next') || '/dashboard/home'
+  const nextPath = safeNextPath(search.get('next'))
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
@@ -53,7 +54,7 @@ export function LoginForm() {
         return
       }
 
-      const target = nextPath.startsWith('/') ? nextPath : '/dashboard/home'
+      const target = nextPath
       if (j.needsTotp) {
         window.location.assign(`/login/totp?next=${encodeURIComponent(target)}`)
         return

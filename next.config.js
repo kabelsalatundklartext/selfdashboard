@@ -36,6 +36,27 @@ const nextConfig = {
     return config
   },
   async headers() {
+    // CSP bewusst permissiv bei script-/style-src: Next.js braucht Inline-
+    // Bootstrap (Hydration) und Plugin-Widgets werden als same-origin-Skripte
+    // (/api/plugins/custom-assets/<id>/widget.js) geladen. Die echten Gewinne
+    // sind object-src 'none', base-uri/form-action/frame-ancestors 'self'.
+    // img/connect/media erlauben http(s) für LAN-Plugins (Emby, Kameras …).
+    // Eine Nonce-basierte Verschärfung von script-src ist ein Folge-Schritt.
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https: http:",
+      "font-src 'self' data: https:",
+      "connect-src 'self' https: http: ws: wss:",
+      "media-src 'self' blob: https: http:",
+      "worker-src 'self' blob:",
+      "frame-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+    ].join('; ')
     return [
       {
         source: '/(.*)',
@@ -46,6 +67,13 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
+          },
+          { key: 'Content-Security-Policy', value: csp },
+          // Von Browsern über HTTP ignoriert; greift nur, wenn das Dashboard
+          // per HTTPS (z. B. Reverse-Proxy) ausgeliefert wird.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains',
           },
         ],
       },

@@ -347,7 +347,7 @@ export const meta: PluginMeta = {
   id: 'truenas',
   name: 'TrueNAS',
   description: 'TrueNAS-Systeminfo und Pool-Status per REST-API-Key. (Beta)',
-  version: '0.9.1',
+  version: '0.9.2',
   author: 'SelfDashboard',
   category: 'storage',
   icon: '💾',
