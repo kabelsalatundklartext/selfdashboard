@@ -113,6 +113,7 @@ const hostShimDir = path.join(root, 'scripts', 'plugin-host-shims')
 const hostShimMap = {
   '@/lib/store': path.join(hostShimDir, 'dashboard-store-shim.ts'),
   '@/lib/pluginLocale': path.join(hostShimDir, 'plugin-locale-shim.ts'),
+  '@/lib/pluginUnits': path.join(hostShimDir, 'plugin-units-shim.ts'),
   '@/lib/i18n': path.join(hostShimDir, 'i18n-shim.ts'),
   '@/lib/pluginDev': path.join(hostShimDir, 'plugin-dev-shim.ts'),
 }
@@ -120,7 +121,7 @@ const hostShimMap = {
 const hostSharedShim = {
   name: 'sd-host-shared-shim',
   setup(build) {
-    build.onResolve({ filter: /^@\/lib\/(store|pluginLocale|i18n|pluginDev)$/ }, (args) => {
+    build.onResolve({ filter: /^@\/lib\/(store|pluginLocale|pluginUnits|i18n|pluginDev)$/ }, (args) => {
       const shim = hostShimMap[args.path]
       if (shim) return { path: shim }
     })

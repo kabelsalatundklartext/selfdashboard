@@ -10,6 +10,7 @@ import { t } from '@/lib/i18n'
 import { Portal } from '@/components/ui/Portal'
 import type { ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
+import type { UnitSystem } from '@/lib/units'
 import { SEARCH_PROVIDER_LIST } from '@/lib/searchProviders'
 import type { SearchProviderId } from '@/lib/searchProviders'
 import { MailNavbarToggle } from '@/components/settings/MailNavbarToggle'
@@ -34,6 +35,12 @@ interface Props { open: boolean; onClose: () => void }
 const LOCALES: { id: Locale; flag: string; label: string }[] = [
   { id: 'en', flag: '🇬🇧', label: 'English' },
   { id: 'de', flag: '🇩🇪', label: 'Deutsch' },
+]
+
+const UNIT_SYSTEMS: { id: UnitSystem; label: { en: string; de: string } }[] = [
+  { id: 'auto', label: { en: 'Auto', de: 'Automatisch' } },
+  { id: 'metric', label: { en: 'Metric (°C, km/h)', de: 'Metrisch (°C, km/h)' } },
+  { id: 'imperial', label: { en: 'Imperial (°F, mph)', de: 'Imperial (°F, mph)' } },
 ]
 
 const COLOR_FIELDS = [
@@ -96,6 +103,8 @@ export function SettingsModal({ open, onClose }: Props) {
   const router = useRouter()
   const locale = useDashboardStore((s) => s.locale)
   const setLocale = useDashboardStore((s) => s.setLocale)
+  const unitSystem = useDashboardStore((s) => s.unitSystem)
+  const setUnitSystem = useDashboardStore((s) => s.setUnitSystem)
   const setTheme = useDashboardStore((s) => s.setTheme)
   const setCustomLogo = useDashboardStore((s) => s.setCustomLogo)
   const setCustomColors = useDashboardStore((s) => s.setCustomColors)
@@ -405,6 +414,25 @@ export function SettingsModal({ open, onClose }: Props) {
                       border: `1px solid ${locale === l.id ? 'var(--accent)' : 'var(--border)'}`,
                     }}>
                       <span style={{ fontSize: '18px' }}>{l.flag}</span>{l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  {t(locale, 'units')}
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {UNIT_SYSTEMS.map((u) => (
+                    <button key={u.id} onClick={() => setUnitSystem(u.id)} style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+                      background: unitSystem === u.id ? 'var(--accent)' : 'var(--surface-2)',
+                      color: unitSystem === u.id ? '#fff' : 'var(--text)',
+                      border: `1px solid ${unitSystem === u.id ? 'var(--accent)' : 'var(--border)'}`,
+                    }}>
+                      {u.label[locale]}
                     </button>
                   ))}
                 </div>

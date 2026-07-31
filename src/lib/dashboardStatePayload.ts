@@ -1,5 +1,6 @@
 import type { Dashboard, ThemeId } from '@/types'
 import type { Locale } from '@/lib/i18n'
+import type { UnitSystem } from '@/lib/units'
 import type { NavbarCustomSearchProvider } from '@/lib/searchProviders'
 
 /** Shape stored in `/app/data/dashboard.json` and in zustand `partialize` (browser localStorage cache). */
@@ -7,6 +8,7 @@ export type DashboardStatePersisted = {
   dashboards: Dashboard[]
   activeDashboardId: string
   locale: Locale
+  unitSystem: UnitSystem
   editMode: boolean
   showDashboardTabs: boolean
   navbarStyle: 'icon-text' | 'icon-only' | 'text-only'
@@ -44,6 +46,10 @@ function isThemeId(x: unknown): x is ThemeId {
 
 function isLocale(x: unknown): x is Locale {
   return x === 'en' || x === 'de'
+}
+
+function isUnitSystem(x: unknown): x is UnitSystem {
+  return x === 'auto' || x === 'metric' || x === 'imperial'
 }
 
 function validateWidgetLayout(x: unknown): boolean {
@@ -128,6 +134,7 @@ export function validateDashboardStatePersisted(data: unknown): data is Dashboar
   if (typeof data.activeDashboardId !== 'string' || data.activeDashboardId.length > 120) return false
   if (!dashIds.includes(data.activeDashboardId)) return false
   if (!isLocale(data.locale)) return false
+  if (data.unitSystem !== undefined && !isUnitSystem(data.unitSystem)) return false
   if (typeof data.editMode !== 'boolean') return false
   if (typeof data.showDashboardTabs !== 'boolean') return false
   if (data.navbarStyle !== 'icon-text' && data.navbarStyle !== 'icon-only' && data.navbarStyle !== 'text-only') {
@@ -210,6 +217,7 @@ export function pickPersistedDashboardState(s: DashboardStatePersisted): Dashboa
     dashboards: s.dashboards,
     activeDashboardId: s.activeDashboardId,
     locale: s.locale,
+    unitSystem: isUnitSystem(s.unitSystem) ? s.unitSystem : 'auto',
     editMode: s.editMode,
     showDashboardTabs: s.showDashboardTabs,
     navbarStyle: s.navbarStyle,

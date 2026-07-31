@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePluginUnitSystem } from '@/lib/pluginUnits'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
+
+/** Explicit per-widget override wins; otherwise falls back to the global unit system setting. */
+function resolveTempUnit(rawConfig: unknown, globalImperial: boolean): 'C' | 'F' {
+  const cfg = typeof rawConfig === 'string' ? rawConfig.trim().toUpperCase() : ''
+  if (cfg === 'C' || cfg === 'F') return cfg
+  return globalImperial ? 'F' : 'C'
+}
 
 const GOOGLE_BLUE = '#4285f4'
 const SETPOINT_STEP = 0.5
@@ -159,11 +167,12 @@ function deviceIcon(type: string, size: number, color: string) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { resolved: unitSystem } = usePluginUnitSystem()
   const { active } = usePollingActive()
   const projectId = str(config.projectId)
   const clientId = str(config.clientId)
   const refreshMs = Math.max(10, num(config.refreshSeconds) || 30) * 1000
-  const unit: 'C' | 'F' = str(config.tempUnit).toUpperCase() === 'F' ? 'F' : 'C'
+  const unit: 'C' | 'F' = resolveTempUnit(config.tempUnit, unitSystem === 'imperial')
   const title = config.title === undefined ? 'Google Home' : str(config.title)
   const showTitle = config.showTitle !== false
   const configured = Boolean(projectId && clientId)
@@ -538,10 +547,11 @@ const inp: CSSProperties = {
 
 function Settings({ config, onChange }: PluginSettingsProps) {
   const { de } = usePluginLocale()
+  const { resolved: unitSystem } = usePluginUnitSystem()
   const projectId = str(config.projectId)
   const clientId = str(config.clientId)
   const showTitle = config.showTitle !== false
-  const unit: 'C' | 'F' = str(config.tempUnit).toUpperCase() === 'F' ? 'F' : 'C'
+  const unit: 'C' | 'F' = resolveTempUnit(config.tempUnit, unitSystem === 'imperial')
   const redirectUri = redirectUriFor()
 
   const [status, setStatus] = useState<{ connected: boolean; deviceCount?: number } | null>(null)

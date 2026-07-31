@@ -13,6 +13,7 @@ import {
 } from '@/lib/dashboardBackground'
 import { stripRemovedPlugins } from '@/lib/removedPlugins'
 import type { Locale } from './i18n'
+import type { UnitSystem } from './units'
 import type { SearchProviderId } from './searchProviders'
 import {
   defaultSearchProviders,
@@ -64,6 +65,7 @@ interface DashboardStore {
   dashboards: Dashboard[]
   activeDashboardId: string
   locale: Locale
+  unitSystem: UnitSystem
   editMode: boolean
   showDashboardTabs: boolean
   navbarStyle: "icon-text" | "icon-only" | "text-only"
@@ -102,6 +104,7 @@ interface DashboardStore {
   moveDashboard: (id: string, dir: -1 | 1) => void
   setActiveDashboard: (id: string) => void
   setLocale: (locale: Locale) => void
+  setUnitSystem: (unitSystem: UnitSystem) => void
   setEditMode: (editMode: boolean) => void
   setShowDashboardTabs: (show: boolean) => void
   setNavbarStyle: (style: "icon-text" | "icon-only" | "text-only") => void
@@ -158,6 +161,7 @@ export const useDashboardStore = create<DashboardStore>()(
       dashboards: [DEFAULT_DASHBOARD],
       activeDashboardId: 'home',
       locale: 'de',
+      unitSystem: 'auto',
       editMode: false,
       showDashboardTabs: true,
       navbarStyle: "icon-text",
@@ -212,6 +216,7 @@ export const useDashboardStore = create<DashboardStore>()(
       }),
       setActiveDashboard: (id) => set({ activeDashboardId: id }),
       setLocale: (locale) => set({ locale }),
+      setUnitSystem: (unitSystem) => set({ unitSystem }),
       setEditMode: (editMode) => set({ editMode }),
       setShowDashboardTabs: (showDashboardTabs) => set({ showDashboardTabs }),
       setNavbarStyle: (navbarStyle) => set({ navbarStyle }),

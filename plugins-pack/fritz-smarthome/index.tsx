@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePluginUnitSystem } from '@/lib/pluginUnits'
+import { celsiusToFahrenheit } from '@/lib/units'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
 
@@ -109,6 +111,9 @@ function WindowIcon({ open, color }: { open: boolean; color: string }) {
 
 function Widget({ config }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { resolved: unitSystem } = usePluginUnitSystem()
+  const fmtTemp = (c: number) =>
+    unitSystem === 'imperial' ? `${Math.round(celsiusToFahrenheit(c))}°F` : `${round(c, 1)}°C`
   const baseUrl = str(config.baseUrl) || 'fritz.box'
   const username = str(config.username)
   const password = str(config.password)
@@ -215,7 +220,7 @@ function Widget({ config }: PluginWidgetProps) {
       if (next !== tempC) void setTemp(d, next)
     }
     const info: string[] = []
-    if (d.tist != null) info.push(`${de ? 'Ist' : 'Now'} ${round(d.tist, 1)} °C`)
+    if (d.tist != null) info.push(`${de ? 'Ist' : 'Now'} ${fmtTemp(d.tist)}`)
     if (d.windowOpen) info.push(de ? '🪟 offen' : '🪟 open')
     if (d.batteryLow) info.push(de ? '🔋 schwach' : '🔋 low')
     return (
@@ -257,7 +262,7 @@ function Widget({ config }: PluginWidgetProps) {
 
   const renderSensor = (d: FritzDevice) => {
     const parts: string[] = []
-    if (d.temperature != null) parts.push(`${round(d.temperature, 1)} °C`)
+    if (d.temperature != null) parts.push(fmtTemp(d.temperature))
     if (d.humidity != null) parts.push(`${round(d.humidity, 0)} %`)
     return (
       <div key={d.ain} style={card}>
