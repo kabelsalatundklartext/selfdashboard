@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePluginUnitSystem } from '@/lib/pluginUnits'
+import { celsiusToFahrenheit, type ResolvedUnitSystem } from '@/lib/units'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
@@ -213,12 +215,16 @@ function detectControl(values: Record<string, unknown> | undefined, type = ''): 
   return { kind: 'sensor' }
 }
 
-function sensorText(values: Record<string, unknown> | undefined): string | null {
+function sensorText(values: Record<string, unknown> | undefined, unitSystem: ResolvedUnitSystem): string | null {
   if (!values) return null
   const parts: string[] = []
   for (const dp of SENSOR_DP) {
     if (dp.key in values && values[dp.key] != null) {
-      parts.push(`${round(values[dp.key], dp.d)} ${dp.unit}`.trim())
+      if (dp.unit === '°C' && unitSystem === 'imperial') {
+        parts.push(`${Math.round(celsiusToFahrenheit(Number(values[dp.key])))} °F`)
+      } else {
+        parts.push(`${round(values[dp.key], dp.d)} ${dp.unit}`.trim())
+      }
       if (parts.length >= 2) break
     }
   }
@@ -329,6 +335,9 @@ function WindowIcon({ open, color }: { open: boolean; color: string }) {
 
 function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { resolved: unitSystem } = usePluginUnitSystem()
+  const fmtTemp = (c: number) =>
+    unitSystem === 'imperial' ? `${Math.round(celsiusToFahrenheit(c))}°F` : `${round(c, 1)}°C`
   const updatePluginConfig = useDashboardStore((s) => s.updatePluginConfig)
   const baseUrl = str(config.baseUrl)
   const username = str(config.username)
@@ -557,7 +566,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
                   void setDevice(ch, ctrl.setKey, 'double', next)
                 }
                 const info: string[] = []
-                if (ctrl.actual != null) info.push(`${de ? 'Ist' : 'Now'} ${round(ctrl.actual, 1)} °C`)
+                if (ctrl.actual != null) info.push(`${de ? 'Ist' : 'Now'} ${fmtTemp(ctrl.actual)}`)
                 if (ctrl.window != null) info.push(ctrl.window ? (de ? '🪟 offen' : '🪟 open') : de ? 'Fenster zu' : 'Window closed')
                 if (ctrl.valve != null) info.push(`${de ? 'Ventil' : 'Valve'} ${ctrl.valve}%`)
                 const stepBtn: CSSProperties = { width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 18, fontWeight: 700, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
@@ -602,7 +611,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
                 )
               }
 
-              const sensor = sensorText(v)
+              const sensor = sensorText(v, unitSystem)
               return (
                 <div key={ch.address} style={card}>
                   <div style={{ minWidth: 0 }}>

@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePluginUnitSystem } from '@/lib/pluginUnits'
 import { usePollingActive } from '@/hooks/usePollingActive'
 import { useDashboardStore } from '@/lib/store'
 import type { PluginComponent, PluginMeta, PluginSettingsProps, PluginWidgetProps } from '@/types'
@@ -362,8 +363,9 @@ async function resolveWeather(
   lang: string,
   daily: boolean,
   air: boolean,
+  unit: 'metric' | 'imperial',
 ): Promise<{ hit: Place; forecast: Forecast } | null> {
-  const q = new URLSearchParams({ name, language: lang, includeHourly: '1' })
+  const q = new URLSearchParams({ name, language: lang, includeHourly: '1', unit })
   const cc = countryCode.trim().toUpperCase()
   if (cc.length === 2) q.set('countryCode', cc)
   if (daily) q.set('includeDaily', '1')
@@ -373,8 +375,15 @@ async function resolveWeather(
   return { hit: data.place, forecast: data.forecast }
 }
 
-async function forecastWeather(lat: number, lon: number, signal: AbortSignal, daily: boolean, air: boolean): Promise<Forecast> {
-  const q = new URLSearchParams({ latitude: String(lat), longitude: String(lon), includeHourly: '1' })
+async function forecastWeather(
+  lat: number,
+  lon: number,
+  signal: AbortSignal,
+  daily: boolean,
+  air: boolean,
+  unit: 'metric' | 'imperial',
+): Promise<Forecast> {
+  const q = new URLSearchParams({ latitude: String(lat), longitude: String(lon), includeHourly: '1', unit })
   if (daily) q.set('includeDaily', '1')
   if (air) q.set('includeAir', '1')
   return callWeather<Forecast>(`/forecast?${q}`, signal)
@@ -428,6 +437,8 @@ const SIDE_BY_SIDE = 420
 
 function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const { de } = usePluginLocale()
+  const { resolved: unitSystem } = usePluginUnitSystem()
+  const windUnit = unitSystem === 'imperial' ? 'mph' : 'km/h'
   const cfg = config as Record<string, unknown>
   const name = str(cfg.locationQuery)
   const country = str(cfg.countryCode)
@@ -514,10 +525,10 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
         let forecast: Forecast
         const cached = changed ? null : placeRef.current
         if (cached) {
-          forecast = await forecastWeather(cached.lat, cached.lon, signal, showDaily, showAirQuality)
+          forecast = await forecastWeather(cached.lat, cached.lon, signal, showDaily, showAirQuality, unitSystem)
           hit = cached.hit
         } else {
-          const r = await resolveWeather(name, country, signal, de ? 'de' : 'en', showDaily, showAirQuality)
+          const r = await resolveWeather(name, country, signal, de ? 'de' : 'en', showDaily, showAirQuality, unitSystem)
           if (cancelled) return
           if (!r) {
             placeRef.current = null
@@ -580,7 +591,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
       ac.abort()
       window.clearInterval(id)
     }
-  }, [name, country, refreshMin, de, showDaily, showAirQuality, active])
+  }, [name, country, refreshMin, de, showDaily, showAirQuality, active, unitSystem])
 
   const rootRef = useRef<HTMLDivElement>(null)
   const [wide, setWide] = useState(false)
@@ -740,9 +751,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
     showHumidityWind || showSun || showUvGusts || (showAirQuality && air) ? (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', columnGap: 'clamp(5px, 1.8cqmin, 11px)', rowGap: 0, flexWrap: 'wrap', fontSize: 'clamp(8px, 2cqmin, 10.5px)', color: muted, width: '100%', flexShrink: 0, lineHeight: 1.15 }}>
         {showHumidityWind ? <span>{tr.hum} {humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span> : null}
-        {showHumidityWind ? <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : `${tr.wind} —`}</span> : null}
+        {showHumidityWind ? <span>{windSpeed > 0 ? `${tr.wind} ${Math.round(windSpeed)} ${windUnit} ${windDir(windDeg, de)}` : `${tr.wind} —`}</span> : null}
         {showUvGusts ? <span>UV {Number.isFinite(uv) ? Math.round(uv) : '—'}</span> : null}
-        {showUvGusts ? <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span> : null}
+        {showUvGusts ? <span>{de ? 'Böen' : 'Gusts'} {gusts > 0 ? `${Math.round(gusts)} ${windUnit}` : '—'}</span> : null}
         {showAirQuality && air && air.aqi != null ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />
@@ -778,7 +789,7 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
 
   const statsPillsEl = (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center', flexShrink: 0 }}>
-      {([showHumidityWind ? `${tr.hum} ${humidity != null ? Math.round(nm(humidity, 0)) + '%' : '—'}` : null, showHumidityWind ? `${tr.wind} ${windSpeed > 0 ? Math.round(windSpeed) + ' km/h' : '—'}` : null, showUvGusts ? `UV ${Number.isFinite(uv) ? Math.round(uv) : '—'}` : null, showUvGusts ? `${de ? 'Böen' : 'Gusts'} ${gusts > 0 ? Math.round(gusts) : '—'}` : null, showAirQuality && air && air.aqi != null ? `${de ? 'Luft' : 'Air'} ${air.aqi}` : null, showAirQuality && air && air.pm25 != null ? `PM2.5 ${air.pm25}` : null].filter(Boolean) as string[]).map((t, i) => (
+      {([showHumidityWind ? `${tr.hum} ${humidity != null ? Math.round(nm(humidity, 0)) + '%' : '—'}` : null, showHumidityWind ? `${tr.wind} ${windSpeed > 0 ? Math.round(windSpeed) + ' ' + windUnit : '—'}` : null, showUvGusts ? `UV ${Number.isFinite(uv) ? Math.round(uv) : '—'}` : null, showUvGusts ? `${de ? 'Böen' : 'Gusts'} ${gusts > 0 ? Math.round(gusts) : '—'}` : null, showAirQuality && air && air.aqi != null ? `${de ? 'Luft' : 'Air'} ${air.aqi}` : null, showAirQuality && air && air.pm25 != null ? `PM2.5 ${air.pm25}` : null].filter(Boolean) as string[]).map((t, i) => (
         <span key={i} style={{ background: 'var(--surface-2)', borderRadius: 999, padding: '3px 10px', fontSize: 'clamp(8px, 2cqmin, 10.5px)', color: 'var(--text)' }}>{t}</span>
       ))}
     </div>
@@ -982,9 +993,9 @@ function Widget({ config, instanceId, editMode }: PluginWidgetProps) {
   const statsGridEl = (
     <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(1px, 0.7cqmin, 4px) clamp(8px, 2.6cqmin, 20px)', alignContent: 'center', fontSize: 'clamp(9px, 2.2cqmin, 12.5px)', lineHeight: 1.2 }}>
       {showHumidityWind ? <span><span style={{ color: muted }}>{tr.hum}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{humidity != null ? `${Math.round(nm(humidity, 0))}%` : '—'}</span></span> : null}
-      {showHumidityWind ? <span><span style={{ color: muted }}>{tr.wind}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{windSpeed > 0 ? `${Math.round(windSpeed)} km/h ${windDir(windDeg, de)}` : '—'}</span></span> : null}
+      {showHumidityWind ? <span><span style={{ color: muted }}>{tr.wind}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{windSpeed > 0 ? `${Math.round(windSpeed)} ${windUnit} ${windDir(windDeg, de)}` : '—'}</span></span> : null}
       {showUvGusts ? <span><span style={{ color: muted }}>UV</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{Number.isFinite(uv) ? Math.round(uv) : '—'}</span></span> : null}
-      {showUvGusts ? <span><span style={{ color: muted }}>{de ? 'Böen' : 'Gusts'}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{gusts > 0 ? `${Math.round(gusts)} km/h` : '—'}</span></span> : null}
+      {showUvGusts ? <span><span style={{ color: muted }}>{de ? 'Böen' : 'Gusts'}</span> <span style={{ color: 'var(--text)', fontWeight: 600 }}>{gusts > 0 ? `${Math.round(gusts)} ${windUnit}` : '—'}</span></span> : null}
       {showAirQuality && air && air.aqi != null ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: muted }}><span style={{ width: 7, height: 7, borderRadius: '50%', background: aqiColor(air.aqi), flexShrink: 0 }} />{air.aqi} {aqiLabel(air.aqi, de)}</span> : null}
       {showSun && sun ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: muted }}><Sunrise aria-hidden style={{ width: 12, height: 12, color: '#fbbf24', flexShrink: 0 }} />{fmtTime(sun.sunrise, de)}<Sunset aria-hidden style={{ width: 12, height: 12, color: '#fb923c', flexShrink: 0, marginLeft: 6 }} />{fmtTime(sun.sunset, de)}</span> : null}
     </div>
@@ -1265,7 +1276,7 @@ function Settings({ config, onChange }: PluginSettingsProps) {
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', fontWeight: 600 }}>{de ? 'Anzeige im Widget' : 'Widget display'}</p>
-        {check('showHumidityWind', cfgBool(cfg, 'showHumidityWind', true), de ? 'Luftfeuchtigkeit & Wind' : 'Humidity & wind', de ? 'Zeile oben mit Luftfeuchte und Wind (km/h, Himmelsrichtung).' : 'Top row with humidity and wind speed/direction.')}
+        {check('showHumidityWind', cfgBool(cfg, 'showHumidityWind', true), de ? 'Luftfeuchtigkeit & Wind' : 'Humidity & wind', de ? 'Zeile oben mit Luftfeuchte und Windgeschwindigkeit/-richtung.' : 'Top row with humidity and wind speed/direction.')}
         {check('showSunTimes', cfgBool(cfg, 'showSunTimes', true), de ? 'Sonnenauf- & -untergang' : 'Sunrise & sunset', de ? 'Zeiten mit Symbolen unter Luftfeuchte/Wind (Open-Meteo, heute).' : 'Times with icons below humidity/wind (Open-Meteo, today).')}
         {check('showHourTimeline', cfgBool(cfg, 'showHourTimeline', true), de ? '3-Stunden-Verlauf (0–24)' : '3-hour timeline (0–24)', de ? 'Kleine Kacheln mit Uhrzeit, Icon und Temperatur unter dem aktuellen Wetter.' : 'Small tiles with hour, icon and temperature below current weather.')}
         {check('showRainForecast', cfgBool(cfg, 'showRainForecast', true), de ? 'Regen-Vorschau' : 'Rain outlook', de ? 'Mini-Balken der Regenwahrscheinlichkeit der nächsten Stunden + Hinweis „Regen ab …".' : 'Mini bars of rain probability for the next hours + a "rain from …" hint.')}

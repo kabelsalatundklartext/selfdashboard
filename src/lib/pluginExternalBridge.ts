@@ -10,6 +10,7 @@ import { reportPluginError } from '@/lib/pluginLog'
 import { pluginLucideIcons } from '@/lib/pluginLucideBridge'
 import { useDashboardStore } from '@/lib/store'
 import { usePluginLocale } from '@/lib/pluginLocale'
+import { usePluginUnitSystem } from '@/lib/pluginUnits'
 import { t } from '@/lib/i18n'
 import type { PluginComponent, PluginMeta } from '@/types'
 import type { LucideIcon } from 'lucide-react'
@@ -23,6 +24,7 @@ export type SelfDashboardPluginBridge = {
   /** Host Zustand hook — volume widgets must not bundle a separate store copy. */
   useDashboardStore: typeof useDashboardStore
   usePluginLocale: typeof usePluginLocale
+  usePluginUnitSystem: typeof usePluginUnitSystem
   t: typeof t
   registerPlugin: (meta: PluginMeta, component: PluginComponent, opts?: { replace?: boolean }) => void
   registerNavbarSlot: typeof registerNavbarSlot
@@ -47,6 +49,7 @@ export function installPluginExternalBridge(): void {
     LucideReact: pluginLucideIcons,
     useDashboardStore,
     usePluginLocale,
+    usePluginUnitSystem,
     t,
     registerPlugin,
     registerNavbarSlot,

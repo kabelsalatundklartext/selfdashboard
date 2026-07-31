@@ -14,6 +14,9 @@ var RESOLVE_BUDGET_MS = 28e3;
 var CACHE_TTL_MS = 8 * 60 * 1e3;
 var CACHE_MAX = 64;
 var cache = /* @__PURE__ */ new Map();
+function readUnit(sp) {
+  return sp.get("unit") === "imperial" ? "imperial" : "metric";
+}
 function cacheGet(key) {
   const e = cache.get(key);
   if (!e) return null;
@@ -68,7 +71,8 @@ async function openMeteoGeocode(params) {
   return data;
 }
 async function openMeteoForecast(params) {
-  const cacheKey = `fc:${params.latitude.toFixed(4)}:${params.longitude.toFixed(4)}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:${params.includeAir ? 1 : 0}:hc3`;
+  const unit = params.unit ?? "metric";
+  const cacheKey = `fc:${params.latitude.toFixed(4)}:${params.longitude.toFixed(4)}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:${params.includeAir ? 1 : 0}:${unit}:hc3`;
   const cached = cacheGet(cacheKey);
   if (cached) return cached;
   const q = new URLSearchParams({
@@ -77,6 +81,10 @@ async function openMeteoForecast(params) {
     timezone: "auto",
     current: "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"
   });
+  if (unit === "imperial") {
+    q.set("temperature_unit", "fahrenheit");
+    q.set("wind_speed_unit", "mph");
+  }
   if (params.includeHourly) q.set("hourly", "temperature_2m,weather_code,is_day,precipitation_probability,precipitation");
   if (params.includeHourly || params.includeDaily) {
     q.set(
@@ -123,7 +131,7 @@ function resolveBudgetAbort() {
 }
 async function openMeteoResolve(params) {
   const cc = params.countryCode?.trim().toUpperCase() ?? "";
-  const cacheKey = `resolve:${params.name.trim().toLowerCase()}:${cc}:${params.language}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:${params.includeAir ? 1 : 0}`;
+  const cacheKey = `resolve:${params.name.trim().toLowerCase()}:${cc}:${params.language}:${params.includeHourly ? 1 : 0}:${params.includeDaily ? 1 : 0}:${params.includeAir ? 1 : 0}:${params.unit ?? "metric"}`;
   const cached = cacheGet(cacheKey);
   if (cached?.place && cached.forecast) return cached;
   const budget = resolveBudgetAbort();
@@ -142,7 +150,8 @@ async function openMeteoResolve(params) {
       longitude: place.longitude,
       includeHourly: params.includeHourly,
       includeDaily: params.includeDaily,
-      includeAir: params.includeAir
+      includeAir: params.includeAir,
+      unit: params.unit
     });
     return { place, forecast };
   })();
@@ -203,7 +212,7 @@ async function handleWeatherPluginRequest(req, path) {
         return Response.json({ error: "invalid_coordinates" }, { status: 400 });
       }
       const { includeHourly, includeDaily, includeAir } = readIncludeFlags(sp);
-      const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeHourly, includeDaily, includeAir });
+      const data = await openMeteoForecast({ latitude: lat, longitude: lon, includeHourly, includeDaily, includeAir, unit: readUnit(sp) });
       return Response.json(data);
     }
     if (action === "resolve") {
@@ -212,7 +221,7 @@ async function handleWeatherPluginRequest(req, path) {
       const language = sp.get("language")?.trim() || "de";
       const countryCode = sp.get("countryCode")?.trim() || void 0;
       const { includeHourly, includeDaily, includeAir } = readIncludeFlags(sp);
-      const data = await openMeteoResolve({ name, countryCode, language, includeHourly, includeDaily, includeAir });
+      const data = await openMeteoResolve({ name, countryCode, language, includeHourly, includeDaily, includeAir, unit: readUnit(sp) });
       return Response.json(data);
     }
     return Response.json({ error: "invalid_action" }, { status: 400 });

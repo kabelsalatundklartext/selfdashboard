@@ -10,6 +10,7 @@ export const translations = {
     dashboardTitle: 'Dashboard Title',
     colorTheme: 'Color Theme',
     language: 'Language',
+    units: 'Units',
     editMode: 'Edit Mode',
     editModeHint: 'Drag & resize widgets',
     mobileStackHint:
@@ -120,6 +121,7 @@ export const translations = {
     dashboardTitle: 'Dashboard-Titel',
     colorTheme: 'Farbthema',
     language: 'Sprache',
+    units: 'Einheiten',
     editMode: 'Bearbeitungsmodus',
     editModeHint: 'Widgets verschieben & skalieren',
     mobileStackHint:
